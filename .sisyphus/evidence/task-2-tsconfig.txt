@@ -1,0 +1,5 @@
+T2 VERIFIED: 2026-05-08
+- tsconfig.base.json: strict=true, module=NodeNext, jsx=react-jsx
+- tsconfig.build.json: extends base, noEmit=false
+- packages/contract/tsconfig.json: extends ../../tsconfig.base.json
+- Path aliases: @xpenser/contract, @xpenser/ui

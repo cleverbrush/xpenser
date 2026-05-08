@@ -1,0 +1,49 @@
+{
+  "name": "@xpenser/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.build.json",
+    "lint:fix": "biome check --fix ./src",
+    "test": "vitest run",
+    "db:generate": "cb-orm migrate generate",
+    "db:run": "cb-orm migrate run",
+    "db:rollback": "cb-orm migrate rollback",
+    "db:status": "cb-orm migrate status",
+    "db:push": "cb-orm db push"
+  },
+  "dependencies": {
+    "@cleverbrush/auth": "*",
+    "@cleverbrush/di": "*",
+    "@cleverbrush/env": "*",
+    "@cleverbrush/log": "*",
+    "@cleverbrush/mapper": "*",
+    "@cleverbrush/orm": "*",
+    "@cleverbrush/orm-cli": "*",
+    "@cleverbrush/otel": "*",
+    "@cleverbrush/schema": "*",
+    "@cleverbrush/scheduler": "*",
+    "@cleverbrush/server": "*",
+    "@cleverbrush/server-openapi": "*",
+    "@opentelemetry/instrumentation-http": "^0.215.0",
+    "@opentelemetry/instrumentation-runtime-node": "^0.28.0",
+    "@opentelemetry/instrumentation-undici": "^0.25.0",
+    "@xpenser/contract": "*",
+    "google-auth-library": "^9.15.0",
+    "knex": "^3.1.0",
+    "pg": "^8.13.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}

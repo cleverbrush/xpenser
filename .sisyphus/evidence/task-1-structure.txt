@@ -1,0 +1,6 @@
+T1 VERIFIED: 2026-05-08
+- package.json: workspaces=["packages/*","apps/*"]
+- turbo.json: build/lint:fix/test/dev/clean/typecheck pipelines
+- Directories: packages/contract, packages/ui, apps/api, apps/web
+- .gitignore, .nvmrc present
+- npm install pending (no actual dependencies yet)
