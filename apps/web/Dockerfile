@@ -1,0 +1,37 @@
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json turbo.json tsconfig.base.json tsconfig.json vitest.config.ts biome.json ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
+COPY packages/client/package.json ./packages/client/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
+
+RUN npm install --ignore-scripts
+
+COPY apps/web ./apps/web
+COPY packages ./packages
+
+RUN npm run build -w @xpenser/contracts && \
+    npm run build -w @xpenser/client && \
+    npm run build -w @xpenser/ui && \
+    npm run build -w @xpenser/web
+
+FROM node:22-alpine AS runtime
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+WORKDIR /app
+
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /app/apps/web/public ./apps/web/public
+
+ENV NODE_ENV=production
+ENV PORT=3000
+EXPOSE 3000
+
+USER appuser
+
+CMD ["node", "apps/web/server.js"]

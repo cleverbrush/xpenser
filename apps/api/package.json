@@ -1,0 +1,40 @@
+{
+    "name": "@xpenser/api",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "scripts": {
+        "dev": "tsx watch --env-file=.env --import @opentelemetry/instrumentation/hook.mjs src/index.ts",
+        "start": "node --import @opentelemetry/instrumentation/hook.mjs --import ./dist/telemetry.js dist/index.js",
+        "build": "tsup && tsc --noEmit -p tsconfig.json",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "clean": "rm -rf dist tsconfig.tsbuildinfo",
+        "db:run": "tsx --env-file=.env src/db/migrate.ts"
+    },
+    "dependencies": {
+        "@cleverbrush/auth": "4.2.0",
+        "@cleverbrush/di": "4.2.0",
+        "@cleverbrush/env": "4.2.0",
+        "@cleverbrush/log": "4.2.0",
+        "@cleverbrush/orm": "4.2.0",
+        "@cleverbrush/otel": "4.2.0",
+        "@cleverbrush/schema": "4.2.0",
+        "@cleverbrush/server": "4.2.0",
+        "@cleverbrush/server-openapi": "4.2.0",
+        "@opentelemetry/instrumentation-http": "0.215.0",
+        "@opentelemetry/instrumentation-runtime-node": "0.28.0",
+        "@opentelemetry/instrumentation-undici": "0.25.0",
+        "@xpenser/contracts": "0.1.0",
+        "google-auth-library": "9.15.0",
+        "knex": "3.1.0",
+        "pg": "8.13.3"
+    },
+    "devDependencies": {
+        "@types/node": "22.15.3",
+        "tsup": "8.5.1",
+        "tsx": "4.21.0",
+        "typescript": "6.0.3"
+    }
+}

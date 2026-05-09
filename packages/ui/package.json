@@ -1,0 +1,42 @@
+{
+    "name": "@xpenser/ui",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "sideEffects": [
+        "./src/styles/*.css"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./styles.css": "./src/styles/globals.css"
+    },
+    "scripts": {
+        "build": "tsup && tsc --noEmit -p tsconfig.json",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "clean": "rm -rf dist tsconfig.tsbuildinfo"
+    },
+    "dependencies": {
+        "@cleverbrush/react-form": "4.2.0",
+        "@radix-ui/react-dialog": "1.1.15",
+        "@radix-ui/react-label": "2.1.7",
+        "@radix-ui/react-select": "2.2.6",
+        "@radix-ui/react-slot": "1.2.3",
+        "class-variance-authority": "0.7.1",
+        "clsx": "2.1.1",
+        "lucide-react": "0.468.0",
+        "tailwind-merge": "2.6.0"
+    },
+    "peerDependencies": {
+        "react": ">=19",
+        "react-dom": ">=19"
+    },
+    "devDependencies": {
+        "@types/react": "19.0.12",
+        "@types/react-dom": "19.0.4",
+        "tsup": "8.5.1",
+        "typescript": "6.0.3"
+    }
+}

@@ -1,0 +1,33 @@
+{
+    "name": "xpenser",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "packageManager": "npm@11.12.1",
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "turbo run dev --parallel",
+        "lint": "biome check .",
+        "lint:fix": "biome check --write .",
+        "build": "turbo run build",
+        "test": "vitest --run",
+        "typecheck": "turbo run typecheck",
+        "clean": "turbo run clean"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "2.4.9",
+        "@testing-library/react": "16.3.2",
+        "@types/node": "22.15.3",
+        "@types/react": "19.0.12",
+        "@types/react-dom": "19.0.4",
+        "@vitest/coverage-v8": "4.1.2",
+        "jsdom": "29.0.1",
+        "tsup": "8.5.1",
+        "turbo": "2.8.21",
+        "typescript": "6.0.3",
+        "vitest": "4.1.2"
+    }
+}
