@@ -3,7 +3,8 @@ import {
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
     LoginBodySchema,
-    RegisterBodySchema
+    RegisterBodySchema,
+    StatsQuerySchema
 } from './schemas.js';
 
 describe('shared schemas', () => {
@@ -79,5 +80,22 @@ describe('shared schemas', () => {
         expect(result.getErrorsFor(field => field.amount).errors[0]).toBe(
             'amount is required'
         );
+    });
+
+    it('validates stats reporting controls', () => {
+        expect(
+            StatsQuerySchema.validate({
+                groupBy: 'week',
+                timeframe: 'custom',
+                from: new Date('2026-05-01T00:00:00.000Z'),
+                to: new Date('2026-05-10T00:00:00.000Z')
+            }).valid
+        ).toBe(true);
+        expect(
+            StatsQuerySchema.validate({
+                groupBy: 'quarter',
+                timeframe: 'this-month'
+            } as never).valid
+        ).toBe(false);
     });
 });

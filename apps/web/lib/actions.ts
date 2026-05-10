@@ -100,8 +100,10 @@ export async function createTransactionAction(formData: FormData) {
     });
     revalidateTag('transactions', 'max');
     revalidateTag('dashboard', 'max');
+    revalidateTag('stats', 'max');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
+    revalidatePath('/stats');
 }
 
 export async function deleteTransactionAction(formData: FormData) {
@@ -111,8 +113,10 @@ export async function deleteTransactionAction(formData: FormData) {
     });
     revalidateTag('transactions', 'max');
     revalidateTag('dashboard', 'max');
+    revalidateTag('stats', 'max');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
+    revalidatePath('/stats');
 }
 
 export async function updatePreferencesAction(formData: FormData) {

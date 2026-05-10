@@ -2,6 +2,7 @@ import type {
     CreateTransactionBody,
     DashboardSummary,
     StatsOverview,
+    StatsQuery,
     Transaction,
     TransactionListQuery
 } from '@xpenser/contracts';
@@ -26,6 +27,22 @@ type DashboardPeriod = 'week' | 'month' | 'quarter' | 'year';
 type StatsBucket = StatsOverview['trend'][number];
 
 type StatsCategory = StatsOverview['byCategory'][number];
+
+type StatsGroupBy = NonNullable<StatsQuery['groupBy']>;
+
+type StatsTimeframe = NonNullable<StatsQuery['timeframe']>;
+
+type StatsRange = {
+    readonly from: Date;
+    readonly to: Date;
+};
+
+type CategoryComparison = {
+    readonly categoryId: number;
+    readonly categoryName: string;
+    readonly type: 'expense' | 'income';
+    readonly total: number;
+};
 
 function mapTransaction(row: TransactionDb): Transaction {
     return {
@@ -255,67 +272,235 @@ function periodRange(period: DashboardPeriod, now = new Date()) {
     return { from, to: now };
 }
 
-function bucketKey(date: Date, period: DashboardPeriod): string {
+function cloneDate(value: Date): Date {
+    return new Date(value.getTime());
+}
+
+function isValidDate(value: unknown): value is Date {
+    return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+function startOfDay(value: Date): Date {
+    const date = cloneDate(value);
+    date.setHours(0, 0, 0, 0);
+    return date;
+}
+
+function endOfDay(value: Date): Date {
+    const date = cloneDate(value);
+    date.setHours(23, 59, 59, 999);
+    return date;
+}
+
+function startOfWeek(value: Date): Date {
+    const date = startOfDay(value);
+    const day = date.getDay();
+    date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+    return date;
+}
+
+function startOfMonth(value: Date): Date {
+    const date = startOfDay(value);
+    date.setDate(1);
+    return date;
+}
+
+function daysInMonth(year: number, month: number): number {
+    return new Date(year, month + 1, 0).getDate();
+}
+
+function addDays(value: Date, days: number): Date {
+    const date = cloneDate(value);
+    date.setDate(date.getDate() + days);
+    return date;
+}
+
+function addMonthsClamped(value: Date, months: number): Date {
+    const source = cloneDate(value);
+    const day = source.getDate();
+    source.setDate(1);
+    source.setMonth(source.getMonth() + months);
+    source.setDate(
+        Math.min(day, daysInMonth(source.getFullYear(), source.getMonth()))
+    );
+    return source;
+}
+
+function addYearsClamped(value: Date, years: number): Date {
+    const source = cloneDate(value);
+    const day = source.getDate();
+    source.setDate(1);
+    source.setFullYear(source.getFullYear() + years);
+    source.setDate(
+        Math.min(day, daysInMonth(source.getFullYear(), source.getMonth()))
+    );
+    return source;
+}
+
+function previousRollingRange(range: StatsRange): StatsRange {
+    const duration = range.to.getTime() - range.from.getTime();
+    const to = new Date(range.from.getTime() - 1);
+    return {
+        from: new Date(to.getTime() - duration),
+        to
+    };
+}
+
+function previousCalendarMonthRange(range: StatsRange): StatsRange {
+    const to = new Date(startOfMonth(range.from).getTime() - 1);
+    return {
+        from: startOfMonth(addMonthsClamped(range.from, -1)),
+        to
+    };
+}
+
+function shiftRangeDays(range: StatsRange, days: number): StatsRange {
+    return {
+        from: addDays(range.from, days),
+        to: addDays(range.to, days)
+    };
+}
+
+function shiftRangeMonths(range: StatsRange, months: number): StatsRange {
+    return {
+        from: addMonthsClamped(range.from, months),
+        to: addMonthsClamped(range.to, months)
+    };
+}
+
+function shiftRangeYears(range: StatsRange, years: number): StatsRange {
+    return {
+        from: addYearsClamped(range.from, years),
+        to: addYearsClamped(range.to, years)
+    };
+}
+
+function normalizeRange(from: Date, to: Date): StatsRange {
+    return from <= to
+        ? { from, to }
+        : { from: startOfDay(to), to: endOfDay(from) };
+}
+
+export function resolveStatsRanges(
+    query: Partial<StatsQuery>,
+    now = new Date()
+) {
+    const timeframe = (query.timeframe ?? 'this-month') as StatsTimeframe;
+    const today = startOfDay(now);
+    let selected: StatsRange;
+
+    if (timeframe === 'this-week') {
+        selected = { from: startOfWeek(now), to: now };
+    } else if (timeframe === 'last-7-days') {
+        selected = { from: addDays(today, -6), to: now };
+    } else if (timeframe === 'last-month') {
+        const currentMonth = startOfMonth(now);
+        selected = {
+            from: startOfMonth(addMonthsClamped(currentMonth, -1)),
+            to: new Date(currentMonth.getTime() - 1)
+        };
+    } else if (timeframe === 'last-30-days') {
+        selected = { from: addDays(today, -29), to: now };
+    } else if (timeframe === 'custom') {
+        selected = normalizeRange(
+            isValidDate(query.from)
+                ? startOfDay(query.from)
+                : startOfMonth(now),
+            isValidDate(query.to) ? endOfDay(query.to) : now
+        );
+    } else {
+        selected = { from: startOfMonth(now), to: now };
+    }
+
+    let previousPeriod: StatsRange;
+    if (timeframe === 'this-week') {
+        previousPeriod = shiftRangeDays(selected, -7);
+    } else if (timeframe === 'this-month') {
+        previousPeriod = shiftRangeMonths(selected, -1);
+    } else if (timeframe === 'last-month') {
+        previousPeriod = previousCalendarMonthRange(selected);
+    } else if (timeframe === 'last-7-days') {
+        previousPeriod = shiftRangeDays(selected, -7);
+    } else if (timeframe === 'last-30-days') {
+        previousPeriod = shiftRangeDays(selected, -30);
+    } else {
+        previousPeriod = previousRollingRange(selected);
+    }
+
+    return {
+        selected,
+        previousPeriod,
+        previousYear: shiftRangeYears(selected, -1)
+    };
+}
+
+function statsBucketKey(date: Date, groupBy: StatsGroupBy): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
-    if (period === 'quarter' || period === 'year') {
+
+    if (groupBy === 'month') {
         return `${year}-${month}`;
     }
 
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const bucketDate = groupBy === 'week' ? startOfWeek(date) : date;
+    const bucketMonth = String(bucketDate.getMonth() + 1).padStart(2, '0');
+    const bucketDay = String(bucketDate.getDate()).padStart(2, '0');
+    return `${bucketDate.getFullYear()}-${bucketMonth}-${bucketDay}`;
 }
 
-function bucketLabel(date: Date, period: DashboardPeriod): string {
-    if (period === 'week') {
+function statsBucketLabel(date: Date, groupBy: StatsGroupBy): string {
+    if (groupBy === 'month') {
         return new Intl.DateTimeFormat('en-US', {
-            weekday: 'short'
+            month: 'short',
+            year: '2-digit'
         }).format(date);
     }
 
-    if (period === 'month') {
-        return new Intl.DateTimeFormat('en-US', {
+    if (groupBy === 'week') {
+        return `Week of ${new Intl.DateTimeFormat('en-US', {
             month: 'short',
             day: 'numeric'
-        }).format(date);
+        }).format(date)}`;
     }
 
     return new Intl.DateTimeFormat('en-US', {
-        month: 'short'
+        month: 'short',
+        day: 'numeric'
     }).format(date);
 }
 
-function addBucketStep(date: Date, period: DashboardPeriod): void {
-    if (period === 'quarter' || period === 'year') {
+function addStatsBucketStep(date: Date, groupBy: StatsGroupBy): void {
+    if (groupBy === 'month') {
         date.setMonth(date.getMonth() + 1, 1);
         return;
     }
 
-    date.setDate(date.getDate() + 1);
+    date.setDate(date.getDate() + (groupBy === 'week' ? 7 : 1));
 }
 
-function trendBuckets(
-    period: DashboardPeriod,
-    range: ReturnType<typeof periodRange>
+function statsTrendBuckets(
+    groupBy: StatsGroupBy,
+    range: StatsRange
 ): Map<string, StatsBucket> {
     const buckets = new Map<string, StatsBucket>();
-    const current = new Date(range.from);
-
-    if (period === 'quarter' || period === 'year') {
-        current.setDate(1);
-    }
+    const current =
+        groupBy === 'week'
+            ? startOfWeek(range.from)
+            : groupBy === 'month'
+              ? startOfMonth(range.from)
+              : startOfDay(range.from);
 
     while (current <= range.to) {
-        const key = bucketKey(current, period);
+        const key = statsBucketKey(current, groupBy);
         buckets.set(key, {
             bucket: key,
-            label: bucketLabel(current, period),
+            label: statsBucketLabel(current, groupBy),
             incomeTotal: 0,
             expenseTotal: 0,
             netTotal: 0,
             transactionCount: 0
         });
-        addBucketStep(current, period);
+        addStatsBucketStep(current, groupBy);
     }
 
     return buckets;
@@ -335,6 +520,177 @@ function topCategory(
             .sort((left, right) => right.total - left.total)[0]?.categoryName ??
         ''
     );
+}
+
+function emptyStatsCategory(
+    category: Pick<StatsCategory, 'categoryId' | 'categoryName' | 'type'>,
+    bucketCount: number
+): StatsCategory {
+    return {
+        categoryId: category.categoryId,
+        categoryName: category.categoryName,
+        type: category.type,
+        total: 0,
+        share: 0,
+        transactionCount: 0,
+        trend: Array.from({ length: bucketCount }, () => 0),
+        previousPeriodTotal: 0,
+        previousYearTotal: 0
+    };
+}
+
+function summarizeSelectedRows(
+    rows: readonly TransactionDb[],
+    groupBy: StatsGroupBy,
+    buckets: Map<string, StatsBucket>
+) {
+    const bucketKeys = Array.from(buckets.keys());
+    const bucketIndexes = new Map(
+        bucketKeys.map((key, index) => [key, index] as const)
+    );
+    const categories = new Map<string, StatsCategory>();
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+    let incomeCount = 0;
+    let expenseCount = 0;
+
+    for (const row of rows) {
+        const total = Number(row.defaultCurrencyAmount);
+        const type = row.type;
+        const date = new Date(row.occurredAt);
+        const bucket = buckets.get(statsBucketKey(date, groupBy));
+
+        if (type === 'income') {
+            incomeTotal += total;
+            incomeCount += 1;
+            if (bucket) {
+                bucket.incomeTotal += total;
+            }
+        } else {
+            expenseTotal += total;
+            expenseCount += 1;
+            if (bucket) {
+                bucket.expenseTotal += total;
+            }
+        }
+
+        if (bucket) {
+            bucket.transactionCount += 1;
+        }
+
+        const categoryKey = `${type}:${row.categoryId}`;
+        const category =
+            categories.get(categoryKey) ??
+            emptyStatsCategory(
+                {
+                    categoryId: row.categoryId,
+                    categoryName: row.category?.name ?? '',
+                    type
+                },
+                bucketKeys.length
+            );
+        const bucketIndex = bucketIndexes.get(statsBucketKey(date, groupBy));
+        category.total += total;
+        category.transactionCount += 1;
+        if (bucketIndex !== undefined) {
+            category.trend[bucketIndex] =
+                (category.trend[bucketIndex] ?? 0) + total;
+        }
+        categories.set(categoryKey, category);
+    }
+
+    for (const bucket of buckets.values()) {
+        bucket.netTotal = bucket.incomeTotal - bucket.expenseTotal;
+    }
+
+    return {
+        categories,
+        incomeTotal,
+        expenseTotal,
+        incomeCount,
+        expenseCount,
+        transactionCount: rows.length,
+        trend: Array.from(buckets.values())
+    };
+}
+
+function summarizeComparisonRows(
+    rows: readonly TransactionDb[],
+    range: StatsRange
+) {
+    const categories = new Map<string, CategoryComparison>();
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+    let incomeCount = 0;
+    let expenseCount = 0;
+
+    for (const row of rows) {
+        const total = Number(row.defaultCurrencyAmount);
+        const type = row.type;
+
+        if (type === 'income') {
+            incomeTotal += total;
+            incomeCount += 1;
+        } else {
+            expenseTotal += total;
+            expenseCount += 1;
+        }
+
+        const categoryKey = `${type}:${row.categoryId}`;
+        const category = categories.get(categoryKey) ?? {
+            categoryId: row.categoryId,
+            categoryName: row.category?.name ?? '',
+            type,
+            total: 0
+        };
+        categories.set(categoryKey, {
+            ...category,
+            total: category.total + total
+        });
+    }
+
+    return {
+        categories,
+        summary: {
+            from: range.from,
+            to: range.to,
+            incomeTotal,
+            expenseTotal,
+            netTotal: incomeTotal - expenseTotal,
+            transactionCount: rows.length,
+            incomeCount,
+            expenseCount
+        }
+    };
+}
+
+function mergeComparisonCategoryTotals(
+    selectedCategories: Map<string, StatsCategory>,
+    comparisonCategories: Map<string, CategoryComparison>,
+    field: 'previousPeriodTotal' | 'previousYearTotal',
+    bucketCount: number
+): void {
+    for (const [key, comparison] of comparisonCategories) {
+        const category =
+            selectedCategories.get(key) ??
+            emptyStatsCategory(comparison, bucketCount);
+        category[field] = comparison.total;
+        selectedCategories.set(key, category);
+    }
+}
+
+async function transactionsForRange(
+    db: AppDb,
+    userId: number,
+    range: StatsRange
+) {
+    return (await db.transactions
+        .include(transaction => transaction.category)
+        .where(transaction => transaction.userId, userId)
+        .whereBetween(
+            transaction => transaction.occurredAt,
+            [range.from, range.to]
+        )) as TransactionDb[];
 }
 
 export async function dashboardSummary(
@@ -401,91 +757,98 @@ export async function dashboardSummary(
 export async function statsOverview(
     db: AppDb,
     userId: number,
-    period: DashboardPeriod
+    query: StatsQuery
 ): Promise<StatsOverview> {
     const user = await getUser(db, userId);
-    const range = periodRange(period);
-    const buckets = trendBuckets(period, range);
+    const groupBy = (query.groupBy ?? 'day') as StatsGroupBy;
+    const timeframe = (query.timeframe ?? 'this-month') as StatsTimeframe;
+    const ranges = resolveStatsRanges({ ...query, groupBy, timeframe });
+    const buckets = statsTrendBuckets(groupBy, ranges.selected);
+    const [selectedRows, previousPeriodRows, previousYearRows] =
+        await Promise.all([
+            transactionsForRange(db, userId, ranges.selected),
+            transactionsForRange(db, userId, ranges.previousPeriod),
+            transactionsForRange(db, userId, ranges.previousYear)
+        ]);
+    const selected = summarizeSelectedRows(selectedRows, groupBy, buckets);
+    const previousPeriod = summarizeComparisonRows(
+        previousPeriodRows,
+        ranges.previousPeriod
+    );
+    const previousYear = summarizeComparisonRows(
+        previousYearRows,
+        ranges.previousYear
+    );
 
-    const rows = (await db.transactions
-        .include(transaction => transaction.category)
-        .where(transaction => transaction.userId, userId)
-        .whereBetween(
-            transaction => transaction.occurredAt,
-            [range.from, range.to]
-        )) as TransactionDb[];
+    mergeComparisonCategoryTotals(
+        selected.categories,
+        previousPeriod.categories,
+        'previousPeriodTotal',
+        buckets.size
+    );
+    mergeComparisonCategoryTotals(
+        selected.categories,
+        previousYear.categories,
+        'previousYearTotal',
+        buckets.size
+    );
 
-    const categories = new Map<string, StatsCategory>();
-    let incomeTotal = 0;
-    let expenseTotal = 0;
-    let incomeCount = 0;
-    let expenseCount = 0;
-
-    for (const row of rows) {
-        const total = Number(row.defaultCurrencyAmount);
-        const type = row.type;
-        const date = new Date(row.occurredAt);
-        const bucket = buckets.get(bucketKey(date, period));
-
-        if (type === 'income') {
-            incomeTotal += total;
-            incomeCount += 1;
-            if (bucket) {
-                bucket.incomeTotal += total;
-            }
-        } else {
-            expenseTotal += total;
-            expenseCount += 1;
-            if (bucket) {
-                bucket.expenseTotal += total;
-            }
-        }
-
-        if (bucket) {
-            bucket.transactionCount += 1;
-            bucket.netTotal = bucket.incomeTotal - bucket.expenseTotal;
-        }
-
-        const categoryKey = `${type}:${row.categoryId}`;
-        const category = categories.get(categoryKey) ?? {
-            categoryId: row.categoryId,
-            categoryName: row.category?.name ?? '',
-            type,
-            total: 0,
-            share: 0
-        };
-        category.total += total;
-        categories.set(categoryKey, category);
-    }
-
-    const byCategory = Array.from(categories.values())
+    const byCategory = Array.from(selected.categories.values())
         .map(category => ({
             ...category,
             share: computeShare(
                 category.total,
-                category.type === 'income' ? incomeTotal : expenseTotal
+                category.type === 'income'
+                    ? selected.incomeTotal
+                    : selected.expenseTotal
             )
         }))
-        .sort((left, right) => right.total - left.total);
-    const netTotal = incomeTotal - expenseTotal;
+        .sort(
+            (left, right) =>
+                Math.max(
+                    right.total,
+                    right.previousPeriodTotal,
+                    right.previousYearTotal
+                ) -
+                Math.max(
+                    left.total,
+                    left.previousPeriodTotal,
+                    left.previousYearTotal
+                )
+        );
+    const netTotal = selected.incomeTotal - selected.expenseTotal;
 
     return {
-        period,
-        from: range.from,
-        to: range.to,
+        groupBy,
+        timeframe,
+        from: ranges.selected.from,
+        to: ranges.selected.to,
         currency: user.defaultCurrency,
-        incomeTotal,
-        expenseTotal,
+        incomeTotal: selected.incomeTotal,
+        expenseTotal: selected.expenseTotal,
         netTotal,
-        savingsRate: incomeTotal > 0 ? (netTotal / incomeTotal) * 100 : 0,
-        transactionCount: rows.length,
-        incomeCount,
-        expenseCount,
-        averageIncome: incomeCount > 0 ? incomeTotal / incomeCount : 0,
-        averageExpense: expenseCount > 0 ? expenseTotal / expenseCount : 0,
+        savingsRate:
+            selected.incomeTotal > 0
+                ? (netTotal / selected.incomeTotal) * 100
+                : 0,
+        transactionCount: selected.transactionCount,
+        incomeCount: selected.incomeCount,
+        expenseCount: selected.expenseCount,
+        averageIncome:
+            selected.incomeCount > 0
+                ? selected.incomeTotal / selected.incomeCount
+                : 0,
+        averageExpense:
+            selected.expenseCount > 0
+                ? selected.expenseTotal / selected.expenseCount
+                : 0,
         largestIncomeCategory: topCategory(byCategory, 'income'),
         largestExpenseCategory: topCategory(byCategory, 'expense'),
-        trend: Array.from(buckets.values()),
-        byCategory
+        trend: selected.trend,
+        byCategory,
+        comparison: {
+            previousPeriod: previousPeriod.summary,
+            previousYear: previousYear.summary
+        }
     };
 }

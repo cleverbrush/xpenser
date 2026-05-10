@@ -24,7 +24,7 @@ const items = [
     },
     {
         href: '/stats',
-        label: 'Stats',
+        label: 'Reports',
         icon: ChartSplineIcon
     },
     {

@@ -13,6 +13,7 @@ import {
     PrincipalSchema,
     RegisterBodySchema,
     StatsOverviewSchema,
+    StatsQuerySchema,
     TokenResponseSchema,
     TransactionListQuerySchema,
     TransactionListResponseSchema,
@@ -145,7 +146,7 @@ export const api = defineApi({
         overview: endpoint
             .get('/api/stats')
             .authorize(PrincipalSchema)
-            .query(DashboardQuerySchema)
+            .query(StatsQuerySchema)
             .cacheTag('stats')
             .responses({ 200: StatsOverviewSchema })
     }

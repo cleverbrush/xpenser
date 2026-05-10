@@ -21,7 +21,7 @@ export function AppNav() {
                             <Link href="/transactions">Transactions</Link>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <Link href="/stats">Stats</Link>
+                            <Link href="/stats">Reports</Link>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
                             <Link href="/settings/categories">Categories</Link>

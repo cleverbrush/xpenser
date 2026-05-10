@@ -15,7 +15,14 @@ import {
 import { redirect } from 'next/navigation';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { getApiClient } from '@/lib/api';
-import { formatDate } from '@/lib/format';
+import {
+    amountClassNameForType,
+    amountClassNameForValue,
+    directionBadgeClassName,
+    formatDate,
+    formatDirectionalMoney,
+    formatMoney
+} from '@/lib/format';
 
 const periods = ['week', 'month', 'quarter', 'year'] as const;
 
@@ -72,27 +79,43 @@ export default async function DashboardPage({
                 <Card>
                     <CardHeader className="p-4 sm:p-6">
                         <CardDescription>Income</CardDescription>
-                        <CardTitle className="text-xl sm:text-lg">
-                            {summary.incomeTotal.toFixed(2)} {summary.currency}
+                        <CardTitle
+                            className={`text-xl sm:text-lg ${amountClassNameForType('income')}`}
+                        >
+                            {formatDirectionalMoney(
+                                summary.incomeTotal,
+                                summary.currency,
+                                'income'
+                            )}
                         </CardTitle>
                     </CardHeader>
                 </Card>
                 <Card>
                     <CardHeader className="p-4 sm:p-6">
                         <CardDescription>Expenses</CardDescription>
-                        <CardTitle className="text-xl sm:text-lg">
-                            {summary.expenseTotal.toFixed(2)} {summary.currency}
+                        <CardTitle
+                            className={`text-xl sm:text-lg ${amountClassNameForType('expense')}`}
+                        >
+                            {formatDirectionalMoney(
+                                summary.expenseTotal,
+                                summary.currency,
+                                'expense'
+                            )}
                         </CardTitle>
                     </CardHeader>
                 </Card>
                 <Card>
                     <CardHeader className="p-4 sm:p-6">
                         <CardDescription>Net</CardDescription>
-                        <CardTitle className="text-xl sm:text-lg">
-                            {(
+                        <CardTitle
+                            className={`text-xl sm:text-lg ${amountClassNameForValue(
                                 summary.incomeTotal - summary.expenseTotal
-                            ).toFixed(2)}{' '}
-                            {summary.currency}
+                            )}`}
+                        >
+                            {formatMoney(
+                                summary.incomeTotal - summary.expenseTotal,
+                                summary.currency
+                            )}
                         </CardTitle>
                     </CardHeader>
                 </Card>
@@ -118,15 +141,20 @@ export default async function DashboardPage({
                                             {item.categoryName}
                                         </p>
                                         <Badge
-                                            className="mt-1"
-                                            variant="secondary"
+                                            className={`mt-1 ${directionBadgeClassName(item.type)}`}
+                                            variant="outline"
                                         >
                                             {item.type}
                                         </Badge>
                                     </div>
-                                    <p className="shrink-0 text-sm font-semibold">
-                                        {item.total.toFixed(2)}{' '}
-                                        {summary.currency}
+                                    <p
+                                        className={`shrink-0 text-sm font-semibold ${amountClassNameForType(item.type)}`}
+                                    >
+                                        {formatDirectionalMoney(
+                                            item.total,
+                                            summary.currency,
+                                            item.type
+                                        )}
                                     </p>
                                 </div>
                             ))
@@ -157,12 +185,23 @@ export default async function DashboardPage({
                                             {item.categoryName}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant="secondary">
+                                            <Badge
+                                                className={directionBadgeClassName(
+                                                    item.type
+                                                )}
+                                                variant="outline"
+                                            >
                                                 {item.type}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="text-right">
-                                            {item.total.toFixed(2)}
+                                        <TableCell
+                                            className={`text-right font-medium ${amountClassNameForType(item.type)}`}
+                                        >
+                                            {formatDirectionalMoney(
+                                                item.total,
+                                                summary.currency,
+                                                item.type
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -193,9 +232,14 @@ export default async function DashboardPage({
                                             {formatDate(transaction.occurredAt)}
                                         </p>
                                     </div>
-                                    <p className="shrink-0 text-sm font-semibold">
-                                        {transaction.amount.toFixed(2)}{' '}
-                                        {transaction.currency}
+                                    <p
+                                        className={`shrink-0 text-sm font-semibold ${amountClassNameForType(transaction.type)}`}
+                                    >
+                                        {formatDirectionalMoney(
+                                            transaction.amount,
+                                            transaction.currency,
+                                            transaction.type
+                                        )}
                                     </p>
                                 </div>
                             ))
@@ -221,9 +265,16 @@ export default async function DashboardPage({
                                         <TableCell>
                                             {transaction.categoryName}
                                         </TableCell>
-                                        <TableCell>
-                                            {transaction.amount.toFixed(2)}{' '}
-                                            {transaction.currency}
+                                        <TableCell
+                                            className={amountClassNameForType(
+                                                transaction.type
+                                            )}
+                                        >
+                                            {formatDirectionalMoney(
+                                                transaction.amount,
+                                                transaction.currency,
+                                                transaction.type
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {formatDate(transaction.occurredAt)}

@@ -25,6 +25,21 @@ export const PeriodSchema = enumOf('week', 'month', 'quarter', 'year')
     .describe('Dashboard reporting period.')
     .schemaName('Period');
 
+export const StatsGroupBySchema = enumOf('day', 'week', 'month')
+    .describe('Stats trend grouping.')
+    .schemaName('StatsGroupBy');
+
+export const StatsTimeframeSchema = enumOf(
+    'this-week',
+    'last-7-days',
+    'this-month',
+    'last-month',
+    'last-30-days',
+    'custom'
+)
+    .describe('Stats reporting timeframe.')
+    .schemaName('StatsTimeframe');
+
 export const SortDirectionSchema = enumOf('asc', 'desc')
     .describe('Sort direction.')
     .schemaName('SortDirection');
@@ -367,6 +382,21 @@ export const DashboardQuerySchema = object({
     period: PeriodSchema.default('month').describe('Reporting period.')
 }).schemaName('DashboardQuery');
 
+export const StatsQuerySchema = object({
+    /** Stats trend grouping. */
+    groupBy: StatsGroupBySchema.default('day').describe(
+        'Stats trend grouping.'
+    ),
+    /** Stats reporting timeframe. */
+    timeframe: StatsTimeframeSchema.default('this-month').describe(
+        'Stats reporting timeframe.'
+    ),
+    /** Inclusive custom start date. */
+    from: date().coerce().optional().describe('Inclusive custom start date.'),
+    /** Inclusive custom end date. */
+    to: date().coerce().optional().describe('Inclusive custom end date.')
+}).schemaName('StatsQuery');
+
 export const DashboardCategoryTotalSchema = object({
     /** Category identifier. */
     categoryId: number().describe('Category identifier.'),
@@ -409,12 +439,57 @@ export const StatsCategoryTotalSchema = object({
     /** Share of the matching income or expense total, as a percentage. */
     share: number().describe(
         'Share of the matching income or expense total, as a percentage.'
+    ),
+    /** Number of selected-period transactions in the category. */
+    transactionCount: number().describe(
+        'Number of selected-period transactions in the category.'
+    ),
+    /** Selected-period bucket totals for lightweight category charts. */
+    trend: array(number()).describe(
+        'Selected-period bucket totals for lightweight category charts.'
+    ),
+    /** Matching total in the previous comparison period. */
+    previousPeriodTotal: number().describe(
+        'Matching total in the previous comparison period.'
+    ),
+    /** Matching total in the same period one year earlier. */
+    previousYearTotal: number().describe(
+        'Matching total in the same period one year earlier.'
     )
 }).schemaName('StatsCategoryTotal');
 
+export const StatsComparisonSchema = object({
+    /** Comparison period start timestamp. */
+    from: date().coerce().describe('Comparison period start timestamp.'),
+    /** Comparison period end timestamp. */
+    to: date().coerce().describe('Comparison period end timestamp.'),
+    /** Total expenses in the default currency. */
+    expenseTotal: number().describe('Total expenses in the default currency.'),
+    /** Total income in the default currency. */
+    incomeTotal: number().describe('Total income in the default currency.'),
+    /** Income minus expenses in the default currency. */
+    netTotal: number().describe(
+        'Income minus expenses in the default currency.'
+    ),
+    /** Total transaction count for the comparison period. */
+    transactionCount: number().describe(
+        'Total transaction count for the comparison period.'
+    ),
+    /** Expense transaction count for the comparison period. */
+    expenseCount: number().describe(
+        'Expense transaction count for the comparison period.'
+    ),
+    /** Income transaction count for the comparison period. */
+    incomeCount: number().describe(
+        'Income transaction count for the comparison period.'
+    )
+}).schemaName('StatsComparison');
+
 export const StatsOverviewSchema = object({
-    /** Reporting period used for the stats. */
-    period: PeriodSchema.describe('Reporting period used for the stats.'),
+    /** Stats trend grouping. */
+    groupBy: StatsGroupBySchema.describe('Stats trend grouping.'),
+    /** Stats reporting timeframe. */
+    timeframe: StatsTimeframeSchema.describe('Stats reporting timeframe.'),
     /** Period start timestamp. */
     from: date().coerce().describe('Period start timestamp.'),
     /** Period end timestamp. */
@@ -462,7 +537,18 @@ export const StatsOverviewSchema = object({
     /** Category totals and shares for the selected period. */
     byCategory: array(StatsCategoryTotalSchema).describe(
         'Category totals and shares for the selected period.'
-    )
+    ),
+    /** Comparison totals for matching prior periods. */
+    comparison: object({
+        /** Matching previous period totals. */
+        previousPeriod: StatsComparisonSchema.describe(
+            'Matching previous period totals.'
+        ),
+        /** Same selected period one year earlier. */
+        previousYear: StatsComparisonSchema.describe(
+            'Same selected period one year earlier.'
+        )
+    }).describe('Comparison totals for matching prior periods.')
 }).schemaName('StatsOverview');
 
 export const DashboardSummarySchema = object({
@@ -503,3 +589,4 @@ export type CreateTransactionBody = InferType<
 export type TransactionListQuery = InferType<typeof TransactionListQuerySchema>;
 export type DashboardSummary = InferType<typeof DashboardSummarySchema>;
 export type StatsOverview = InferType<typeof StatsOverviewSchema>;
+export type StatsQuery = InferType<typeof StatsQuerySchema>;

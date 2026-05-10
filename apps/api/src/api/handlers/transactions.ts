@@ -95,5 +95,5 @@ export const dashboardSummaryHandler: Handler<
 export const statsOverviewHandler: Handler<
     typeof StatsOverviewEndpoint
 > = async ({ query, principal }, { db }) => {
-    return statsOverview(db, principal.userId, query.period ?? 'month');
+    return statsOverview(db, principal.userId, query);
 };
