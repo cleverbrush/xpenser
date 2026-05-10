@@ -4,6 +4,7 @@ import {
     CategoryNotFoundError,
     createCategory,
     deleteCategory,
+    LastCategoryError,
     listCategories,
     updateCategory
 } from '../../application/categories.js';
@@ -52,6 +53,9 @@ export const deleteCategoryHandler: Handler<
             return ActionResult.notFound({ message: err.message });
         }
         if (err instanceof CategoryInUseError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        if (err instanceof LastCategoryError) {
             return ActionResult.badRequest({ message: err.message });
         }
         throw err;

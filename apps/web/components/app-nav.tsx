@@ -24,9 +24,6 @@ export function AppNav() {
                             <Link href="/stats">Reports</Link>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <Link href="/settings/categories">Categories</Link>
-                        </Button>
-                        <Button asChild size="sm" variant="ghost">
                             <Link href="/settings/preferences">
                                 Preferences
                             </Link>

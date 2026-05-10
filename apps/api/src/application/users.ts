@@ -35,7 +35,9 @@ async function setFavoriteCurrencies(
     currencies: readonly string[],
     defaultCurrency: string
 ): Promise<void> {
-    const unique = Array.from(new Set([defaultCurrency, ...currencies]));
+    const unique = Array.from(
+        new Set(currencies.filter(currency => currency !== defaultCurrency))
+    );
     await db.favoriteCurrencies
         .where(currency => currency.userId, userId)
         .delete();

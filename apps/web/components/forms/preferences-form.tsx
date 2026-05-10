@@ -12,8 +12,6 @@ import {
     FieldError,
     FieldGroup,
     FieldLabel,
-    FieldLegend,
-    FieldSet,
     Input,
     Select,
     SelectContent,
@@ -24,47 +22,44 @@ import {
 } from '@xpenser/ui';
 import { type FormEvent, useEffect, useState } from 'react';
 import { updatePreferencesAction } from '@/lib/actions';
+import { CurrencyMultiSelect } from './currency-multi-select';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
 
 export function PreferencesForm({
     me,
-    currencies,
-    topCurrencies
+    currencies
 }: {
     readonly me: UserPreference;
     readonly currencies: readonly Currency[];
-    readonly topCurrencies: readonly Currency[];
 }) {
     const form = useSchemaForm(UpdateUserPreferenceBodySchema);
     const defaultCurrency = form.useField(field => field.defaultCurrency);
     const favoriteCurrencies = form.useField(field => field.favoriteCurrencies);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
-    const selectedFavoriteCurrencies =
-        favoriteCurrencies.value ?? me.favoriteCurrencies;
+    const selectedDefaultCurrency = defaultCurrency.value ?? me.defaultCurrency;
+    const selectedFavoriteCurrencies = (
+        favoriteCurrencies.value ?? me.favoriteCurrencies
+    ).filter(currency => currency !== selectedDefaultCurrency);
     const defaultCurrencyInvalid =
         defaultCurrency.touched && Boolean(defaultCurrency.error);
-    const favoriteCurrenciesInvalid =
-        favoriteCurrencies.touched && Boolean(favoriteCurrencies.error);
 
     useEffect(() => {
         form.reset({
             defaultCurrency: me.defaultCurrency,
-            favoriteCurrencies: [...me.favoriteCurrencies]
+            favoriteCurrencies: me.favoriteCurrencies.filter(
+                currency => currency !== me.defaultCurrency
+            )
         });
     }, [form, me.defaultCurrency, me.favoriteCurrencies]);
-
-    function toggleFavoriteCurrency(code: string, checked: boolean) {
-        const nextValues = checked
-            ? Array.from(new Set([...selectedFavoriteCurrencies, code]))
-            : selectedFavoriteCurrencies.filter(value => value !== code);
-
-        favoriteCurrencies.onChange(nextValues);
-    }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
+        const favoriteCurrencies = selectedFavoriteCurrencies.filter(
+            currency => currency !== selectedDefaultCurrency
+        );
+        form.setValue({ favoriteCurrencies });
         const result = await form.submit();
         if (!result.valid || !result.object) {
             return;
@@ -73,7 +68,9 @@ export function PreferencesForm({
         setPending(true);
         setError(null);
         try {
-            await updatePreferencesAction(valuesToFormData(result.object));
+            await updatePreferencesAction(
+                valuesToFormData({ ...result.object, favoriteCurrencies })
+            );
         } catch (caught) {
             if (isNextRedirectError(caught)) {
                 throw caught;
@@ -99,8 +96,15 @@ export function PreferencesForm({
                                 defaultCurrency.onBlur();
                             }
                         }}
-                        onValueChange={defaultCurrency.onChange}
-                        value={defaultCurrency.value ?? me.defaultCurrency}
+                        onValueChange={value => {
+                            defaultCurrency.onChange(value);
+                            favoriteCurrencies.onChange(
+                                selectedFavoriteCurrencies.filter(
+                                    currency => currency !== value
+                                )
+                            );
+                        }}
+                        value={selectedDefaultCurrency}
                     >
                         <SelectTrigger aria-invalid={defaultCurrencyInvalid}>
                             <SelectValue />
@@ -122,39 +126,15 @@ export function PreferencesForm({
                         <FieldError>{defaultCurrency.error}</FieldError>
                     ) : null}
                 </Field>
-                <FieldSet
-                    data-invalid={favoriteCurrenciesInvalid ? true : undefined}
-                >
-                    <FieldLegend>Favorite currencies</FieldLegend>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                        {topCurrencies.map(currency => (
-                            <label
-                                className="flex items-center gap-2 text-sm"
-                                key={currency.code}
-                            >
-                                <input
-                                    checked={selectedFavoriteCurrencies.includes(
-                                        currency.code
-                                    )}
-                                    name="favoriteCurrencies"
-                                    onBlur={favoriteCurrencies.onBlur}
-                                    onChange={event =>
-                                        toggleFavoriteCurrency(
-                                            currency.code,
-                                            event.target.checked
-                                        )
-                                    }
-                                    type="checkbox"
-                                    value={currency.code}
-                                />
-                                {currency.code}
-                            </label>
-                        ))}
-                    </div>
-                    {favoriteCurrencies.touched && favoriteCurrencies.error ? (
-                        <FieldError>{favoriteCurrencies.error}</FieldError>
-                    ) : null}
-                </FieldSet>
+                <CurrencyMultiSelect
+                    currencies={currencies}
+                    error={favoriteCurrencies.error}
+                    excludedCurrency={selectedDefaultCurrency}
+                    onBlur={favoriteCurrencies.onBlur}
+                    onChange={values => favoriteCurrencies.onChange(values)}
+                    selectedCurrencies={selectedFavoriteCurrencies}
+                    touched={favoriteCurrencies.touched}
+                />
                 {error ? <FieldError role="alert">{error}</FieldError> : null}
                 <Button
                     className="w-full sm:w-auto"

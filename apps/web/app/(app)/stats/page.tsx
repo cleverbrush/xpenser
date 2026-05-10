@@ -1,13 +1,5 @@
-import {
-    Button,
-    Card,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-    Field,
-    FieldLabel,
-    Input
-} from '@xpenser/ui';
+import { Card, CardDescription, CardHeader, CardTitle } from '@xpenser/ui';
+import { ReportsFilters } from '@/components/reports-filters';
 import { StatsCharts } from '@/components/stats-charts';
 import { getApiClient } from '@/lib/api';
 import {
@@ -17,24 +9,12 @@ import {
     formatDirectionalMoney,
     formatMoney
 } from '@/lib/format';
-
-const groupByOptions = [
-    { value: 'day', label: 'Day' },
-    { value: 'week', label: 'Week' },
-    { value: 'month', label: 'Month' }
-] as const;
-
-const timeframeOptions = [
-    { value: 'this-week', label: 'This week' },
-    { value: 'last-7-days', label: 'Last 7 days' },
-    { value: 'this-month', label: 'This month' },
-    { value: 'last-month', label: 'Last month' },
-    { value: 'last-30-days', label: 'Last 30 days' },
-    { value: 'custom', label: 'Custom interval' }
-] as const;
-
-type GroupBy = (typeof groupByOptions)[number]['value'];
-type Timeframe = (typeof timeframeOptions)[number]['value'];
+import {
+    isReportGroupBy,
+    isReportTimeframe,
+    type ReportGroupBy,
+    type ReportTimeframe
+} from '@/lib/report-filters';
 
 type StatsSearchParams = {
     readonly groupBy?: string;
@@ -43,16 +23,12 @@ type StatsSearchParams = {
     readonly to?: string;
 };
 
-function parseGroupBy(value?: string): GroupBy {
-    return groupByOptions.some(option => option.value === value)
-        ? (value as GroupBy)
-        : 'day';
+function parseGroupBy(value?: string): ReportGroupBy {
+    return isReportGroupBy(value) ? value : 'day';
 }
 
-function parseTimeframe(value?: string): Timeframe {
-    return timeframeOptions.some(option => option.value === value)
-        ? (value as Timeframe)
-        : 'this-month';
+function parseTimeframe(value?: string): ReportTimeframe {
+    return isReportTimeframe(value) ? value : 'this-month';
 }
 
 function parseDate(value?: string): Date | undefined {
@@ -61,10 +37,6 @@ function parseDate(value?: string): Date | undefined {
     }
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
-function formatDateInput(value?: string): string {
-    return value && !Number.isNaN(new Date(value).getTime()) ? value : '';
 }
 
 function formatCountDelta(value: number): string {
@@ -88,8 +60,8 @@ async function getStats({
     from,
     to
 }: {
-    readonly groupBy: GroupBy;
-    readonly timeframe: Timeframe;
+    readonly groupBy: ReportGroupBy;
+    readonly timeframe: ReportTimeframe;
     readonly from?: string;
     readonly to?: string;
 }) {
@@ -199,63 +171,12 @@ export default async function StatsPage({
                         {stats.currency}.
                     </p>
                 </div>
-                <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[160px_180px_140px_140px_auto] lg:items-end">
-                    <Field>
-                        <FieldLabel htmlFor="groupBy">Group by</FieldLabel>
-                        <select
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            defaultValue={groupBy}
-                            id="groupBy"
-                            name="groupBy"
-                        >
-                            {groupByOptions.map(option => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    <Field>
-                        <FieldLabel htmlFor="timeframe">Timeframe</FieldLabel>
-                        <select
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            defaultValue={timeframe}
-                            id="timeframe"
-                            name="timeframe"
-                        >
-                            {timeframeOptions.map(option => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    {timeframe === 'custom' ? (
-                        <>
-                            <Field>
-                                <FieldLabel htmlFor="from">From</FieldLabel>
-                                <Input
-                                    defaultValue={formatDateInput(params.from)}
-                                    id="from"
-                                    name="from"
-                                    type="date"
-                                />
-                            </Field>
-                            <Field>
-                                <FieldLabel htmlFor="to">To</FieldLabel>
-                                <Input
-                                    defaultValue={formatDateInput(params.to)}
-                                    id="to"
-                                    name="to"
-                                    type="date"
-                                />
-                            </Field>
-                        </>
-                    ) : null}
-                    <Button type="submit" variant="outline">
-                        Apply
-                    </Button>
-                </form>
+                <ReportsFilters
+                    from={params.from}
+                    groupBy={groupBy}
+                    timeframe={timeframe}
+                    to={params.to}
+                />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

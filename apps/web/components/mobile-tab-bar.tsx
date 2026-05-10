@@ -5,8 +5,7 @@ import {
     ChartSplineIcon,
     CreditCardIcon,
     LayoutDashboardIcon,
-    SettingsIcon,
-    TagsIcon
+    SettingsIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -28,11 +27,6 @@ const items = [
         icon: ChartSplineIcon
     },
     {
-        href: '/settings/categories',
-        label: 'Categories',
-        icon: TagsIcon
-    },
-    {
         href: '/settings/preferences',
         label: 'Preferences',
         icon: SettingsIcon
@@ -48,7 +42,7 @@ export function MobileTabBar() {
 
     return (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 shadow-lg backdrop-blur sm:hidden">
-            <div className="grid grid-cols-5 px-1 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1">
+            <div className="grid grid-cols-4 px-1 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1">
                 {items.map(item => {
                     const active = isActive(pathname, item.href);
                     const Icon = item.icon;

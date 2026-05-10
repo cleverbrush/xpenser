@@ -9,8 +9,6 @@ import {
     FieldError,
     FieldGroup,
     FieldLabel,
-    FieldLegend,
-    FieldSet,
     Select,
     SelectContent,
     SelectGroup,
@@ -21,14 +19,13 @@ import {
 import Link from 'next/link';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { registerAction } from '@/lib/actions';
+import { CurrencyMultiSelect } from './currency-multi-select';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
 
 export function RegisterForm({
-    currencies,
-    topCurrencies
+    currencies
 }: {
     readonly currencies: readonly Currency[];
-    readonly topCurrencies: readonly Currency[];
 }) {
     const form = useSchemaForm(RegisterBodySchema);
     const defaultCurrency = form.useField(field => field.defaultCurrency);
@@ -52,26 +49,23 @@ export function RegisterForm({
 
         form.reset({
             defaultCurrency: initialDefaultCurrency,
-            favoriteCurrencies: [initialDefaultCurrency]
+            favoriteCurrencies: []
         });
-        setSelectedFavoriteCurrencies([initialDefaultCurrency]);
+        setSelectedFavoriteCurrencies([]);
     }, [form, initialDefaultCurrency]);
 
     const defaultCurrencyInvalid =
         defaultCurrency.touched && Boolean(defaultCurrency.error);
 
-    function toggleFavoriteCurrency(code: string, checked: boolean) {
-        setSelectedFavoriteCurrencies(current =>
-            checked
-                ? Array.from(new Set([...current, code]))
-                : current.filter(value => value !== code)
-        );
-    }
-
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        form.setValue({ favoriteCurrencies: selectedFavoriteCurrencies });
+        const selectedDefault =
+            defaultCurrency.value ?? initialDefaultCurrency ?? '';
+        const favoriteCurrencies = selectedFavoriteCurrencies.filter(
+            currency => currency !== selectedDefault
+        );
+        form.setValue({ favoriteCurrencies });
         const result = await form.submit();
         if (!result.valid || !result.object) {
             return;
@@ -80,7 +74,9 @@ export function RegisterForm({
         setPending(true);
         setError(null);
         try {
-            await registerAction(valuesToFormData(result.object));
+            await registerAction(
+                valuesToFormData({ ...result.object, favoriteCurrencies })
+            );
         } catch (caught) {
             if (isNextRedirectError(caught)) {
                 throw caught;
@@ -128,7 +124,12 @@ export function RegisterForm({
                                 defaultCurrency.onBlur();
                             }
                         }}
-                        onValueChange={defaultCurrency.onChange}
+                        onValueChange={value => {
+                            defaultCurrency.onChange(value);
+                            setSelectedFavoriteCurrencies(current =>
+                                current.filter(currency => currency !== value)
+                            );
+                        }}
                         value={defaultCurrency.value ?? initialDefaultCurrency}
                     >
                         <SelectTrigger aria-invalid={defaultCurrencyInvalid}>
@@ -151,33 +152,14 @@ export function RegisterForm({
                         <FieldError>{defaultCurrency.error}</FieldError>
                     ) : null}
                 </Field>
-                <FieldSet>
-                    <FieldLegend>Favorite currencies</FieldLegend>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                        {topCurrencies.map(currency => (
-                            <label
-                                className="flex items-center gap-2 text-sm"
-                                key={currency.code}
-                            >
-                                <input
-                                    checked={selectedFavoriteCurrencies.includes(
-                                        currency.code
-                                    )}
-                                    name="favoriteCurrencies"
-                                    onChange={event =>
-                                        toggleFavoriteCurrency(
-                                            currency.code,
-                                            event.target.checked
-                                        )
-                                    }
-                                    type="checkbox"
-                                    value={currency.code}
-                                />
-                                {currency.code}
-                            </label>
-                        ))}
-                    </div>
-                </FieldSet>
+                <CurrencyMultiSelect
+                    currencies={currencies}
+                    excludedCurrency={
+                        defaultCurrency.value ?? initialDefaultCurrency
+                    }
+                    onChange={setSelectedFavoriteCurrencies}
+                    selectedCurrencies={selectedFavoriteCurrencies}
+                />
                 {error ? <FieldError role="alert">{error}</FieldError> : null}
                 <Button className="w-full" disabled={pending} type="submit">
                     {pending ? 'Creating account...' : 'Create account'}

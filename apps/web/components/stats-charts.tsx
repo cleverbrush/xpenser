@@ -138,147 +138,165 @@ function comparisonDelta(
         : category.total - category[field];
 }
 
-function CategorySection({
-    title,
+function CategorySubtotal({
     type,
     total,
     count,
+    stats
+}: {
+    readonly type: 'expense' | 'income';
+    readonly total: number;
+    readonly count: number;
+    readonly stats: StatsOverview;
+}) {
+    return (
+        <div className="rounded-md border p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+                <Badge
+                    className={directionBadgeClassName(type)}
+                    variant="outline"
+                >
+                    {type}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                    {count} tx
+                </span>
+            </div>
+            <p
+                className={`truncate text-sm font-semibold sm:text-base ${amountClassNameForType(type)}`}
+            >
+                {formatDirectionalMoney(total, stats.currency, type)}
+            </p>
+        </div>
+    );
+}
+
+function CategoryRow({
+    category,
+    stats
+}: {
+    readonly category: StatsCategory;
+    readonly stats: StatsOverview;
+}) {
+    const previousDelta = comparisonDelta(category, 'previousPeriodTotal');
+    const yearDelta = comparisonDelta(category, 'previousYearTotal');
+
+    return (
+        <a
+            className="grid grid-cols-[minmax(0,1fr)_auto_74px] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1fr)_auto_110px] sm:px-2"
+            href={transactionHref(stats, category)}
+        >
+            <span className="min-w-0 truncate font-medium">
+                {category.categoryName}
+            </span>
+            <span className="min-w-0 text-right">
+                <span
+                    className={`font-semibold ${amountClassNameForType(
+                        category.type
+                    )}`}
+                >
+                    {formatDirectionalMoney(
+                        category.total,
+                        stats.currency,
+                        category.type
+                    )}
+                </span>
+                <span className="ml-2 hidden text-xs text-muted-foreground md:inline">
+                    P{' '}
+                    <span className={amountClassNameForValue(previousDelta)}>
+                        {formatMoney(previousDelta, stats.currency)}
+                    </span>
+                    , Y{' '}
+                    <span className={amountClassNameForValue(yearDelta)}>
+                        {formatMoney(yearDelta, stats.currency)}
+                    </span>
+                </span>
+            </span>
+            <span className="flex justify-end">
+                <DatatypeChart
+                    className={`text-xl ${amountClassNameForType(
+                        category.type
+                    )}`}
+                    expression={datatypeExpression('l', category.trend)}
+                />
+            </span>
+        </a>
+    );
+}
+
+function CategoryGroup({
+    title,
     categories,
     stats
 }: {
     readonly title: string;
-    readonly type: 'expense' | 'income';
-    readonly total: number;
-    readonly count: number;
     readonly categories: readonly StatsCategory[];
+    readonly stats: StatsOverview;
+}) {
+    return (
+        <div>
+            <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                {title}
+            </h3>
+            <div className="flex flex-col divide-y">
+                {categories.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">
+                        No activity for this report.
+                    </p>
+                ) : (
+                    categories.map(category => (
+                        <CategoryRow
+                            category={category}
+                            key={`${category.type}-${category.categoryId}`}
+                            stats={stats}
+                        />
+                    ))
+                )}
+            </div>
+        </div>
+    );
+}
+
+function CategoriesCard({
+    incomeCategories,
+    expenseCategories,
+    stats
+}: {
+    readonly incomeCategories: readonly StatsCategory[];
+    readonly expenseCategories: readonly StatsCategory[];
     readonly stats: StatsOverview;
 }) {
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-start justify-between gap-3">
-                    <div>
-                        <CardTitle>{title}</CardTitle>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            {count} transactions
-                        </p>
-                    </div>
-                    <div className="text-right">
-                        <p
-                            className={`text-lg font-semibold ${amountClassNameForType(type)}`}
-                        >
-                            {formatDirectionalMoney(
-                                total,
-                                stats.currency,
-                                type
-                            )}
-                        </p>
-                        <Badge
-                            className={directionBadgeClassName(type)}
-                            variant="outline"
-                        >
-                            subtotal
-                        </Badge>
-                    </div>
+                <CardTitle>Categories</CardTitle>
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                    <CategorySubtotal
+                        count={stats.incomeCount}
+                        stats={stats}
+                        total={stats.incomeTotal}
+                        type="income"
+                    />
+                    <CategorySubtotal
+                        count={stats.expenseCount}
+                        stats={stats}
+                        total={stats.expenseTotal}
+                        type="expense"
+                    />
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="flex flex-col divide-y">
-                    {categories.length === 0 ? (
-                        <p className="py-4 text-sm text-muted-foreground">
-                            No {type} activity for this report.
-                        </p>
-                    ) : (
-                        categories.map(category => {
-                            const previousDelta = comparisonDelta(
-                                category,
-                                'previousPeriodTotal'
-                            );
-                            const yearDelta = comparisonDelta(
-                                category,
-                                'previousYearTotal'
-                            );
-
-                            return (
-                                <a
-                                    className="grid gap-3 py-4 text-sm transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1fr)_120px_180px] sm:px-2"
-                                    href={transactionHref(stats, category)}
-                                    key={`${category.type}-${category.categoryId}`}
-                                >
-                                    <div className="min-w-0">
-                                        <div className="flex min-w-0 items-center gap-2">
-                                            <Badge
-                                                className={directionBadgeClassName(
-                                                    category.type
-                                                )}
-                                                variant="outline"
-                                            >
-                                                {category.type}
-                                            </Badge>
-                                            <p className="truncate font-medium">
-                                                {category.categoryName}
-                                            </p>
-                                        </div>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            {category.transactionCount}{' '}
-                                            transactions,{' '}
-                                            {category.share.toFixed(0)}%
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center sm:justify-center">
-                                        <DatatypeChart
-                                            className={amountClassNameForType(
-                                                category.type
-                                            )}
-                                            expression={datatypeExpression(
-                                                'l',
-                                                category.trend
-                                            )}
-                                        />
-                                    </div>
-                                    <div className="text-left sm:text-right">
-                                        <p
-                                            className={`font-semibold ${amountClassNameForType(
-                                                category.type
-                                            )}`}
-                                        >
-                                            {formatDirectionalMoney(
-                                                category.total,
-                                                stats.currency,
-                                                category.type
-                                            )}
-                                        </p>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            Prev:{' '}
-                                            <span
-                                                className={amountClassNameForValue(
-                                                    previousDelta
-                                                )}
-                                            >
-                                                {formatMoney(
-                                                    previousDelta,
-                                                    stats.currency
-                                                )}
-                                            </span>
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Year:{' '}
-                                            <span
-                                                className={amountClassNameForValue(
-                                                    yearDelta
-                                                )}
-                                            >
-                                                {formatMoney(
-                                                    yearDelta,
-                                                    stats.currency
-                                                )}
-                                            </span>
-                                        </p>
-                                    </div>
-                                </a>
-                            );
-                        })
-                    )}
+                <div className="flex flex-col gap-4">
+                    <CategoryGroup
+                        categories={incomeCategories}
+                        stats={stats}
+                        title="Income"
+                    />
+                    <CategoryGroup
+                        categories={expenseCategories}
+                        stats={stats}
+                        title="Expenses"
+                    />
                 </div>
             </CardContent>
         </Card>
@@ -305,15 +323,7 @@ export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card>
                     <CardHeader>
-                        <div className="flex items-start justify-between gap-3">
-                            <CardTitle>Cashflow trend</CardTitle>
-                            <DatatypeChart
-                                expression={datatypeExpression(
-                                    'l',
-                                    stats.trend.map(item => item.netTotal)
-                                )}
-                            />
-                        </div>
+                        <CardTitle>Cashflow trend</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="h-72">
@@ -384,18 +394,7 @@ export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
 
                 <Card>
                     <CardHeader>
-                        <div className="flex items-start justify-between gap-3">
-                            <CardTitle>Income vs expenses</CardTitle>
-                            <DatatypeChart
-                                expression={datatypeExpression(
-                                    'b',
-                                    stats.trend.flatMap(item => [
-                                        item.incomeTotal,
-                                        item.expenseTotal
-                                    ])
-                                )}
-                            />
-                        </div>
+                        <CardTitle>Income vs expenses</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="h-72">
@@ -454,24 +453,11 @@ export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
                 </Card>
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-                <CategorySection
-                    categories={incomeCategories}
-                    count={stats.incomeCount}
-                    stats={stats}
-                    title="Income categories"
-                    total={stats.incomeTotal}
-                    type="income"
-                />
-                <CategorySection
-                    categories={expenseCategories}
-                    count={stats.expenseCount}
-                    stats={stats}
-                    title="Expense categories"
-                    total={stats.expenseTotal}
-                    type="expense"
-                />
-            </div>
+            <CategoriesCard
+                expenseCategories={expenseCategories}
+                incomeCategories={incomeCategories}
+                stats={stats}
+            />
         </div>
     );
 }

@@ -21,6 +21,13 @@ function optionalString(formData: FormData, key: string): string | undefined {
     return value.trim();
 }
 
+function favoriteCurrencies(formData: FormData, defaultCurrency: string) {
+    return formData
+        .getAll('favoriteCurrencies')
+        .filter((value): value is string => typeof value === 'string')
+        .filter(currency => currency !== defaultCurrency);
+}
+
 export async function loginAction(formData: FormData) {
     await signIn('credentials', {
         email: requiredString(formData, 'email'),
@@ -32,15 +39,14 @@ export async function loginAction(formData: FormData) {
 export async function registerAction(formData: FormData) {
     const email = requiredString(formData, 'email');
     const password = requiredString(formData, 'password');
+    const defaultCurrency = requiredString(formData, 'defaultCurrency');
     await getAnonymousApiClient().auth.register({
         body: {
             email,
             password,
             confirmPassword: requiredString(formData, 'confirmPassword'),
-            defaultCurrency: requiredString(formData, 'defaultCurrency'),
-            favoriteCurrencies: formData
-                .getAll('favoriteCurrencies')
-                .filter((value): value is string => typeof value === 'string')
+            defaultCurrency,
+            favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency)
         }
     });
     await signIn('credentials', {
@@ -68,7 +74,9 @@ export async function createCategoryAction(formData: FormData) {
     });
     revalidateTag('categories', 'max');
     revalidateTag('user-profile', 'max');
+    revalidateTag('stats', 'max');
     revalidatePath('/settings/categories');
+    revalidatePath('/settings/preferences');
     revalidatePath('/setup/categories');
 }
 
@@ -84,7 +92,9 @@ export async function deleteCategoryAction(formData: FormData) {
     });
     revalidateTag('categories', 'max');
     revalidateTag('user-profile', 'max');
+    revalidateTag('stats', 'max');
     revalidatePath('/settings/categories');
+    revalidatePath('/settings/preferences');
 }
 
 export async function createTransactionAction(formData: FormData) {
@@ -121,12 +131,11 @@ export async function deleteTransactionAction(formData: FormData) {
 
 export async function updatePreferencesAction(formData: FormData) {
     const client = await getApiClient();
+    const defaultCurrency = requiredString(formData, 'defaultCurrency');
     await client.users.updatePreferences({
         body: {
-            defaultCurrency: requiredString(formData, 'defaultCurrency'),
-            favoriteCurrencies: formData
-                .getAll('favoriteCurrencies')
-                .filter((value): value is string => typeof value === 'string')
+            defaultCurrency,
+            favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency)
         }
     });
     revalidateTag('user-profile', 'max');

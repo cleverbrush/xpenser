@@ -12,9 +12,6 @@ export const dynamic = 'force-dynamic';
 
 export default async function RegisterPage() {
     const currencies = await getAnonymousApiClient().currencies.list();
-    const topCurrencies = currencies.filter(currency =>
-        ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY'].includes(currency.code)
-    );
 
     return (
         <main className="flex min-h-dvh items-center justify-center bg-muted px-3 py-6 sm:px-4 sm:py-8">
@@ -27,10 +24,7 @@ export default async function RegisterPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <RegisterForm
-                        currencies={currencies}
-                        topCurrencies={topCurrencies}
-                    />
+                    <RegisterForm currencies={currencies} />
                 </CardContent>
             </Card>
         </main>

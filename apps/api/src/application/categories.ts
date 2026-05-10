@@ -8,6 +8,7 @@ import type { AppDb, CategoryDb } from '../db/schemas.js';
 
 export class CategoryInUseError extends Error {}
 export class CategoryNotFoundError extends Error {}
+export class LastCategoryError extends Error {}
 
 type UpdateCategoryBody = InferType<typeof UpdateCategoryBodySchema>;
 
@@ -108,6 +109,14 @@ export async function deleteCategory(
         .first();
     if (!category) {
         throw new CategoryNotFoundError('Category was not found.');
+    }
+
+    const categories = await db.categories.where(
+        candidate => candidate.userId,
+        userId
+    );
+    if (categories.length <= 1) {
+        throw new LastCategoryError('At least one category is required.');
     }
 
     const usage = await db.transactions
