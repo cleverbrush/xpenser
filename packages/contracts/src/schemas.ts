@@ -10,11 +10,14 @@ import {
 } from '@cleverbrush/schema';
 
 export const CurrencyCodeSchema = string()
+    .required('currency is required')
+    .nonempty('currency is required')
     .matches(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code')
     .describe('ISO 4217 currency code, for example USD or EUR.')
     .schemaName('CurrencyCode');
 
 export const CategoryTypeSchema = enumOf('expense', 'income')
+    .required('category type is required')
     .describe('Whether a category is used for expenses or income.')
     .schemaName('CategoryType');
 
@@ -45,16 +48,21 @@ export const PrincipalSchema = object({
 export const RegisterBodySchema = object({
     /** Email address used to sign in. Must be unique. */
     email: string()
-        .email('must be a valid email address')
+        .required('email is required')
         .nonempty('email is required')
+        .email('must be a valid email address')
         .describe('Email address used to sign in. Must be unique.'),
     /** Password for local sign-in. */
     password: string()
+        .required('password is required')
+        .nonempty('password is required')
         .minLength(8, 'password must be at least 8 characters')
         .describe('Password for local sign-in.'),
     /** Password confirmation entered during registration. */
     confirmPassword: string()
-        .minLength(8, 'password must be at least 8 characters')
+        .required('password confirmation is required')
+        .nonempty('password confirmation is required')
+        .minLength(8, 'password confirmation must be at least 8 characters')
         .describe('Password confirmation entered during registration.'),
     /** Default currency used for dashboards and reports. */
     defaultCurrency: CurrencyCodeSchema.describe(
@@ -85,20 +93,23 @@ export const RegisterBodySchema = object({
 export const LoginBodySchema = object({
     /** Email address used to sign in. */
     email: string()
-        .email('must be a valid email address')
+        .required('email is required')
         .nonempty('email is required')
+        .email('must be a valid email address')
         .describe('Email address used to sign in.'),
     /** Local account password. */
     password: string()
+        .required('password is required')
         .nonempty('password is required')
         .describe('Local account password.')
 }).schemaName('LoginBody');
 
 export const GoogleAuthBodySchema = object({
     /** Google ID token or access token returned by NextAuth. */
-    idToken: string().describe(
-        'Google ID token or access token returned by NextAuth.'
-    )
+    idToken: string()
+        .required('Google token is required')
+        .nonempty('Google token is required')
+        .describe('Google ID token or access token returned by NextAuth.')
 }).schemaName('GoogleAuthBody');
 
 export const TokenResponseSchema = object({
@@ -186,7 +197,8 @@ export const CategorySchema = object({
 export const CreateCategoryBodySchema = object({
     /** Category name shown in transaction forms and reports. */
     name: string()
-        .minLength(1, 'category name is required')
+        .required('category name is required')
+        .nonempty('category name is required')
         .maxLength(120, 'category name is too long')
         .describe('Category name shown in transaction forms and reports.'),
     /** Whether this category is for expenses or income. */
@@ -257,11 +269,12 @@ export const TransactionSchema = object({
 
 export const CreateTransactionBodySchema = object({
     /** Category identifier selected for the transaction. */
-    categoryId: number().describe(
-        'Category identifier selected for the transaction.'
-    ),
+    categoryId: number()
+        .required('category is required')
+        .describe('Category identifier selected for the transaction.'),
     /** Amount entered by the user in the original currency. */
     amount: number()
+        .required('amount is required')
         .positive('amount must be greater than zero')
         .describe('Amount entered by the user in the original currency.'),
     /** Currency used for the entered amount. */
@@ -270,14 +283,31 @@ export const CreateTransactionBodySchema = object({
     ),
     /** Date and time when the transaction happened. */
     occurredAt: date()
+        .required('date and time is required')
         .coerce()
         .describe('Date and time when the transaction happened.'),
     /** Optional note entered by the user. */
     note: string()
-        .maxLength(500)
+        .maxLength(500, 'note is too long')
         .optional()
         .describe('Optional note entered by the user.')
-}).schemaName('CreateTransactionBody');
+})
+    .addValidator(value => {
+        if (value.amount === undefined || Number.isNaN(value.amount)) {
+            return {
+                valid: false,
+                errors: [
+                    {
+                        message: 'amount is required',
+                        property: field => field.amount
+                    }
+                ]
+            };
+        }
+
+        return { valid: true };
+    })
+    .schemaName('CreateTransactionBody');
 
 export const UpdateTransactionBodySchema =
     CreateTransactionBodySchema.deepPartial().schemaName(

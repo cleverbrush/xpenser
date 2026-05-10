@@ -1,4 +1,11 @@
-import { date, defineEntity, number, object, string } from '@cleverbrush/orm';
+import {
+    type DbContext,
+    date,
+    defineEntity,
+    number,
+    object,
+    string
+} from '@cleverbrush/orm';
 
 export const UserDbSchema = object({
     id: number().primaryKey(),
@@ -37,7 +44,9 @@ export const FavoriteCurrencyDbSchema = object({
         .references('users', 'id')
         .onDelete('CASCADE'),
     currency: string()
-}).hasTableName('user_favorite_currencies');
+})
+    .hasTableName('user_favorite_currencies')
+    .hasPrimaryKey(['userId', 'currency'] as const);
 
 export const CategoryDbSchema = object({
     id: number().primaryKey(),
@@ -74,7 +83,8 @@ export const TransactionDbSchema = object({
     occurredAt: date().hasColumnName('occurred_at'),
     note: string().optional(),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
-    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now'),
+    category: CategoryDbSchema.optional()
 }).hasTableName('transactions');
 
 export const ExchangeRateDbSchema = object({
@@ -89,7 +99,11 @@ export const ExchangeRateDbSchema = object({
 export const UserEntity = defineEntity(UserDbSchema);
 export const FavoriteCurrencyEntity = defineEntity(FavoriteCurrencyDbSchema);
 export const CategoryEntity = defineEntity(CategoryDbSchema);
-export const TransactionEntity = defineEntity(TransactionDbSchema);
+export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
+    t => t.category,
+    l => l.categoryId,
+    r => r.id
+);
 export const ExchangeRateEntity = defineEntity(ExchangeRateDbSchema);
 
 export const entityMap = {
@@ -101,41 +115,42 @@ export const entityMap = {
 };
 
 export type AppEntityMap = typeof entityMap;
+export type AppDb = DbContext<AppEntityMap>;
 
-export type UserRow = {
+export type UserDb = {
     readonly id: number;
     readonly email: string;
-    readonly password_hash?: string | null;
+    readonly passwordHash?: string | null;
     readonly role: string;
-    readonly auth_provider: string;
-    readonly default_currency: string;
-    readonly created_at: Date;
-    readonly updated_at: Date;
+    readonly authProvider: string;
+    readonly defaultCurrency: string;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
 };
 
-export type CategoryRow = {
+export type CategoryDb = {
     readonly id: number;
-    readonly user_id: number;
+    readonly userId: number;
     readonly name: string;
     readonly type: 'expense' | 'income';
-    readonly created_at: Date;
-    readonly updated_at: Date;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
 };
 
-export type TransactionRow = {
+export type TransactionDb = {
     readonly id: number;
-    readonly user_id: number;
-    readonly category_id: number;
-    readonly category_name: string;
+    readonly userId: number;
+    readonly categoryId: number;
+    readonly category?: CategoryDb | null;
     readonly type: 'expense' | 'income';
     readonly amount: string | number;
     readonly currency: string;
-    readonly default_currency_amount: string | number;
-    readonly default_currency: string;
-    readonly exchange_rate: string | number;
-    readonly exchange_rate_date: string;
-    readonly occurred_at: Date;
+    readonly defaultCurrencyAmount: string | number;
+    readonly defaultCurrency: string;
+    readonly exchangeRate: string | number;
+    readonly exchangeRateDate: string;
+    readonly occurredAt: Date;
     readonly note?: string | null;
-    readonly created_at: Date;
-    readonly updated_at: Date;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
 };

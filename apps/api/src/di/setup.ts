@@ -1,9 +1,11 @@
 import type { ServiceCollection } from '@cleverbrush/di';
 import type { Logger } from '@cleverbrush/log';
+import { createDb } from '@cleverbrush/orm';
 import { instrumentKnex } from '@cleverbrush/otel';
 import knex from 'knex';
 import type { Config } from '../config.js';
-import { ConfigToken, KnexToken, LoggerToken } from './tokens.js';
+import { entityMap } from '../db/schemas.js';
+import { ConfigToken, DbToken, KnexToken, LoggerToken } from './tokens.js';
 
 export function configureDI(
     services: ServiceCollection,
@@ -21,5 +23,8 @@ export function configureDI(
                 acquireConnectionTimeout: 10_000
             })
         )
+    );
+    services.addSingleton(DbToken, provider =>
+        createDb(provider.get(KnexToken), entityMap)
     );
 }

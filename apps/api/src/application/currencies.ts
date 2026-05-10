@@ -1,6 +1,6 @@
 import type { Currency } from '@xpenser/contracts';
-import type { Knex } from 'knex';
 import type { Config } from '../config.js';
+import type { AppDb } from '../db/schemas.js';
 
 const fallbackCurrencies: readonly Currency[] = [
     { code: 'USD', name: 'United States Dollar' },
@@ -58,7 +58,7 @@ export async function listCurrencies(config: Config): Promise<Currency[]> {
 }
 
 export async function getExchangeRate(
-    knex: Knex,
+    db: AppDb,
     config: Config,
     baseCurrency: string,
     quoteCurrency: string,
@@ -68,18 +68,16 @@ export async function getExchangeRate(
         return { rate: 1, rateDate: date };
     }
 
-    const cached = await knex('exchange_rates')
-        .where({
-            base_currency: baseCurrency,
-            quote_currency: quoteCurrency,
-            rate_date: date
-        })
-        .first<{ rate: string | number; rate_date: string }>();
+    const cached = await db.exchangeRates
+        .where(rate => rate.baseCurrency, baseCurrency)
+        .where(rate => rate.quoteCurrency, quoteCurrency)
+        .where(rate => rate.rateDate, date)
+        .first();
 
     if (cached) {
         return {
             rate: Number(cached.rate),
-            rateDate: String(cached.rate_date)
+            rateDate: String(cached.rateDate)
         };
     }
 
@@ -101,15 +99,18 @@ export async function getExchangeRate(
     }
 
     const rateDate = payload.date ?? date;
-    await knex('exchange_rates')
-        .insert({
-            base_currency: baseCurrency,
-            quote_currency: quoteCurrency,
-            rate_date: rateDate,
+    await db.exchangeRates
+        .onConflict(
+            rate => rate.baseCurrency,
+            rate => rate.quoteCurrency,
+            rate => rate.rateDate
+        )
+        .ignore({
+            baseCurrency,
+            quoteCurrency,
+            rateDate,
             rate: payload.rate
-        })
-        .onConflict(['base_currency', 'quote_currency', 'rate_date'])
-        .ignore();
+        });
 
     return { rate: payload.rate, rateDate };
 }

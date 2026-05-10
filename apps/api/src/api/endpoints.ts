@@ -1,22 +1,22 @@
 import { api, PrincipalSchema } from '@xpenser/contracts';
-import { ConfigToken, KnexToken, LoggerToken } from '../di/tokens.js';
+import { ConfigToken, DbToken, LoggerToken } from '../di/tokens.js';
 
 export const RegisterEndpoint = api.auth.register
-    .inject({ knex: KnexToken, config: ConfigToken })
+    .inject({ db: DbToken, config: ConfigToken })
     .summary('Register')
     .description('Creates a local account and returns an API JWT.')
     .tags('auth')
     .operationId('register');
 
 export const LoginEndpoint = api.auth.login
-    .inject({ knex: KnexToken, config: ConfigToken })
+    .inject({ db: DbToken, config: ConfigToken })
     .summary('Login')
     .description('Authenticates a local account and returns an API JWT.')
     .tags('auth')
     .operationId('login');
 
 export const GoogleAuthEndpoint = api.auth.google
-    .inject({ knex: KnexToken, config: ConfigToken })
+    .inject({ db: DbToken, config: ConfigToken })
     .summary('Google authentication')
     .description('Verifies a Google token and returns an API JWT.')
     .tags('auth')
@@ -24,7 +24,7 @@ export const GoogleAuthEndpoint = api.auth.google
 
 export const GetMeEndpoint = api.auth.me
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('Current user')
     .description('Returns preferences for the authenticated user.')
     .tags('users')
@@ -32,7 +32,7 @@ export const GetMeEndpoint = api.auth.me
 
 export const UpdatePreferencesEndpoint = api.users.updatePreferences
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('Update preferences')
     .description('Updates the current user default and favorite currencies.')
     .tags('users')
@@ -47,7 +47,7 @@ export const ListCurrenciesEndpoint = api.currencies.list
 
 export const ListCategoriesEndpoint = api.categories.list
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('List categories')
     .description('Lists categories owned by the authenticated user.')
     .tags('categories')
@@ -55,7 +55,7 @@ export const ListCategoriesEndpoint = api.categories.list
 
 export const CreateCategoryEndpoint = api.categories.create
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('Create category')
     .description('Creates a user-owned income or expense category.')
     .tags('categories')
@@ -63,7 +63,7 @@ export const CreateCategoryEndpoint = api.categories.create
 
 export const UpdateCategoryEndpoint = api.categories.update
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('Update category')
     .description('Updates a user-owned category.')
     .tags('categories')
@@ -71,7 +71,7 @@ export const UpdateCategoryEndpoint = api.categories.update
 
 export const DeleteCategoryEndpoint = api.categories.delete
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('Delete category')
     .description('Deletes an unused user-owned category.')
     .tags('categories')
@@ -79,7 +79,7 @@ export const DeleteCategoryEndpoint = api.categories.delete
 
 export const ListTransactionsEndpoint = api.transactions.list
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('List transactions')
     .description('Lists transactions owned by the authenticated user.')
     .tags('transactions')
@@ -87,7 +87,7 @@ export const ListTransactionsEndpoint = api.transactions.list
 
 export const CreateTransactionEndpoint = api.transactions.create
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken, config: ConfigToken, logger: LoggerToken })
+    .inject({ db: DbToken, config: ConfigToken, logger: LoggerToken })
     .summary('Create transaction')
     .description(
         'Creates a transaction and stores its historical exchange rate.'
@@ -97,7 +97,7 @@ export const CreateTransactionEndpoint = api.transactions.create
 
 export const UpdateTransactionEndpoint = api.transactions.update
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken, config: ConfigToken })
+    .inject({ db: DbToken, config: ConfigToken })
     .summary('Update transaction')
     .description('Updates a transaction and recalculates converted values.')
     .tags('transactions')
@@ -105,7 +105,7 @@ export const UpdateTransactionEndpoint = api.transactions.update
 
 export const DeleteTransactionEndpoint = api.transactions.delete
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('Delete transaction')
     .description('Deletes a transaction owned by the authenticated user.')
     .tags('transactions')
@@ -113,7 +113,7 @@ export const DeleteTransactionEndpoint = api.transactions.delete
 
 export const DashboardSummaryEndpoint = api.dashboard.summary
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('Dashboard summary')
     .description('Returns period totals and latest transactions.')
     .tags('dashboard')
@@ -121,7 +121,7 @@ export const DashboardSummaryEndpoint = api.dashboard.summary
 
 export const StatsOverviewEndpoint = api.stats.overview
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('Stats overview')
     .description('Returns expense and income stats for charts.')
     .tags('stats')

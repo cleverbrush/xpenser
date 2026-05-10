@@ -16,23 +16,23 @@ import type {
 
 export const listCategoriesHandler: Handler<
     typeof ListCategoriesEndpoint
-> = async ({ principal }, { knex }) => {
-    return listCategories(knex, principal.userId);
+> = async ({ principal }, { db }) => {
+    return listCategories(db, principal.userId);
 };
 
 export const createCategoryHandler: Handler<
     typeof CreateCategoryEndpoint
-> = async ({ body, principal }, { knex }) => {
+> = async ({ body, principal }, { db }) => {
     return ActionResult.created(
-        await createCategory(knex, principal.userId, body)
+        await createCategory(db, principal.userId, body)
     );
 };
 
 export const updateCategoryHandler: Handler<
     typeof UpdateCategoryEndpoint
-> = async ({ body, params, principal }, { knex }) => {
+> = async ({ body, params, principal }, { db }) => {
     try {
-        return await updateCategory(knex, principal.userId, params.id, body);
+        return await updateCategory(db, principal.userId, params.id, body);
     } catch (err) {
         if (err instanceof CategoryNotFoundError) {
             return ActionResult.notFound({ message: err.message });
@@ -43,9 +43,9 @@ export const updateCategoryHandler: Handler<
 
 export const deleteCategoryHandler: Handler<
     typeof DeleteCategoryEndpoint
-> = async ({ params, principal }, { knex }) => {
+> = async ({ params, principal }, { db }) => {
     try {
-        await deleteCategory(knex, principal.userId, params.id);
+        await deleteCategory(db, principal.userId, params.id);
         return ActionResult.noContent();
     } catch (err) {
         if (err instanceof CategoryNotFoundError) {

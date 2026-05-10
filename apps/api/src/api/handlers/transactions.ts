@@ -20,16 +20,16 @@ import type {
 
 export const listTransactionsHandler: Handler<
     typeof ListTransactionsEndpoint
-> = async ({ query, principal }, { knex }) => {
-    return listTransactions(knex, principal.userId, query);
+> = async ({ query, principal }, { db }) => {
+    return listTransactions(db, principal.userId, query);
 };
 
 export const createTransactionHandler: Handler<
     typeof CreateTransactionEndpoint
-> = async ({ body, principal }, { knex, config, logger }) => {
+> = async ({ body, principal }, { db, config, logger }) => {
     try {
         const transaction = await createTransaction(
-            knex,
+            db,
             config,
             principal.userId,
             body
@@ -52,10 +52,10 @@ export const createTransactionHandler: Handler<
 
 export const updateTransactionHandler: Handler<
     typeof UpdateTransactionEndpoint
-> = async ({ body, params, principal }, { knex, config }) => {
+> = async ({ body, params, principal }, { db, config }) => {
     try {
         return await updateTransaction(
-            knex,
+            db,
             config,
             principal.userId,
             params.id,
@@ -74,9 +74,9 @@ export const updateTransactionHandler: Handler<
 
 export const deleteTransactionHandler: Handler<
     typeof DeleteTransactionEndpoint
-> = async ({ params, principal }, { knex }) => {
+> = async ({ params, principal }, { db }) => {
     try {
-        await deleteTransaction(knex, principal.userId, params.id);
+        await deleteTransaction(db, principal.userId, params.id);
         return ActionResult.noContent();
     } catch (err) {
         if (err instanceof TransactionNotFoundError) {
@@ -88,12 +88,12 @@ export const deleteTransactionHandler: Handler<
 
 export const dashboardSummaryHandler: Handler<
     typeof DashboardSummaryEndpoint
-> = async ({ query, principal }, { knex }) => {
-    return dashboardSummary(knex, principal.userId, query.period ?? 'month');
+> = async ({ query, principal }, { db }) => {
+    return dashboardSummary(db, principal.userId, query.period ?? 'month');
 };
 
 export const statsOverviewHandler: Handler<
     typeof StatsOverviewEndpoint
-> = async ({ query, principal }, { knex }) => {
-    return statsOverview(knex, principal.userId, query.period ?? 'month');
+> = async ({ query, principal }, { db }) => {
+    return statsOverview(db, principal.userId, query.period ?? 'month');
 };

@@ -51,11 +51,11 @@ async function emailFromGoogleToken(
 
 export const registerHandler: Handler<typeof RegisterEndpoint> = async (
     { body },
-    { knex, config }
+    { db, config }
 ) => {
     try {
         return ActionResult.created(
-            await registerUser(knex, config, body),
+            await registerUser(db, config, body),
             '/api/auth/me'
         );
     } catch (err) {
@@ -71,10 +71,10 @@ export const registerHandler: Handler<typeof RegisterEndpoint> = async (
 
 export const loginHandler: Handler<typeof LoginEndpoint> = async (
     { body },
-    { knex, config }
+    { db, config }
 ) => {
     try {
-        return await loginUser(knex, config, body.email, body.password);
+        return await loginUser(db, config, body.email, body.password);
     } catch (err) {
         if (err instanceof InvalidCredentialsError) {
             return ActionResult.unauthorized({ message: err.message });
@@ -85,7 +85,7 @@ export const loginHandler: Handler<typeof LoginEndpoint> = async (
 
 export const googleAuthHandler: Handler<typeof GoogleAuthEndpoint> = async (
     { body },
-    { knex, config }
+    { db, config }
 ) => {
     const email = await emailFromGoogleToken(
         body.idToken,
@@ -94,14 +94,14 @@ export const googleAuthHandler: Handler<typeof GoogleAuthEndpoint> = async (
     if (!email) {
         return ActionResult.unauthorized({ message: 'Invalid Google token.' });
     }
-    return googleUser(knex, config, email);
+    return googleUser(db, config, email);
 };
 
 export const getMeHandler: Handler<typeof GetMeEndpoint> = async (
     { principal },
-    { knex }
+    { db }
 ) => {
-    const preference = await getUserPreference(knex, principal.userId);
+    const preference = await getUserPreference(db, principal.userId);
     if (!preference) {
         return ActionResult.unauthorized({ message: 'User was not found.' });
     }
@@ -110,9 +110,9 @@ export const getMeHandler: Handler<typeof GetMeEndpoint> = async (
 
 export const updatePreferencesHandler: Handler<
     typeof UpdatePreferencesEndpoint
-> = async ({ body, principal }, { knex }) => {
+> = async ({ body, principal }, { db }) => {
     const preference = await updateUserPreference(
-        knex,
+        db,
         principal.userId,
         body.defaultCurrency,
         body.favoriteCurrencies

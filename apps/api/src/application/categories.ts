@@ -4,90 +4,78 @@ import type {
     CreateCategoryBody,
     UpdateCategoryBodySchema
 } from '@xpenser/contracts';
-import type { Knex } from 'knex';
-import type { CategoryRow } from '../db/schemas.js';
+import type { AppDb, CategoryDb } from '../db/schemas.js';
 
 export class CategoryInUseError extends Error {}
 export class CategoryNotFoundError extends Error {}
 
-type CategoryWithUsage = CategoryRow & {
-    readonly transaction_count: string | number;
-};
-
 type UpdateCategoryBody = InferType<typeof UpdateCategoryBodySchema>;
 
-function mapCategory(row: CategoryWithUsage): Category {
+function mapCategory(row: CategoryDb, inUse: boolean): Category {
     return {
         id: row.id,
         name: row.name,
         type: row.type,
-        inUse: Number(row.transaction_count) > 0,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at
+        inUse,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
     };
 }
 
-function categorySelection(knex: Knex) {
-    return knex('categories')
-        .leftJoin('transactions', 'transactions.category_id', 'categories.id')
-        .select(
-            'categories.id',
-            'categories.user_id',
-            'categories.name',
-            'categories.type',
-            'categories.created_at',
-            'categories.updated_at'
-        )
-        .count({ transaction_count: 'transactions.id' })
-        .groupBy('categories.id');
+async function usedCategoryIds(
+    db: AppDb,
+    userId: number
+): Promise<Set<number>> {
+    const transactions = await db.transactions.where(
+        transaction => transaction.userId,
+        userId
+    );
+
+    return new Set(transactions.map(transaction => transaction.categoryId));
 }
 
 export async function listCategories(
-    knex: Knex,
+    db: AppDb,
     userId: number
 ): Promise<Category[]> {
-    const rows = await categorySelection(knex)
-        .where('categories.user_id', userId)
-        .orderBy('categories.type', 'asc')
-        .orderBy('categories.name', 'asc');
+    const [categories, inUse] = await Promise.all([
+        db.categories
+            .where(category => category.userId, userId)
+            .orderBy(category => category.type, 'asc')
+            .orderBy(category => category.name, 'asc'),
+        usedCategoryIds(db, userId)
+    ]);
 
-    return (rows as CategoryWithUsage[]).map(mapCategory);
+    return (categories as CategoryDb[]).map(category =>
+        mapCategory(category, inUse.has(category.id))
+    );
 }
 
 export async function createCategory(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     body: CreateCategoryBody
 ): Promise<Category> {
-    const [created] = await knex<CategoryRow>('categories')
-        .insert({
-            user_id: userId,
-            name: body.name.trim(),
-            type: body.type
-        })
-        .returning('*');
+    const created = await db.categories.insert({
+        userId,
+        name: body.name.trim(),
+        type: body.type
+    });
 
-    if (!created) {
-        throw new Error('Category insert did not return a row.');
-    }
-
-    return {
-        id: created.id,
-        name: created.name,
-        type: created.type,
-        inUse: false,
-        createdAt: created.created_at,
-        updatedAt: created.updated_at
-    };
+    return mapCategory(created as CategoryDb, false);
 }
 
 export async function updateCategory(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     categoryId: number,
     body: UpdateCategoryBody
 ): Promise<Category> {
-    const update: Record<string, unknown> = { updated_at: knex.fn.now() };
+    const update: {
+        name?: string;
+        type?: 'expense' | 'income';
+        updatedAt: Date;
+    } = { updatedAt: new Date() };
     if (body.name !== undefined) {
         update.name = body.name.trim();
     }
@@ -95,45 +83,44 @@ export async function updateCategory(
         update.type = body.type;
     }
 
-    const [updated] = await knex<CategoryRow>('categories')
-        .where({ id: categoryId, user_id: userId })
+    const [updated] = await db.categories
+        .where(category => category.id, categoryId)
+        .where(category => category.userId, userId)
         .update(update)
-        .returning('*');
+        .then(rows => rows as CategoryDb[]);
 
     if (!updated) {
         throw new CategoryNotFoundError('Category was not found.');
     }
 
-    const [result] = await categorySelection(knex).where(
-        'categories.id',
-        updated.id
-    );
-    return mapCategory(result as CategoryWithUsage);
+    const inUse = await usedCategoryIds(db, userId);
+    return mapCategory(updated, inUse.has(updated.id));
 }
 
 export async function deleteCategory(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     categoryId: number
 ): Promise<void> {
-    const category = await knex<CategoryRow>('categories')
-        .where({ id: categoryId, user_id: userId })
+    const category = await db.categories
+        .where(candidate => candidate.id, categoryId)
+        .where(candidate => candidate.userId, userId)
         .first();
     if (!category) {
         throw new CategoryNotFoundError('Category was not found.');
     }
 
-    const usage = await knex('transactions')
-        .count<{ count: string | number }[]>({ count: '*' })
-        .where({ category_id: categoryId })
-        .first();
-    if (Number(usage?.count ?? 0) > 0) {
+    const usage = await db.transactions
+        .where(transaction => transaction.categoryId, categoryId)
+        .limit(1);
+    if (usage.length > 0) {
         throw new CategoryInUseError(
             'Category cannot be deleted while transactions use it.'
         );
     }
 
-    await knex('categories')
-        .where({ id: categoryId, user_id: userId })
+    await db.categories
+        .where(candidate => candidate.id, categoryId)
+        .where(candidate => candidate.userId, userId)
         .delete();
 }

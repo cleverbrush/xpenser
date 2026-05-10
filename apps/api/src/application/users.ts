@@ -3,9 +3,8 @@ import type {
     TokenResponse,
     UserPreference
 } from '@xpenser/contracts';
-import type { Knex } from 'knex';
 import type { Config } from '../config.js';
-import type { UserRow } from '../db/schemas.js';
+import type { AppDb, UserDb } from '../db/schemas.js';
 import { hashPassword, verifyPassword } from '../security/password.js';
 import { issueToken } from '../security/token.js';
 
@@ -13,47 +12,43 @@ export class DuplicateEmailError extends Error {}
 export class InvalidCredentialsError extends Error {}
 export class PasswordMismatchError extends Error {}
 
-type UserWithCategoryFlag = UserRow & {
-    readonly has_categories: boolean;
-};
-
 async function favoriteCurrencies(
-    knex: Knex,
+    db: AppDb,
     userId: number
 ): Promise<string[]> {
-    const rows = await knex('user_favorite_currencies')
-        .select<{ currency: string }[]>('currency')
-        .where({ user_id: userId })
-        .orderBy('currency', 'asc');
+    const rows = await db.favoriteCurrencies
+        .where(currency => currency.userId, userId)
+        .orderBy(currency => currency.currency, 'asc');
     return rows.map(row => row.currency);
 }
 
-async function hasCategories(knex: Knex, userId: number): Promise<boolean> {
-    const row = await knex('categories')
-        .count<{ count: string | number }[]>({ count: '*' })
-        .where({ user_id: userId })
-        .first();
-    return Number(row?.count ?? 0) > 0;
+async function hasCategories(db: AppDb, userId: number): Promise<boolean> {
+    const rows = await db.categories
+        .where(category => category.userId, userId)
+        .limit(1);
+    return rows.length > 0;
 }
 
 async function setFavoriteCurrencies(
-    trx: Knex.Transaction,
+    db: AppDb,
     userId: number,
     currencies: readonly string[],
     defaultCurrency: string
 ): Promise<void> {
     const unique = Array.from(new Set([defaultCurrency, ...currencies]));
-    await trx('user_favorite_currencies').where({ user_id: userId }).delete();
+    await db.favoriteCurrencies
+        .where(currency => currency.userId, userId)
+        .delete();
     if (unique.length > 0) {
-        await trx('user_favorite_currencies').insert(
-            unique.map(currency => ({ user_id: userId, currency }))
+        await db.favoriteCurrencies.insertMany(
+            unique.map(currency => ({ userId, currency }))
         );
     }
 }
 
 function toTokenResponse(
     config: Config,
-    user: Pick<UserRow, 'id' | 'email' | 'role' | 'default_currency'>,
+    user: Pick<UserDb, 'id' | 'email' | 'role' | 'defaultCurrency'>,
     categories: boolean
 ): TokenResponse {
     return {
@@ -62,14 +57,14 @@ function toTokenResponse(
             id: user.id,
             email: user.email,
             role: user.role,
-            defaultCurrency: user.default_currency,
+            defaultCurrency: user.defaultCurrency,
             hasCategories: categories
         }
     };
 }
 
 export async function registerUser(
-    knex: Knex,
+    db: AppDb,
     config: Config,
     body: RegisterBody
 ): Promise<TokenResponse> {
@@ -77,27 +72,21 @@ export async function registerUser(
         throw new PasswordMismatchError('Passwords do not match.');
     }
 
-    return knex.transaction(async trx => {
-        const existing = await trx('users')
-            .where({ email: body.email })
-            .first('id');
+    return db.transaction(async trx => {
+        const existing = await trx.users
+            .where(user => user.email, body.email)
+            .first();
         if (existing) {
             throw new DuplicateEmailError('Email is already registered.');
         }
 
-        const [user] = await trx<UserRow>('users')
-            .insert({
-                email: body.email,
-                password_hash: await hashPassword(body.password),
-                role: 'user',
-                auth_provider: 'local',
-                default_currency: body.defaultCurrency
-            })
-            .returning('*');
-
-        if (!user) {
-            throw new Error('User insert did not return a row.');
-        }
+        const user = await trx.users.insert({
+            email: body.email,
+            passwordHash: await hashPassword(body.password),
+            role: 'user',
+            authProvider: 'local',
+            defaultCurrency: body.defaultCurrency
+        });
 
         await setFavoriteCurrencies(
             trx,
@@ -111,65 +100,53 @@ export async function registerUser(
 }
 
 export async function loginUser(
-    knex: Knex,
+    db: AppDb,
     config: Config,
     email: string,
     password: string
 ): Promise<TokenResponse> {
-    const user = await knex<UserRow>('users').where({ email }).first();
-    if (!user?.password_hash) {
+    const user = await db.users
+        .projected('auth')
+        .where(candidate => candidate.email, email)
+        .first();
+    if (!user?.passwordHash) {
         throw new InvalidCredentialsError('Invalid email or password.');
     }
 
-    const valid = await verifyPassword(password, user.password_hash);
+    const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) {
         throw new InvalidCredentialsError('Invalid email or password.');
     }
 
-    return toTokenResponse(config, user, await hasCategories(knex, user.id));
+    return toTokenResponse(config, user, await hasCategories(db, user.id));
 }
 
 export async function googleUser(
-    knex: Knex,
+    db: AppDb,
     config: Config,
     email: string
 ): Promise<TokenResponse> {
-    return knex.transaction(async trx => {
-        const found = await trx<UserRow>('users').where({ email }).first();
+    return db.transaction(async trx => {
+        const found = await trx.users.where(user => user.email, email).first();
         const user =
             found ??
-            (
-                await trx<UserRow>('users')
-                    .insert({
-                        email,
-                        role: 'user',
-                        auth_provider: 'google',
-                        default_currency: 'USD'
-                    })
-                    .returning('*')
-            )[0];
-
-        if (!user) {
-            throw new Error('Google user insert did not return a row.');
-        }
+            (await trx.users.insert({
+                email,
+                passwordHash: undefined,
+                role: 'user',
+                authProvider: 'google',
+                defaultCurrency: 'USD'
+            }));
 
         return toTokenResponse(config, user, await hasCategories(trx, user.id));
     });
 }
 
 export async function getUserPreference(
-    knex: Knex,
+    db: AppDb,
     userId: number
 ): Promise<UserPreference | undefined> {
-    const user = await knex<UserWithCategoryFlag>('users')
-        .select(
-            'users.*',
-            knex.raw(
-                'exists(select 1 from categories where user_id = users.id) as has_categories'
-            )
-        )
-        .where('users.id', userId)
-        .first();
+    const user = await db.users.find(userId);
 
     if (!user) {
         return undefined;
@@ -178,25 +155,32 @@ export async function getUserPreference(
     return {
         id: user.id,
         email: user.email,
-        defaultCurrency: user.default_currency,
-        favoriteCurrencies: await favoriteCurrencies(knex, userId),
-        hasCategories: Boolean(user.has_categories)
+        defaultCurrency: user.defaultCurrency,
+        favoriteCurrencies: await favoriteCurrencies(db, userId),
+        hasCategories: await hasCategories(db, userId)
     };
 }
 
 export async function updateUserPreference(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     defaultCurrency: string,
     currencies: readonly string[]
 ): Promise<UserPreference | undefined> {
-    await knex.transaction(async trx => {
-        await trx('users').where({ id: userId }).update({
-            default_currency: defaultCurrency,
-            updated_at: trx.fn.now()
-        });
+    const user = await db.users.find(userId);
+    if (!user) {
+        return undefined;
+    }
+
+    await db.transaction(async trx => {
+        await trx.users
+            .where(candidate => candidate.id, userId)
+            .update({
+                defaultCurrency,
+                updatedAt: new Date()
+            });
         await setFavoriteCurrencies(trx, userId, currencies, defaultCurrency);
     });
 
-    return getUserPreference(knex, userId);
+    return getUserPreference(db, userId);
 }

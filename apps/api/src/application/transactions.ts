@@ -5,9 +5,13 @@ import type {
     Transaction,
     TransactionListQuery
 } from '@xpenser/contracts';
-import type { Knex } from 'knex';
 import type { Config } from '../config.js';
-import type { CategoryRow, TransactionRow, UserRow } from '../db/schemas.js';
+import type {
+    AppDb,
+    CategoryDb,
+    TransactionDb,
+    UserDb
+} from '../db/schemas.js';
 import {
     convertAmount,
     getExchangeRate,
@@ -23,181 +27,164 @@ type StatsBucket = StatsOverview['trend'][number];
 
 type StatsCategory = StatsOverview['byCategory'][number];
 
-function mapTransaction(row: TransactionRow): Transaction {
+function mapTransaction(row: TransactionDb): Transaction {
     return {
         id: row.id,
-        categoryId: row.category_id,
-        categoryName: row.category_name,
+        categoryId: row.categoryId,
+        categoryName: row.category?.name ?? '',
         type: row.type,
         amount: Number(row.amount),
         currency: row.currency,
-        defaultCurrencyAmount: Number(row.default_currency_amount),
-        defaultCurrency: row.default_currency,
-        exchangeRate: Number(row.exchange_rate),
-        exchangeRateDate: row.exchange_rate_date,
-        occurredAt: row.occurred_at,
+        defaultCurrencyAmount: Number(row.defaultCurrencyAmount),
+        defaultCurrency: row.defaultCurrency,
+        exchangeRate: Number(row.exchangeRate),
+        exchangeRateDate: row.exchangeRateDate,
+        occurredAt: row.occurredAt,
         note: row.note ?? undefined,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
     };
 }
 
-async function getUser(knex: Knex, userId: number): Promise<UserRow> {
-    const user = await knex<UserRow>('users').where({ id: userId }).first();
+async function getUser(db: AppDb, userId: number): Promise<UserDb> {
+    const user = await db.users.find(userId);
     if (!user) {
         throw new TransactionCategoryError('User was not found.');
     }
-    return user;
+    return user as UserDb;
 }
 
 async function getCategory(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     categoryId: number
-): Promise<CategoryRow> {
-    const category = await knex<CategoryRow>('categories')
-        .where({ id: categoryId, user_id: userId })
+): Promise<CategoryDb> {
+    const category = await db.categories
+        .where(candidate => candidate.id, categoryId)
+        .where(candidate => candidate.userId, userId)
         .first();
     if (!category) {
         throw new TransactionCategoryError('Category was not found.');
     }
-    return category;
-}
-
-function transactionSelection(knex: Knex) {
-    return knex('transactions')
-        .join('categories', 'categories.id', 'transactions.category_id')
-        .select(
-            'transactions.id',
-            'transactions.user_id',
-            'transactions.category_id',
-            'categories.name as category_name',
-            'transactions.type',
-            'transactions.amount',
-            'transactions.currency',
-            'transactions.default_currency_amount',
-            'transactions.default_currency',
-            'transactions.exchange_rate',
-            'transactions.exchange_rate_date',
-            'transactions.occurred_at',
-            'transactions.note',
-            'transactions.created_at',
-            'transactions.updated_at'
-        );
+    return category as CategoryDb;
 }
 
 export async function listTransactions(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     query: TransactionListQuery
 ) {
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, Math.max(1, query.limit ?? 50));
-    const base = transactionSelection(knex).where(
-        'transactions.user_id',
-        userId
-    );
+    let builder = db.transactions
+        .include(transaction => transaction.category)
+        .where(transaction => transaction.userId, userId);
 
     if (query.type) {
-        base.where('transactions.type', query.type);
+        builder = builder.where(transaction => transaction.type, query.type);
     }
     if (query.categoryId) {
-        base.where('transactions.category_id', query.categoryId);
+        builder = builder.where(
+            transaction => transaction.categoryId,
+            query.categoryId
+        );
     }
     if (query.from) {
-        base.where('transactions.occurred_at', '>=', query.from);
+        builder = builder.where(
+            transaction => transaction.occurredAt,
+            '>=',
+            query.from
+        );
     }
     if (query.to) {
-        base.where('transactions.occurred_at', '<=', query.to);
-    }
-    if (query.search) {
-        base.where(builder => {
-            builder
-                .whereILike('categories.name', `%${query.search}%`)
-                .orWhereILike('transactions.note', `%${query.search}%`);
-        });
+        builder = builder.where(
+            transaction => transaction.occurredAt,
+            '<=',
+            query.to
+        );
     }
 
-    const countQuery = base
-        .clone()
-        .clearSelect()
-        .clearOrder()
-        .count<{ count: string | number }[]>({ count: 'transactions.id' })
-        .first();
+    const rows = ((await builder.orderBy(
+        transaction => transaction.occurredAt,
+        query.direction ?? 'desc'
+    )) ?? []) as TransactionDb[];
 
-    const rows = await base
-        .orderBy('transactions.occurred_at', query.direction ?? 'desc')
-        .limit(limit)
-        .offset((page - 1) * limit);
-    const count = await countQuery;
+    const search = query.search?.trim().toLowerCase();
+    const filtered = search
+        ? rows.filter(
+              transaction =>
+                  transaction.category?.name.toLowerCase().includes(search) ||
+                  transaction.note?.toLowerCase().includes(search)
+          )
+        : rows;
+    const offset = (page - 1) * limit;
 
     return {
-        items: (rows as TransactionRow[]).map(mapTransaction),
-        total: Number(count?.count ?? 0),
+        items: filtered.slice(offset, offset + limit).map(mapTransaction),
+        total: filtered.length,
         page,
         limit
     };
 }
 
 export async function createTransaction(
-    knex: Knex,
+    db: AppDb,
     config: Config,
     userId: number,
     body: CreateTransactionBody
 ): Promise<Transaction> {
-    const user = await getUser(knex, userId);
-    const category = await getCategory(knex, userId, body.categoryId);
+    const user = await getUser(db, userId);
+    const category = await getCategory(db, userId, body.categoryId);
     const date = transactionDate(body.occurredAt);
     const exchange = await getExchangeRate(
-        knex,
+        db,
         config,
         body.currency,
-        user.default_currency,
+        user.defaultCurrency,
         date
     );
 
-    const [created] = await knex('transactions')
-        .insert({
-            user_id: userId,
-            category_id: body.categoryId,
-            type: category.type,
-            amount: body.amount,
-            currency: body.currency,
-            default_currency_amount: convertAmount(body.amount, exchange.rate),
-            default_currency: user.default_currency,
-            exchange_rate: exchange.rate,
-            exchange_rate_date: exchange.rateDate,
-            occurred_at: body.occurredAt,
-            note: body.note ?? null
-        })
-        .returning('id');
+    const created = await db.transactions.insert({
+        userId,
+        categoryId: body.categoryId,
+        type: category.type,
+        amount: body.amount,
+        currency: body.currency,
+        defaultCurrencyAmount: convertAmount(body.amount, exchange.rate),
+        defaultCurrency: user.defaultCurrency,
+        exchangeRate: exchange.rate,
+        exchangeRateDate: exchange.rateDate,
+        occurredAt: body.occurredAt,
+        note: body.note ?? undefined
+    });
 
-    return getTransaction(knex, userId, Number(created.id));
+    return getTransaction(db, userId, created.id);
 }
 
 export async function getTransaction(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     transactionId: number
 ): Promise<Transaction> {
-    const row = await transactionSelection(knex)
-        .where('transactions.id', transactionId)
-        .where('transactions.user_id', userId)
-        .first<TransactionRow>();
+    const row = await db.transactions
+        .include(transaction => transaction.category)
+        .where(transaction => transaction.id, transactionId)
+        .where(transaction => transaction.userId, userId)
+        .first();
     if (!row) {
         throw new TransactionNotFoundError('Transaction was not found.');
     }
-    return mapTransaction(row);
+    return mapTransaction(row as TransactionDb);
 }
 
 export async function updateTransaction(
-    knex: Knex,
+    db: AppDb,
     config: Config,
     userId: number,
     transactionId: number,
     body: Partial<CreateTransactionBody>
 ): Promise<Transaction> {
-    const current = await getTransaction(knex, userId, transactionId);
+    const current = await getTransaction(db, userId, transactionId);
     const next = {
         categoryId: body.categoryId ?? current.categoryId,
         amount: body.amount ?? current.amount,
@@ -206,42 +193,44 @@ export async function updateTransaction(
         note: body.note ?? current.note
     };
 
-    const user = await getUser(knex, userId);
-    const category = await getCategory(knex, userId, next.categoryId);
+    const user = await getUser(db, userId);
+    const category = await getCategory(db, userId, next.categoryId);
     const exchange = await getExchangeRate(
-        knex,
+        db,
         config,
         next.currency,
-        user.default_currency,
+        user.defaultCurrency,
         transactionDate(next.occurredAt)
     );
 
-    await knex('transactions')
-        .where({ id: transactionId, user_id: userId })
+    await db.transactions
+        .where(transaction => transaction.id, transactionId)
+        .where(transaction => transaction.userId, userId)
         .update({
-            category_id: next.categoryId,
+            categoryId: next.categoryId,
             type: category.type,
             amount: next.amount,
             currency: next.currency,
-            default_currency_amount: convertAmount(next.amount, exchange.rate),
-            default_currency: user.default_currency,
-            exchange_rate: exchange.rate,
-            exchange_rate_date: exchange.rateDate,
-            occurred_at: next.occurredAt,
-            note: next.note ?? null,
-            updated_at: knex.fn.now()
+            defaultCurrencyAmount: convertAmount(next.amount, exchange.rate),
+            defaultCurrency: user.defaultCurrency,
+            exchangeRate: exchange.rate,
+            exchangeRateDate: exchange.rateDate,
+            occurredAt: next.occurredAt,
+            note: next.note ?? undefined,
+            updatedAt: new Date()
         });
 
-    return getTransaction(knex, userId, transactionId);
+    return getTransaction(db, userId, transactionId);
 }
 
 export async function deleteTransaction(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     transactionId: number
 ): Promise<void> {
-    const deleted = await knex('transactions')
-        .where({ id: transactionId, user_id: userId })
+    const deleted = await db.transactions
+        .where(transaction => transaction.id, transactionId)
+        .where(transaction => transaction.userId, userId)
         .delete();
     if (deleted === 0) {
         throw new TransactionNotFoundError('Transaction was not found.');
@@ -349,51 +338,55 @@ function topCategory(
 }
 
 export async function dashboardSummary(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     period: DashboardPeriod
 ): Promise<DashboardSummary> {
-    const user = await getUser(knex, userId);
+    const user = await getUser(db, userId);
     const range = periodRange(period);
 
-    const rows = (await knex('transactions')
-        .join('categories', 'categories.id', 'transactions.category_id')
-        .select(
-            'transactions.category_id',
-            'categories.name as category_name',
-            'transactions.type'
-        )
-        .sum({ total: 'transactions.default_currency_amount' })
-        .where('transactions.user_id', userId)
-        .whereBetween('transactions.occurred_at', [range.from, range.to])
-        .groupBy(
-            'transactions.category_id',
-            'categories.name',
-            'transactions.type'
-        )) as Array<{
-        readonly category_id: number;
-        readonly category_name: string;
-        readonly type: 'expense' | 'income';
-        readonly total?: string | number;
-    }>;
+    const rows = (await db.transactions
+        .include(transaction => transaction.category)
+        .where(transaction => transaction.userId, userId)
+        .whereBetween(
+            transaction => transaction.occurredAt,
+            [range.from, range.to]
+        )) as TransactionDb[];
 
-    const byCategory = rows.map(row => ({
-        categoryId: Number(row.category_id),
-        categoryName: String(row.category_name),
-        type: row.type as 'expense' | 'income',
-        total: Number(row.total ?? 0)
-    }));
+    const totalsByCategory = new Map<
+        string,
+        {
+            categoryId: number;
+            categoryName: string;
+            type: 'expense' | 'income';
+            total: number;
+        }
+    >();
 
-    const latest = await transactionSelection(knex)
-        .where('transactions.user_id', userId)
-        .orderBy('transactions.occurred_at', 'desc')
-        .limit(5);
+    for (const row of rows) {
+        const key = `${row.type}:${row.categoryId}`;
+        const current = totalsByCategory.get(key) ?? {
+            categoryId: row.categoryId,
+            categoryName: row.category?.name ?? '',
+            type: row.type,
+            total: 0
+        };
+        current.total += Number(row.defaultCurrencyAmount);
+        totalsByCategory.set(key, current);
+    }
+
+    const byCategory = Array.from(totalsByCategory.values());
+    const latest = (await db.transactions
+        .include(transaction => transaction.category)
+        .where(transaction => transaction.userId, userId)
+        .orderBy(transaction => transaction.occurredAt, 'desc')
+        .limit(5)) as TransactionDb[];
 
     return {
         period,
         from: range.from,
         to: range.to,
-        currency: user.default_currency,
+        currency: user.defaultCurrency,
         expenseTotal: byCategory
             .filter(item => item.type === 'expense')
             .reduce((sum, item) => sum + item.total, 0),
@@ -401,39 +394,26 @@ export async function dashboardSummary(
             .filter(item => item.type === 'income')
             .reduce((sum, item) => sum + item.total, 0),
         byCategory,
-        latestTransactions: (latest as TransactionRow[]).map(mapTransaction)
+        latestTransactions: latest.map(mapTransaction)
     };
 }
 
 export async function statsOverview(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     period: DashboardPeriod
 ): Promise<StatsOverview> {
-    const user = await getUser(knex, userId);
+    const user = await getUser(db, userId);
     const range = periodRange(period);
     const buckets = trendBuckets(period, range);
 
-    const rows = (await knex('transactions')
-        .join('categories', 'categories.id', 'transactions.category_id')
-        .select(
-            'transactions.category_id',
-            'categories.name as category_name',
-            'transactions.type',
-            'transactions.default_currency_amount',
-            'transactions.occurred_at'
-        )
-        .where('transactions.user_id', userId)
-        .whereBetween('transactions.occurred_at', [
-            range.from,
-            range.to
-        ])) as Array<{
-        readonly category_id: number;
-        readonly category_name: string;
-        readonly type: 'expense' | 'income';
-        readonly default_currency_amount: string | number;
-        readonly occurred_at: Date | string;
-    }>;
+    const rows = (await db.transactions
+        .include(transaction => transaction.category)
+        .where(transaction => transaction.userId, userId)
+        .whereBetween(
+            transaction => transaction.occurredAt,
+            [range.from, range.to]
+        )) as TransactionDb[];
 
     const categories = new Map<string, StatsCategory>();
     let incomeTotal = 0;
@@ -442,9 +422,9 @@ export async function statsOverview(
     let expenseCount = 0;
 
     for (const row of rows) {
-        const total = Number(row.default_currency_amount);
+        const total = Number(row.defaultCurrencyAmount);
         const type = row.type;
-        const date = new Date(row.occurred_at);
+        const date = new Date(row.occurredAt);
         const bucket = buckets.get(bucketKey(date, period));
 
         if (type === 'income') {
@@ -466,10 +446,10 @@ export async function statsOverview(
             bucket.netTotal = bucket.incomeTotal - bucket.expenseTotal;
         }
 
-        const categoryKey = `${type}:${row.category_id}`;
+        const categoryKey = `${type}:${row.categoryId}`;
         const category = categories.get(categoryKey) ?? {
-            categoryId: Number(row.category_id),
-            categoryName: String(row.category_name),
+            categoryId: row.categoryId,
+            categoryName: row.category?.name ?? '',
             type,
             total: 0,
             share: 0
@@ -493,7 +473,7 @@ export async function statsOverview(
         period,
         from: range.from,
         to: range.to,
-        currency: user.default_currency,
+        currency: user.defaultCurrency,
         incomeTotal,
         expenseTotal,
         netTotal,
