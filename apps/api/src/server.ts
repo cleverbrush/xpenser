@@ -22,7 +22,7 @@ function corsMiddleware(config: Config): Middleware {
         );
         ctx.response.setHeader(
             'Access-Control-Allow-Headers',
-            'Content-Type, Authorization'
+            'Content-Type, Authorization, traceparent, tracestate, baggage'
         );
         ctx.response.setHeader(
             'Access-Control-Expose-Headers',

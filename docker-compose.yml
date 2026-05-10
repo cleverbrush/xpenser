@@ -66,6 +66,9 @@ services:
       API_BASE_URL: http://api:4000
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      WEB_OTEL_SERVICE_NAME: xpenser-web
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      NEXT_OTEL_VERBOSE: "1"
     ports:
       - "${WEB_PORT:-3000}:3000"
 

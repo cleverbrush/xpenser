@@ -4,6 +4,7 @@ import { cacheTags } from '@cleverbrush/client/cache';
 import { dedupe } from '@cleverbrush/client/dedupe';
 import { retry } from '@cleverbrush/client/retry';
 import { timeout } from '@cleverbrush/client/timeout';
+import { clientTracingMiddleware } from '@cleverbrush/otel/client';
 import { api } from '@xpenser/contracts';
 
 export type TokenProvider = () => string | null;
@@ -29,6 +30,7 @@ export function createXpenserClient(options: XpenserClientOptions) {
         getToken: options.getToken,
         fetch: options.fetch,
         middlewares: [
+            clientTracingMiddleware(),
             retry({ limit: 2, retryOnTimeout: true }),
             timeout({ timeout: 10_000 }),
             dedupe(),

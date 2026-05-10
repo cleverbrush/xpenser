@@ -77,6 +77,11 @@ Local URLs:
 - API health check: http://localhost:4000/health
 - OpenAPI JSON: http://localhost:4000/openapi.json
 
+To see distributed traces during local development, run the Compose observability
+services or the full Docker stack so `OTEL_EXPORTER_OTLP_ENDPOINT` points at a
+live collector. The web app reports as `xpenser-web`; the API reports as
+`xpenser-api`.
+
 ## Database Commands
 
 Run migrations manually if needed:
@@ -113,7 +118,9 @@ docker compose up --build
 ```
 
 This starts the containerized web app, API, PostgreSQL, Swagger UI, and the
-observability services defined in `docker-compose.yml`.
+observability services defined in `docker-compose.yml`. Requests that start in
+the web app and call the API should appear in SigNoz as one distributed trace
+with spans from both services.
 
 Full Docker URLs:
 
