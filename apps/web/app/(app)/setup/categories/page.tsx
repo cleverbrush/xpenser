@@ -1,23 +1,12 @@
 import {
-    Button,
     Card,
     CardContent,
     CardDescription,
     CardHeader,
-    CardTitle,
-    Field,
-    FieldGroup,
-    FieldLabel,
-    Input,
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue
+    CardTitle
 } from '@xpenser/ui';
 import { redirect } from 'next/navigation';
-import { createFirstCategoryAction } from '@/lib/actions';
+import { CategoryForm } from '@/components/forms/category-form';
 import { getApiClient } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -40,38 +29,11 @@ export default async function CategorySetupPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form action={createFirstCategoryAction}>
-                        <FieldGroup>
-                            <Field>
-                                <FieldLabel htmlFor="name">Name</FieldLabel>
-                                <Input
-                                    id="name"
-                                    name="name"
-                                    placeholder="Groceries"
-                                    required
-                                />
-                            </Field>
-                            <Field>
-                                <FieldLabel>Type</FieldLabel>
-                                <Select defaultValue="expense" name="type">
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            <SelectItem value="expense">
-                                                Expense
-                                            </SelectItem>
-                                            <SelectItem value="income">
-                                                Income
-                                            </SelectItem>
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
-                            </Field>
-                            <Button type="submit">Create category</Button>
-                        </FieldGroup>
-                    </form>
+                    <CategoryForm
+                        first
+                        namePlaceholder="Groceries"
+                        submitLabel="Create category"
+                    />
                 </CardContent>
             </Card>
         </div>

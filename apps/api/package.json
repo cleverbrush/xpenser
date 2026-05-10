@@ -11,7 +11,7 @@
         "build": "tsup && tsc --noEmit -p tsconfig.json",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
-        "db:run": "tsx --env-file=.env src/db/migrate.ts"
+        "db:run": "tsx --env-file=.env src/db/run.ts"
     },
     "dependencies": {
         "@cleverbrush/auth": "4.2.0",

@@ -4,6 +4,7 @@ import {
     dashboardSummary,
     deleteTransaction,
     listTransactions,
+    statsOverview,
     TransactionCategoryError,
     TransactionNotFoundError,
     updateTransaction
@@ -13,6 +14,7 @@ import type {
     DashboardSummaryEndpoint,
     DeleteTransactionEndpoint,
     ListTransactionsEndpoint,
+    StatsOverviewEndpoint,
     UpdateTransactionEndpoint
 } from '../endpoints.js';
 
@@ -88,4 +90,10 @@ export const dashboardSummaryHandler: Handler<
     typeof DashboardSummaryEndpoint
 > = async ({ query, principal }, { knex }) => {
     return dashboardSummary(knex, principal.userId, query.period ?? 'month');
+};
+
+export const statsOverviewHandler: Handler<
+    typeof StatsOverviewEndpoint
+> = async ({ query, principal }, { knex }) => {
+    return statsOverview(knex, principal.userId, query.period ?? 'month');
 };

@@ -38,7 +38,19 @@ export const config = parseEnv(
                 string().default('https://api.frankfurter.dev/v2')
             )
         },
-        logLevel: env('LOG_LEVEL', string().default('information'))
+        logLevel: env(
+            'LOG_LEVEL',
+            string()
+                .oneOf([
+                    'trace',
+                    'debug',
+                    'information',
+                    'warning',
+                    'error',
+                    'fatal'
+                ] as const)
+                .default('information')
+        )
     },
     base => ({
         db: {

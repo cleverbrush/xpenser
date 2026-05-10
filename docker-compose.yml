@@ -62,6 +62,7 @@ services:
       APP_URL: ${APP_URL:-http://localhost:3000}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-production-min32chars}
+      AUTH_SECRET: ${AUTH_SECRET:-${NEXTAUTH_SECRET:-change-me-in-production-min32chars}}
       API_BASE_URL: http://api:4000
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
@@ -83,28 +84,65 @@ services:
     image: signoz/zookeeper:3.7.1
     restart: unless-stopped
     user: root
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -m 2 http://localhost:8080/commands/ruok | grep error | grep null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    volumes:
+      - signoz-zookeeper-1:/bitnami/zookeeper
     environment:
       - ZOO_SERVER_ID=1
       - ALLOW_ANONYMOUS_LOGIN=yes
+      - ZOO_AUTOPURGE_INTERVAL=1
+      - ZOO_ENABLE_PROMETHEUS_METRICS=yes
+      - ZOO_PROMETHEUS_METRICS_PORT_NUMBER=9141
+
+  init-clickhouse:
+    image: clickhouse/clickhouse-server:25.5.6
+    restart: on-failure
+    user: root
+    command:
+      - bash
+      - -c
+      - |
+        version="v0.0.1"
+        node_os=$$(uname -s | tr '[:upper:]' '[:lower:]')
+        node_arch=$$(uname -m | sed s/aarch64/arm64/ | sed s/x86_64/amd64/)
+        echo "Fetching histogram-binary for $${node_os}/$${node_arch}"
+        cd /tmp
+        wget -O histogram-quantile.tar.gz "https://github.com/SigNoz/signoz/releases/download/histogram-quantile%2F$${version}/histogram-quantile_$${node_os}_$${node_arch}.tar.gz"
+        tar -xvzf histogram-quantile.tar.gz
+        mv histogram-quantile /var/lib/clickhouse/user_scripts/histogramQuantile
     volumes:
-      - signoz-zookeeper-1:/bitnami/zookeeper
+      - ./deploy/clickhouse/user_scripts:/var/lib/clickhouse/user_scripts/
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.5.6
     restart: unless-stopped
+    tty: true
     depends_on:
-      - zookeeper-1
+      init-clickhouse:
+        condition: service_completed_successfully
+      zookeeper-1:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8123/ping"]
       interval: 30s
       timeout: 5s
       retries: 3
     ulimits:
+      nproc: 65535
       nofile:
         soft: 262144
         hard: 262144
+    environment:
+      - CLICKHOUSE_SKIP_USER_SETUP=1
     volumes:
-      - signoz-clickhouse:/var/lib/clickhouse
+      - ./deploy/clickhouse/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml:ro
+      - ./deploy/clickhouse/custom-function.xml:/etc/clickhouse-server/custom-function.xml:ro
+      - ./deploy/clickhouse/user_scripts:/var/lib/clickhouse/user_scripts/
+      - signoz-clickhouse:/var/lib/clickhouse/
 
   signoz-telemetrystore-migrator:
     image: signoz/signoz-otel-collector:v0.144.3
@@ -122,6 +160,7 @@ services:
     environment:
       - SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_DSN=tcp://clickhouse:9000
       - SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_CLUSTER=cluster
+      - SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_REPLICATION=true
       - SIGNOZ_OTEL_COLLECTOR_TIMEOUT=10m
 
   otel-collector:
@@ -139,9 +178,11 @@ services:
         /signoz-otel-collector migrate sync check &&
         /signoz-otel-collector --config=/etc/otel-collector-config.yaml
     environment:
+      - OTEL_RESOURCE_ATTRIBUTES=host.name=signoz-host,os.type=linux
       - LOW_CARDINAL_EXCEPTION_GROUPING=false
       - SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_DSN=tcp://clickhouse:9000
       - SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_CLUSTER=cluster
+      - SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_REPLICATION=true
       - SIGNOZ_OTEL_COLLECTOR_TIMEOUT=10m
     volumes:
       - ./deploy/signoz/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
@@ -169,7 +210,7 @@ services:
       - SIGNOZ_SQLSTORE_SQLITE_PATH=/var/lib/signoz/signoz.db
       - SIGNOZ_TOKENIZER_JWT_SECRET=${SIGNOZ_TOKENIZER_JWT_SECRET:-change-me}
     volumes:
-      - signoz-sqlite:/var/lib/signoz
+      - signoz-sqlite:/var/lib/signoz/
     ports:
       - "${SIGNOZ_PORT:-8080}:8080"
 

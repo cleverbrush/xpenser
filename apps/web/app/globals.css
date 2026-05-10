@@ -1,1 +1,20 @@
 @import '@xpenser/ui/styles.css';
+
+@font-face {
+    font-family: 'Datatype';
+    font-display: swap;
+    font-stretch: 50% 150%;
+    font-weight: 100 900;
+    src: url('/fonts/Datatype.woff2') format('woff2');
+}
+
+.datatype-chart {
+    font-family: 'Datatype', monospace;
+    font-feature-settings:
+        'liga' 1,
+        'calt' 1;
+    font-variation-settings:
+        'wdth' 90,
+        'wght' 520;
+    letter-spacing: 0;
+}

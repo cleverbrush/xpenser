@@ -10,9 +10,11 @@ export default async function ProtectedLayout({
 }) {
     await getSessionOrRedirect();
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-dvh bg-background">
             <AppNav />
-            <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+            <main className="mx-auto max-w-6xl px-3 pb-24 pt-4 sm:px-4 sm:py-6">
+                {children}
+            </main>
         </div>
     );
 }

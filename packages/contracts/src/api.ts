@@ -10,7 +10,9 @@ import {
     ErrorResponseSchema,
     GoogleAuthBodySchema,
     LoginBodySchema,
+    PrincipalSchema,
     RegisterBodySchema,
+    StatsOverviewSchema,
     TokenResponseSchema,
     TransactionListQuerySchema,
     TransactionListResponseSchema,
@@ -22,8 +24,12 @@ import {
 } from './schemas.js';
 
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
-const categories = endpoint.resource('/api/categories');
-const transactions = endpoint.resource('/api/transactions');
+const categories = endpoint
+    .resource('/api/categories')
+    .authorize(PrincipalSchema);
+const transactions = endpoint
+    .resource('/api/transactions')
+    .authorize(PrincipalSchema);
 
 export const api = defineApi({
     auth: {
@@ -41,16 +47,19 @@ export const api = defineApi({
             .responses({ 200: TokenResponseSchema, 401: ErrorResponseSchema }),
         me: endpoint
             .get('/api/auth/me')
+            .authorize(PrincipalSchema)
             .cacheTag('user-profile')
             .responses({ 200: UserPreferenceSchema, 401: ErrorResponseSchema })
     },
     users: {
         updatePreferences: endpoint
             .put('/api/users/me/preferences')
+            .authorize(PrincipalSchema)
             .body(UpdateUserPreferenceBodySchema)
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('stats')
             .responses({
                 200: UserPreferenceSchema,
                 400: ErrorResponseSchema,
@@ -73,17 +82,20 @@ export const api = defineApi({
             .body(CreateCategoryBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('stats')
             .responses({ 201: CategorySchema, 400: ErrorResponseSchema }),
         update: categories
             .patch(ById)
             .body(UpdateCategoryBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('stats')
             .responses({ 200: CategorySchema, 404: ErrorResponseSchema }),
         delete: categories
             .delete(ById)
             .clearsCacheTag('categories')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('stats')
             .responses({
                 204: null,
                 400: ErrorResponseSchema,
@@ -101,12 +113,14 @@ export const api = defineApi({
             .body(CreateTransactionBodySchema)
             .clearsCacheTag('transactions')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('stats')
             .responses({ 201: TransactionSchema, 400: ErrorResponseSchema }),
         update: transactions
             .patch(ById)
             .body(UpdateTransactionBodySchema)
             .clearsCacheTag('transactions')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('stats')
             .responses({
                 200: TransactionSchema,
                 400: ErrorResponseSchema,
@@ -116,14 +130,24 @@ export const api = defineApi({
             .delete(ById)
             .clearsCacheTag('transactions')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('stats')
             .responses({ 204: null, 404: ErrorResponseSchema })
     },
     dashboard: {
         summary: endpoint
             .get('/api/dashboard')
+            .authorize(PrincipalSchema)
             .query(DashboardQuerySchema)
             .cacheTag('dashboard')
             .responses({ 200: DashboardSummarySchema })
+    },
+    stats: {
+        overview: endpoint
+            .get('/api/stats')
+            .authorize(PrincipalSchema)
+            .query(DashboardQuerySchema)
+            .cacheTag('stats')
+            .responses({ 200: StatsOverviewSchema })
     }
 });
 

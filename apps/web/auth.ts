@@ -1,5 +1,5 @@
 import { createXpenserClient } from '@xpenser/client';
-import NextAuth, { type DefaultSession } from 'next-auth';
+import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth';
 import type {} from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
@@ -40,9 +40,9 @@ function apiClient() {
     return createXpenserClient({ baseUrl: webConfig.apiBaseUrl });
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const nextAuth: NextAuthResult = NextAuth({
     session: { strategy: 'jwt' },
-    secret: webConfig.nextAuthSecret,
+    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
     trustHost: true,
     providers: [
         Credentials({
@@ -119,3 +119,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
     }
 });
+
+export const handlers: NextAuthResult['handlers'] = nextAuth.handlers;
+export const auth: NextAuthResult['auth'] = nextAuth.auth;
+export const signIn: NextAuthResult['signIn'] = nextAuth.signIn;
+export const signOut: NextAuthResult['signOut'] = nextAuth.signOut;

@@ -15,6 +15,7 @@ import {
 import { redirect } from 'next/navigation';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { getApiClient } from '@/lib/api';
+import { formatDate } from '@/lib/format';
 
 const periods = ['week', 'month', 'quarter', 'year'] as const;
 
@@ -42,8 +43,8 @@ export default async function DashboardPage({
     }
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-col gap-5 sm:gap-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-semibold">Dashboard</h1>
                     <p className="text-sm text-muted-foreground">
@@ -56,10 +57,10 @@ export default async function DashboardPage({
                     defaultCurrency={me.defaultCurrency}
                 />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
                 {periods.map(item => (
                     <a
-                        className="rounded-md border px-3 py-1 text-sm hover:bg-muted"
+                        className="rounded-md border px-2 py-2 text-center text-sm capitalize hover:bg-muted sm:px-3 sm:py-1"
                         href={`/dashboard?period=${item}`}
                         key={item}
                     >
@@ -69,25 +70,25 @@ export default async function DashboardPage({
             </div>
             <div className="grid gap-4 md:grid-cols-3">
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 sm:p-6">
                         <CardDescription>Income</CardDescription>
-                        <CardTitle>
+                        <CardTitle className="text-xl sm:text-lg">
                             {summary.incomeTotal.toFixed(2)} {summary.currency}
                         </CardTitle>
                     </CardHeader>
                 </Card>
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 sm:p-6">
                         <CardDescription>Expenses</CardDescription>
-                        <CardTitle>
+                        <CardTitle className="text-xl sm:text-lg">
                             {summary.expenseTotal.toFixed(2)} {summary.currency}
                         </CardTitle>
                     </CardHeader>
                 </Card>
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 sm:p-6">
                         <CardDescription>Net</CardDescription>
-                        <CardTitle>
+                        <CardTitle className="text-xl sm:text-lg">
                             {(
                                 summary.incomeTotal - summary.expenseTotal
                             ).toFixed(2)}{' '}
@@ -97,7 +98,42 @@ export default async function DashboardPage({
                 </Card>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
-                <Card>
+                <section className="sm:hidden">
+                    <h2 className="mb-3 text-base font-semibold">
+                        By category
+                    </h2>
+                    <div className="divide-y rounded-lg border bg-card">
+                        {summary.byCategory.length === 0 ? (
+                            <div className="p-4 text-sm text-muted-foreground">
+                                No category totals yet.
+                            </div>
+                        ) : (
+                            summary.byCategory.map(item => (
+                                <div
+                                    className="flex items-center justify-between gap-3 p-4"
+                                    key={`${item.type}-${item.categoryId}`}
+                                >
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">
+                                            {item.categoryName}
+                                        </p>
+                                        <Badge
+                                            className="mt-1"
+                                            variant="secondary"
+                                        >
+                                            {item.type}
+                                        </Badge>
+                                    </div>
+                                    <p className="shrink-0 text-sm font-semibold">
+                                        {item.total.toFixed(2)}{' '}
+                                        {summary.currency}
+                                    </p>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </section>
+                <Card className="hidden sm:block">
                     <CardHeader>
                         <CardTitle>By category</CardTitle>
                     </CardHeader>
@@ -134,7 +170,39 @@ export default async function DashboardPage({
                         </Table>
                     </CardContent>
                 </Card>
-                <Card>
+                <section className="sm:hidden">
+                    <h2 className="mb-3 text-base font-semibold">
+                        Latest transactions
+                    </h2>
+                    <div className="divide-y rounded-lg border bg-card">
+                        {summary.latestTransactions.length === 0 ? (
+                            <div className="p-4 text-sm text-muted-foreground">
+                                No transactions yet.
+                            </div>
+                        ) : (
+                            summary.latestTransactions.map(transaction => (
+                                <div
+                                    className="flex items-center justify-between gap-3 p-4"
+                                    key={transaction.id}
+                                >
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">
+                                            {transaction.categoryName}
+                                        </p>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            {formatDate(transaction.occurredAt)}
+                                        </p>
+                                    </div>
+                                    <p className="shrink-0 text-sm font-semibold">
+                                        {transaction.amount.toFixed(2)}{' '}
+                                        {transaction.currency}
+                                    </p>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </section>
+                <Card className="hidden sm:block">
                     <CardHeader>
                         <CardTitle>Latest transactions</CardTitle>
                     </CardHeader>
@@ -158,7 +226,7 @@ export default async function DashboardPage({
                                             {transaction.currency}
                                         </TableCell>
                                         <TableCell>
-                                            {transaction.occurredAt.toLocaleDateString()}
+                                            {formatDate(transaction.occurredAt)}
                                         </TableCell>
                                     </TableRow>
                                 ))}

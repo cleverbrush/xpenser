@@ -119,6 +119,14 @@ export const DashboardSummaryEndpoint = api.dashboard.summary
     .tags('dashboard')
     .operationId('dashboardSummary');
 
+export const StatsOverviewEndpoint = api.stats.overview
+    .authorize(PrincipalSchema)
+    .inject({ knex: KnexToken })
+    .summary('Stats overview')
+    .description('Returns expense and income stats for charts.')
+    .tags('stats')
+    .operationId('statsOverview');
+
 export const endpoints = {
     auth: {
         register: RegisterEndpoint,
@@ -146,5 +154,8 @@ export const endpoints = {
     },
     dashboard: {
         summary: DashboardSummaryEndpoint
+    },
+    stats: {
+        overview: StatsOverviewEndpoint
     }
 };

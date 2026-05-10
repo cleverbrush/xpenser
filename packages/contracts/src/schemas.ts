@@ -53,9 +53,9 @@ export const RegisterBodySchema = object({
         .minLength(8, 'password must be at least 8 characters')
         .describe('Password for local sign-in.'),
     /** Password confirmation entered during registration. */
-    confirmPassword: string().describe(
-        'Password confirmation entered during registration.'
-    ),
+    confirmPassword: string()
+        .minLength(8, 'password must be at least 8 characters')
+        .describe('Password confirmation entered during registration.'),
     /** Default currency used for dashboards and reports. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for dashboards and reports.'
@@ -64,7 +64,23 @@ export const RegisterBodySchema = object({
     favoriteCurrencies: array(CurrencyCodeSchema)
         .default([])
         .describe('Favorite currencies shown first when creating transactions.')
-}).schemaName('RegisterBody');
+})
+    .addValidator(value => {
+        if (value.password !== value.confirmPassword) {
+            return {
+                valid: false,
+                errors: [
+                    {
+                        message: 'passwords do not match',
+                        property: field => field.confirmPassword
+                    }
+                ]
+            };
+        }
+
+        return { valid: true };
+    })
+    .schemaName('RegisterBody');
 
 export const LoginBodySchema = object({
     /** Email address used to sign in. */
@@ -332,6 +348,93 @@ export const DashboardCategoryTotalSchema = object({
     total: number().describe("Total in the user's default currency.")
 }).schemaName('DashboardCategoryTotal');
 
+export const StatsTrendPointSchema = object({
+    /** Stable date or month bucket key. */
+    bucket: string().describe('Stable date or month bucket key.'),
+    /** Short label shown on charts. */
+    label: string().describe('Short label shown on charts.'),
+    /** Income total in the user's default currency. */
+    incomeTotal: number().describe(
+        "Income total in the user's default currency."
+    ),
+    /** Expense total in the user's default currency. */
+    expenseTotal: number().describe(
+        "Expense total in the user's default currency."
+    ),
+    /** Income minus expense total for the bucket. */
+    netTotal: number().describe('Income minus expense total for the bucket.'),
+    /** Number of transactions in the bucket. */
+    transactionCount: number().describe('Number of transactions in the bucket.')
+}).schemaName('StatsTrendPoint');
+
+export const StatsCategoryTotalSchema = object({
+    /** Category identifier. */
+    categoryId: number().describe('Category identifier.'),
+    /** Category name. */
+    categoryName: string().describe('Category name.'),
+    /** Transaction direction. */
+    type: CategoryTypeSchema.describe('Transaction direction.'),
+    /** Total in the user's default currency. */
+    total: number().describe("Total in the user's default currency."),
+    /** Share of the matching income or expense total, as a percentage. */
+    share: number().describe(
+        'Share of the matching income or expense total, as a percentage.'
+    )
+}).schemaName('StatsCategoryTotal');
+
+export const StatsOverviewSchema = object({
+    /** Reporting period used for the stats. */
+    period: PeriodSchema.describe('Reporting period used for the stats.'),
+    /** Period start timestamp. */
+    from: date().coerce().describe('Period start timestamp.'),
+    /** Period end timestamp. */
+    to: date().coerce().describe('Period end timestamp.'),
+    /** Currency used for totals. */
+    currency: CurrencyCodeSchema.describe('Currency used for totals.'),
+    /** Total expenses in the default currency. */
+    expenseTotal: number().describe('Total expenses in the default currency.'),
+    /** Total income in the default currency. */
+    incomeTotal: number().describe('Total income in the default currency.'),
+    /** Income minus expenses in the default currency. */
+    netTotal: number().describe(
+        'Income minus expenses in the default currency.'
+    ),
+    /** Savings rate for the period, as a percentage. */
+    savingsRate: number().describe(
+        'Savings rate for the period, as a percentage.'
+    ),
+    /** Total transaction count for the period. */
+    transactionCount: number().describe(
+        'Total transaction count for the period.'
+    ),
+    /** Expense transaction count for the period. */
+    expenseCount: number().describe(
+        'Expense transaction count for the period.'
+    ),
+    /** Income transaction count for the period. */
+    incomeCount: number().describe('Income transaction count for the period.'),
+    /** Average expense transaction amount. */
+    averageExpense: number().describe('Average expense transaction amount.'),
+    /** Average income transaction amount. */
+    averageIncome: number().describe('Average income transaction amount.'),
+    /** Highest-spend expense category name, or an empty string. */
+    largestExpenseCategory: string().describe(
+        'Highest-spend expense category name, or an empty string.'
+    ),
+    /** Highest-income category name, or an empty string. */
+    largestIncomeCategory: string().describe(
+        'Highest-income category name, or an empty string.'
+    ),
+    /** Time buckets for trend charts. */
+    trend: array(StatsTrendPointSchema).describe(
+        'Time buckets for trend charts.'
+    ),
+    /** Category totals and shares for the selected period. */
+    byCategory: array(StatsCategoryTotalSchema).describe(
+        'Category totals and shares for the selected period.'
+    )
+}).schemaName('StatsOverview');
+
 export const DashboardSummarySchema = object({
     /** Reporting period used for the summary. */
     period: PeriodSchema.describe('Reporting period used for the summary.'),
@@ -369,3 +472,4 @@ export type CreateTransactionBody = InferType<
 >;
 export type TransactionListQuery = InferType<typeof TransactionListQuerySchema>;
 export type DashboardSummary = InferType<typeof DashboardSummarySchema>;
+export type StatsOverview = InferType<typeof StatsOverviewSchema>;

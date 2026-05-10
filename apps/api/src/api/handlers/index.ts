@@ -17,6 +17,7 @@ import {
     dashboardSummaryHandler,
     deleteTransactionHandler,
     listTransactionsHandler,
+    statsOverviewHandler,
     updateTransactionHandler
 } from './transactions.js';
 
@@ -47,5 +48,8 @@ export const handlers = {
     },
     dashboard: {
         summary: dashboardSummaryHandler
+    },
+    stats: {
+        overview: statsOverviewHandler
     }
 };

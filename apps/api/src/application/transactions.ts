@@ -1,6 +1,7 @@
 import type {
     CreateTransactionBody,
     DashboardSummary,
+    StatsOverview,
     Transaction,
     TransactionListQuery
 } from '@xpenser/contracts';
@@ -17,6 +18,10 @@ export class TransactionNotFoundError extends Error {}
 export class TransactionCategoryError extends Error {}
 
 type DashboardPeriod = 'week' | 'month' | 'quarter' | 'year';
+
+type StatsBucket = StatsOverview['trend'][number];
+
+type StatsCategory = StatsOverview['byCategory'][number];
 
 function mapTransaction(row: TransactionRow): Transaction {
     return {
@@ -261,6 +266,88 @@ function periodRange(period: DashboardPeriod, now = new Date()) {
     return { from, to: now };
 }
 
+function bucketKey(date: Date, period: DashboardPeriod): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    if (period === 'quarter' || period === 'year') {
+        return `${year}-${month}`;
+    }
+
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function bucketLabel(date: Date, period: DashboardPeriod): string {
+    if (period === 'week') {
+        return new Intl.DateTimeFormat('en-US', {
+            weekday: 'short'
+        }).format(date);
+    }
+
+    if (period === 'month') {
+        return new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric'
+        }).format(date);
+    }
+
+    return new Intl.DateTimeFormat('en-US', {
+        month: 'short'
+    }).format(date);
+}
+
+function addBucketStep(date: Date, period: DashboardPeriod): void {
+    if (period === 'quarter' || period === 'year') {
+        date.setMonth(date.getMonth() + 1, 1);
+        return;
+    }
+
+    date.setDate(date.getDate() + 1);
+}
+
+function trendBuckets(
+    period: DashboardPeriod,
+    range: ReturnType<typeof periodRange>
+): Map<string, StatsBucket> {
+    const buckets = new Map<string, StatsBucket>();
+    const current = new Date(range.from);
+
+    if (period === 'quarter' || period === 'year') {
+        current.setDate(1);
+    }
+
+    while (current <= range.to) {
+        const key = bucketKey(current, period);
+        buckets.set(key, {
+            bucket: key,
+            label: bucketLabel(current, period),
+            incomeTotal: 0,
+            expenseTotal: 0,
+            netTotal: 0,
+            transactionCount: 0
+        });
+        addBucketStep(current, period);
+    }
+
+    return buckets;
+}
+
+function computeShare(total: number, basis: number): number {
+    return basis > 0 ? (total / basis) * 100 : 0;
+}
+
+function topCategory(
+    categories: readonly StatsCategory[],
+    type: 'expense' | 'income'
+): string {
+    return (
+        categories
+            .filter(category => category.type === type)
+            .sort((left, right) => right.total - left.total)[0]?.categoryName ??
+        ''
+    );
+}
+
 export async function dashboardSummary(
     knex: Knex,
     userId: number,
@@ -315,5 +402,110 @@ export async function dashboardSummary(
             .reduce((sum, item) => sum + item.total, 0),
         byCategory,
         latestTransactions: (latest as TransactionRow[]).map(mapTransaction)
+    };
+}
+
+export async function statsOverview(
+    knex: Knex,
+    userId: number,
+    period: DashboardPeriod
+): Promise<StatsOverview> {
+    const user = await getUser(knex, userId);
+    const range = periodRange(period);
+    const buckets = trendBuckets(period, range);
+
+    const rows = (await knex('transactions')
+        .join('categories', 'categories.id', 'transactions.category_id')
+        .select(
+            'transactions.category_id',
+            'categories.name as category_name',
+            'transactions.type',
+            'transactions.default_currency_amount',
+            'transactions.occurred_at'
+        )
+        .where('transactions.user_id', userId)
+        .whereBetween('transactions.occurred_at', [
+            range.from,
+            range.to
+        ])) as Array<{
+        readonly category_id: number;
+        readonly category_name: string;
+        readonly type: 'expense' | 'income';
+        readonly default_currency_amount: string | number;
+        readonly occurred_at: Date | string;
+    }>;
+
+    const categories = new Map<string, StatsCategory>();
+    let incomeTotal = 0;
+    let expenseTotal = 0;
+    let incomeCount = 0;
+    let expenseCount = 0;
+
+    for (const row of rows) {
+        const total = Number(row.default_currency_amount);
+        const type = row.type;
+        const date = new Date(row.occurred_at);
+        const bucket = buckets.get(bucketKey(date, period));
+
+        if (type === 'income') {
+            incomeTotal += total;
+            incomeCount += 1;
+            if (bucket) {
+                bucket.incomeTotal += total;
+            }
+        } else {
+            expenseTotal += total;
+            expenseCount += 1;
+            if (bucket) {
+                bucket.expenseTotal += total;
+            }
+        }
+
+        if (bucket) {
+            bucket.transactionCount += 1;
+            bucket.netTotal = bucket.incomeTotal - bucket.expenseTotal;
+        }
+
+        const categoryKey = `${type}:${row.category_id}`;
+        const category = categories.get(categoryKey) ?? {
+            categoryId: Number(row.category_id),
+            categoryName: String(row.category_name),
+            type,
+            total: 0,
+            share: 0
+        };
+        category.total += total;
+        categories.set(categoryKey, category);
+    }
+
+    const byCategory = Array.from(categories.values())
+        .map(category => ({
+            ...category,
+            share: computeShare(
+                category.total,
+                category.type === 'income' ? incomeTotal : expenseTotal
+            )
+        }))
+        .sort((left, right) => right.total - left.total);
+    const netTotal = incomeTotal - expenseTotal;
+
+    return {
+        period,
+        from: range.from,
+        to: range.to,
+        currency: user.default_currency,
+        incomeTotal,
+        expenseTotal,
+        netTotal,
+        savingsRate: incomeTotal > 0 ? (netTotal / incomeTotal) * 100 : 0,
+        transactionCount: rows.length,
+        incomeCount,
+        expenseCount,
+        averageIncome: incomeCount > 0 ? incomeTotal / incomeCount : 0,
+        averageExpense: expenseCount > 0 ? expenseTotal / expenseCount : 0,
+        largestIncomeCategory: topCategory(byCategory, 'income'),
+        largestExpenseCategory: topCategory(byCategory, 'expense'),
+        trend: Array.from(buckets.values()),
+        byCategory
     };
 }

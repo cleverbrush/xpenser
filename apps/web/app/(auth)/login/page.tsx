@@ -4,51 +4,22 @@ import {
     CardContent,
     CardDescription,
     CardHeader,
-    CardTitle,
-    Field,
-    FieldGroup,
-    FieldLabel,
-    Input
+    CardTitle
 } from '@xpenser/ui';
 import Link from 'next/link';
-import { googleSignInAction, loginAction } from '@/lib/actions';
+import { LoginForm } from '@/components/forms/login-form';
+import { googleSignInAction } from '@/lib/actions';
 
 export default function LoginPage() {
     return (
-        <main className="flex min-h-screen items-center justify-center bg-muted px-4">
+        <main className="flex min-h-dvh items-center justify-center bg-muted px-3 py-6 sm:px-4">
             <Card className="w-full max-w-md">
                 <CardHeader>
                     <CardTitle>xpenser</CardTitle>
                     <CardDescription>Sign in to continue.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
-                    <form action={loginAction}>
-                        <FieldGroup>
-                            <Field>
-                                <FieldLabel htmlFor="email">Email</FieldLabel>
-                                <Input
-                                    autoComplete="email"
-                                    id="email"
-                                    name="email"
-                                    required
-                                    type="email"
-                                />
-                            </Field>
-                            <Field>
-                                <FieldLabel htmlFor="password">
-                                    Password
-                                </FieldLabel>
-                                <Input
-                                    autoComplete="current-password"
-                                    id="password"
-                                    name="password"
-                                    required
-                                    type="password"
-                                />
-                            </Field>
-                            <Button type="submit">Sign in</Button>
-                        </FieldGroup>
-                    </form>
+                    <LoginForm />
                     <form action={googleSignInAction}>
                         <Button
                             className="w-full"

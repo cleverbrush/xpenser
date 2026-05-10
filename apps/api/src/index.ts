@@ -13,13 +13,7 @@ import { otel } from './telemetry.js';
 
 async function main() {
     const logger = createLogger({
-        minimumLevel: config.logLevel as
-            | 'trace'
-            | 'debug'
-            | 'information'
-            | 'warning'
-            | 'error'
-            | 'fatal',
+        minimumLevel: config.logLevel ,
         sinks: [consoleSink({ theme: 'dark' }), otelLogSink()],
         enrichers: [hostnameEnricher(), processIdEnricher(), traceEnricher()],
         handleProcessExit: true
