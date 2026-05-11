@@ -12,8 +12,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
 
   api:
     build:
@@ -45,8 +43,6 @@ services:
       FRANKFURTER_BASE_URL: ${FRANKFURTER_BASE_URL:-https://api.frankfurter.dev/v2}
       OTEL_SERVICE_NAME: xpenser-api
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-    ports:
-      - "${API_PORT:-4000}:4000"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health || exit 1"]
       interval: 10s
@@ -74,7 +70,7 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       NEXT_OTEL_VERBOSE: "1"
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
 
   telegram-bot:
     build:
@@ -99,8 +95,6 @@ services:
     environment:
       URL: http://localhost:${API_PORT:-4000}/openapi.json
       DISPLAY_OPERATION_ID: "true"
-    ports:
-      - "${SWAGGER_PORT:-8090}:8080"
     depends_on:
       api:
         condition: service_healthy
@@ -211,9 +205,6 @@ services:
       - SIGNOZ_OTEL_COLLECTOR_TIMEOUT=10m
     volumes:
       - ./deploy/signoz/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
-    ports:
-      - "4317:4317"
-      - "4318:4318"
     healthcheck:
       test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/13133"]
       interval: 10s
@@ -236,8 +227,6 @@ services:
       - SIGNOZ_TOKENIZER_JWT_SECRET=${SIGNOZ_TOKENIZER_JWT_SECRET:-change-me}
     volumes:
       - signoz-sqlite:/var/lib/signoz/
-    ports:
-      - "${SIGNOZ_PORT:-8080}:8080"
 
 volumes:
   postgres_data:
