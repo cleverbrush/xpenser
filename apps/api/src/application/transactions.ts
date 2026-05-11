@@ -63,6 +63,16 @@ function mapTransaction(row: TransactionDb): Transaction {
     };
 }
 
+export function compareTransactionsByOccurrenceDesc(
+    left: Pick<TransactionDb, 'id' | 'occurredAt'>,
+    right: Pick<TransactionDb, 'id' | 'occurredAt'>
+): number {
+    return (
+        right.occurredAt.getTime() - left.occurredAt.getTime() ||
+        right.id - left.id
+    );
+}
+
 async function getUser(db: AppDb, userId: number): Promise<UserDb> {
     const user = await db.users.find(userId);
     if (!user) {
@@ -121,10 +131,11 @@ export async function listTransactions(
         );
     }
 
-    const rows = ((await builder.orderBy(
-        transaction => transaction.occurredAt,
-        query.direction ?? 'desc'
-    )) ?? []) as TransactionDb[];
+    const direction = query.direction ?? 'desc';
+    const rows = ((await builder
+        .orderBy(transaction => transaction.occurredAt, direction)
+        .orderBy(transaction => transaction.id, direction)) ??
+        []) as TransactionDb[];
 
     const search = query.search?.trim().toLowerCase();
     const filtered = search
@@ -736,6 +747,7 @@ export async function dashboardSummary(
         .include(transaction => transaction.category)
         .where(transaction => transaction.userId, userId)
         .orderBy(transaction => transaction.occurredAt, 'desc')
+        .orderBy(transaction => transaction.id, 'desc')
         .limit(5)) as TransactionDb[];
 
     return {
@@ -750,7 +762,9 @@ export async function dashboardSummary(
             .filter(item => item.type === 'income')
             .reduce((sum, item) => sum + item.total, 0),
         byCategory,
-        latestTransactions: latest.map(mapTransaction)
+        latestTransactions: [...latest]
+            .sort(compareTransactionsByOccurrenceDesc)
+            .map(mapTransaction)
     };
 }
 

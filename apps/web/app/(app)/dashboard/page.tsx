@@ -19,7 +19,7 @@ import {
     amountClassNameForType,
     amountClassNameForValue,
     directionBadgeClassName,
-    formatDate,
+    formatDateTime,
     formatDirectionalMoney,
     formatMoney
 } from '@/lib/format';
@@ -229,7 +229,9 @@ export default async function DashboardPage({
                                             {transaction.categoryName}
                                         </p>
                                         <p className="mt-1 text-xs text-muted-foreground">
-                                            {formatDate(transaction.occurredAt)}
+                                            {formatDateTime(
+                                                transaction.occurredAt
+                                            )}
                                         </p>
                                     </div>
                                     <p
@@ -277,7 +279,9 @@ export default async function DashboardPage({
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {formatDate(transaction.occurredAt)}
+                                            {formatDateTime(
+                                                transaction.occurredAt
+                                            )}
                                         </TableCell>
                                     </TableRow>
                                 ))}

@@ -12,13 +12,14 @@ export function parseStartToken(text: string | undefined): string | undefined {
 }
 
 export function parseAmount(text: string | undefined): number | undefined {
-    const normalized = (text ?? '').trim().replace(',', '.');
-    if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+    const trimmed = (text ?? '').trim();
+    if (!/^\d+(?:[,.]\d{1,2})?$/.test(trimmed)) {
         return undefined;
     }
 
+    const normalized = trimmed.replace(',', '.');
     const amount = Number(normalized);
-    return amount > 0 ? amount : undefined;
+    return Number.isFinite(amount) && amount > 0 ? amount : undefined;
 }
 
 export function preferredCurrencies(

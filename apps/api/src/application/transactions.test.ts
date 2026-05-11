@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    compareTransactionsByOccurrenceDesc,
     resolveStatsRanges,
     TransactionCategoryError,
     TransactionNotFoundError
@@ -11,6 +12,21 @@ describe('transaction domain errors', () => {
         expect(new TransactionCategoryError('bad category')).toBeInstanceOf(
             Error
         );
+    });
+});
+
+describe('transaction sorting', () => {
+    it('sorts latest transactions by occurrence date-time descending', () => {
+        const rows = [
+            { id: 1, occurredAt: new Date('2026-05-10T09:00:00.000Z') },
+            { id: 2, occurredAt: new Date('2026-05-10T12:00:00.000Z') },
+            { id: 3, occurredAt: new Date('2026-05-09T23:00:00.000Z') },
+            { id: 4, occurredAt: new Date('2026-05-10T12:00:00.000Z') }
+        ];
+
+        expect(
+            rows.sort(compareTransactionsByOccurrenceDesc).map(row => row.id)
+        ).toEqual([4, 2, 1, 3]);
     });
 });
 

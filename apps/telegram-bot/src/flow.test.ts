@@ -19,9 +19,12 @@ describe('telegram bot flow helpers', () => {
         expect(parseAmount('12')).toBe(12);
         expect(parseAmount('12.50')).toBe(12.5);
         expect(parseAmount('12,50')).toBe(12.5);
+        expect(parseAmount('1234.56')).toBe(1234.56);
+        expect(parseAmount('1234,56')).toBe(1234.56);
         expect(parseAmount('0')).toBeUndefined();
         expect(parseAmount('-1')).toBeUndefined();
         expect(parseAmount('12.345')).toBeUndefined();
+        expect(parseAmount('12,345')).toBeUndefined();
     });
 
     it('builds preferred currency choices from profile and available currencies', () => {

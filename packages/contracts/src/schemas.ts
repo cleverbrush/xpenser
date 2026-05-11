@@ -44,6 +44,8 @@ export const SortDirectionSchema = enumOf('asc', 'desc')
     .describe('Sort direction.')
     .schemaName('SortDirection');
 
+const decimalNumber = () => number().clearIsInteger();
+
 export const ErrorResponseSchema = object({
     /** Human-readable error message safe to show to the current user. */
     message: string().describe(
@@ -343,7 +345,7 @@ export const TransactionSchema = object({
     /** Transaction direction. */
     type: CategoryTypeSchema.describe('Transaction direction.'),
     /** Amount entered by the user in the original currency. */
-    amount: number().describe(
+    amount: decimalNumber().describe(
         'Amount entered by the user in the original currency.'
     ),
     /** Currency used for the entered amount. */
@@ -351,7 +353,7 @@ export const TransactionSchema = object({
         'Currency used for the entered amount.'
     ),
     /** Amount converted to the user default currency at write time. */
-    defaultCurrencyAmount: number().describe(
+    defaultCurrencyAmount: decimalNumber().describe(
         'Amount converted to the user default currency at write time.'
     ),
     /** User default currency used when the transaction was converted. */
@@ -359,7 +361,7 @@ export const TransactionSchema = object({
         'User default currency used when the transaction was converted.'
     ),
     /** Exchange rate used for the default-currency amount. */
-    exchangeRate: number().describe(
+    exchangeRate: decimalNumber().describe(
         'Exchange rate used for the default-currency amount.'
     ),
     /** Date associated with the exchange rate. */
@@ -384,9 +386,10 @@ export const CreateTransactionBodySchema = object({
         .required('category is required')
         .describe('Category identifier selected for the transaction.'),
     /** Amount entered by the user in the original currency. */
-    amount: number()
+    amount: decimalNumber()
         .required('amount is required')
         .positive('amount must be greater than zero')
+        .multipleOf(0.01, 'amount can have at most two decimal places')
         .describe('Amount entered by the user in the original currency.'),
     /** Currency used for the entered amount. */
     currency: CurrencyCodeSchema.describe(
@@ -501,7 +504,7 @@ export const DashboardCategoryTotalSchema = object({
     /** Transaction direction. */
     type: CategoryTypeSchema.describe('Transaction direction.'),
     /** Total in the user's default currency. */
-    total: number().describe("Total in the user's default currency.")
+    total: decimalNumber().describe("Total in the user's default currency.")
 }).schemaName('DashboardCategoryTotal');
 
 export const StatsTrendPointSchema = object({
@@ -510,15 +513,17 @@ export const StatsTrendPointSchema = object({
     /** Short label shown on charts. */
     label: string().describe('Short label shown on charts.'),
     /** Income total in the user's default currency. */
-    incomeTotal: number().describe(
+    incomeTotal: decimalNumber().describe(
         "Income total in the user's default currency."
     ),
     /** Expense total in the user's default currency. */
-    expenseTotal: number().describe(
+    expenseTotal: decimalNumber().describe(
         "Expense total in the user's default currency."
     ),
     /** Income minus expense total for the bucket. */
-    netTotal: number().describe('Income minus expense total for the bucket.'),
+    netTotal: decimalNumber().describe(
+        'Income minus expense total for the bucket.'
+    ),
     /** Number of transactions in the bucket. */
     transactionCount: number().describe('Number of transactions in the bucket.')
 }).schemaName('StatsTrendPoint');
@@ -531,9 +536,9 @@ export const StatsCategoryTotalSchema = object({
     /** Transaction direction. */
     type: CategoryTypeSchema.describe('Transaction direction.'),
     /** Total in the user's default currency. */
-    total: number().describe("Total in the user's default currency."),
+    total: decimalNumber().describe("Total in the user's default currency."),
     /** Share of the matching income or expense total, as a percentage. */
-    share: number().describe(
+    share: decimalNumber().describe(
         'Share of the matching income or expense total, as a percentage.'
     ),
     /** Number of selected-period transactions in the category. */
@@ -541,15 +546,15 @@ export const StatsCategoryTotalSchema = object({
         'Number of selected-period transactions in the category.'
     ),
     /** Selected-period bucket totals for lightweight category charts. */
-    trend: array(number()).describe(
+    trend: array(decimalNumber()).describe(
         'Selected-period bucket totals for lightweight category charts.'
     ),
     /** Matching total in the previous comparison period. */
-    previousPeriodTotal: number().describe(
+    previousPeriodTotal: decimalNumber().describe(
         'Matching total in the previous comparison period.'
     ),
     /** Matching total in the same period one year earlier. */
-    previousYearTotal: number().describe(
+    previousYearTotal: decimalNumber().describe(
         'Matching total in the same period one year earlier.'
     )
 }).schemaName('StatsCategoryTotal');
@@ -560,11 +565,15 @@ export const StatsComparisonSchema = object({
     /** Comparison period end timestamp. */
     to: date().coerce().describe('Comparison period end timestamp.'),
     /** Total expenses in the default currency. */
-    expenseTotal: number().describe('Total expenses in the default currency.'),
+    expenseTotal: decimalNumber().describe(
+        'Total expenses in the default currency.'
+    ),
     /** Total income in the default currency. */
-    incomeTotal: number().describe('Total income in the default currency.'),
+    incomeTotal: decimalNumber().describe(
+        'Total income in the default currency.'
+    ),
     /** Income minus expenses in the default currency. */
-    netTotal: number().describe(
+    netTotal: decimalNumber().describe(
         'Income minus expenses in the default currency.'
     ),
     /** Total transaction count for the comparison period. */
@@ -593,15 +602,19 @@ export const StatsOverviewSchema = object({
     /** Currency used for totals. */
     currency: CurrencyCodeSchema.describe('Currency used for totals.'),
     /** Total expenses in the default currency. */
-    expenseTotal: number().describe('Total expenses in the default currency.'),
+    expenseTotal: decimalNumber().describe(
+        'Total expenses in the default currency.'
+    ),
     /** Total income in the default currency. */
-    incomeTotal: number().describe('Total income in the default currency.'),
+    incomeTotal: decimalNumber().describe(
+        'Total income in the default currency.'
+    ),
     /** Income minus expenses in the default currency. */
-    netTotal: number().describe(
+    netTotal: decimalNumber().describe(
         'Income minus expenses in the default currency.'
     ),
     /** Savings rate for the period, as a percentage. */
-    savingsRate: number().describe(
+    savingsRate: decimalNumber().describe(
         'Savings rate for the period, as a percentage.'
     ),
     /** Total transaction count for the period. */
@@ -615,9 +628,13 @@ export const StatsOverviewSchema = object({
     /** Income transaction count for the period. */
     incomeCount: number().describe('Income transaction count for the period.'),
     /** Average expense transaction amount. */
-    averageExpense: number().describe('Average expense transaction amount.'),
+    averageExpense: decimalNumber().describe(
+        'Average expense transaction amount.'
+    ),
     /** Average income transaction amount. */
-    averageIncome: number().describe('Average income transaction amount.'),
+    averageIncome: decimalNumber().describe(
+        'Average income transaction amount.'
+    ),
     /** Highest-spend expense category name, or an empty string. */
     largestExpenseCategory: string().describe(
         'Highest-spend expense category name, or an empty string.'
@@ -657,9 +674,13 @@ export const DashboardSummarySchema = object({
     /** Currency used for totals. */
     currency: CurrencyCodeSchema.describe('Currency used for totals.'),
     /** Total expenses in the default currency. */
-    expenseTotal: number().describe('Total expenses in the default currency.'),
+    expenseTotal: decimalNumber().describe(
+        'Total expenses in the default currency.'
+    ),
     /** Total income in the default currency. */
-    incomeTotal: number().describe('Total income in the default currency.'),
+    incomeTotal: decimalNumber().describe(
+        'Total income in the default currency.'
+    ),
     /** Category totals for the selected period. */
     byCategory: array(DashboardCategoryTotalSchema).describe(
         'Category totals for the selected period.'

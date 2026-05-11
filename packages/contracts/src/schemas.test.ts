@@ -67,6 +67,31 @@ describe('shared schemas', () => {
         expect(result.valid).toBe(false);
     });
 
+    it('accepts transaction amounts with cents', () => {
+        const result = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 1234.56,
+            currency: 'USD',
+            occurredAt: new Date()
+        });
+
+        expect(result.valid).toBe(true);
+    });
+
+    it('rejects transaction amounts below cent precision', () => {
+        const result = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 12.345,
+            currency: 'USD',
+            occurredAt: new Date()
+        });
+
+        expect(result.valid).toBe(false);
+        expect(result.getErrorsFor(field => field.amount).errors[0]).toBe(
+            'amount can have at most two decimal places'
+        );
+    });
+
     it('returns a required message for missing transaction amounts', () => {
         const result = CreateTransactionBodySchema.validate(
             {
