@@ -1,7 +1,7 @@
 'use client';
 
 import type { StatsOverview } from '@xpenser/contracts';
-import { Badge, Card, CardContent, CardHeader, CardTitle } from '@xpenser/ui';
+import { Card, CardContent, CardHeader, CardTitle } from '@xpenser/ui';
 import {
     Bar,
     BarChart,
@@ -17,7 +17,6 @@ import {
 import {
     amountClassNameForType,
     amountClassNameForValue,
-    directionBadgeClassName,
     formatDirectionalMoney,
     formatMoney
 } from '@/lib/format';
@@ -138,39 +137,6 @@ function comparisonDelta(
         : category.total - category[field];
 }
 
-function CategorySubtotal({
-    type,
-    total,
-    count,
-    stats
-}: {
-    readonly type: 'expense' | 'income';
-    readonly total: number;
-    readonly count: number;
-    readonly stats: StatsOverview;
-}) {
-    return (
-        <div className="rounded-md border p-3">
-            <div className="mb-2 flex items-center justify-between gap-2">
-                <Badge
-                    className={directionBadgeClassName(type)}
-                    variant="outline"
-                >
-                    {type}
-                </Badge>
-                <span className="text-xs text-muted-foreground">
-                    {count} tx
-                </span>
-            </div>
-            <p
-                className={`truncate text-sm font-semibold sm:text-base ${amountClassNameForType(type)}`}
-            >
-                {formatDirectionalMoney(total, stats.currency, type)}
-            </p>
-        </div>
-    );
-}
-
 function CategoryRow({
     category,
     stats
@@ -270,20 +236,6 @@ function CategoriesCard({
         <Card>
             <CardHeader>
                 <CardTitle>Categories</CardTitle>
-                <div className="grid grid-cols-2 gap-2 pt-2">
-                    <CategorySubtotal
-                        count={stats.incomeCount}
-                        stats={stats}
-                        total={stats.incomeTotal}
-                        type="income"
-                    />
-                    <CategorySubtotal
-                        count={stats.expenseCount}
-                        stats={stats}
-                        total={stats.expenseTotal}
-                        type="expense"
-                    />
-                </div>
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-4">

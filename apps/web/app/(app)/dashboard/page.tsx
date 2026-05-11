@@ -1,5 +1,4 @@
 import {
-    Badge,
     Card,
     CardContent,
     CardDescription,
@@ -18,7 +17,6 @@ import { getApiClient } from '@/lib/api';
 import {
     amountClassNameForType,
     amountClassNameForValue,
-    directionBadgeClassName,
     formatDateTime,
     formatDirectionalMoney,
     formatMoney
@@ -64,10 +62,15 @@ export default async function DashboardPage({
                     defaultCurrency={me.defaultCurrency}
                 />
             </div>
-            <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
+            <div className="grid grid-cols-4 gap-1 rounded-md border bg-muted p-1 sm:inline-grid sm:w-fit sm:gap-1">
                 {periods.map(item => (
                     <a
-                        className="rounded-md border px-2 py-2 text-center text-sm capitalize hover:bg-muted sm:px-3 sm:py-1"
+                        aria-current={item === period ? 'page' : undefined}
+                        className={`rounded-sm px-2 py-1.5 text-center text-xs font-medium capitalize hover:bg-background hover:text-foreground sm:px-3 sm:text-sm ${
+                            item === period
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground'
+                        }`}
                         href={`/dashboard?period=${item}`}
                         key={item}
                     >
@@ -75,12 +78,14 @@ export default async function DashboardPage({
                     </a>
                 ))}
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                    <CardHeader className="p-4 sm:p-6">
-                        <CardDescription>Income</CardDescription>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <Card className="min-w-0">
+                    <CardHeader className="min-w-0 p-3 sm:p-4">
+                        <CardDescription className="text-xs">
+                            Income
+                        </CardDescription>
                         <CardTitle
-                            className={`text-xl sm:text-lg ${amountClassNameForType('income')}`}
+                            className={`truncate text-sm sm:text-lg ${amountClassNameForType('income')}`}
                         >
                             {formatDirectionalMoney(
                                 summary.incomeTotal,
@@ -90,11 +95,13 @@ export default async function DashboardPage({
                         </CardTitle>
                     </CardHeader>
                 </Card>
-                <Card>
-                    <CardHeader className="p-4 sm:p-6">
-                        <CardDescription>Expenses</CardDescription>
+                <Card className="min-w-0">
+                    <CardHeader className="min-w-0 p-3 sm:p-4">
+                        <CardDescription className="text-xs">
+                            Expenses
+                        </CardDescription>
                         <CardTitle
-                            className={`text-xl sm:text-lg ${amountClassNameForType('expense')}`}
+                            className={`truncate text-sm sm:text-lg ${amountClassNameForType('expense')}`}
                         >
                             {formatDirectionalMoney(
                                 summary.expenseTotal,
@@ -104,11 +111,13 @@ export default async function DashboardPage({
                         </CardTitle>
                     </CardHeader>
                 </Card>
-                <Card>
-                    <CardHeader className="p-4 sm:p-6">
-                        <CardDescription>Net</CardDescription>
+                <Card className="min-w-0">
+                    <CardHeader className="min-w-0 p-3 sm:p-4">
+                        <CardDescription className="text-xs">
+                            Net
+                        </CardDescription>
                         <CardTitle
-                            className={`text-xl sm:text-lg ${amountClassNameForValue(
+                            className={`truncate text-sm sm:text-lg ${amountClassNameForValue(
                                 summary.incomeTotal - summary.expenseTotal
                             )}`}
                         >
@@ -120,95 +129,7 @@ export default async function DashboardPage({
                     </CardHeader>
                 </Card>
             </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-                <section className="sm:hidden">
-                    <h2 className="mb-3 text-base font-semibold">
-                        By category
-                    </h2>
-                    <div className="divide-y rounded-lg border bg-card">
-                        {summary.byCategory.length === 0 ? (
-                            <div className="p-4 text-sm text-muted-foreground">
-                                No category totals yet.
-                            </div>
-                        ) : (
-                            summary.byCategory.map(item => (
-                                <div
-                                    className="flex items-center justify-between gap-3 p-4"
-                                    key={`${item.type}-${item.categoryId}`}
-                                >
-                                    <div className="min-w-0">
-                                        <p className="truncate text-sm font-medium">
-                                            {item.categoryName}
-                                        </p>
-                                        <Badge
-                                            className={`mt-1 ${directionBadgeClassName(item.type)}`}
-                                            variant="outline"
-                                        >
-                                            {item.type}
-                                        </Badge>
-                                    </div>
-                                    <p
-                                        className={`shrink-0 text-sm font-semibold ${amountClassNameForType(item.type)}`}
-                                    >
-                                        {formatDirectionalMoney(
-                                            item.total,
-                                            summary.currency,
-                                            item.type
-                                        )}
-                                    </p>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </section>
-                <Card className="hidden sm:block">
-                    <CardHeader>
-                        <CardTitle>By category</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Category</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead className="text-right">
-                                        Total
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {summary.byCategory.map(item => (
-                                    <TableRow
-                                        key={`${item.type}-${item.categoryId}`}
-                                    >
-                                        <TableCell>
-                                            {item.categoryName}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge
-                                                className={directionBadgeClassName(
-                                                    item.type
-                                                )}
-                                                variant="outline"
-                                            >
-                                                {item.type}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell
-                                            className={`text-right font-medium ${amountClassNameForType(item.type)}`}
-                                        >
-                                            {formatDirectionalMoney(
-                                                item.total,
-                                                summary.currency,
-                                                item.type
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+            <div>
                 <section className="sm:hidden">
                     <h2 className="mb-3 text-base font-semibold">
                         Latest transactions

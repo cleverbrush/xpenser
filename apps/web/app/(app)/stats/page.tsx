@@ -179,15 +179,19 @@ export default async function StatsPage({
                 />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-4 gap-2 sm:gap-4">
                 {cards.map(card => (
-                    <Card key={card.label}>
-                        <CardHeader>
-                            <CardDescription>{card.label}</CardDescription>
-                            <CardTitle className={`text-xl ${card.className}`}>
+                    <Card className="min-w-0" key={card.label}>
+                        <CardHeader className="min-w-0 p-2 sm:p-4">
+                            <CardDescription className="truncate text-xs">
+                                {card.label}
+                            </CardDescription>
+                            <CardTitle
+                                className={`truncate text-sm sm:text-xl ${card.className}`}
+                            >
                                 {card.value}
                             </CardTitle>
-                            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                            <div className="hidden flex-col gap-1 text-xs text-muted-foreground sm:flex">
                                 <span>
                                     Previous period:{' '}
                                     <span

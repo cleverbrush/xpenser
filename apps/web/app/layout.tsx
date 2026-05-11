@@ -1,3 +1,4 @@
+import { GoogleTagManager } from '@next/third-parties/google';
 import { XpenserFormProvider } from '@xpenser/ui';
 import type { Metadata } from 'next';
 import './globals.css';
@@ -15,6 +16,7 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" suppressHydrationWarning>
+            <GoogleTagManager gtmId="GTM-PSC6NS8P" />
             <body>
                 <ThemeProvider
                     attribute="class"

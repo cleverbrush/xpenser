@@ -1,19 +1,12 @@
+import type { Logger } from '@cleverbrush/log';
 import type { Currency } from '@xpenser/contracts';
 import type { Config } from '../config.js';
 import type { AppDb } from '../db/schemas.js';
-
-const fallbackCurrencies: readonly Currency[] = [
-    { code: 'USD', name: 'United States Dollar' },
-    { code: 'EUR', name: 'Euro' },
-    { code: 'GBP', name: 'British Pound' },
-    { code: 'CAD', name: 'Canadian Dollar' },
-    { code: 'AUD', name: 'Australian Dollar' },
-    { code: 'JPY', name: 'Japanese Yen' }
-];
+import { frankfurterCurrencyCatalog } from './frankfurter-currency-catalog.js';
 
 type FrankfurterCurrencyResponse =
     | Record<string, string>
-    | Array<{ code: string; name: string }>;
+    | Array<{ code?: string; iso_code?: string; name?: string }>;
 
 type FrankfurterRateResponse = {
     readonly date?: string;
@@ -33,27 +26,104 @@ export function convertAmount(amount: number, rate: number): number {
     return Math.round(amount * rate * 100) / 100;
 }
 
-export async function listCurrencies(config: Config): Promise<Currency[]> {
+function normalizeRateDate(value: unknown, fallback: string): string {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return transactionDate(value);
+    }
+
+    if (typeof value === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            return value;
+        }
+
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+            return transactionDate(parsed);
+        }
+    }
+
+    return fallback;
+}
+
+function sortCurrencies(currencies: readonly Currency[]): Currency[] {
+    return [...currencies].sort((a, b) => a.code.localeCompare(b.code));
+}
+
+function fallbackCurrencies(
+    logger?: Pick<Logger, 'warn'>,
+    reason?: string,
+    error?: unknown
+): Currency[] {
+    logger?.warn('Using bundled Frankfurter currency catalog fallback', {
+        Reason: reason,
+        Error:
+            error instanceof Error
+                ? error.message
+                : error === undefined
+                  ? undefined
+                  : String(error)
+    });
+    return [...frankfurterCurrencyCatalog];
+}
+
+function normalizeCurrencies(payload: FrankfurterCurrencyResponse): Currency[] {
+    if (Array.isArray(payload)) {
+        return payload.flatMap(item => {
+            const code = item.iso_code ?? item.code;
+            const name = item.name;
+            if (
+                typeof code !== 'string' ||
+                typeof name !== 'string' ||
+                !/^[A-Z]{3}$/.test(code) ||
+                name.length === 0
+            ) {
+                return [];
+            }
+
+            return [{ code, name }];
+        });
+    }
+
+    return Object.entries(payload).flatMap(([code, name]) => {
+        if (
+            !/^[A-Z]{3}$/.test(code) ||
+            typeof name !== 'string' ||
+            name.length === 0
+        ) {
+            return [];
+        }
+
+        return [{ code, name }];
+    });
+}
+
+export async function listCurrencies(
+    config: Config,
+    logger?: Pick<Logger, 'warn'>
+): Promise<Currency[]> {
     try {
         const response = await fetch(
             `${config.frankfurter.baseUrl}/currencies`
         );
         if (!response.ok) {
-            return [...fallbackCurrencies];
+            return fallbackCurrencies(
+                logger,
+                `Frankfurter returned HTTP ${response.status}`
+            );
         }
 
         const payload = (await response.json()) as FrankfurterCurrencyResponse;
-        if (Array.isArray(payload)) {
-            return payload
-                .map(item => ({ code: item.code, name: item.name }))
-                .sort((a, b) => a.code.localeCompare(b.code));
+        const currencies = normalizeCurrencies(payload);
+        if (currencies.length === 0) {
+            return fallbackCurrencies(
+                logger,
+                'Frankfurter payload contained no valid currencies'
+            );
         }
 
-        return Object.entries(payload)
-            .map(([code, name]) => ({ code, name }))
-            .sort((a, b) => a.code.localeCompare(b.code));
-    } catch {
-        return [...fallbackCurrencies];
+        return sortCurrencies(currencies);
+    } catch (error) {
+        return fallbackCurrencies(logger, 'Frankfurter request failed', error);
     }
 }
 
@@ -77,7 +147,7 @@ export async function getExchangeRate(
     if (cached) {
         return {
             rate: Number(cached.rate),
-            rateDate: String(cached.rateDate)
+            rateDate: normalizeRateDate(cached.rateDate, date)
         };
     }
 
@@ -98,7 +168,7 @@ export async function getExchangeRate(
         );
     }
 
-    const rateDate = payload.date ?? date;
+    const rateDate = normalizeRateDate(payload.date, date);
     await db.exchangeRates
         .onConflict(
             rate => rate.baseCurrency,

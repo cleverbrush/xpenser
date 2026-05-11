@@ -4,6 +4,16 @@ export const cancelCallback = 'cancel';
 export const noteSkipCallback = 'note:skip';
 export const noteAddCallback = 'note:add';
 export const currencyOtherCallback = 'cur:other';
+export const addCommand = '/add';
+
+export function quickAddReplyKeyboard() {
+    return {
+        keyboard: [[{ text: addCommand }]],
+        is_persistent: true,
+        resize_keyboard: true,
+        input_field_placeholder: 'Tap /add to record a transaction'
+    };
+}
 
 export function parseStartToken(text: string | undefined): string | undefined {
     const [, token] =

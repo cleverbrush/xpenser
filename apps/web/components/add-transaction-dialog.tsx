@@ -87,9 +87,10 @@ export function AddTransactionDialog({
     return (
         <Dialog onOpenChange={setOpen} open={open}>
             <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto">
-                    <PlusIcon data-icon="inline-start" />
-                    Add transaction
+                <Button className="w-auto self-start" size="sm">
+                    <PlusIcon aria-hidden className="size-4" />
+                    <span className="sm:hidden">Add</span>
+                    <span className="hidden sm:inline">Add transaction</span>
                 </Button>
             </DialogTrigger>
             <DialogContent>

@@ -30,9 +30,10 @@ COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
 ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 EXPOSE 3000
 
 USER appuser
 
-CMD ["node", "apps/web/server.js"]
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 node apps/web/server.js"]

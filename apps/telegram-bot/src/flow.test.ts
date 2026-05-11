@@ -1,11 +1,13 @@
 import type { Currency, UserPreference } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
 import {
+    addCommand,
     isKnownCurrency,
     normalizeCurrencyCode,
     parseAmount,
     parseStartToken,
-    preferredCurrencies
+    preferredCurrencies,
+    quickAddReplyKeyboard
 } from './flow.js';
 
 describe('telegram bot flow helpers', () => {
@@ -46,5 +48,13 @@ describe('telegram bot flow helpers', () => {
         expect(normalizeCurrencyCode(' usd ')).toBe('USD');
         expect(isKnownCurrency('USD', currencies)).toBe(true);
         expect(isKnownCurrency('EUR', currencies)).toBe(false);
+    });
+
+    it('builds a persistent quick-add reply keyboard', () => {
+        expect(quickAddReplyKeyboard()).toMatchObject({
+            keyboard: [[{ text: addCommand }]],
+            is_persistent: true,
+            resize_keyboard: true
+        });
     });
 });

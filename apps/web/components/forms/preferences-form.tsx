@@ -20,9 +20,11 @@ import {
     SelectTrigger,
     SelectValue
 } from '@xpenser/ui';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { updatePreferencesAction } from '@/lib/actions';
+import { sortCurrenciesForDisplay } from '@/lib/currency-display';
 import { CurrencyMultiSelect } from './currency-multi-select';
+import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
 
 export function PreferencesForm({
@@ -37,6 +39,10 @@ export function PreferencesForm({
     const favoriteCurrencies = form.useField(field => field.favoriteCurrencies);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
+    const sortedCurrencies = useMemo(
+        () => sortCurrenciesForDisplay(currencies),
+        [currencies]
+    );
     const selectedDefaultCurrency = defaultCurrency.value ?? me.defaultCurrency;
     const selectedFavoriteCurrencies = (
         favoriteCurrencies.value ?? me.favoriteCurrencies
@@ -111,12 +117,12 @@ export function PreferencesForm({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectGroup>
-                                {currencies.map(currency => (
+                                {sortedCurrencies.map(currency => (
                                     <SelectItem
                                         key={currency.code}
                                         value={currency.code}
                                     >
-                                        {currency.code} - {currency.name}
+                                        <CurrencyOption currency={currency} />
                                     </SelectItem>
                                 ))}
                             </SelectGroup>
@@ -127,7 +133,7 @@ export function PreferencesForm({
                     ) : null}
                 </Field>
                 <CurrencyMultiSelect
-                    currencies={currencies}
+                    currencies={sortedCurrencies}
                     error={favoriteCurrencies.error}
                     excludedCurrency={selectedDefaultCurrency}
                     onBlur={favoriteCurrencies.onBlur}

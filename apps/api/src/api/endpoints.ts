@@ -79,9 +79,11 @@ export const TelegramTokenEndpoint = api.telegram.token
     .operationId('telegramToken');
 
 export const ListCurrenciesEndpoint = api.currencies.list
-    .inject({ config: ConfigToken })
+    .inject({ config: ConfigToken, logger: LoggerToken })
     .summary('List currencies')
-    .description('Returns active currencies available from Frankfurter.')
+    .description(
+        'Returns the live Frankfurter currency list, or a bundled full fallback catalog when Frankfurter is unavailable.'
+    )
     .tags('currencies')
     .operationId('listCurrencies');
 

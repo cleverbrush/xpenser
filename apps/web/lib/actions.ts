@@ -28,6 +28,31 @@ function favoriteCurrencies(formData: FormData, defaultCurrency: string) {
         .filter(currency => currency !== defaultCurrency);
 }
 
+function apiErrorMessage(err: unknown): string | undefined {
+    const body =
+        typeof err === 'object' && err !== null && 'body' in err
+            ? (err as { readonly body?: unknown }).body
+            : undefined;
+    if (
+        typeof body === 'object' &&
+        body !== null &&
+        'message' in body &&
+        typeof body.message === 'string'
+    ) {
+        return body.message;
+    }
+    return undefined;
+}
+
+function apiErrorStatus(err: unknown): number | undefined {
+    return typeof err === 'object' &&
+        err !== null &&
+        'status' in err &&
+        typeof err.status === 'number'
+        ? err.status
+        : undefined;
+}
+
 export async function loginAction(formData: FormData) {
     await signIn('credentials', {
         email: requiredString(formData, 'email'),
@@ -40,15 +65,30 @@ export async function registerAction(formData: FormData) {
     const email = requiredString(formData, 'email');
     const password = requiredString(formData, 'password');
     const defaultCurrency = requiredString(formData, 'defaultCurrency');
-    await getAnonymousApiClient().auth.register({
-        body: {
-            email,
-            password,
-            confirmPassword: requiredString(formData, 'confirmPassword'),
-            defaultCurrency,
-            favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency)
+    try {
+        await getAnonymousApiClient().auth.register({
+            body: {
+                email,
+                password,
+                confirmPassword: requiredString(formData, 'confirmPassword'),
+                defaultCurrency,
+                favoriteCurrencies: favoriteCurrencies(
+                    formData,
+                    defaultCurrency
+                )
+            }
+        });
+    } catch (err) {
+        if (apiErrorStatus(err) === 400) {
+            return {
+                error:
+                    apiErrorMessage(err) ??
+                    'Could not create the account. Try a different email.'
+            };
         }
-    });
+        throw err;
+    }
+
     await signIn('credentials', {
         email,
         password,

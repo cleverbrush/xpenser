@@ -4,6 +4,7 @@ import type { Category, Currency, UserPreference } from '@xpenser/contracts';
 import TelegramBot from 'node-telegram-bot-api';
 import type { BotConfig } from './config.js';
 import {
+    addCommand,
     cancelCallback,
     currencyOtherCallback,
     isKnownCurrency,
@@ -12,7 +13,8 @@ import {
     noteSkipCallback,
     parseAmount,
     parseStartToken,
-    preferredCurrencies
+    preferredCurrencies,
+    quickAddReplyKeyboard
 } from './flow.js';
 import {
     telegramCallbackAction,
@@ -181,6 +183,8 @@ export class XpenserTelegramBot {
     }
 
     start(): void {
+        void this.configureBotCommands();
+
         this.#bot.onText(/^\/start(?:@\S+)?(?:\s+\S+)?$/, msg => {
             void traceTelegramUpdate(
                 {
@@ -254,7 +258,10 @@ export class XpenserTelegramBot {
         if (!this.isPrivateChat(msg.chat)) {
             await this.#bot.sendMessage(
                 msg.chat.id,
-                'Please open a private chat with this bot.'
+                'Please open a private chat with this bot.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
             return;
         }
@@ -263,7 +270,10 @@ export class XpenserTelegramBot {
         if (!user) {
             await this.#bot.sendMessage(
                 msg.chat.id,
-                'Could not read Telegram user.'
+                'Could not read Telegram user.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
             return;
         }
@@ -272,7 +282,10 @@ export class XpenserTelegramBot {
         if (!token) {
             await this.#bot.sendMessage(
                 msg.chat.id,
-                'Send /add to create a transaction.'
+                'Send /add to create a transaction.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
             return;
         }
@@ -283,13 +296,19 @@ export class XpenserTelegramBot {
             });
             await this.#bot.sendMessage(
                 msg.chat.id,
-                `Telegram connected to xpenser account ${result.email}. Send /add to create a transaction.`
+                `Telegram connected to xpenser account ${result.email}. Send /add to create a transaction.`,
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
         } catch (err) {
             await this.#bot.sendMessage(
                 msg.chat.id,
                 apiErrorMessage(err) ??
-                    'Could not connect Telegram. Create a fresh link in xpenser Preferences.'
+                    'Could not connect Telegram. Create a fresh link in xpenser Preferences.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
         }
     }
@@ -298,7 +317,10 @@ export class XpenserTelegramBot {
         if (!this.isPrivateChat(msg.chat)) {
             await this.#bot.sendMessage(
                 msg.chat.id,
-                'Please open a private chat with this bot.'
+                'Please open a private chat with this bot.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
             return;
         }
@@ -307,7 +329,10 @@ export class XpenserTelegramBot {
         if (!user) {
             await this.#bot.sendMessage(
                 msg.chat.id,
-                'Could not read Telegram user.'
+                'Could not read Telegram user.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
             return;
         }
@@ -323,7 +348,10 @@ export class XpenserTelegramBot {
             if (categories.length === 0) {
                 await this.#bot.sendMessage(
                     msg.chat.id,
-                    'Create at least one category in xpenser first.'
+                    'Create at least one category in xpenser first.',
+                    {
+                        reply_markup: quickAddReplyKeyboard()
+                    }
                 );
                 return;
             }
@@ -344,7 +372,10 @@ export class XpenserTelegramBot {
             await this.#bot.sendMessage(
                 msg.chat.id,
                 apiErrorMessage(err) ??
-                    'Telegram is not connected. Connect it from xpenser Preferences.'
+                    'Telegram is not connected. Connect it from xpenser Preferences.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
         }
     }
@@ -354,7 +385,9 @@ export class XpenserTelegramBot {
         if (user) {
             this.#sessions.delete(sessionKey(msg.chat.id, user.telegramUserId));
         }
-        await this.#bot.sendMessage(msg.chat.id, 'Cancelled.');
+        await this.#bot.sendMessage(msg.chat.id, 'Cancelled.', {
+            reply_markup: quickAddReplyKeyboard()
+        });
     }
 
     async handleCallback(query: TelegramBot.CallbackQuery): Promise<void> {
@@ -370,13 +403,17 @@ export class XpenserTelegramBot {
 
         if (data === cancelCallback) {
             this.#sessions.delete(key);
-            await this.#bot.sendMessage(chatId, 'Cancelled.');
+            await this.#bot.sendMessage(chatId, 'Cancelled.', {
+                reply_markup: quickAddReplyKeyboard()
+            });
             return;
         }
 
         const draft = this.#sessions.get(key);
         if (!draft) {
-            await this.#bot.sendMessage(chatId, 'Send /add to start.');
+            await this.#bot.sendMessage(chatId, 'Send /add to start.', {
+                reply_markup: quickAddReplyKeyboard()
+            });
             return;
         }
 
@@ -453,7 +490,9 @@ export class XpenserTelegramBot {
         const key = sessionKey(msg.chat.id, user.telegramUserId);
         const draft = this.#sessions.get(key);
         if (!draft) {
-            await this.#bot.sendMessage(msg.chat.id, 'Send /add to start.');
+            await this.#bot.sendMessage(msg.chat.id, 'Send /add to start.', {
+                reply_markup: quickAddReplyKeyboard()
+            });
             return;
         }
 
@@ -541,14 +580,41 @@ export class XpenserTelegramBot {
             this.#sessions.delete(key);
             await this.#bot.sendMessage(
                 chatId,
-                `Saved ${transaction.type}: ${transaction.categoryName}, ${transaction.amount.toFixed(2)} ${transaction.currency}.`
+                `Saved ${transaction.type}: ${transaction.categoryName}, ${transaction.amount.toFixed(2)} ${transaction.currency}.`,
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
         } catch (err) {
             await this.#bot.sendMessage(
                 chatId,
                 apiErrorMessage(err) ??
-                    'Could not save transaction. Try /add again.'
+                    'Could not save transaction. Try /add again.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
             );
+        }
+    }
+
+    async configureBotCommands(): Promise<void> {
+        try {
+            await this.#bot.setMyCommands([
+                {
+                    command: addCommand.slice(1),
+                    description: 'Add a transaction'
+                },
+                {
+                    command: 'cancel',
+                    description: 'Cancel the current transaction'
+                },
+                {
+                    command: 'start',
+                    description: 'Connect or restart the bot'
+                }
+            ]);
+        } catch (err) {
+            this.#logger.error(toError(err), 'Could not set bot commands', {});
         }
     }
 

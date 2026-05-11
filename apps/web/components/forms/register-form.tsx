@@ -19,7 +19,9 @@ import {
 import Link from 'next/link';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { registerAction } from '@/lib/actions';
+import { sortCurrenciesForDisplay } from '@/lib/currency-display';
 import { CurrencyMultiSelect } from './currency-multi-select';
+import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
 
 export function RegisterForm({
@@ -33,13 +35,17 @@ export function RegisterForm({
     const [pending, setPending] = useState(false);
     const [selectedFavoriteCurrencies, setSelectedFavoriteCurrencies] =
         useState<string[]>([]);
+    const sortedCurrencies = useMemo(
+        () => sortCurrenciesForDisplay(currencies),
+        [currencies]
+    );
 
     const initialDefaultCurrency = useMemo(
         () =>
             currencies.some(currency => currency.code === 'USD')
                 ? 'USD'
-                : currencies[0]?.code,
-        [currencies]
+                : sortedCurrencies[0]?.code,
+        [currencies, sortedCurrencies]
     );
 
     useEffect(() => {
@@ -74,9 +80,12 @@ export function RegisterForm({
         setPending(true);
         setError(null);
         try {
-            await registerAction(
+            const response = await registerAction(
                 valuesToFormData({ ...result.object, favoriteCurrencies })
             );
+            if (response?.error) {
+                setError(response.error);
+            }
         } catch (caught) {
             if (isNextRedirectError(caught)) {
                 throw caught;
@@ -137,12 +146,12 @@ export function RegisterForm({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectGroup>
-                                {currencies.map(currency => (
+                                {sortedCurrencies.map(currency => (
                                     <SelectItem
                                         key={currency.code}
                                         value={currency.code}
                                     >
-                                        {currency.code} - {currency.name}
+                                        <CurrencyOption currency={currency} />
                                     </SelectItem>
                                 ))}
                             </SelectGroup>
@@ -153,7 +162,7 @@ export function RegisterForm({
                     ) : null}
                 </Field>
                 <CurrencyMultiSelect
-                    currencies={currencies}
+                    currencies={sortedCurrencies}
                     excludedCurrency={
                         defaultCurrency.value ?? initialDefaultCurrency
                     }
