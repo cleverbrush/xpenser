@@ -3,17 +3,22 @@ import { defineApi, endpoint, route } from '@cleverbrush/server/contract';
 import {
     CategorySchema,
     CreateCategoryBodySchema,
+    CreateTelegramLinkTokenResponseSchema,
     CreateTransactionBodySchema,
     CurrencySchema,
     DashboardQuerySchema,
     DashboardSummarySchema,
     ErrorResponseSchema,
     GoogleAuthBodySchema,
+    LinkTelegramAccountBodySchema,
+    LinkTelegramAccountResponseSchema,
     LoginBodySchema,
     PrincipalSchema,
     RegisterBodySchema,
     StatsOverviewSchema,
     StatsQuerySchema,
+    TelegramConnectionStatusSchema,
+    TelegramTokenBodySchema,
     TokenResponseSchema,
     TransactionListQuerySchema,
     TransactionListResponseSchema,
@@ -63,6 +68,50 @@ export const api = defineApi({
             .clearsCacheTag('stats')
             .responses({
                 200: UserPreferenceSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        telegramStatus: endpoint
+            .get('/api/users/me/telegram')
+            .authorize(PrincipalSchema)
+            .cacheTag('user-profile')
+            .responses({
+                200: TelegramConnectionStatusSchema,
+                401: ErrorResponseSchema
+            }),
+        createTelegramLinkToken: endpoint
+            .post('/api/users/me/telegram/link-token')
+            .authorize(PrincipalSchema)
+            .clearsCacheTag('user-profile')
+            .responses({
+                201: CreateTelegramLinkTokenResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        disconnectTelegram: endpoint
+            .delete('/api/users/me/telegram')
+            .authorize(PrincipalSchema)
+            .clearsCacheTag('user-profile')
+            .responses({
+                204: null,
+                401: ErrorResponseSchema
+            })
+    },
+    telegram: {
+        link: endpoint
+            .post('/api/telegram/link')
+            .body(LinkTelegramAccountBodySchema)
+            .responses({
+                200: LinkTelegramAccountResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema,
+                409: ErrorResponseSchema
+            }),
+        token: endpoint
+            .post('/api/telegram/token')
+            .body(TelegramTokenBodySchema)
+            .responses({
+                200: TokenResponseSchema,
                 400: ErrorResponseSchema,
                 401: ErrorResponseSchema
             })

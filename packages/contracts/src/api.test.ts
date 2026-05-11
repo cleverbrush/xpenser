@@ -13,12 +13,17 @@ describe('api contract authorization metadata', () => {
         expect(authRoles(api.auth.login)).toBeNull();
         expect(authRoles(api.auth.google)).toBeNull();
         expect(authRoles(api.currencies.list)).toBeNull();
+        expect(authRoles(api.telegram.link)).toBeNull();
+        expect(authRoles(api.telegram.token)).toBeNull();
     });
 
     it('marks user-scoped endpoints as authenticated', () => {
         const protectedEndpoints = [
             api.auth.me,
             api.users.updatePreferences,
+            api.users.telegramStatus,
+            api.users.createTelegramLinkToken,
+            api.users.disconnectTelegram,
             api.categories.list,
             api.categories.create,
             api.categories.update,

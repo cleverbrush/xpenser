@@ -143,3 +143,16 @@ export async function updatePreferencesAction(formData: FormData) {
     revalidatePath('/settings/preferences');
     redirect('/dashboard');
 }
+
+export async function createTelegramLinkAction() {
+    const client = await getApiClient();
+    const link = await client.users.createTelegramLinkToken();
+    redirect(link.startUrl);
+}
+
+export async function disconnectTelegramAction() {
+    const client = await getApiClient();
+    await client.users.disconnectTelegram();
+    revalidateTag('user-profile', 'max');
+    revalidatePath('/settings/preferences');
+}

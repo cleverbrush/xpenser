@@ -48,6 +48,33 @@ export const FavoriteCurrencyDbSchema = object({
     .hasTableName('user_favorite_currencies')
     .hasPrimaryKey(['userId', 'currency'] as const);
 
+export const TelegramAccountDbSchema = object({
+    userId: number()
+        .primaryKey()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE'),
+    telegramUserId: string().hasColumnName('telegram_user_id'),
+    telegramUsername: string().optional().hasColumnName('telegram_username'),
+    telegramFirstName: string().optional().hasColumnName('telegram_first_name'),
+    telegramLastName: string().optional().hasColumnName('telegram_last_name'),
+    linkedAt: date().hasColumnName('linked_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('telegram_accounts');
+
+export const TelegramLinkTokenDbSchema = object({
+    id: number().primaryKey(),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_telegram_link_tokens_user_id'),
+    tokenHash: string().hasColumnName('token_hash'),
+    expiresAt: date().hasColumnName('expires_at'),
+    consumedAt: date().optional().hasColumnName('consumed_at'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now')
+}).hasTableName('telegram_link_tokens');
+
 export const CategoryDbSchema = object({
     id: number().primaryKey(),
     userId: number()
@@ -98,6 +125,8 @@ export const ExchangeRateDbSchema = object({
 
 export const UserEntity = defineEntity(UserDbSchema);
 export const FavoriteCurrencyEntity = defineEntity(FavoriteCurrencyDbSchema);
+export const TelegramAccountEntity = defineEntity(TelegramAccountDbSchema);
+export const TelegramLinkTokenEntity = defineEntity(TelegramLinkTokenDbSchema);
 export const CategoryEntity = defineEntity(CategoryDbSchema);
 export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
     t => t.category,
@@ -109,6 +138,8 @@ export const ExchangeRateEntity = defineEntity(ExchangeRateDbSchema);
 export const entityMap = {
     users: UserEntity,
     favoriteCurrencies: FavoriteCurrencyEntity,
+    telegramAccounts: TelegramAccountEntity,
+    telegramLinkTokens: TelegramLinkTokenEntity,
     categories: CategoryEntity,
     transactions: TransactionEntity,
     exchangeRates: ExchangeRateEntity
@@ -135,6 +166,25 @@ export type CategoryDb = {
     readonly type: 'expense' | 'income';
     readonly createdAt: Date;
     readonly updatedAt: Date;
+};
+
+export type TelegramAccountDb = {
+    readonly userId: number;
+    readonly telegramUserId: string;
+    readonly telegramUsername?: string | null;
+    readonly telegramFirstName?: string | null;
+    readonly telegramLastName?: string | null;
+    readonly linkedAt: Date;
+    readonly updatedAt: Date;
+};
+
+export type TelegramLinkTokenDb = {
+    readonly id: number;
+    readonly userId: number;
+    readonly tokenHash: string;
+    readonly expiresAt: Date;
+    readonly consumedAt?: Date | null;
+    readonly createdAt: Date;
 };
 
 export type TransactionDb = {

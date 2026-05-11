@@ -14,6 +14,8 @@ export type XpenserClientOptions = {
     readonly baseUrl: string;
     /** Returns the API JWT for authenticated requests. */
     readonly getToken?: TokenProvider;
+    /** Optional headers sent with every request. */
+    readonly headers?: Record<string, string>;
     /** Optional fetch implementation for server tests and Next.js fetch options. */
     readonly fetch?: typeof fetch;
 };
@@ -28,6 +30,7 @@ export function createXpenserClient(options: XpenserClientOptions) {
     return createClient(api, {
         baseUrl: options.baseUrl,
         getToken: options.getToken,
+        headers: options.headers,
         fetch: options.fetch,
         middlewares: [
             clientTracingMiddleware(),

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
+    LinkTelegramAccountBodySchema,
     LoginBodySchema,
     RegisterBodySchema,
     StatsQuerySchema
@@ -96,6 +97,24 @@ describe('shared schemas', () => {
                 groupBy: 'quarter',
                 timeframe: 'this-month'
             } as never).valid
+        ).toBe(false);
+    });
+
+    it('validates Telegram service link bodies', () => {
+        expect(
+            LinkTelegramAccountBodySchema.validate({
+                token: 'abc123',
+                telegramUser: {
+                    telegramUserId: '123456789',
+                    telegramUsername: 'jane'
+                }
+            }).valid
+        ).toBe(true);
+        expect(
+            LinkTelegramAccountBodySchema.validate({
+                token: '',
+                telegramUser: { telegramUserId: '' }
+            }).valid
         ).toBe(false);
     });
 });

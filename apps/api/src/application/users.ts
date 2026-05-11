@@ -51,10 +51,15 @@ async function setFavoriteCurrencies(
 function toTokenResponse(
     config: Config,
     user: Pick<UserDb, 'id' | 'email' | 'role' | 'defaultCurrency'>,
-    categories: boolean
+    categories: boolean,
+    expiresInSeconds?: number
 ): TokenResponse {
     return {
-        token: issueToken(config, { id: user.id, role: user.role }),
+        token: issueToken(
+            config,
+            { id: user.id, role: user.role },
+            expiresInSeconds
+        ),
         user: {
             id: user.id,
             email: user.email,
@@ -63,6 +68,25 @@ function toTokenResponse(
             hasCategories: categories
         }
     };
+}
+
+export async function issueUserToken(
+    db: AppDb,
+    config: Config,
+    userId: number,
+    expiresInSeconds?: number
+): Promise<TokenResponse | undefined> {
+    const user = await db.users.find(userId);
+    if (!user) {
+        return undefined;
+    }
+
+    return toTokenResponse(
+        config,
+        user,
+        await hasCategories(db, userId),
+        expiresInSeconds
+    );
 }
 
 export async function registerUser(

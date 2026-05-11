@@ -181,6 +181,102 @@ export const UpdateUserPreferenceBodySchema = object({
     )
 }).schemaName('UpdateUserPreferenceBody');
 
+export const TelegramConnectionStatusSchema = object({
+    /** True when the current xpenser account is connected to Telegram. */
+    linked: boolean().describe(
+        'True when the current xpenser account is connected to Telegram.'
+    ),
+    /** Telegram username at the time the account was linked, when available. */
+    telegramUsername: string()
+        .optional()
+        .describe(
+            'Telegram username at the time the account was linked, when available.'
+        ),
+    /** Telegram first name at the time the account was linked, when available. */
+    telegramFirstName: string()
+        .optional()
+        .describe(
+            'Telegram first name at the time the account was linked, when available.'
+        ),
+    /** Telegram last name at the time the account was linked, when available. */
+    telegramLastName: string()
+        .optional()
+        .describe(
+            'Telegram last name at the time the account was linked, when available.'
+        ),
+    /** Date and time when the Telegram account was linked. */
+    linkedAt: date()
+        .coerce()
+        .optional()
+        .describe('Date and time when the Telegram account was linked.')
+}).schemaName('TelegramConnectionStatus');
+
+export const CreateTelegramLinkTokenResponseSchema = object({
+    /** Telegram deep link users should open to connect their account. */
+    startUrl: string().describe(
+        'Telegram deep link users should open to connect their account.'
+    ),
+    /** Date and time when this link token expires. */
+    expiresAt: date()
+        .coerce()
+        .describe('Date and time when this link token expires.')
+}).schemaName('CreateTelegramLinkTokenResponse');
+
+export const TelegramUserBodySchema = object({
+    /** Telegram user identifier, sent as a string to avoid precision issues. */
+    telegramUserId: string()
+        .required('Telegram user id is required')
+        .nonempty('Telegram user id is required')
+        .describe(
+            'Telegram user identifier, sent as a string to avoid precision issues.'
+        ),
+    /** Telegram username, when available. */
+    telegramUsername: string()
+        .maxLength(64, 'Telegram username is too long')
+        .optional()
+        .describe('Telegram username, when available.'),
+    /** Telegram first name, when available. */
+    telegramFirstName: string()
+        .maxLength(128, 'Telegram first name is too long')
+        .optional()
+        .describe('Telegram first name, when available.'),
+    /** Telegram last name, when available. */
+    telegramLastName: string()
+        .maxLength(128, 'Telegram last name is too long')
+        .optional()
+        .describe('Telegram last name, when available.')
+}).schemaName('TelegramUserBody');
+
+export const LinkTelegramAccountBodySchema = object({
+    /** Random one-time token from the Telegram deep link payload. */
+    token: string()
+        .required('link token is required')
+        .nonempty('link token is required')
+        .describe('Random one-time token from the Telegram deep link payload.'),
+    /** Telegram account to link to the xpenser account that owns the token. */
+    telegramUser: TelegramUserBodySchema.describe(
+        'Telegram account to link to the xpenser account that owns the token.'
+    )
+}).schemaName('LinkTelegramAccountBody');
+
+export const TelegramTokenBodySchema = object({
+    /** Telegram account requesting a short-lived xpenser API token. */
+    telegramUser: TelegramUserBodySchema.describe(
+        'Telegram account requesting a short-lived xpenser API token.'
+    )
+}).schemaName('TelegramTokenBody');
+
+export const LinkTelegramAccountResponseSchema = object({
+    /** Connected xpenser user identifier. */
+    userId: number().describe('Connected xpenser user identifier.'),
+    /** Connected xpenser user email address. */
+    email: string().describe('Connected xpenser user email address.'),
+    /** Current Telegram connection status. */
+    telegram: TelegramConnectionStatusSchema.describe(
+        'Current Telegram connection status.'
+    )
+}).schemaName('LinkTelegramAccountResponse');
+
 export const CurrencySchema = object({
     /** ISO 4217 currency code. */
     code: CurrencyCodeSchema.describe('ISO 4217 currency code.'),
@@ -579,6 +675,16 @@ export type RegisterBody = InferType<typeof RegisterBodySchema>;
 export type LoginBody = InferType<typeof LoginBodySchema>;
 export type TokenResponse = InferType<typeof TokenResponseSchema>;
 export type UserPreference = InferType<typeof UserPreferenceSchema>;
+export type TelegramConnectionStatus = InferType<
+    typeof TelegramConnectionStatusSchema
+>;
+export type LinkTelegramAccountBody = InferType<
+    typeof LinkTelegramAccountBodySchema
+>;
+export type TelegramTokenBody = InferType<typeof TelegramTokenBodySchema>;
+export type LinkTelegramAccountResponse = InferType<
+    typeof LinkTelegramAccountResponseSchema
+>;
 export type Currency = InferType<typeof CurrencySchema>;
 export type Category = InferType<typeof CategorySchema>;
 export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;

@@ -1,0 +1,35 @@
+{
+    "name": "@xpenser/telegram-bot",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "scripts": {
+        "dev": "tsx watch --env-file=.env --import @opentelemetry/instrumentation/hook.mjs src/index.ts",
+        "start": "node --import @opentelemetry/instrumentation/hook.mjs --import ./dist/telemetry.js dist/index.js",
+        "build": "tsup && tsc --noEmit -p tsconfig.json",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "clean": "rm -rf dist tsconfig.tsbuildinfo"
+    },
+    "dependencies": {
+        "@cleverbrush/env": "^4.3.0",
+        "@cleverbrush/log": "^4.3.0",
+        "@cleverbrush/otel": "^4.3.0",
+        "@cleverbrush/schema": "^4.3.0",
+        "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/instrumentation": "0.215.0",
+        "@opentelemetry/instrumentation-http": "0.215.0",
+        "@opentelemetry/instrumentation-runtime-node": "0.28.0",
+        "@opentelemetry/instrumentation-undici": "0.25.0",
+        "@xpenser/client": "0.1.0",
+        "@xpenser/contracts": "0.1.0",
+        "node-telegram-bot-api": "^0.66.0"
+    },
+    "devDependencies": {
+        "@types/node-telegram-bot-api": "^0.64.7",
+        "tsup": "8.5.1",
+        "tsx": "4.21.0",
+        "typescript": "6.0.3"
+    }
+}

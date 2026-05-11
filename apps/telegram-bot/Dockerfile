@@ -12,12 +12,12 @@ COPY packages/ui/package.json ./packages/ui/package.json
 
 RUN npm install --ignore-scripts
 
-COPY apps/api ./apps/api
+COPY apps/telegram-bot ./apps/telegram-bot
 COPY packages ./packages
 
 RUN npm run build -w @xpenser/contracts && \
     npm run build -w @xpenser/client && \
-    npm run build -w @xpenser/api
+    npm run build -w @xpenser/telegram-bot
 
 FROM node:22-alpine AS runtime
 
@@ -25,13 +25,10 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/src/db/migrations ./migrations
-COPY --from=builder /app/apps/api/package.json ./package.json
+COPY --from=builder /app/apps/telegram-bot/dist ./dist
+COPY --from=builder /app/apps/telegram-bot/package.json ./package.json
 
 ENV NODE_ENV=production
-ENV MIGRATIONS_DIR=/app/migrations
-EXPOSE 4000
 
 USER appuser
 

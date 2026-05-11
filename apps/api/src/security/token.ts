@@ -4,9 +4,10 @@ import type { Config } from '../config.js';
 /** Issues a short application JWT consumed by @cleverbrush/server auth. */
 export function issueToken(
     config: Config,
-    user: { readonly id: number; readonly role: string }
+    user: { readonly id: number; readonly role: string },
+    expiresInSeconds = config.jwt.expiresInSeconds
 ): string {
-    const exp = Math.floor(Date.now() / 1000) + config.jwt.expiresInSeconds;
+    const exp = Math.floor(Date.now() / 1000) + expiresInSeconds;
     return signJwt(
         { sub: String(user.id), role: user.role, exp },
         config.jwt.secret

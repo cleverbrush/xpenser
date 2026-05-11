@@ -32,6 +32,23 @@ export const config = parseEnv(
         google: {
             clientId: env('GOOGLE_CLIENT_ID', string().optional())
         },
+        telegram: {
+            botUsername: env('TELEGRAM_BOT_USERNAME', string().optional()),
+            serviceSecret: env(
+                'TELEGRAM_BOT_SERVICE_SECRET',
+                string()
+                    .minLength(32)
+                    .default('change-me-in-production-min32chars')
+            ),
+            linkTokenTtlSeconds: env(
+                'TELEGRAM_LINK_TOKEN_TTL_SECONDS',
+                number().coerce().default(600)
+            ),
+            jwtExpiresInSeconds: env(
+                'TELEGRAM_JWT_EXPIRES_IN',
+                number().coerce().default(300)
+            )
+        },
         frankfurter: {
             baseUrl: env(
                 'FRANKFURTER_BASE_URL',

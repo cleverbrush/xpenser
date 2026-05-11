@@ -13,6 +13,13 @@ import {
 } from './categories.js';
 import { listCurrenciesHandler } from './currencies.js';
 import {
+    createTelegramLinkTokenHandler,
+    disconnectTelegramHandler,
+    linkTelegramHandler,
+    telegramStatusHandler,
+    telegramTokenHandler
+} from './telegram.js';
+import {
     createTransactionHandler,
     dashboardSummaryHandler,
     deleteTransactionHandler,
@@ -29,7 +36,14 @@ export const handlers = {
         me: getMeHandler
     },
     users: {
-        updatePreferences: updatePreferencesHandler
+        updatePreferences: updatePreferencesHandler,
+        telegramStatus: telegramStatusHandler,
+        createTelegramLinkToken: createTelegramLinkTokenHandler,
+        disconnectTelegram: disconnectTelegramHandler
+    },
+    telegram: {
+        link: linkTelegramHandler,
+        token: telegramTokenHandler
     },
     currencies: {
         list: listCurrenciesHandler

@@ -38,6 +38,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min32chars}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-86400}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_BOT_SERVICE_SECRET: ${TELEGRAM_BOT_SERVICE_SECRET:-change-me-in-production-min32chars}
+      TELEGRAM_LINK_TOKEN_TTL_SECONDS: ${TELEGRAM_LINK_TOKEN_TTL_SECONDS:-600}
+      TELEGRAM_JWT_EXPIRES_IN: ${TELEGRAM_JWT_EXPIRES_IN:-300}
       FRANKFURTER_BASE_URL: ${FRANKFURTER_BASE_URL:-https://api.frankfurter.dev/v2}
       OTEL_SERVICE_NAME: xpenser-api
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -71,6 +75,24 @@ services:
       NEXT_OTEL_VERBOSE: "1"
     ports:
       - "${WEB_PORT:-3000}:3000"
+
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: apps/telegram-bot/Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+      otel-collector:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_BASE_URL: http://api:4000
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_BOT_SERVICE_SECRET: ${TELEGRAM_BOT_SERVICE_SECRET:-change-me-in-production-min32chars}
+      OTEL_SERVICE_NAME: xpenser-telegram-bot
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
 
   swagger-ui:
     image: swaggerapi/swagger-ui:latest

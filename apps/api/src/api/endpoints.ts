@@ -38,6 +38,46 @@ export const UpdatePreferencesEndpoint = api.users.updatePreferences
     .tags('users')
     .operationId('updateUserPreferences');
 
+export const TelegramStatusEndpoint = api.users.telegramStatus
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Telegram connection status')
+    .description('Returns Telegram linking status for the current user.')
+    .tags('users')
+    .operationId('telegramConnectionStatus');
+
+export const CreateTelegramLinkTokenEndpoint = api.users.createTelegramLinkToken
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Create Telegram link token')
+    .description(
+        'Creates a short-lived Telegram deep link for the current user.'
+    )
+    .tags('users')
+    .operationId('createTelegramLinkToken');
+
+export const DisconnectTelegramEndpoint = api.users.disconnectTelegram
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Disconnect Telegram')
+    .description('Disconnects Telegram from the current user.')
+    .tags('users')
+    .operationId('disconnectTelegram');
+
+export const LinkTelegramEndpoint = api.telegram.link
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Link Telegram account')
+    .description('Consumes a Telegram deep link token from the bot service.')
+    .tags('telegram')
+    .operationId('linkTelegramAccount');
+
+export const TelegramTokenEndpoint = api.telegram.token
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Telegram token exchange')
+    .description('Exchanges a linked Telegram user for a short-lived API JWT.')
+    .tags('telegram')
+    .operationId('telegramToken');
+
 export const ListCurrenciesEndpoint = api.currencies.list
     .inject({ config: ConfigToken })
     .summary('List currencies')
@@ -135,7 +175,14 @@ export const endpoints = {
         me: GetMeEndpoint
     },
     users: {
-        updatePreferences: UpdatePreferencesEndpoint
+        updatePreferences: UpdatePreferencesEndpoint,
+        telegramStatus: TelegramStatusEndpoint,
+        createTelegramLinkToken: CreateTelegramLinkTokenEndpoint,
+        disconnectTelegram: DisconnectTelegramEndpoint
+    },
+    telegram: {
+        link: LinkTelegramEndpoint,
+        token: TelegramTokenEndpoint
     },
     currencies: {
         list: ListCurrenciesEndpoint

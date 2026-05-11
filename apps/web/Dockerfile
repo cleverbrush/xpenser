@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package.json turbo.json tsconfig.base.json tsconfig.json vitest.config.ts biome.json ./
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
+COPY apps/telegram-bot/package.json ./apps/telegram-bot/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/client/package.json ./packages/client/package.json
 COPY packages/ui/package.json ./packages/ui/package.json

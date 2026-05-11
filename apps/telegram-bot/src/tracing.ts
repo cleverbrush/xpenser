@@ -1,0 +1,117 @@
+import {
+    type SpanAttributes,
+    SpanKind,
+    SpanStatusCode,
+    trace
+} from '@opentelemetry/api';
+
+export type TelegramUpdateType = 'command' | 'callback_query' | 'message';
+
+export type TelegramUpdateSpanInfo = {
+    readonly updateType: TelegramUpdateType;
+    readonly command?: string;
+    readonly callbackAction?: string;
+    readonly chatType?: string;
+    readonly messageId?: number;
+};
+
+const tracer = trace.getTracer('xpenser.telegram-bot');
+
+export function telegramCommand(text: string | undefined): string {
+    const match = (text ?? '').trim().match(/^\/([a-zA-Z0-9_]+)(?:@\S+)?/);
+    const command = match?.[1];
+    return command?.toLowerCase() ?? 'unknown';
+}
+
+export function telegramCallbackAction(data: string | undefined): string {
+    if (!data) {
+        return 'unknown';
+    }
+    if (data === 'cancel') {
+        return 'cancel';
+    }
+    if (data === 'cur:other') {
+        return 'currency_other';
+    }
+    if (data.startsWith('catpage:')) {
+        return 'category_page';
+    }
+    if (data.startsWith('cat:')) {
+        return 'category_select';
+    }
+    if (data.startsWith('cur:')) {
+        return 'currency_select';
+    }
+    if (data === 'note:skip') {
+        return 'note_skip';
+    }
+    if (data === 'note:add') {
+        return 'note_add';
+    }
+    return 'unknown';
+}
+
+export function telegramSpanName(info: TelegramUpdateSpanInfo): string {
+    if (info.updateType === 'command') {
+        return `telegram command ${info.command ?? 'unknown'}`;
+    }
+    if (info.updateType === 'callback_query') {
+        return `telegram callback ${info.callbackAction ?? 'unknown'}`;
+    }
+    return 'telegram message';
+}
+
+export function telegramSpanAttributes(
+    info: TelegramUpdateSpanInfo
+): SpanAttributes {
+    return {
+        'messaging.system': 'telegram',
+        'messaging.operation.name': info.updateType,
+        'telegram.update.type': info.updateType,
+        ...(info.command ? { 'telegram.command': info.command } : {}),
+        ...(info.callbackAction
+            ? { 'telegram.callback.action': info.callbackAction }
+            : {}),
+        ...(info.chatType ? { 'telegram.chat.type': info.chatType } : {}),
+        ...(info.messageId !== undefined
+            ? { 'telegram.message.id': info.messageId }
+            : {})
+    };
+}
+
+function errorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+}
+
+export async function traceTelegramUpdate<T>(
+    info: TelegramUpdateSpanInfo,
+    handler: () => Promise<T>
+): Promise<T> {
+    return tracer.startActiveSpan(
+        telegramSpanName(info),
+        {
+            kind: SpanKind.CONSUMER,
+            attributes: telegramSpanAttributes(info)
+        },
+        async span => {
+            try {
+                const result = await handler();
+                span.setAttribute('telegram.update.success', true);
+                span.setStatus({ code: SpanStatusCode.OK });
+                return result;
+            } catch (err) {
+                span.setAttribute('telegram.update.success', false);
+                span.recordException(
+                    err instanceof Error ? err : errorMessage(err)
+                );
+                span.setStatus({
+                    code: SpanStatusCode.ERROR,
+                    message: errorMessage(err)
+                });
+                throw err;
+            } finally {
+                span.end();
+            }
+        }
+    );
+}
