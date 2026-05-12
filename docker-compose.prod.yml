@@ -20,8 +20,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      otel-collector:
-        condition: service_healthy
     environment:
       NODE_ENV: production
       APP_URL: ${APP_URL:-http://localhost:3000}
@@ -79,8 +77,6 @@ services:
       dockerfile: apps/telegram-bot/Dockerfile
     depends_on:
       api:
-        condition: service_healthy
-      otel-collector:
         condition: service_healthy
     environment:
       NODE_ENV: production

@@ -226,6 +226,8 @@ services:
       - SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN=tcp://clickhouse:9000
       - SIGNOZ_SQLSTORE_SQLITE_PATH=/var/lib/signoz/signoz.db
       - SIGNOZ_TOKENIZER_JWT_SECRET=${SIGNOZ_TOKENIZER_JWT_SECRET:-change-me}
+    ports:
+      - "127.0.0.1:${SIGNOZ_PORT:-8080}:8080"
     volumes:
       - signoz-sqlite:/var/lib/signoz/
 
