@@ -67,7 +67,6 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       WEB_OTEL_SERVICE_NAME: ${OTEL_WEB_SERVICE_NAME:-xpenser-web}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
-      NEXT_OTEL_VERBOSE: "1"
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
 
