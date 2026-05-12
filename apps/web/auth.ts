@@ -3,7 +3,9 @@ import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth';
 import type {} from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import Google from 'next-auth/providers/google';
+import { expiredSessionPath } from './lib/auth-routes';
 import { webConfig } from './lib/config';
+import { loggerFor } from './lib/logger';
 
 type ApiUser = {
     readonly id: string;
@@ -40,10 +42,36 @@ function apiClient() {
     return createXpenserClient({ baseUrl: webConfig.apiBaseUrl });
 }
 
+const authLogger = loggerFor('Auth.js');
+
+function authErrorType(error: Error): string {
+    const typedError = error as Error & { readonly type?: unknown };
+    return typeof typedError.type === 'string' ? typedError.type : error.name;
+}
+
 const nextAuth: NextAuthResult = NextAuth({
     session: { strategy: 'jwt' },
     secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
     trustHost: true,
+    logger: {
+        error(error) {
+            authLogger.error(error, 'Auth.js error {AuthErrorType}', {
+                AuthErrorType: authErrorType(error),
+                AuthErrorMessage: error.message
+            });
+        },
+        warn(code) {
+            authLogger.warn('Auth.js warning {AuthWarningCode}', {
+                AuthWarningCode: code
+            });
+        },
+        debug(message, metadata) {
+            authLogger.debug('Auth.js debug {AuthDebugMessage}', {
+                AuthDebugMessage: message,
+                AuthDebugMetadata: metadata
+            });
+        }
+    },
     providers: [
         Credentials({
             credentials: {
@@ -73,7 +101,8 @@ const nextAuth: NextAuthResult = NextAuth({
         })
     ],
     pages: {
-        signIn: '/login'
+        signIn: '/login',
+        error: expiredSessionPath
     },
     callbacks: {
         async jwt({ token, user, account }) {
