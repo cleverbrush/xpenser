@@ -3,35 +3,19 @@ import {
     createLogger,
     hostnameEnricher,
     type Logger,
-    type LogLevelName,
     processIdEnricher
 } from '@cleverbrush/log';
 import { otelLogSink, traceEnricher } from '@cleverbrush/otel';
-
-const LOG_LEVELS = [
-    'trace',
-    'debug',
-    'information',
-    'warning',
-    'error',
-    'fatal'
-] as const;
+import { webConfig } from './config';
 
 const globalForLogger = globalThis as typeof globalThis & {
     __xpenserWebLogger?: Logger;
 };
 
-function configuredLogLevel(): LogLevelName {
-    const level = process.env.LOG_LEVEL;
-    return LOG_LEVELS.includes(level as LogLevelName)
-        ? (level as LogLevelName)
-        : 'information';
-}
-
 export const logger =
     globalForLogger.__xpenserWebLogger ??
     createLogger({
-        minimumLevel: configuredLogLevel(),
+        minimumLevel: webConfig.logLevel,
         sinks: [consoleSink({ theme: 'dark' }), otelLogSink()],
         enrichers: [
             hostnameEnricher(),

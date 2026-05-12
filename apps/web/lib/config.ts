@@ -8,6 +8,19 @@ export const webConfig = parseEnv({
         'NEXTAUTH_SECRET',
         string().minLength(32).default('change-me-in-production-min32chars')
     ),
+    logLevel: env(
+        'LOG_LEVEL',
+        string()
+            .oneOf([
+                'trace',
+                'debug',
+                'information',
+                'warning',
+                'error',
+                'fatal'
+            ] as const)
+            .default('information')
+    ),
     google: {
         clientId: env('GOOGLE_CLIENT_ID', string().optional()),
         clientSecret: env('GOOGLE_CLIENT_SECRET', string().optional())

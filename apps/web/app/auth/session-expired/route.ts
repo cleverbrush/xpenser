@@ -1,19 +1,20 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { signOut } from '@/auth';
 import { loggerFor } from '@/lib/logger';
+import { publicAppUrl } from '@/lib/public-url';
 
 export const dynamic = 'force-dynamic';
 
 const authLogger = loggerFor('Auth.js');
 
-function redirectToLogin(request: NextRequest) {
-    return NextResponse.redirect(new URL('/login', request.url));
+function redirectToLogin() {
+    return NextResponse.redirect(publicAppUrl('/login'));
 }
 
 export async function GET(request: NextRequest) {
     const authError = request.nextUrl.searchParams.get('error');
     if (authError && authError !== 'InvalidCheck') {
-        return redirectToLogin(request);
+        return redirectToLogin();
     }
 
     if (authError === 'InvalidCheck') {
@@ -26,5 +27,6 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    await signOut({ redirectTo: '/login' });
+    await signOut({ redirect: false, redirectTo: '/login' });
+    return redirectToLogin();
 }

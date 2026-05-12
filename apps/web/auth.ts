@@ -6,6 +6,7 @@ import Google from 'next-auth/providers/google';
 import { expiredSessionPath } from './lib/auth-routes';
 import { webConfig } from './lib/config';
 import { loggerFor } from './lib/logger';
+import { configureAuthPublicUrl } from './lib/public-url';
 
 type ApiUser = {
     readonly id: string;
@@ -42,6 +43,8 @@ function apiClient() {
     return createXpenserClient({ baseUrl: webConfig.apiBaseUrl });
 }
 
+configureAuthPublicUrl();
+
 const authLogger = loggerFor('Auth.js');
 
 function authErrorType(error: Error): string {
@@ -51,7 +54,7 @@ function authErrorType(error: Error): string {
 
 const nextAuth: NextAuthResult = NextAuth({
     session: { strategy: 'jwt' },
-    secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+    secret: webConfig.nextAuthSecret,
     trustHost: true,
     logger: {
         error(error) {
