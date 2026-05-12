@@ -12,8 +12,12 @@ export const otel = setupOtel({
     environment: process.env.NODE_ENV,
     otlpEndpoint: endpoint,
     instrumentations: [
-        new HttpInstrumentation(),
-        new UndiciInstrumentation(),
+        new HttpInstrumentation({
+            requireParentforOutgoingSpans: true
+        }),
+        new UndiciInstrumentation({
+            requireParentforSpans: true
+        }),
         new RuntimeNodeInstrumentation()
     ]
 });

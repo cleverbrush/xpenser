@@ -58,6 +58,7 @@ type Draft =
       };
 
 const categoryPageSize = 8;
+const pollingErrorLogIntervalMs = 60_000;
 
 function telegramUser(
     from: TelegramBot.User | undefined
@@ -167,6 +168,9 @@ export class XpenserTelegramBot {
     readonly #serviceClient: XpenserClient;
     readonly #sessions = new Map<string, Draft>();
     readonly #logger: Logger;
+    #lastPollingErrorMessage: string | undefined;
+    #lastPollingErrorLoggedAt = 0;
+    #suppressedPollingErrorCount = 0;
 
     constructor(
         private readonly config: BotConfig,
@@ -243,7 +247,7 @@ export class XpenserTelegramBot {
             );
         });
         this.#bot.on('polling_error', err => {
-            this.#logger.error(toError(err), 'Telegram polling error', {});
+            this.logPollingError(toError(err));
         });
         this.#bot.on('error', err => {
             this.#logger.error(toError(err), 'Telegram bot error', {});
@@ -252,6 +256,25 @@ export class XpenserTelegramBot {
 
     async stop(): Promise<void> {
         await this.#bot.stopPolling();
+    }
+
+    logPollingError(err: Error): void {
+        const now = Date.now();
+        const shouldLog =
+            err.message !== this.#lastPollingErrorMessage ||
+            now - this.#lastPollingErrorLoggedAt >= pollingErrorLogIntervalMs;
+
+        if (!shouldLog) {
+            this.#suppressedPollingErrorCount += 1;
+            return;
+        }
+
+        this.#logger.error(err, 'Telegram polling error', {
+            SuppressedCount: this.#suppressedPollingErrorCount
+        });
+        this.#lastPollingErrorMessage = err.message;
+        this.#lastPollingErrorLoggedAt = now;
+        this.#suppressedPollingErrorCount = 0;
     }
 
     async handleStart(msg: TelegramBot.Message): Promise<void> {
