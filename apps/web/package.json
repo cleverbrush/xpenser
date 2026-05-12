@@ -11,11 +11,11 @@
         "clean": "rm -rf .next tsconfig.tsbuildinfo"
     },
     "dependencies": {
-        "@cleverbrush/env": "^4.3.0",
-        "@cleverbrush/log": "^4.3.0",
-        "@cleverbrush/otel": "^4.3.0",
-        "@cleverbrush/react-form": "^4.3.0",
-        "@cleverbrush/schema": "^4.3.0",
+        "@cleverbrush/env": "^4.3.1",
+        "@cleverbrush/log": "^4.3.1",
+        "@cleverbrush/otel": "^4.3.1",
+        "@cleverbrush/react-form": "^4.3.1",
+        "@cleverbrush/schema": "^4.3.1",
         "@next/third-parties": "^16.2.6",
         "@xpenser/client": "0.1.0",
         "@xpenser/contracts": "0.1.0",

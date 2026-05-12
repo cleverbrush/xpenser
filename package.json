@@ -17,23 +17,6 @@
         "typecheck": "turbo run typecheck",
         "clean": "turbo run clean"
     },
-    "overrides": {
-        "@cleverbrush/async": "^4.3.0",
-        "@cleverbrush/auth": "^4.3.0",
-        "@cleverbrush/client": "^4.3.0",
-        "@cleverbrush/deep": "^4.3.0",
-        "@cleverbrush/di": "^4.3.0",
-        "@cleverbrush/env": "^4.3.0",
-        "@cleverbrush/knex-schema": "^4.3.0",
-        "@cleverbrush/log": "^4.3.0",
-        "@cleverbrush/orm": "^4.3.0",
-        "@cleverbrush/otel": "^4.3.0",
-        "@cleverbrush/react-form": "^4.3.0",
-        "@cleverbrush/schema": "^4.3.0",
-        "@cleverbrush/schema-json": "^4.3.0",
-        "@cleverbrush/server": "^4.3.0",
-        "@cleverbrush/server-openapi": "^4.3.0"
-    },
     "devDependencies": {
         "@biomejs/biome": "2.4.9",
         "@testing-library/react": "16.3.2",
