@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    compareTransactionsByOccurrenceAsc,
     compareTransactionsByOccurrenceDesc,
     resolveStatsRanges,
     TransactionCategoryError,
@@ -27,6 +28,19 @@ describe('transaction sorting', () => {
         expect(
             rows.sort(compareTransactionsByOccurrenceDesc).map(row => row.id)
         ).toEqual([4, 2, 1, 3]);
+    });
+
+    it('sorts oldest transactions by occurrence date-time ascending', () => {
+        const rows = [
+            { id: 1, occurredAt: new Date('2026-05-10T09:00:00.000Z') },
+            { id: 2, occurredAt: new Date('2026-05-10T12:00:00.000Z') },
+            { id: 3, occurredAt: new Date('2026-05-09T23:00:00.000Z') },
+            { id: 4, occurredAt: new Date('2026-05-10T12:00:00.000Z') }
+        ];
+
+        expect(
+            rows.sort(compareTransactionsByOccurrenceAsc).map(row => row.id)
+        ).toEqual([3, 1, 2, 4]);
     });
 });
 

@@ -17,8 +17,10 @@ export default async function TransactionsPage({
 }) {
     const params = await searchParams;
     const client = await getApiClient();
-    const [categories, transactions] = await Promise.all([
+    const [me, categories, currencies, transactions] = await Promise.all([
+        client.auth.me(),
         client.categories.list(),
+        client.currencies.list(),
         client.transactions.list({
             query: buildTransactionListQuery(params, {
                 limit: transactionPageSize,
@@ -38,6 +40,8 @@ export default async function TransactionsPage({
             </div>
             <TransactionsBrowser
                 categories={categories}
+                currencies={currencies}
+                defaultCurrency={me.defaultCurrency}
                 hasInitialFilters={hasFilters}
                 initialResponse={{
                     ...transactions,

@@ -30,9 +30,6 @@ export function telegramCallbackAction(data: string | undefined): string {
     if (data === 'cancel') {
         return 'cancel';
     }
-    if (data === 'cur:other') {
-        return 'currency_other';
-    }
     if (data.startsWith('catpage:')) {
         return 'category_page';
     }

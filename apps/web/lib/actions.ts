@@ -21,6 +21,23 @@ function optionalString(formData: FormData, key: string): string | undefined {
     return value.trim();
 }
 
+function editableString(formData: FormData, key: string): string | undefined {
+    const value = formData.get(key);
+    return typeof value === 'string' ? value.trim() : undefined;
+}
+
+function transactionBody(formData: FormData, editableNote = false) {
+    return {
+        categoryId: Number(requiredString(formData, 'categoryId')),
+        amount: Number(requiredString(formData, 'amount')),
+        currency: requiredString(formData, 'currency'),
+        occurredAt: new Date(requiredString(formData, 'occurredAt')),
+        note: editableNote
+            ? editableString(formData, 'note')
+            : optionalString(formData, 'note')
+    };
+}
+
 function favoriteCurrencies(formData: FormData, defaultCurrency: string) {
     return formData
         .getAll('favoriteCurrencies')
@@ -140,13 +157,21 @@ export async function deleteCategoryAction(formData: FormData) {
 export async function createTransactionAction(formData: FormData) {
     const client = await getApiClient();
     await client.transactions.create({
-        body: {
-            categoryId: Number(requiredString(formData, 'categoryId')),
-            amount: Number(requiredString(formData, 'amount')),
-            currency: requiredString(formData, 'currency'),
-            occurredAt: new Date(requiredString(formData, 'occurredAt')),
-            note: optionalString(formData, 'note')
-        }
+        body: transactionBody(formData)
+    });
+    revalidateTag('transactions', 'max');
+    revalidateTag('dashboard', 'max');
+    revalidateTag('stats', 'max');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+}
+
+export async function updateTransactionAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.transactions.update({
+        params: { id: Number(requiredString(formData, 'id')) },
+        body: transactionBody(formData, true)
     });
     revalidateTag('transactions', 'max');
     revalidateTag('dashboard', 'max');

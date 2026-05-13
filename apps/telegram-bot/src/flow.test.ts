@@ -2,8 +2,7 @@ import type { Currency, UserPreference } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
 import {
     addCommand,
-    isKnownCurrency,
-    normalizeCurrencyCode,
+    currencyKeyboard,
     parseAmount,
     parseStartToken,
     preferredCurrencies,
@@ -42,19 +41,29 @@ describe('telegram bot flow helpers', () => {
         expect(preferredCurrencies(me, currencies)).toEqual(['USD', 'EUR']);
     });
 
-    it('normalizes and validates currency codes', () => {
-        const currencies = [{ code: 'USD', name: 'US Dollar' }] as Currency[];
-
-        expect(normalizeCurrencyCode(' usd ')).toBe('USD');
-        expect(isKnownCurrency('USD', currencies)).toBe(true);
-        expect(isKnownCurrency('EUR', currencies)).toBe(false);
-    });
-
     it('builds a persistent quick-add reply keyboard', () => {
         expect(quickAddReplyKeyboard()).toMatchObject({
             keyboard: [[{ text: addCommand }]],
             is_persistent: true,
             resize_keyboard: true
         });
+    });
+
+    it('builds currency buttons only from default and favorites', () => {
+        const me = {
+            defaultCurrency: 'USD',
+            favoriteCurrencies: ['EUR']
+        } as UserPreference;
+        const currencies = [
+            { code: 'USD', name: 'US Dollar' },
+            { code: 'EUR', name: 'Euro' },
+            { code: 'GBP', name: 'Pound Sterling' }
+        ] as Currency[];
+
+        expect(currencyKeyboard(me, currencies).inline_keyboard).toEqual([
+            [{ text: 'USD', callback_data: 'cur:USD' }],
+            [{ text: 'EUR', callback_data: 'cur:EUR' }],
+            [{ text: 'Cancel', callback_data: 'cancel' }]
+        ]);
     });
 });

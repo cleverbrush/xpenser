@@ -1,12 +1,20 @@
 'use client';
 
-import type { Category, Transaction } from '@xpenser/contracts';
+import type { Category, Currency, Transaction } from '@xpenser/contracts';
 import {
     Badge,
     Button,
     Card,
     CardContent,
     cn,
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
     Field,
     FieldLabel,
     Input,
@@ -17,7 +25,7 @@ import {
     TableHeader,
     TableRow
 } from '@xpenser/ui';
-import { SlidersHorizontalIcon, Trash2Icon } from 'lucide-react';
+import { PencilIcon, SlidersHorizontalIcon, Trash2Icon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -28,7 +36,10 @@ import {
     useRef,
     useState
 } from 'react';
-import { deleteTransactionAction } from '@/lib/actions';
+import {
+    deleteTransactionAction,
+    updateTransactionAction
+} from '@/lib/actions';
 import { expiredSessionPath } from '@/lib/auth-routes';
 import {
     amountClassNameForType,
@@ -37,6 +48,7 @@ import {
     formatDirectionalMoney
 } from '@/lib/format';
 import { transactionPageSize } from '@/lib/transaction-query';
+import { TransactionDialog } from './transaction-dialog';
 
 type TransactionFeedResponse = {
     readonly items: readonly Transaction[];
@@ -82,25 +94,119 @@ function transactionAmount(transaction: Transaction) {
     );
 }
 
-function DeleteTransactionButton({ id }: { readonly id: number }) {
+function EditTransactionButton({
+    categories,
+    currencies,
+    defaultCurrency,
+    transaction
+}: {
+    readonly categories: readonly Category[];
+    readonly currencies: readonly Currency[];
+    readonly defaultCurrency: string;
+    readonly transaction: Transaction;
+}) {
     return (
-        <form action={deleteTransactionAction}>
-            <input name="id" type="hidden" value={id} />
-            <Button
-                aria-label="Delete transaction"
-                size="icon-xs"
-                type="submit"
-                variant="ghost"
-            >
-                <Trash2Icon aria-hidden className="size-4" />
-            </Button>
-        </form>
+        <TransactionDialog
+            action={updateTransactionAction}
+            categories={categories}
+            currencies={currencies}
+            defaultCurrency={defaultCurrency}
+            description="Update the transaction details and converted report values."
+            errorMessage="Could not update the transaction."
+            initialValues={transaction}
+            submitLabel="Save changes"
+            title="Edit transaction"
+            transactionId={transaction.id}
+            trigger={
+                <Button
+                    aria-label="Edit transaction"
+                    size="icon-xs"
+                    type="button"
+                    variant="ghost"
+                >
+                    <PencilIcon aria-hidden className="size-4" />
+                </Button>
+            }
+        />
+    );
+}
+
+function DeleteTransactionButton({
+    transaction
+}: {
+    readonly transaction: Transaction;
+}) {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button
+                    aria-label="Delete transaction"
+                    size="icon-xs"
+                    type="button"
+                    variant="ghost"
+                >
+                    <Trash2Icon aria-hidden className="size-4" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Delete transaction?</DialogTitle>
+                    <DialogDescription>
+                        This will remove {transaction.categoryName} from{' '}
+                        {formatDateTime(transaction.occurredAt)}.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button type="button" variant="outline">
+                            Cancel
+                        </Button>
+                    </DialogClose>
+                    <form action={deleteTransactionAction}>
+                        <input name="id" type="hidden" value={transaction.id} />
+                        <Button type="submit" variant="destructive">
+                            Delete
+                        </Button>
+                    </form>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function TransactionActions({
+    categories,
+    currencies,
+    defaultCurrency,
+    transaction
+}: {
+    readonly categories: readonly Category[];
+    readonly currencies: readonly Currency[];
+    readonly defaultCurrency: string;
+    readonly transaction: Transaction;
+}) {
+    return (
+        <div className="flex shrink-0 items-center justify-end gap-1">
+            <EditTransactionButton
+                categories={categories}
+                currencies={currencies}
+                defaultCurrency={defaultCurrency}
+                transaction={transaction}
+            />
+            <DeleteTransactionButton transaction={transaction} />
+        </div>
     );
 }
 
 function TransactionCards({
+    categories,
+    currencies,
+    defaultCurrency,
     transactions
 }: {
+    readonly categories: readonly Category[];
+    readonly currencies: readonly Currency[];
+    readonly defaultCurrency: string;
     readonly transactions: readonly Transaction[];
 }) {
     return (
@@ -129,7 +235,12 @@ function TransactionCards({
                                 </span>
                             </div>
                         </div>
-                        <DeleteTransactionButton id={transaction.id} />
+                        <TransactionActions
+                            categories={categories}
+                            currencies={currencies}
+                            defaultCurrency={defaultCurrency}
+                            transaction={transaction}
+                        />
                     </div>
                     <div className="mt-3">{transactionAmount(transaction)}</div>
                 </article>
@@ -139,8 +250,14 @@ function TransactionCards({
 }
 
 function TransactionTable({
+    categories,
+    currencies,
+    defaultCurrency,
     transactions
 }: {
+    readonly categories: readonly Category[];
+    readonly currencies: readonly Currency[];
+    readonly defaultCurrency: string;
     readonly transactions: readonly Transaction[];
 }) {
     return (
@@ -179,8 +296,11 @@ function TransactionTable({
                                     {formatDateTime(transaction.occurredAt)}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <DeleteTransactionButton
-                                        id={transaction.id}
+                                    <TransactionActions
+                                        categories={categories}
+                                        currencies={currencies}
+                                        defaultCurrency={defaultCurrency}
+                                        transaction={transaction}
                                     />
                                 </TableCell>
                             </TableRow>
@@ -194,10 +314,14 @@ function TransactionTable({
 
 export function TransactionsBrowser({
     categories,
+    currencies,
+    defaultCurrency,
     hasInitialFilters,
     initialResponse
 }: {
     readonly categories: readonly Category[];
+    readonly currencies: readonly Currency[];
+    readonly defaultCurrency: string;
     readonly hasInitialFilters: boolean;
     readonly initialResponse: TransactionFeedResponse;
 }) {
@@ -432,8 +556,18 @@ export function TransactionsBrowser({
                 </div>
             ) : (
                 <>
-                    <TransactionCards transactions={items} />
-                    <TransactionTable transactions={items} />
+                    <TransactionCards
+                        categories={categories}
+                        currencies={currencies}
+                        defaultCurrency={defaultCurrency}
+                        transactions={items}
+                    />
+                    <TransactionTable
+                        categories={categories}
+                        currencies={currencies}
+                        defaultCurrency={defaultCurrency}
+                        transactions={items}
+                    />
                 </>
             )}
 

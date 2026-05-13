@@ -73,6 +73,16 @@ export function compareTransactionsByOccurrenceDesc(
     );
 }
 
+export function compareTransactionsByOccurrenceAsc(
+    left: Pick<TransactionDb, 'id' | 'occurredAt'>,
+    right: Pick<TransactionDb, 'id' | 'occurredAt'>
+): number {
+    return (
+        left.occurredAt.getTime() - right.occurredAt.getTime() ||
+        left.id - right.id
+    );
+}
+
 async function getUser(db: AppDb, userId: number): Promise<UserDb> {
     const user = await db.users.find(userId);
     if (!user) {
@@ -136,15 +146,20 @@ export async function listTransactions(
         .orderBy(transaction => transaction.occurredAt, direction)
         .orderBy(transaction => transaction.id, direction)) ??
         []) as TransactionDb[];
+    const sortedRows = [...rows].sort(
+        direction === 'asc'
+            ? compareTransactionsByOccurrenceAsc
+            : compareTransactionsByOccurrenceDesc
+    );
 
     const search = query.search?.trim().toLowerCase();
     const filtered = search
-        ? rows.filter(
+        ? sortedRows.filter(
               transaction =>
                   transaction.category?.name.toLowerCase().includes(search) ||
                   transaction.note?.toLowerCase().includes(search)
           )
-        : rows;
+        : sortedRows;
     const offset = (page - 1) * limit;
 
     return {

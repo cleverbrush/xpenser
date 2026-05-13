@@ -3,8 +3,16 @@ import type { Currency, UserPreference } from '@xpenser/contracts';
 export const cancelCallback = 'cancel';
 export const noteSkipCallback = 'note:skip';
 export const noteAddCallback = 'note:add';
-export const currencyOtherCallback = 'cur:other';
 export const addCommand = '/add';
+
+type InlineKeyboardButton = {
+    readonly text: string;
+    readonly callback_data: string;
+};
+
+type InlineKeyboardMarkup = {
+    readonly inline_keyboard: InlineKeyboardButton[][];
+};
 
 export function quickAddReplyKeyboard() {
     return {
@@ -42,13 +50,15 @@ export function preferredCurrencies(
     ).filter(currency => available.has(currency));
 }
 
-export function normalizeCurrencyCode(text: string | undefined): string {
-    return (text ?? '').trim().toUpperCase();
-}
-
-export function isKnownCurrency(
-    code: string,
+export function currencyKeyboard(
+    me: UserPreference,
     currencies: readonly Currency[]
-): boolean {
-    return currencies.some(currency => currency.code === code);
+): InlineKeyboardMarkup {
+    const rows = preferredCurrencies(me, currencies).map(currency => [
+        { text: currency, callback_data: `cur:${currency}` }
+    ]);
+
+    rows.push([{ text: 'Cancel', callback_data: cancelCallback }]);
+
+    return { inline_keyboard: rows };
 }

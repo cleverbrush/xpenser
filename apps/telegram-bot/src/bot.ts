@@ -6,9 +6,7 @@ import type { BotConfig } from './config.js';
 import {
     addCommand,
     cancelCallback,
-    currencyOtherCallback,
-    isKnownCurrency,
-    normalizeCurrencyCode,
+    currencyKeyboard,
     noteAddCallback,
     noteSkipCallback,
     parseAmount,
@@ -115,19 +113,6 @@ function categoryKeyboard(categories: readonly Category[], page: number) {
     if (navigation.length > 0) {
         rows.push(navigation);
     }
-    rows.push([{ text: 'Cancel', callback_data: cancelCallback }]);
-
-    return { inline_keyboard: rows };
-}
-
-function currencyKeyboard(me: UserPreference, currencies: readonly Currency[]) {
-    const rows = preferredCurrencies(me, currencies).map(currency => [
-        { text: currency, callback_data: `cur:${currency}` }
-    ]);
-
-    rows.push([
-        { text: 'Other currency', callback_data: currencyOtherCallback }
-    ]);
     rows.push([{ text: 'Cancel', callback_data: cancelCallback }]);
 
     return { inline_keyboard: rows };
@@ -468,18 +453,20 @@ export class XpenserTelegramBot {
                 currencies: draft.currencies,
                 category
             });
-            await this.#bot.sendMessage(
-                chatId,
-                'Choose currency or type its code.',
-                {
-                    reply_markup: currencyKeyboard(draft.me, draft.currencies)
-                }
-            );
-            return;
-        }
-
-        if (draft.step === 'currency' && data === currencyOtherCallback) {
-            await this.#bot.sendMessage(chatId, 'Type currency code.');
+            if (preferredCurrencies(draft.me, draft.currencies).length === 0) {
+                this.#sessions.delete(key);
+                await this.#bot.sendMessage(
+                    chatId,
+                    'Set a default or favorite currency in xpenser Preferences first.',
+                    {
+                        reply_markup: quickAddReplyKeyboard()
+                    }
+                );
+                return;
+            }
+            await this.#bot.sendMessage(chatId, 'Choose currency.', {
+                reply_markup: currencyKeyboard(draft.me, draft.currencies)
+            });
             return;
         }
 
@@ -520,7 +507,13 @@ export class XpenserTelegramBot {
         }
 
         if (draft.step === 'currency') {
-            await this.setCurrency(msg.chat.id, key, draft, text);
+            await this.#bot.sendMessage(
+                msg.chat.id,
+                'Choose a currency button.',
+                {
+                    reply_markup: currencyKeyboard(draft.me, draft.currencies)
+                }
+            );
             return;
         }
 
@@ -564,11 +557,13 @@ export class XpenserTelegramBot {
         draft: Extract<Draft, { readonly step: 'currency' }>,
         value: string
     ): Promise<void> {
-        const currency = normalizeCurrencyCode(value);
-        if (!isKnownCurrency(currency, draft.currencies)) {
+        const currency = value.trim().toUpperCase();
+        if (
+            !preferredCurrencies(draft.me, draft.currencies).includes(currency)
+        ) {
             await this.#bot.sendMessage(
                 chatId,
-                'Unknown currency. Type a valid ISO code.'
+                'Currency is no longer available. Send /add to restart.'
             );
             return;
         }
