@@ -3,7 +3,7 @@ import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth';
 import type {} from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import { expiredSessionPath } from './lib/auth-routes';
-import { webConfig } from './lib/config';
+import { getNextAuthSecret, webConfig } from './lib/config';
 import { loggerFor } from './lib/logger';
 import { configureAuthPublicUrl } from './lib/public-url';
 
@@ -51,9 +51,9 @@ function authErrorType(error: Error): string {
     return typeof typedError.type === 'string' ? typedError.type : error.name;
 }
 
-const nextAuth: NextAuthResult = NextAuth({
+const nextAuth: NextAuthResult = NextAuth(() => ({
     session: { strategy: 'jwt' },
-    secret: webConfig.nextAuthSecret,
+    secret: getNextAuthSecret(),
     trustHost: true,
     logger: {
         error(error) {
@@ -154,7 +154,7 @@ const nextAuth: NextAuthResult = NextAuth({
             };
         }
     }
-});
+}));
 
 export const handlers: NextAuthResult['handlers'] = nextAuth.handlers;
 export const auth: NextAuthResult['auth'] = nextAuth.auth;

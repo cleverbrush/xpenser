@@ -5,7 +5,6 @@ export const webConfig = parseEnv({
     nodeEnv: env('NODE_ENV', string().default('production')),
     appUrl: env('APP_URL', string().default('http://localhost:3000')),
     apiBaseUrl: env('API_BASE_URL', string().default('http://localhost:4000')),
-    nextAuthSecret: env('NEXTAUTH_SECRET', string().minLength(32)),
     logLevel: env(
         'LOG_LEVEL',
         string()
@@ -29,11 +28,21 @@ export const webConfig = parseEnv({
     }
 });
 
-if (
-    webConfig.nodeEnv === 'production' &&
-    webConfig.nextAuthSecret === 'change-me-in-production-min32chars'
-) {
-    throw new Error(
-        'Refusing to start with placeholder production secret: NEXTAUTH_SECRET'
-    );
+const PLACEHOLDER_SECRET = 'change-me-in-production-min32chars';
+
+export function getNextAuthSecret(): string {
+    const { nextAuthSecret } = parseEnv({
+        nextAuthSecret: env('NEXTAUTH_SECRET', string().minLength(32))
+    });
+
+    if (
+        webConfig.nodeEnv === 'production' &&
+        nextAuthSecret === PLACEHOLDER_SECRET
+    ) {
+        throw new Error(
+            'Refusing to start with placeholder production secret: NEXTAUTH_SECRET'
+        );
+    }
+
+    return nextAuthSecret;
 }
