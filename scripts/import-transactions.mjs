@@ -7,14 +7,26 @@ export const DEFAULT_BASE_URL = 'https://xpenser.cleverbrush.com/external-api';
 export const DEFAULT_TRANSACTIONS_FILE = '/root/transactions.csv';
 export const DEFAULT_CATEGORIES_FILE = '/root/categories.txt';
 export const API_KEY_PLACEHOLDER = '';
+export const DEFAULT_REQUEST_DELAY_MS = 250;
+export const DEFAULT_RETRIES = 5;
+export const DEFAULT_RETRY_BASE_DELAY_MS = 1000;
+export const DEFAULT_PROGRESS_EVERY = 25;
+
+const MAX_RETRY_DELAY_MS = 30_000;
 
 function usage() {
     return `Usage: node scripts/import-transactions.mjs [options]
 
 Options:
   --dry-run                       Validate and summarize without inserting
-  --start-row <row>               Start importing at a 1-based CSV row
+  --newest-first                  Import newest rows first (default)
+  --oldest-first                  Import oldest rows first
+  --start-row <row>               Resume at a 1-based CSV row
   --limit <count>                 Import at most this many rows
+  --delay-ms <ms>                 Delay between transaction creates (default: ${DEFAULT_REQUEST_DELAY_MS})
+  --retries <count>               Retry transient request failures (default: ${DEFAULT_RETRIES})
+  --retry-base-ms <ms>            Base retry backoff delay (default: ${DEFAULT_RETRY_BASE_DELAY_MS})
+  --progress-every <count>        Progress log interval for non-TTY output (default: ${DEFAULT_PROGRESS_EVERY})
   --base-url <url>                API base URL (default: ${DEFAULT_BASE_URL})
   --transactions-file <path>      CSV path (default: ${DEFAULT_TRANSACTIONS_FILE})
   --categories-file <path>        Categories path (default: ${DEFAULT_CATEGORIES_FILE})
@@ -23,6 +35,9 @@ Options:
 Environment:
   XPENSER_API_KEY                 API key used as Bearer token
   XPENSER_BASE_URL                Optional API base URL override
+  XPENSER_IMPORT_DELAY_MS         Optional delay override
+  XPENSER_IMPORT_RETRIES          Optional retry count override
+  XPENSER_IMPORT_RETRY_BASE_MS    Optional retry backoff override
 `;
 }
 
@@ -34,14 +49,43 @@ function positiveInteger(value, name) {
     return parsed;
 }
 
+function nonNegativeInteger(value, name) {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+        throw new Error(`${name} must be a non-negative integer.`);
+    }
+    return parsed;
+}
+
+function optionalNonNegativeEnv(name, fallback) {
+    const value = process.env[name];
+    return value === undefined || value === ''
+        ? fallback
+        : nonNegativeInteger(value, name);
+}
+
 export function parseArgs(args) {
     const options = {
         apiKey: process.env.XPENSER_API_KEY ?? API_KEY_PLACEHOLDER,
         baseUrl: process.env.XPENSER_BASE_URL ?? DEFAULT_BASE_URL,
         categoriesFile: DEFAULT_CATEGORIES_FILE,
+        delayMs: optionalNonNegativeEnv(
+            'XPENSER_IMPORT_DELAY_MS',
+            DEFAULT_REQUEST_DELAY_MS
+        ),
         dryRun: false,
         limit: undefined,
-        startRow: 1,
+        order: 'desc',
+        progressEvery: DEFAULT_PROGRESS_EVERY,
+        retries: optionalNonNegativeEnv(
+            'XPENSER_IMPORT_RETRIES',
+            DEFAULT_RETRIES
+        ),
+        retryBaseMs: optionalNonNegativeEnv(
+            'XPENSER_IMPORT_RETRY_BASE_MS',
+            DEFAULT_RETRY_BASE_DELAY_MS
+        ),
+        startRow: undefined,
         transactionsFile: DEFAULT_TRANSACTIONS_FILE
     };
 
@@ -49,12 +93,30 @@ export function parseArgs(args) {
         const arg = args[index];
         if (arg === '--dry-run') {
             options.dryRun = true;
+        } else if (arg === '--newest-first') {
+            options.order = 'desc';
+        } else if (arg === '--oldest-first') {
+            options.order = 'asc';
         } else if (arg === '--help') {
             options.help = true;
         } else if (arg === '--start-row') {
             options.startRow = positiveInteger(args[++index], '--start-row');
         } else if (arg === '--limit') {
             options.limit = positiveInteger(args[++index], '--limit');
+        } else if (arg === '--delay-ms') {
+            options.delayMs = nonNegativeInteger(args[++index], '--delay-ms');
+        } else if (arg === '--retries') {
+            options.retries = nonNegativeInteger(args[++index], '--retries');
+        } else if (arg === '--retry-base-ms') {
+            options.retryBaseMs = nonNegativeInteger(
+                args[++index],
+                '--retry-base-ms'
+            );
+        } else if (arg === '--progress-every') {
+            options.progressEvery = positiveInteger(
+                args[++index],
+                '--progress-every'
+            );
         } else if (arg === '--base-url') {
             options.baseUrl = args[++index];
         } else if (arg === '--transactions-file') {
@@ -302,18 +364,100 @@ function apiUrl(baseUrl, path) {
     return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
-async function apiRequest(options, path, request = {}) {
-    const response = await fetch(apiUrl(options.baseUrl, path), {
-        method: request.method ?? 'GET',
-        headers: {
-            Authorization: `Bearer ${options.apiKey}`,
-            'Content-Type': 'application/json'
-        },
-        body:
-            request.body === undefined
-                ? undefined
-                : JSON.stringify(request.body)
-    });
+export class ApiRequestError extends Error {
+    constructor(message, details = {}) {
+        super(message);
+        this.name = 'ApiRequestError';
+        this.status = details.status;
+        this.method = details.method;
+        this.path = details.path;
+        this.retryAfterMs = details.retryAfterMs;
+        this.responseBody = details.responseBody;
+        this.cause = details.cause;
+    }
+}
+
+export function isRetryableStatus(status) {
+    return (
+        status === undefined ||
+        status === 408 ||
+        status === 429 ||
+        (status >= 500 && status <= 599)
+    );
+}
+
+export function retryDelayMs(retryAttempt, baseDelayMs, retryAfterMs) {
+    if (retryAfterMs !== undefined) {
+        return Math.min(Math.max(0, retryAfterMs), MAX_RETRY_DELAY_MS);
+    }
+
+    return Math.min(
+        baseDelayMs * 2 ** Math.max(0, retryAttempt - 1),
+        MAX_RETRY_DELAY_MS
+    );
+}
+
+function parseRetryAfterMs(value) {
+    if (!value) {
+        return undefined;
+    }
+
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+        return Math.ceil(seconds * 1000);
+    }
+
+    const timestamp = Date.parse(value);
+    if (Number.isNaN(timestamp)) {
+        return undefined;
+    }
+
+    return Math.max(0, timestamp - Date.now());
+}
+
+function responseErrorMessage(method, path, status, text, body) {
+    if (body && typeof body === 'object') {
+        const message =
+            'message' in body
+                ? body.message
+                : 'detail' in body
+                  ? body.detail
+                  : undefined;
+        const details =
+            'errors' in body ? ` ${JSON.stringify(body.errors)}` : '';
+
+        if (message) {
+            return `${method} ${path} failed with ${status}: ${message}${details}`;
+        }
+    }
+
+    return `${method} ${path} failed with ${status}: ${text}`;
+}
+
+async function apiRequestOnce(options, path, request = {}) {
+    const method = request.method ?? 'GET';
+    let response;
+
+    try {
+        response = await fetch(apiUrl(options.baseUrl, path), {
+            method,
+            headers: {
+                Authorization: `Bearer ${options.apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body:
+                request.body === undefined
+                    ? undefined
+                    : JSON.stringify(request.body)
+        });
+    } catch (err) {
+        throw new ApiRequestError(
+            `${method} ${path} failed before receiving a response: ${
+                err instanceof Error ? err.message : String(err)
+            }`,
+            { cause: err, method, path }
+        );
+    }
 
     const text = await response.text();
     let body;
@@ -322,17 +466,77 @@ async function apiRequest(options, path, request = {}) {
     } catch {
         body = text;
     }
+
     if (!response.ok) {
-        const message =
-            body && typeof body === 'object' && 'message' in body
-                ? body.message
-                : text;
-        throw new Error(
-            `${request.method ?? 'GET'} ${path} failed with ${response.status}: ${message}`
+        throw new ApiRequestError(
+            responseErrorMessage(method, path, response.status, text, body),
+            {
+                method,
+                path,
+                responseBody: body,
+                retryAfterMs: parseRetryAfterMs(
+                    response.headers.get('retry-after')
+                ),
+                status: response.status
+            }
         );
     }
 
     return body;
+}
+
+function sleep(ms) {
+    if (ms <= 0) {
+        return Promise.resolve();
+    }
+
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function formatDuration(ms) {
+    const totalSeconds = Math.max(0, Math.round(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes === 0) {
+        return `${seconds}s`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (hours === 0) {
+        return `${minutes}m ${seconds}s`;
+    }
+
+    return `${hours}h ${remainingMinutes}m`;
+}
+
+async function apiRequest(options, path, request = {}) {
+    const retries = options.retries ?? DEFAULT_RETRIES;
+
+    for (let attempt = 0; ; attempt += 1) {
+        try {
+            return await apiRequestOnce(options, path, request);
+        } catch (err) {
+            if (
+                !(err instanceof ApiRequestError) ||
+                attempt >= retries ||
+                !isRetryableStatus(err.status)
+            ) {
+                throw err;
+            }
+
+            const retryAttempt = attempt + 1;
+            const delayMs = retryDelayMs(
+                retryAttempt,
+                options.retryBaseMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
+                err.retryAfterMs
+            );
+            console.warn(
+                `${err.message} Retrying in ${formatDuration(delayMs)} (${retryAttempt}/${retries}).`
+            );
+            await sleep(delayMs);
+        }
+    }
 }
 
 function categoryMapFromApi(categories) {
@@ -363,7 +567,9 @@ function validateAgainstApi(rows, categoryTypes, categoriesByName) {
     for (const row of rows) {
         const category = categoriesByName.get(row.categoryName);
         if (!category) {
-            errors.push(`Row ${row.rowNumber}: missing Xpenser category ${row.categoryName}`);
+            errors.push(
+                `Row ${row.rowNumber}: missing Xpenser category ${row.categoryName}`
+            );
         } else if (category.type !== row.categoryType) {
             errors.push(
                 `Row ${row.rowNumber}: Xpenser category ${row.categoryName} has type ${category.type}, expected ${row.categoryType}`
@@ -381,9 +587,36 @@ function validateAgainstApi(rows, categoryTypes, categoriesByName) {
     }
 }
 
-function selectRows(rows, startRow, limit) {
-    const selected = rows.filter(row => row.rowNumber >= startRow);
-    return limit === undefined ? selected : selected.slice(0, limit);
+function maxRowNumber(rows) {
+    return rows.reduce(
+        (currentMax, row) => Math.max(currentMax, row.rowNumber),
+        0
+    );
+}
+
+export function selectRows(rows, options = {}) {
+    const order = options.order ?? 'desc';
+    if (order !== 'asc' && order !== 'desc') {
+        throw new Error(`Unsupported import order: ${order}`);
+    }
+
+    const resolvedStartRow =
+        options.startRow ?? (order === 'desc' ? maxRowNumber(rows) : 1);
+    const selected = rows
+        .filter(row =>
+            order === 'desc'
+                ? row.rowNumber <= resolvedStartRow
+                : row.rowNumber >= resolvedStartRow
+        )
+        .sort((left, right) =>
+            order === 'desc'
+                ? right.rowNumber - left.rowNumber
+                : left.rowNumber - right.rowNumber
+        );
+
+    return options.limit === undefined
+        ? selected
+        : selected.slice(0, options.limit);
 }
 
 function transactionBody(row, categoriesByName) {
@@ -409,24 +642,93 @@ function transactionBody(row, categoriesByName) {
     return body;
 }
 
-async function importRows(rows, options, categoriesByName) {
-    let inserted = 0;
-    for (const row of rows) {
-        try {
-            await apiRequest(options, 'transactions', {
-                method: 'POST',
-                body: transactionBody(row, categoriesByName)
-            });
-        } catch (err) {
-            throw new Error(
-                `Import stopped at row ${row.rowNumber}. Resume with --start-row ${row.rowNumber}. ${err.message}`
-            );
-        }
+export function progressLine(inserted, total, rowNumber, startedAtMs, nowMs) {
+    const elapsedMs = Math.max(0, nowMs - startedAtMs);
+    const percent = total === 0 ? 100 : (inserted / total) * 100;
+    const rate = elapsedMs === 0 ? 0 : inserted / (elapsedMs / 1000);
+    const etaMs =
+        inserted === 0 || rate === 0
+            ? undefined
+            : ((total - inserted) / rate) * 1000;
 
-        inserted += 1;
-        if (inserted % 100 === 0 || inserted === rows.length) {
-            console.log(`Inserted ${inserted}/${rows.length} rows.`);
+    return [
+        `Inserted ${inserted}/${total} (${percent.toFixed(1)}%)`,
+        `CSV row ${rowNumber}`,
+        `${formatDuration(elapsedMs)} elapsed`,
+        `ETA ${etaMs === undefined ? '--' : formatDuration(etaMs)}`,
+        `${rate.toFixed(1)} rows/s`
+    ].join(' | ');
+}
+
+function createProgressReporter(total, options) {
+    const startedAtMs = Date.now();
+    const progressEvery = options.progressEvery ?? DEFAULT_PROGRESS_EVERY;
+    const isTty = process.stdout.isTTY === true;
+    let lastLineLength = 0;
+
+    return {
+        finish() {
+            if (isTty && lastLineLength > 0) {
+                process.stdout.write('\n');
+            }
+        },
+        tick(row, inserted) {
+            const line = progressLine(
+                inserted,
+                total,
+                row.rowNumber,
+                startedAtMs,
+                Date.now()
+            );
+
+            if (isTty) {
+                const padded = line.padEnd(lastLineLength, ' ');
+                process.stdout.write(`\r${padded}`);
+                lastLineLength = padded.length;
+            } else if (inserted % progressEvery === 0 || inserted === total) {
+                console.log(line);
+            }
         }
+    };
+}
+
+function resumeHint(options, rowNumber) {
+    return options.order === 'asc'
+        ? `--oldest-first --start-row ${rowNumber}`
+        : `--start-row ${rowNumber}`;
+}
+
+async function importRows(rows, options, categoriesByName) {
+    if (rows.length === 0) {
+        return;
+    }
+
+    const progress = createProgressReporter(rows.length, options);
+    let inserted = 0;
+
+    try {
+        for (let index = 0; index < rows.length; index += 1) {
+            const row = rows[index];
+            try {
+                await apiRequest(options, 'transactions', {
+                    method: 'POST',
+                    body: transactionBody(row, categoriesByName)
+                });
+            } catch (err) {
+                throw new Error(
+                    `Import stopped at row ${row.rowNumber}. Resume with ${resumeHint(options, row.rowNumber)}. ${err.message}`
+                );
+            }
+
+            inserted += 1;
+            progress.tick(row, inserted);
+
+            if (index < rows.length - 1) {
+                await sleep(options.delayMs ?? DEFAULT_REQUEST_DELAY_MS);
+            }
+        }
+    } finally {
+        progress.finish();
     }
 }
 
@@ -447,14 +749,33 @@ export async function main(argv = process.argv.slice(2)) {
         await readFile(options.categoriesFile, 'utf8')
     );
     const rows = await readTransactions(options.transactionsFile, categoryTypes);
+    if (
+        options.startRow !== undefined &&
+        options.startRow > maxRowNumber(rows)
+    ) {
+        throw new Error(
+            `--start-row ${options.startRow} is past the last CSV row (${maxRowNumber(rows)}).`
+        );
+    }
+
     const categories = await apiRequest(options, 'categories');
     const categoriesByName = categoryMapFromApi(categories);
     validateAgainstApi(rows, categoryTypes, categoriesByName);
 
-    const selectedRows = selectRows(rows, options.startRow, options.limit);
+    const selectedRows = selectRows(rows, options);
     const importableRows = selectedRows.filter(row => !row.skipReason);
     printSummary('Validated rows', rows);
     printSummary('Selected rows', selectedRows);
+    if (selectedRows.length > 0) {
+        const firstRow = selectedRows[0].rowNumber;
+        const lastRow = selectedRows[selectedRows.length - 1].rowNumber;
+        console.log(
+            `Import order: ${options.order === 'desc' ? 'newest first' : 'oldest first'} (CSV row ${firstRow} to ${lastRow}).`
+        );
+        console.log(
+            `Request pacing: ${options.delayMs}ms delay, ${options.retries} retries, ${options.retryBaseMs}ms retry base.`
+        );
+    }
 
     if (options.dryRun) {
         console.log('Dry run complete. No transactions were inserted.');

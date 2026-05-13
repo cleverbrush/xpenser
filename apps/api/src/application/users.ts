@@ -1,4 +1,6 @@
 import type {
+    PassportResolveUserBody,
+    PassportResolveUserResponse,
     RegisterBody,
     TokenResponse,
     UserPreference
@@ -10,6 +12,7 @@ import { issueToken } from '../security/token.js';
 
 export class DuplicateEmailError extends Error {}
 export class InvalidCredentialsError extends Error {}
+export class InvalidPassportIdentityError extends Error {}
 export class PasswordMismatchError extends Error {}
 
 async function favoriteCurrencies(
@@ -147,25 +150,50 @@ export async function loginUser(
     return toTokenResponse(config, user, await hasCategories(db, user.id));
 }
 
-export async function googleUser(
+export async function resolvePassportGoogleUser(
     db: AppDb,
-    config: Config,
-    email: string
-): Promise<TokenResponse> {
+    identity: PassportResolveUserBody
+): Promise<PassportResolveUserResponse> {
+    if (identity.provider !== 'google') {
+        throw new InvalidPassportIdentityError(
+            'Unsupported identity provider.'
+        );
+    }
+    if (identity.email_verified !== true) {
+        throw new InvalidPassportIdentityError('Google email is not verified.');
+    }
+
     return db.transaction(async trx => {
-        const found = await trx.users.where(user => user.email, email).first();
+        const found = await trx.users
+            .where(user => user.email, identity.email)
+            .first();
         const user =
             found ??
             (await trx.users.insert({
-                email,
+                email: identity.email,
                 passwordHash: undefined,
                 role: 'user',
                 authProvider: 'google',
                 defaultCurrency: 'USD'
             }));
 
-        return toTokenResponse(config, user, await hasCategories(trx, user.id));
+        return {
+            service_user_id: String(user.id),
+            roles: [user.role]
+        };
     });
+}
+
+export async function issuePassportUserToken(
+    db: AppDb,
+    config: Config,
+    serviceUserId: string
+): Promise<TokenResponse | undefined> {
+    const userId = Number(serviceUserId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+        return undefined;
+    }
+    return issueUserToken(db, config, userId);
 }
 
 export async function getUserPreference(

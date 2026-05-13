@@ -29,8 +29,17 @@ export const config = parseEnv(
                 number().coerce().default(86_400)
             )
         },
-        google: {
-            clientId: env('GOOGLE_CLIENT_ID', string().optional())
+        passport: {
+            baseUrl: env(
+                'PASSPORT_BASE_URL',
+                string().default('https://auth.cleverbrush.com')
+            ),
+            project: env('PASSPORT_PROJECT', string().default('xpenser')),
+            environment: env(
+                'PASSPORT_ENVIRONMENT',
+                string().default('production')
+            ),
+            publicKey: env('PASSPORT_PUBLIC_KEY', string().optional())
         },
         telegram: {
             botUsername: env('TELEGRAM_BOT_USERNAME', string().optional()),

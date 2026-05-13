@@ -5,6 +5,8 @@ import {
     CurrencyCodeSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
+    PassportExchangeBodySchema,
+    PassportResolveUserBodySchema,
     RegisterBodySchema,
     StatsQuerySchema
 } from './schemas.js';
@@ -39,6 +41,23 @@ describe('shared schemas', () => {
         );
         expect(result.getErrorsFor(field => field.password).errors[0]).toBe(
             'password is required'
+        );
+    });
+
+    it('validates Passport auth payloads', () => {
+        expect(
+            PassportResolveUserBodySchema.validate({
+                provider: 'google',
+                provider_subject: 'google-subject',
+                email: 'jane@example.com',
+                email_verified: true
+            }).valid
+        ).toBe(true);
+        expect(
+            PassportExchangeBodySchema.validate({ code: 'abc123' }).valid
+        ).toBe(true);
+        expect(PassportExchangeBodySchema.validate({ code: '' }).valid).toBe(
+            false
         );
     });
 

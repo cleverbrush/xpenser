@@ -12,10 +12,12 @@ import {
     DashboardQuerySchema,
     DashboardSummarySchema,
     ErrorResponseSchema,
-    GoogleAuthBodySchema,
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
     LoginBodySchema,
+    PassportExchangeBodySchema,
+    PassportResolveUserBodySchema,
+    PassportResolveUserResponseSchema,
     PrincipalSchema,
     RegisterBodySchema,
     StatsOverviewSchema,
@@ -53,10 +55,22 @@ export const api = defineApi({
             .post('/api/auth/login')
             .body(LoginBodySchema)
             .responses({ 200: TokenResponseSchema, 401: ErrorResponseSchema }),
-        google: endpoint
-            .post('/api/auth/google')
-            .body(GoogleAuthBodySchema)
-            .responses({ 200: TokenResponseSchema, 401: ErrorResponseSchema }),
+        passportResolveUser: endpoint
+            .post('/api/auth/passport/resolve-user')
+            .body(PassportResolveUserBodySchema)
+            .responses({
+                200: PassportResolveUserResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        passportExchange: endpoint
+            .post('/api/auth/passport/exchange')
+            .body(PassportExchangeBodySchema)
+            .responses({
+                200: TokenResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
         me: endpoint
             .get('/api/auth/me')
             .authorize(PrincipalSchema)

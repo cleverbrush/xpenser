@@ -35,7 +35,10 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-xpenser_secret}
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production-min32chars}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-86400}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      PASSPORT_BASE_URL: ${PASSPORT_BASE_URL:-https://auth.cleverbrush.com}
+      PASSPORT_PROJECT: ${PASSPORT_PROJECT:-xpenser}
+      PASSPORT_ENVIRONMENT: ${PASSPORT_ENVIRONMENT:-production}
+      PASSPORT_PUBLIC_KEY: ${PASSPORT_PUBLIC_KEY:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       TELEGRAM_BOT_SERVICE_SECRET: ${TELEGRAM_BOT_SERVICE_SECRET:-change-me-in-production-min32chars}
       TELEGRAM_LINK_TOKEN_TTL_SECONDS: ${TELEGRAM_LINK_TOKEN_TTL_SECONDS:-600}
@@ -64,8 +67,9 @@ services:
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-production-min32chars}
       AUTH_SECRET: ${AUTH_SECRET:-${NEXTAUTH_SECRET:-change-me-in-production-min32chars}}
       API_BASE_URL: http://api:4000
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      PASSPORT_BASE_URL: ${PASSPORT_BASE_URL:-https://auth.cleverbrush.com}
+      PASSPORT_PROJECT: ${PASSPORT_PROJECT:-xpenser}
+      PASSPORT_ENVIRONMENT: ${PASSPORT_ENVIRONMENT:-production}
       WEB_OTEL_SERVICE_NAME: xpenser-web
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     ports:

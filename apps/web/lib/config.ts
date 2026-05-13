@@ -21,8 +21,12 @@ export const webConfig = parseEnv({
             ] as const)
             .default('information')
     ),
-    google: {
-        clientId: env('GOOGLE_CLIENT_ID', string().optional()),
-        clientSecret: env('GOOGLE_CLIENT_SECRET', string().optional())
+    passport: {
+        baseUrl: env(
+            'PASSPORT_BASE_URL',
+            string().default('https://auth.cleverbrush.com')
+        ),
+        project: env('PASSPORT_PROJECT', string().default('xpenser')),
+        environment: env('PASSPORT_ENVIRONMENT', string().default('production'))
     }
 });

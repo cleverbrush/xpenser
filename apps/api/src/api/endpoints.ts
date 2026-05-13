@@ -15,12 +15,21 @@ export const LoginEndpoint = api.auth.login
     .tags('auth')
     .operationId('login');
 
-export const GoogleAuthEndpoint = api.auth.google
+export const PassportResolveUserEndpoint = api.auth.passportResolveUser
     .inject({ db: DbToken, config: ConfigToken })
-    .summary('Google authentication')
-    .description('Verifies a Google token and returns an API JWT.')
+    .summary('Passport user resolution')
+    .description('Maps a Passport Google identity to a local xpenser user.')
     .tags('auth')
-    .operationId('googleAuth');
+    .operationId('passportResolveUser');
+
+export const PassportExchangeEndpoint = api.auth.passportExchange
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Passport code exchange')
+    .description(
+        'Exchanges a Passport authorization code for an xpenser API JWT.'
+    )
+    .tags('auth')
+    .operationId('passportExchange');
 
 export const GetMeEndpoint = api.auth.me
     .authorize(PrincipalSchema)
@@ -199,7 +208,8 @@ export const endpoints = {
     auth: {
         register: RegisterEndpoint,
         login: LoginEndpoint,
-        google: GoogleAuthEndpoint,
+        passportResolveUser: PassportResolveUserEndpoint,
+        passportExchange: PassportExchangeEndpoint,
         me: GetMeEndpoint
     },
     users: {

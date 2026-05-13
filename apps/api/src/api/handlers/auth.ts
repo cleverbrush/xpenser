@@ -1,53 +1,30 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
-import { OAuth2Client } from 'google-auth-library';
 import {
     DuplicateEmailError,
     getUserPreference,
-    googleUser,
     InvalidCredentialsError,
+    InvalidPassportIdentityError,
+    issuePassportUserToken,
     loginUser,
     PasswordMismatchError,
     registerUser,
+    resolvePassportGoogleUser,
     updateUserPreference
 } from '../../application/users.js';
+import {
+    authenticatePassportAccessToken,
+    authenticatePassportInternalToken,
+    exchangePassportCode,
+    PassportAuthError
+} from '../../security/passport.js';
 import type {
     GetMeEndpoint,
-    GoogleAuthEndpoint,
     LoginEndpoint,
+    PassportExchangeEndpoint,
+    PassportResolveUserEndpoint,
     RegisterEndpoint,
     UpdatePreferencesEndpoint
 } from '../endpoints.js';
-
-async function emailFromGoogleToken(
-    idToken: string,
-    clientId?: string
-): Promise<string | undefined> {
-    if (clientId) {
-        try {
-            const client = new OAuth2Client(clientId);
-            const ticket = await client.verifyIdToken({
-                idToken,
-                audience: clientId
-            });
-            return ticket.getPayload()?.email;
-        } catch {
-            // Access tokens are handled below.
-        }
-    }
-
-    const response = await fetch(
-        'https://www.googleapis.com/oauth2/v3/userinfo',
-        {
-            headers: { Authorization: `Bearer ${idToken}` }
-        }
-    );
-    if (!response.ok) {
-        return undefined;
-    }
-
-    const info = (await response.json()) as { readonly email?: string };
-    return info.email;
-}
 
 export const registerHandler: Handler<typeof RegisterEndpoint> = async (
     { body },
@@ -83,18 +60,51 @@ export const loginHandler: Handler<typeof LoginEndpoint> = async (
     }
 };
 
-export const googleAuthHandler: Handler<typeof GoogleAuthEndpoint> = async (
-    { body },
-    { db, config }
-) => {
-    const email = await emailFromGoogleToken(
-        body.idToken,
-        config.google.clientId
-    );
-    if (!email) {
-        return ActionResult.unauthorized({ message: 'Invalid Google token.' });
+export const passportResolveUserHandler: Handler<
+    typeof PassportResolveUserEndpoint
+> = async ({ body, context }, { db, config }) => {
+    try {
+        await authenticatePassportInternalToken(
+            config,
+            context.headers.authorization
+        );
+        return await resolvePassportGoogleUser(db, body);
+    } catch (err) {
+        if (err instanceof InvalidPassportIdentityError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        if (err instanceof PassportAuthError) {
+            return ActionResult.unauthorized({ message: err.message });
+        }
+        throw err;
     }
-    return googleUser(db, config, email);
+};
+
+export const passportExchangeHandler: Handler<
+    typeof PassportExchangeEndpoint
+> = async ({ body }, { db, config }) => {
+    try {
+        const passportAccessToken = await exchangePassportCode(
+            config,
+            body.code
+        );
+        const claims = await authenticatePassportAccessToken(
+            config,
+            passportAccessToken
+        );
+        const response = await issuePassportUserToken(db, config, claims.sub);
+        if (!response) {
+            return ActionResult.unauthorized({
+                message: 'Passport user was not found.'
+            });
+        }
+        return response;
+    } catch (err) {
+        if (err instanceof PassportAuthError) {
+            return ActionResult.unauthorized({ message: err.message });
+        }
+        throw err;
+    }
 };
 
 export const getMeHandler: Handler<typeof GetMeEndpoint> = async (

@@ -2,7 +2,6 @@ import { createXpenserClient } from '@xpenser/client';
 import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth';
 import type {} from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
-import Google from 'next-auth/providers/google';
 import { expiredSessionPath } from './lib/auth-routes';
 import { webConfig } from './lib/config';
 import { loggerFor } from './lib/logger';
@@ -98,9 +97,27 @@ const nextAuth: NextAuthResult = NextAuth({
                 };
             }
         }),
-        Google({
-            clientId: webConfig.google.clientId ?? '',
-            clientSecret: webConfig.google.clientSecret ?? ''
+        Credentials({
+            id: 'passport-code',
+            name: 'Passport',
+            credentials: {
+                code: { label: 'Code', type: 'text' }
+            },
+            authorize: async credentials => {
+                const code = String(credentials?.code ?? '');
+                const response = await apiClient().auth.passportExchange({
+                    body: { code }
+                });
+
+                return {
+                    id: String(response.user.id),
+                    email: response.user.email,
+                    apiToken: response.token,
+                    role: response.user.role,
+                    defaultCurrency: response.user.defaultCurrency,
+                    hasCategories: response.user.hasCategories
+                };
+            }
         })
     ],
     pages: {
@@ -108,7 +125,7 @@ const nextAuth: NextAuthResult = NextAuth({
         error: expiredSessionPath
     },
     callbacks: {
-        async jwt({ token, user, account }) {
+        async jwt({ token, user }) {
             if (user?.apiToken) {
                 token.apiToken = user.apiToken;
                 token.sub = user.id;
@@ -116,21 +133,6 @@ const nextAuth: NextAuthResult = NextAuth({
                 token.role = user.role;
                 token.defaultCurrency = user.defaultCurrency;
                 token.hasCategories = user.hasCategories;
-            }
-
-            if (account?.provider === 'google') {
-                const googleToken = account.id_token ?? account.access_token;
-                if (googleToken) {
-                    const response = await apiClient().auth.google({
-                        body: { idToken: googleToken }
-                    });
-                    token.apiToken = response.token;
-                    token.sub = String(response.user.id);
-                    token.email = response.user.email;
-                    token.role = response.user.role;
-                    token.defaultCurrency = response.user.defaultCurrency;
-                    token.hasCategories = response.user.hasCategories;
-                }
             }
 
             return token;

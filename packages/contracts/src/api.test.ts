@@ -11,7 +11,8 @@ describe('api contract authorization metadata', () => {
     it('keeps anonymous endpoints public', () => {
         expect(authRoles(api.auth.register)).toBeNull();
         expect(authRoles(api.auth.login)).toBeNull();
-        expect(authRoles(api.auth.google)).toBeNull();
+        expect(authRoles(api.auth.passportResolveUser)).toBeNull();
+        expect(authRoles(api.auth.passportExchange)).toBeNull();
         expect(authRoles(api.currencies.list)).toBeNull();
         expect(authRoles(api.telegram.link)).toBeNull();
         expect(authRoles(api.telegram.token)).toBeNull();

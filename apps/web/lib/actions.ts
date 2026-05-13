@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { signIn, signOut } from '../auth';
 import { getAnonymousApiClient, getApiClient } from './api';
+import { webConfig } from './config';
 
 function requiredString(formData: FormData, key: string): string {
     const value = formData.get(key);
@@ -75,6 +76,13 @@ function apiErrorStatus(err: unknown): number | undefined {
         : undefined;
 }
 
+function passportLoginUrl(): string {
+    const url = new URL('/login', webConfig.passport.baseUrl);
+    url.searchParams.set('project', webConfig.passport.project);
+    url.searchParams.set('env', webConfig.passport.environment);
+    return url.toString();
+}
+
 export async function loginAction(formData: FormData) {
     await signIn('credentials', {
         email: requiredString(formData, 'email'),
@@ -119,7 +127,7 @@ export async function registerAction(formData: FormData) {
 }
 
 export async function googleSignInAction() {
-    await signIn('google', { redirectTo: '/dashboard' });
+    redirect(passportLoginUrl());
 }
 
 export async function logoutAction() {

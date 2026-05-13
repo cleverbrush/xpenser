@@ -77,6 +77,40 @@ Local URLs:
 - API health check: http://localhost:4000/health
 - OpenAPI JSON: http://localhost:4000/openapi.json
 
+### Google sign-in through Passport
+
+Google sign-in is brokered by Passport at `auth.cleverbrush.com`. The web app
+redirects users to Passport, Passport calls the xpenser API to resolve or
+auto-create the local user, and the callback exchanges the Passport code for the
+same xpenser API JWT used by email/password login.
+
+Configure the xpenser services with:
+
+```env
+PASSPORT_BASE_URL=https://auth.cleverbrush.com
+PASSPORT_PROJECT=xpenser
+PASSPORT_ENVIRONMENT=production
+PASSPORT_PUBLIC_KEY=
+```
+
+`PASSPORT_PUBLIC_KEY` is optional. When it is empty, the API fetches
+`<PASSPORT_BASE_URL>/.well-known/public-key` and caches it in memory. If set, use
+the base64-encoded PEM public key.
+
+Register the production Passport environment with:
+
+```sh
+curl -X PUT "$PASSPORT_BASE_URL/api/projects/xpenser/environments/production" \
+  -H "Authorization: ServiceKey $PASSPORT_SERVICE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "frontend_origin": "https://xpenser.cleverbrush.com",
+    "callback_path": "/auth/callback",
+    "backend_auth_url": "https://xpenser.cleverbrush.com/external-api/auth/passport",
+    "status": "active"
+  }'
+```
+
 To see distributed traces during local development, run the Compose observability
 services or the full Docker stack so `OTEL_EXPORTER_OTLP_ENDPOINT` points at a
 live collector. The web app reports as `xpenser-web`; the API reports as

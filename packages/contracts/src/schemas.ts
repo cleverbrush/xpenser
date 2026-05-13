@@ -134,13 +134,55 @@ export const LoginBodySchema = object({
         .describe('Local account password.')
 }).schemaName('LoginBody');
 
-export const GoogleAuthBodySchema = object({
-    /** Google ID token or access token returned by NextAuth. */
-    idToken: string()
-        .required('Google token is required')
-        .nonempty('Google token is required')
-        .describe('Google ID token or access token returned by NextAuth.')
-}).schemaName('GoogleAuthBody');
+export const PassportResolveUserBodySchema = object({
+    /** Identity provider resolved by Passport. */
+    provider: string()
+        .required('provider is required')
+        .nonempty('provider is required')
+        .describe('Identity provider resolved by Passport.'),
+    /** Provider-specific subject identifier. */
+    provider_subject: string()
+        .required('provider subject is required')
+        .nonempty('provider subject is required')
+        .describe('Provider-specific subject identifier.'),
+    /** Verified email address returned by the provider. */
+    email: string()
+        .required('email is required')
+        .nonempty('email is required')
+        .email('must be a valid email address')
+        .describe('Verified email address returned by the provider.'),
+    /** Whether the provider verified the email address. */
+    email_verified: boolean()
+        .required('email verification is required')
+        .describe('Whether the provider verified the email address.'),
+    /** Display name returned by the provider. */
+    name: string()
+        .optional()
+        .describe('Display name returned by the provider.'),
+    /** Avatar URL returned by the provider. */
+    avatar_url: string()
+        .optional()
+        .describe('Avatar URL returned by the provider.')
+}).schemaName('PassportResolveUserBody');
+
+export const PassportResolveUserResponseSchema = object({
+    /** Stable xpenser user identifier returned to Passport. */
+    service_user_id: string().describe(
+        'Stable xpenser user identifier returned to Passport.'
+    ),
+    /** Roles Passport should embed in its issued access token. */
+    roles: array(string()).describe(
+        'Roles Passport should embed in its issued access token.'
+    )
+}).schemaName('PassportResolveUserResponse');
+
+export const PassportExchangeBodySchema = object({
+    /** One-time authorization code returned by Passport. */
+    code: string()
+        .required('authorization code is required')
+        .nonempty('authorization code is required')
+        .describe('One-time authorization code returned by Passport.')
+}).schemaName('PassportExchangeBody');
 
 export const TokenResponseSchema = object({
     /** Signed API JWT used as the Bearer token for protected API calls. */
@@ -787,6 +829,13 @@ export const DashboardSummarySchema = object({
 export type Principal = InferType<typeof PrincipalSchema>;
 export type RegisterBody = InferType<typeof RegisterBodySchema>;
 export type LoginBody = InferType<typeof LoginBodySchema>;
+export type PassportResolveUserBody = InferType<
+    typeof PassportResolveUserBodySchema
+>;
+export type PassportResolveUserResponse = InferType<
+    typeof PassportResolveUserResponseSchema
+>;
+export type PassportExchangeBody = InferType<typeof PassportExchangeBodySchema>;
 export type TokenResponse = InferType<typeof TokenResponseSchema>;
 export type UserPreference = InferType<typeof UserPreferenceSchema>;
 export type ApiKey = InferType<typeof ApiKeySchema>;

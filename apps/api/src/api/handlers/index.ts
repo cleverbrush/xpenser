@@ -5,8 +5,9 @@ import {
 } from './api-keys.js';
 import {
     getMeHandler,
-    googleAuthHandler,
     loginHandler,
+    passportExchangeHandler,
+    passportResolveUserHandler,
     registerHandler,
     updatePreferencesHandler
 } from './auth.js';
@@ -37,7 +38,8 @@ export const handlers = {
     auth: {
         register: registerHandler,
         login: loginHandler,
-        google: googleAuthHandler,
+        passportResolveUser: passportResolveUserHandler,
+        passportExchange: passportExchangeHandler,
         me: getMeHandler
     },
     users: {
