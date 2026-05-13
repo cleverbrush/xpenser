@@ -1,10 +1,14 @@
 'use server';
 
+import { createHash, randomBytes } from 'node:crypto';
 import { revalidatePath, revalidateTag } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { signIn, signOut } from '../auth';
 import { getAnonymousApiClient, getApiClient } from './api';
 import { webConfig } from './config';
+
+const passportPkceCookie = 'xpenser_passport_pkce';
 
 function requiredString(formData: FormData, key: string): string {
     const value = formData.get(key);
@@ -76,10 +80,16 @@ function apiErrorStatus(err: unknown): number | undefined {
         : undefined;
 }
 
-function passportLoginUrl(): string {
+function pkceChallenge(verifier: string): string {
+    return createHash('sha256').update(verifier).digest('base64url');
+}
+
+function passportLoginUrl(codeChallenge: string): string {
     const url = new URL('/login', webConfig.passport.baseUrl);
     url.searchParams.set('project', webConfig.passport.project);
     url.searchParams.set('env', webConfig.passport.environment);
+    url.searchParams.set('code_challenge', codeChallenge);
+    url.searchParams.set('code_challenge_method', 'S256');
     return url.toString();
 }
 
@@ -127,7 +137,16 @@ export async function registerAction(formData: FormData) {
 }
 
 export async function googleSignInAction() {
-    redirect(passportLoginUrl());
+    const verifier = randomBytes(32).toString('base64url');
+    const cookieStore = await cookies();
+    cookieStore.set(passportPkceCookie, verifier, {
+        httpOnly: true,
+        secure: webConfig.appUrl.startsWith('https://'),
+        sameSite: 'lax',
+        path: '/auth/callback',
+        maxAge: 10 * 60
+    });
+    redirect(passportLoginUrl(pkceChallenge(verifier)));
 }
 
 export async function logoutAction() {

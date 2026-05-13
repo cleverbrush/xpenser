@@ -167,7 +167,8 @@ export async function authenticatePassportAccessToken(
 
 export async function exchangePassportCode(
     config: Config,
-    code: string
+    code: string,
+    codeVerifier: string
 ): Promise<string> {
     const issuer = passportIssuer(config);
     const response = await fetch(`${issuer}/token`, {
@@ -175,7 +176,8 @@ export async function exchangePassportCode(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             grant_type: 'authorization_code',
-            code
+            code,
+            code_verifier: codeVerifier
         }),
         signal: AbortSignal.timeout(10_000)
     });

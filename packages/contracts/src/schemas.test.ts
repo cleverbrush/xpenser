@@ -54,11 +54,17 @@ describe('shared schemas', () => {
             }).valid
         ).toBe(true);
         expect(
-            PassportExchangeBodySchema.validate({ code: 'abc123' }).valid
+            PassportExchangeBodySchema.validate({
+                code: 'abc123',
+                codeVerifier: 'a'.repeat(43)
+            }).valid
         ).toBe(true);
-        expect(PassportExchangeBodySchema.validate({ code: '' }).valid).toBe(
-            false
-        );
+        expect(
+            PassportExchangeBodySchema.validate({
+                code: '',
+                codeVerifier: 'a'.repeat(43)
+            }).valid
+        ).toBe(false);
     });
 
     it('rejects mismatched registration passwords', () => {

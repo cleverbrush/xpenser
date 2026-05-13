@@ -142,6 +142,21 @@ export const ExchangeRateDbSchema = object({
 
 export const UserEntity = defineEntity(UserDbSchema);
 export const FavoriteCurrencyEntity = defineEntity(FavoriteCurrencyDbSchema);
+
+export const ExternalIdentityDbSchema = object({
+    provider: string(),
+    providerSubject: string().hasColumnName('provider_subject'),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE'),
+    email: string(),
+    createdAt: date().hasColumnName('created_at').defaultTo('now')
+})
+    .hasTableName('external_identities')
+    .hasPrimaryKey(['provider', 'providerSubject'] as const);
+
+export const ExternalIdentityEntity = defineEntity(ExternalIdentityDbSchema);
 export const TelegramAccountEntity = defineEntity(TelegramAccountDbSchema);
 export const TelegramLinkTokenEntity = defineEntity(TelegramLinkTokenDbSchema);
 export const ApiKeyEntity = defineEntity(ApiKeyDbSchema);
@@ -156,6 +171,7 @@ export const ExchangeRateEntity = defineEntity(ExchangeRateDbSchema);
 export const entityMap = {
     users: UserEntity,
     favoriteCurrencies: FavoriteCurrencyEntity,
+    externalIdentities: ExternalIdentityEntity,
     telegramAccounts: TelegramAccountEntity,
     telegramLinkTokens: TelegramLinkTokenEntity,
     apiKeys: ApiKeyEntity,
@@ -176,6 +192,14 @@ export type UserDb = {
     readonly defaultCurrency: string;
     readonly createdAt: Date;
     readonly updatedAt: Date;
+};
+
+export type ExternalIdentityDb = {
+    readonly provider: string;
+    readonly providerSubject: string;
+    readonly userId: number;
+    readonly email: string;
+    readonly createdAt: Date;
 };
 
 export type CategoryDb = {

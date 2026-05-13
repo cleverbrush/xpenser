@@ -45,9 +45,7 @@ export const config = parseEnv(
             botUsername: env('TELEGRAM_BOT_USERNAME', string().optional()),
             serviceSecret: env(
                 'TELEGRAM_BOT_SERVICE_SECRET',
-                string()
-                    .minLength(32)
-                    .default('change-me-in-production-min32chars')
+                string().minLength(32)
             ),
             linkTokenTtlSeconds: env(
                 'TELEGRAM_LINK_TOKEN_TTL_SECONDS',
@@ -84,5 +82,22 @@ export const config = parseEnv(
         }
     })
 );
+
+const PLACEHOLDER_SECRET = 'change-me-in-production-min32chars';
+
+if (config.nodeEnv === 'production') {
+    const placeholders: string[] = [];
+    if (config.jwt.secret === PLACEHOLDER_SECRET) {
+        placeholders.push('JWT_SECRET');
+    }
+    if (config.telegram.serviceSecret === PLACEHOLDER_SECRET) {
+        placeholders.push('TELEGRAM_BOT_SERVICE_SECRET');
+    }
+    if (placeholders.length > 0) {
+        throw new Error(
+            `Refusing to start with placeholder production secrets: ${placeholders.join(', ')}`
+        );
+    }
+}
 
 export type Config = typeof config;

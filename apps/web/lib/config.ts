@@ -2,12 +2,10 @@ import { env, parseEnv } from '@cleverbrush/env';
 import { string } from '@cleverbrush/schema';
 
 export const webConfig = parseEnv({
+    nodeEnv: env('NODE_ENV', string().default('production')),
     appUrl: env('APP_URL', string().default('http://localhost:3000')),
     apiBaseUrl: env('API_BASE_URL', string().default('http://localhost:4000')),
-    nextAuthSecret: env(
-        'NEXTAUTH_SECRET',
-        string().minLength(32).default('change-me-in-production-min32chars')
-    ),
+    nextAuthSecret: env('NEXTAUTH_SECRET', string().minLength(32)),
     logLevel: env(
         'LOG_LEVEL',
         string()
@@ -30,3 +28,12 @@ export const webConfig = parseEnv({
         environment: env('PASSPORT_ENVIRONMENT', string().default('production'))
     }
 });
+
+if (
+    webConfig.nodeEnv === 'production' &&
+    webConfig.nextAuthSecret === 'change-me-in-production-min32chars'
+) {
+    throw new Error(
+        'Refusing to start with placeholder production secret: NEXTAUTH_SECRET'
+    );
+}

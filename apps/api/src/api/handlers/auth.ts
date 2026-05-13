@@ -86,7 +86,8 @@ export const passportExchangeHandler: Handler<
     try {
         const passportAccessToken = await exchangePassportCode(
             config,
-            body.code
+            body.code,
+            body.codeVerifier
         );
         const claims = await authenticatePassportAccessToken(
             config,

@@ -181,7 +181,15 @@ export const PassportExchangeBodySchema = object({
     code: string()
         .required('authorization code is required')
         .nonempty('authorization code is required')
-        .describe('One-time authorization code returned by Passport.')
+        .describe('One-time authorization code returned by Passport.'),
+    /** PKCE code verifier generated before redirecting to Passport. */
+    codeVerifier: string()
+        .required('PKCE code verifier is required')
+        .nonempty('PKCE code verifier is required')
+        .matches(/^[A-Za-z0-9._~-]{43,128}$/, 'PKCE code verifier is invalid')
+        .describe(
+            'PKCE code verifier generated before redirecting to Passport.'
+        )
 }).schemaName('PassportExchangeBody');
 
 export const TokenResponseSchema = object({

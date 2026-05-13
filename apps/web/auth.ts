@@ -101,12 +101,14 @@ const nextAuth: NextAuthResult = NextAuth({
             id: 'passport-code',
             name: 'Passport',
             credentials: {
-                code: { label: 'Code', type: 'text' }
+                code: { label: 'Code', type: 'text' },
+                codeVerifier: { label: 'Code verifier', type: 'text' }
             },
             authorize: async credentials => {
                 const code = String(credentials?.code ?? '');
+                const codeVerifier = String(credentials?.codeVerifier ?? '');
                 const response = await apiClient().auth.passportExchange({
-                    body: { code }
+                    body: { code, codeVerifier }
                 });
 
                 return {

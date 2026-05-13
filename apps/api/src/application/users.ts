@@ -164,9 +164,32 @@ export async function resolvePassportGoogleUser(
     }
 
     return db.transaction(async trx => {
+        const existingIdentity = await trx.externalIdentities
+            .where(row => row.provider, identity.provider)
+            .where(row => row.providerSubject, identity.provider_subject)
+            .first();
+        if (existingIdentity) {
+            const user = await trx.users.find(existingIdentity.userId);
+            if (!user) {
+                throw new InvalidPassportIdentityError(
+                    'Linked account was not found.'
+                );
+            }
+            return {
+                service_user_id: String(user.id),
+                roles: [user.role]
+            };
+        }
+
         const found = await trx.users
             .where(user => user.email, identity.email)
             .first();
+        if (found && found.authProvider !== 'google') {
+            throw new InvalidPassportIdentityError(
+                'Email is already registered with another sign-in method.'
+            );
+        }
+
         const user =
             found ??
             (await trx.users.insert({
@@ -176,6 +199,23 @@ export async function resolvePassportGoogleUser(
                 authProvider: 'google',
                 defaultCurrency: 'USD'
             }));
+
+        const userIdentity = await trx.externalIdentities
+            .where(row => row.provider, identity.provider)
+            .where(row => row.userId, user.id)
+            .first();
+        if (userIdentity) {
+            throw new InvalidPassportIdentityError(
+                'Account is already linked to another Google identity.'
+            );
+        }
+
+        await trx.externalIdentities.insert({
+            provider: identity.provider,
+            providerSubject: identity.provider_subject,
+            userId: user.id,
+            email: identity.email
+        });
 
         return {
             service_user_id: String(user.id),
