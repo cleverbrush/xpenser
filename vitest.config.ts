@@ -8,7 +8,8 @@ export default defineConfig({
             'apps/**/*.test.ts',
             'apps/**/*.test.tsx',
             'packages/**/*.test.ts',
-            'packages/**/*.test.tsx'
+            'packages/**/*.test.tsx',
+            'scripts/**/*.test.mjs'
         ],
         coverage: {
             provider: 'v8'

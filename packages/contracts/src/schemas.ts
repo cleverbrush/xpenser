@@ -52,6 +52,13 @@ export const SortDirectionSchema = enumOf('asc', 'desc')
 
 const decimalNumber = () => number().clearIsInteger();
 
+function hasAtMostTwoDecimalPlaces(value: number): boolean {
+    const scaled = value * 100;
+    const nearestCent = Math.round(scaled);
+    const tolerance = Number.EPSILON * Math.max(1, Math.abs(scaled)) * 8;
+    return Math.abs(scaled - nearestCent) <= tolerance;
+}
+
 export const ErrorResponseSchema = object({
     /** Human-readable error message safe to show to the current user. */
     message: string().describe(
@@ -449,7 +456,6 @@ export const CreateTransactionBodySchema = object({
     amount: decimalNumber()
         .required('amount is required')
         .positive('amount must be greater than zero')
-        .multipleOf(0.01, 'amount can have at most two decimal places')
         .describe('Amount entered by the user in the original currency.'),
     /** Currency used for the entered amount. */
     currency: CurrencyCodeSchema.describe(
@@ -484,6 +490,25 @@ export const CreateTransactionBodySchema = object({
         }
 
         return { valid: true };
+    })
+    .addValidator(value => {
+        if (
+            value.amount === undefined ||
+            Number.isNaN(value.amount) ||
+            hasAtMostTwoDecimalPlaces(value.amount)
+        ) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'amount can have at most two decimal places',
+                    property: field => field.amount
+                }
+            ]
+        };
     })
     .schemaName('CreateTransactionBody');
 

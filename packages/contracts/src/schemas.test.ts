@@ -79,6 +79,17 @@ describe('shared schemas', () => {
         expect(result.valid).toBe(true);
     });
 
+    it('accepts larger cent amounts despite floating point modulo artifacts', () => {
+        const result = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 17_789.3,
+            currency: 'UAH',
+            occurredAt: new Date()
+        });
+
+        expect(result.valid).toBe(true);
+    });
+
     it('accepts reversal transaction effects', () => {
         const result = CreateTransactionBodySchema.validate({
             categoryId: 1,
