@@ -12,7 +12,7 @@ export type TokenProvider = () => string | null;
 export type XpenserClientOptions = {
     /** Absolute API base URL, for example http://localhost:4000. */
     readonly baseUrl: string;
-    /** Returns the API JWT for authenticated requests. */
+    /** Returns the API JWT or API key for authenticated requests. */
     readonly getToken?: TokenProvider;
     /** Called when the API returns 401 Unauthorized. */
     readonly onUnauthorized?: () => void;
@@ -22,6 +22,14 @@ export type XpenserClientOptions = {
     readonly fetch?: typeof fetch;
 };
 
+function hasBasePath(baseUrl: string): boolean {
+    try {
+        return new URL(baseUrl).pathname.replace(/\/$/, '') !== '';
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Creates a typed xpenser API client from the shared Cleverbrush contract.
  *
@@ -29,6 +37,10 @@ export type XpenserClientOptions = {
  * should submit to Server Actions instead of calling the API directly.
  */
 export function createXpenserClient(options: XpenserClientOptions) {
+    const batchingMiddleware = hasBasePath(options.baseUrl)
+        ? []
+        : [batching({ maxSize: 10, windowMs: 10 })];
+
     return createClient(api, {
         baseUrl: options.baseUrl,
         getToken: options.getToken,
@@ -50,7 +62,7 @@ export function createXpenserClient(options: XpenserClientOptions) {
                     'user-profile': 30_000
                 }
             }),
-            batching({ maxSize: 10, windowMs: 10 })
+            ...batchingMiddleware
         ]
     });
 }

@@ -172,6 +172,56 @@ export const UserPreferenceSchema = object({
     )
 }).schemaName('UserPreference');
 
+export const ApiKeySchema = object({
+    /** Unique API key identifier. */
+    id: number().describe('Unique API key identifier.'),
+    /** User-provided name used to recognize this key. */
+    name: string().describe('User-provided name used to recognize this key.'),
+    /** Non-sensitive prefix shown in settings. */
+    keyPrefix: string().describe('Non-sensitive prefix shown in settings.'),
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last time this key authenticated a request, when available. */
+    lastUsedAt: date()
+        .coerce()
+        .optional()
+        .describe('Last time this key authenticated a request, when available.')
+}).schemaName('ApiKey');
+
+export const CreateApiKeyBodySchema = object({
+    /** User-provided name used to recognize this key. */
+    name: string()
+        .required('API key name is required')
+        .nonempty('API key name is required')
+        .maxLength(120, 'API key name is too long')
+        .describe('User-provided name used to recognize this key.')
+})
+    .addValidator(value => {
+        if (typeof value.name !== 'string' || value.name.trim() === '') {
+            return {
+                valid: false,
+                errors: [
+                    {
+                        message: 'API key name is required',
+                        property: field => field.name
+                    }
+                ]
+            };
+        }
+
+        return { valid: true };
+    })
+    .schemaName('CreateApiKeyBody');
+
+export const CreateApiKeyResponseSchema = object({
+    /** Plaintext API key. It is returned only when the key is created. */
+    key: string().describe(
+        'Plaintext API key. It is returned only when the key is created.'
+    ),
+    /** Persisted API key metadata. */
+    apiKey: ApiKeySchema.describe('Persisted API key metadata.')
+}).schemaName('CreateApiKeyResponse');
+
 export const UpdateUserPreferenceBodySchema = object({
     /** Default currency used for reports and new transactions. */
     defaultCurrency: CurrencyCodeSchema.describe(
@@ -696,6 +746,9 @@ export type RegisterBody = InferType<typeof RegisterBodySchema>;
 export type LoginBody = InferType<typeof LoginBodySchema>;
 export type TokenResponse = InferType<typeof TokenResponseSchema>;
 export type UserPreference = InferType<typeof UserPreferenceSchema>;
+export type ApiKey = InferType<typeof ApiKeySchema>;
+export type CreateApiKeyBody = InferType<typeof CreateApiKeyBodySchema>;
+export type CreateApiKeyResponse = InferType<typeof CreateApiKeyResponseSchema>;
 export type TelegramConnectionStatus = InferType<
     typeof TelegramConnectionStatusSchema
 >;

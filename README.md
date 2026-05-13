@@ -125,9 +125,62 @@ with spans from both services.
 Full Docker URLs:
 
 - Web app: http://localhost:3000
-- API: http://localhost:4000
+- External API proxy: http://localhost:3000/external-api
 - Swagger UI: http://localhost:8090
 - SigNoz: http://localhost:8080
+
+## External API Access
+
+Create an API key from Settings -> Preferences -> API keys. The API key can be
+used as a bearer token with curl or with the typed Node client:
+
+```sh
+curl -X POST "$APP_URL/external-api/transactions" \
+  -H "Authorization: Bearer $XPENSER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"categoryId":1,"amount":12.34,"currency":"USD","occurredAt":"2026-05-13T12:00:00.000Z"}'
+```
+
+```ts
+import { createXpenserClient } from '@xpenser/client';
+
+const client = createXpenserClient({
+    baseUrl:
+        process.env.XPENSER_API_BASE_URL ??
+        'http://localhost:3000/external-api',
+    getToken: () => process.env.XPENSER_API_KEY ?? null
+});
+
+await client.transactions.create({
+    body: {
+        categoryId: 1,
+        amount: 12.34,
+        currency: 'USD',
+        occurredAt: new Date()
+    }
+});
+```
+
+`X-API-Key: $XPENSER_API_KEY` is also accepted. In Docker Compose, the API
+service stays private on the Docker network and the Next app exposes it under
+`/external-api`. Put your host reverse proxy in front of the web app:
+
+```nginx
+server {
+    server_name xpenser.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+Set `APP_URL` to the public web origin. The API's OpenAPI server URL defaults to
+`${APP_URL}/external-api` in Compose and can be overridden with
+`PUBLIC_API_BASE_URL`.
 
 ## Troubleshooting
 

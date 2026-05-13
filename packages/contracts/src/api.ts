@@ -1,7 +1,10 @@
 import { array, number } from '@cleverbrush/schema';
 import { defineApi, endpoint, route } from '@cleverbrush/server/contract';
 import {
+    ApiKeySchema,
     CategorySchema,
+    CreateApiKeyBodySchema,
+    CreateApiKeyResponseSchema,
     CreateCategoryBodySchema,
     CreateTelegramLinkTokenResponseSchema,
     CreateTransactionBodySchema,
@@ -35,6 +38,9 @@ const categories = endpoint
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
+    .authorize(PrincipalSchema);
+const apiKeys = endpoint
+    .resource('/api/users/me/api-keys')
     .authorize(PrincipalSchema);
 
 export const api = defineApi({
@@ -95,6 +101,30 @@ export const api = defineApi({
             .responses({
                 204: null,
                 401: ErrorResponseSchema
+            }),
+        listApiKeys: apiKeys
+            .get()
+            .cacheTag('api-keys')
+            .responses({
+                200: array(ApiKeySchema),
+                401: ErrorResponseSchema
+            }),
+        createApiKey: apiKeys
+            .post()
+            .body(CreateApiKeyBodySchema)
+            .clearsCacheTag('api-keys')
+            .responses({
+                201: CreateApiKeyResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        revokeApiKey: apiKeys
+            .delete(ById)
+            .clearsCacheTag('api-keys')
+            .responses({
+                204: null,
+                401: ErrorResponseSchema,
+                404: ErrorResponseSchema
             })
     },
     telegram: {

@@ -221,3 +221,24 @@ export async function disconnectTelegramAction() {
     revalidateTag('user-profile', 'max');
     revalidatePath('/settings/preferences');
 }
+
+export async function createApiKeyAction(formData: FormData) {
+    const client = await getApiClient();
+    const result = await client.users.createApiKey({
+        body: {
+            name: requiredString(formData, 'name')
+        }
+    });
+    revalidateTag('api-keys', 'max');
+    revalidatePath('/settings/preferences');
+    return result;
+}
+
+export async function revokeApiKeyAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.users.revokeApiKey({
+        params: { id: Number(requiredString(formData, 'id')) }
+    });
+    revalidateTag('api-keys', 'max');
+    revalidatePath('/settings/preferences');
+}

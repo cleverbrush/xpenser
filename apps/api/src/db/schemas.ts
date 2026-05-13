@@ -75,6 +75,22 @@ export const TelegramLinkTokenDbSchema = object({
     createdAt: date().hasColumnName('created_at').defaultTo('now')
 }).hasTableName('telegram_link_tokens');
 
+export const ApiKeyDbSchema = object({
+    id: number().primaryKey(),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_api_keys_user_id'),
+    name: string(),
+    keyId: string().hasColumnName('key_id').index('idx_api_keys_key_id'),
+    keyPrefix: string().hasColumnName('key_prefix'),
+    secretHash: string().hasColumnName('secret_hash'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    lastUsedAt: date().optional().hasColumnName('last_used_at'),
+    revokedAt: date().optional().hasColumnName('revoked_at')
+}).hasTableName('api_keys');
+
 export const CategoryDbSchema = object({
     id: number().primaryKey(),
     userId: number()
@@ -127,6 +143,7 @@ export const UserEntity = defineEntity(UserDbSchema);
 export const FavoriteCurrencyEntity = defineEntity(FavoriteCurrencyDbSchema);
 export const TelegramAccountEntity = defineEntity(TelegramAccountDbSchema);
 export const TelegramLinkTokenEntity = defineEntity(TelegramLinkTokenDbSchema);
+export const ApiKeyEntity = defineEntity(ApiKeyDbSchema);
 export const CategoryEntity = defineEntity(CategoryDbSchema);
 export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
     t => t.category,
@@ -140,6 +157,7 @@ export const entityMap = {
     favoriteCurrencies: FavoriteCurrencyEntity,
     telegramAccounts: TelegramAccountEntity,
     telegramLinkTokens: TelegramLinkTokenEntity,
+    apiKeys: ApiKeyEntity,
     categories: CategoryEntity,
     transactions: TransactionEntity,
     exchangeRates: ExchangeRateEntity
@@ -185,6 +203,18 @@ export type TelegramLinkTokenDb = {
     readonly expiresAt: Date;
     readonly consumedAt?: Date | null;
     readonly createdAt: Date;
+};
+
+export type ApiKeyDb = {
+    readonly id: number;
+    readonly userId: number;
+    readonly name: string;
+    readonly keyId: string;
+    readonly keyPrefix: string;
+    readonly secretHash: string;
+    readonly createdAt: Date;
+    readonly lastUsedAt?: Date | null;
+    readonly revokedAt?: Date | null;
 };
 
 export type TransactionDb = {

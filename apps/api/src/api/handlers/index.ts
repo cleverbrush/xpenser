@@ -1,4 +1,9 @@
 import {
+    createApiKeyHandler,
+    listApiKeysHandler,
+    revokeApiKeyHandler
+} from './api-keys.js';
+import {
     getMeHandler,
     googleAuthHandler,
     loginHandler,
@@ -39,7 +44,10 @@ export const handlers = {
         updatePreferences: updatePreferencesHandler,
         telegramStatus: telegramStatusHandler,
         createTelegramLinkToken: createTelegramLinkTokenHandler,
-        disconnectTelegram: disconnectTelegramHandler
+        disconnectTelegram: disconnectTelegramHandler,
+        listApiKeys: listApiKeysHandler,
+        createApiKey: createApiKeyHandler,
+        revokeApiKey: revokeApiKeyHandler
     },
     telegram: {
         link: linkTelegramHandler,

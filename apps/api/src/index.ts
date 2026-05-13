@@ -8,6 +8,7 @@ import { otelLogSink, traceEnricher } from '@cleverbrush/otel';
 import knex from 'knex';
 import { config } from './config.js';
 import { runMigrations } from './db/migrate.js';
+import { createDbResources } from './di/setup.js';
 import { buildServer } from './server.js';
 import { otel } from './telemetry.js';
 
@@ -33,7 +34,8 @@ async function main() {
         await migrationKnex.destroy();
     }
 
-    const server = buildServer(config, logger);
+    const dbResources = createDbResources(config, logger);
+    const server = buildServer(config, logger, dbResources);
     const httpServer = await server.listen(config.api.port, config.api.host);
     logger.info('xpenser API listening on {Host}:{Port}', {
         Host: config.api.host,
@@ -45,6 +47,7 @@ async function main() {
         try {
             await httpServer.close();
         } finally {
+            await dbResources.knex.destroy();
             await logger.dispose();
             await otel.shutdown();
             process.exit(0);

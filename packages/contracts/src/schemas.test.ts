@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    CreateApiKeyBodySchema,
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
     LinkTelegramAccountBodySchema,
@@ -141,5 +142,15 @@ describe('shared schemas', () => {
                 telegramUser: { telegramUserId: '' }
             }).valid
         ).toBe(false);
+    });
+
+    it('validates API key names', () => {
+        expect(
+            CreateApiKeyBodySchema.validate({ name: 'Import script' }).valid
+        ).toBe(true);
+        expect(CreateApiKeyBodySchema.validate({ name: '' }).valid).toBe(false);
+        expect(CreateApiKeyBodySchema.validate({ name: '   ' }).valid).toBe(
+            false
+        );
     });
 });

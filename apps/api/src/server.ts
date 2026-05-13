@@ -1,4 +1,3 @@
-import { jwtScheme } from '@cleverbrush/auth';
 import type { Logger } from '@cleverbrush/log';
 import { useLogging } from '@cleverbrush/log';
 import { tracingMiddleware } from '@cleverbrush/otel';
@@ -11,7 +10,8 @@ import { serveOpenApi } from '@cleverbrush/server-openapi';
 import { endpoints } from './api/endpoints.js';
 import { handlers } from './api/handlers/index.js';
 import type { Config } from './config.js';
-import { configureDI } from './di/setup.js';
+import { configureDI, type DbResources } from './di/setup.js';
+import { xpenserAuthScheme } from './security/api-auth.js';
 
 function corsMiddleware(config: Config): Middleware {
     return async (ctx, next) => {
@@ -22,7 +22,7 @@ function corsMiddleware(config: Config): Middleware {
         );
         ctx.response.setHeader(
             'Access-Control-Allow-Headers',
-            'Content-Type, Authorization, traceparent, tracestate, baggage'
+            'Content-Type, Authorization, X-API-Key, traceparent, tracestate, baggage'
         );
         ctx.response.setHeader(
             'Access-Control-Expose-Headers',
@@ -37,7 +37,11 @@ function corsMiddleware(config: Config): Middleware {
     };
 }
 
-export function buildServer(config: Config, logger: Logger) {
+export function buildServer(
+    config: Config,
+    logger: Logger,
+    resources: DbResources
+) {
     const [correlationMiddleware, requestLogMiddleware] = useLogging(logger, {
         excludePaths: ['/health'],
         correlationResponseHeader: false
@@ -50,18 +54,10 @@ export function buildServer(config: Config, logger: Logger) {
         .use(corsMiddleware(config))
         .use(correlationMiddleware)
         .use(requestLogMiddleware)
-        .services(services => configureDI(services, config, logger))
+        .services(services => configureDI(services, config, logger, resources))
         .useAuthentication({
-            defaultScheme: 'jwt',
-            schemes: [
-                jwtScheme({
-                    secret: config.jwt.secret,
-                    mapClaims: claims => ({
-                        userId: Number(claims.sub),
-                        role: claims.role as string
-                    })
-                })
-            ]
+            defaultScheme: 'xpenser',
+            schemes: [xpenserAuthScheme(config, resources.db)]
         })
         .useAuthorization()
         .withHealthcheck()
@@ -81,7 +77,19 @@ export function buildServer(config: Config, logger: Logger) {
                     url: config.api.publicBaseUrl,
                     description: 'Configured API base URL'
                 }
-            ]
+            ],
+            securitySchemes: {
+                bearerAuth: {
+                    type: 'http',
+                    scheme: 'bearer',
+                    bearerFormat: 'JWT or xpenser API key'
+                },
+                apiKey: {
+                    type: 'apiKey',
+                    in: 'header',
+                    name: 'X-API-Key'
+                }
+            }
         })
     );
 

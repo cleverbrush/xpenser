@@ -8,6 +8,7 @@ import {
     CardTitle
 } from '@xpenser/ui';
 import { Send, Unlink } from 'lucide-react';
+import { ApiKeysSettings } from '@/components/api-keys-settings';
 import { CategorySettings } from '@/components/category-settings';
 import { PreferencesForm } from '@/components/forms/preferences-form';
 import {
@@ -20,11 +21,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function PreferencesPage() {
     const client = await getApiClient();
-    const [me, currencies, categories, telegram] = await Promise.all([
+    const [me, currencies, categories, telegram, apiKeys] = await Promise.all([
         client.auth.me(),
         client.currencies.list(),
         client.categories.list(),
-        client.users.telegramStatus()
+        client.users.telegramStatus(),
+        client.users.listApiKeys()
     ]);
     const telegramName = telegram.telegramUsername
         ? `@${telegram.telegramUsername}`
@@ -95,6 +97,17 @@ export default async function PreferencesPage() {
                             ) : null}
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle>API keys</CardTitle>
+                    <CardDescription>
+                        Use API keys from scripts and external tools.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <ApiKeysSettings apiKeys={apiKeys} />
                 </CardContent>
             </Card>
             <CategorySettings categories={categories} />

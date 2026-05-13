@@ -64,6 +64,32 @@ export const DisconnectTelegramEndpoint = api.users.disconnectTelegram
     .tags('users')
     .operationId('disconnectTelegram');
 
+export const ListApiKeysEndpoint = api.users.listApiKeys
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List API keys')
+    .description('Lists active API keys for the current user.')
+    .tags('api-keys')
+    .operationId('listApiKeys');
+
+export const CreateApiKeyEndpoint = api.users.createApiKey
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Create API key')
+    .description(
+        'Creates a user API key and returns its plaintext secret once.'
+    )
+    .tags('api-keys')
+    .operationId('createApiKey');
+
+export const RevokeApiKeyEndpoint = api.users.revokeApiKey
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Revoke API key')
+    .description('Revokes an API key owned by the current user.')
+    .tags('api-keys')
+    .operationId('revokeApiKey');
+
 export const LinkTelegramEndpoint = api.telegram.link
     .inject({ db: DbToken, config: ConfigToken })
     .summary('Link Telegram account')
@@ -180,7 +206,10 @@ export const endpoints = {
         updatePreferences: UpdatePreferencesEndpoint,
         telegramStatus: TelegramStatusEndpoint,
         createTelegramLinkToken: CreateTelegramLinkTokenEndpoint,
-        disconnectTelegram: DisconnectTelegramEndpoint
+        disconnectTelegram: DisconnectTelegramEndpoint,
+        listApiKeys: ListApiKeysEndpoint,
+        createApiKey: CreateApiKeyEndpoint,
+        revokeApiKey: RevokeApiKeyEndpoint
     },
     telegram: {
         link: LinkTelegramEndpoint,

@@ -9,6 +9,7 @@
         "includes": [
             "apps/**/*.ts",
             "apps/**/*.tsx",
+            "!apps/web/next-env.d.ts",
             "packages/**/*.ts",
             "packages/**/*.tsx",
             "*.ts",
