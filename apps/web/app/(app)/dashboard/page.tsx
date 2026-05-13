@@ -15,11 +15,13 @@ import { redirect } from 'next/navigation';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { getApiClient } from '@/lib/api';
 import {
-    amountClassNameForType,
+    amountClassNameForCategoryTotal,
+    amountClassNameForTransaction,
     amountClassNameForValue,
+    formatCategoryTotalMoney,
     formatDateTime,
-    formatDirectionalMoney,
-    formatMoney
+    formatMoney,
+    formatTransactionMoney
 } from '@/lib/format';
 
 const periods = ['week', 'month', 'quarter', 'year'] as const;
@@ -85,9 +87,9 @@ export default async function DashboardPage({
                             Income
                         </CardDescription>
                         <CardTitle
-                            className={`truncate text-sm sm:text-lg ${amountClassNameForType('income')}`}
+                            className={`truncate text-sm sm:text-lg ${amountClassNameForCategoryTotal(summary.incomeTotal, 'income')}`}
                         >
-                            {formatDirectionalMoney(
+                            {formatCategoryTotalMoney(
                                 summary.incomeTotal,
                                 summary.currency,
                                 'income'
@@ -101,9 +103,9 @@ export default async function DashboardPage({
                             Expenses
                         </CardDescription>
                         <CardTitle
-                            className={`truncate text-sm sm:text-lg ${amountClassNameForType('expense')}`}
+                            className={`truncate text-sm sm:text-lg ${amountClassNameForCategoryTotal(summary.expenseTotal, 'expense')}`}
                         >
-                            {formatDirectionalMoney(
+                            {formatCategoryTotalMoney(
                                 summary.expenseTotal,
                                 summary.currency,
                                 'expense'
@@ -156,12 +158,17 @@ export default async function DashboardPage({
                                         </p>
                                     </div>
                                     <p
-                                        className={`shrink-0 text-sm font-semibold ${amountClassNameForType(transaction.type)}`}
+                                        className={`shrink-0 text-sm font-semibold ${amountClassNameForTransaction(
+                                            transaction.amount,
+                                            transaction.type,
+                                            transaction.effect
+                                        )}`}
                                     >
-                                        {formatDirectionalMoney(
+                                        {formatTransactionMoney(
                                             transaction.amount,
                                             transaction.currency,
-                                            transaction.type
+                                            transaction.type,
+                                            transaction.effect
                                         )}
                                     </p>
                                 </div>
@@ -189,14 +196,17 @@ export default async function DashboardPage({
                                             {transaction.categoryName}
                                         </TableCell>
                                         <TableCell
-                                            className={amountClassNameForType(
-                                                transaction.type
+                                            className={amountClassNameForTransaction(
+                                                transaction.amount,
+                                                transaction.type,
+                                                transaction.effect
                                             )}
                                         >
-                                            {formatDirectionalMoney(
+                                            {formatTransactionMoney(
                                                 transaction.amount,
                                                 transaction.currency,
-                                                transaction.type
+                                                transaction.type,
+                                                transaction.effect
                                             )}
                                         </TableCell>
                                         <TableCell>

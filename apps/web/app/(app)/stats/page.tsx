@@ -3,10 +3,10 @@ import { ReportsFilters } from '@/components/reports-filters';
 import { StatsCharts } from '@/components/stats-charts';
 import { getApiClient } from '@/lib/api';
 import {
-    amountClassNameForType,
+    amountClassNameForCategoryTotal,
     amountClassNameForValue,
+    formatCategoryTotalMoney,
     formatDate,
-    formatDirectionalMoney,
     formatMoney
 } from '@/lib/format';
 import {
@@ -105,12 +105,15 @@ export default async function StatsPage({
     const cards = [
         {
             label: 'Income',
-            value: formatDirectionalMoney(
+            value: formatCategoryTotalMoney(
                 stats.incomeTotal,
                 stats.currency,
                 'income'
             ),
-            className: amountClassNameForType('income'),
+            className: amountClassNameForCategoryTotal(
+                stats.incomeTotal,
+                'income'
+            ),
             previous: signedComparisonDelta(
                 stats.incomeTotal,
                 stats.comparison.previousPeriod.incomeTotal,
@@ -125,12 +128,15 @@ export default async function StatsPage({
         },
         {
             label: 'Expenses',
-            value: formatDirectionalMoney(
+            value: formatCategoryTotalMoney(
                 stats.expenseTotal,
                 stats.currency,
                 'expense'
             ),
-            className: amountClassNameForType('expense'),
+            className: amountClassNameForCategoryTotal(
+                stats.expenseTotal,
+                'expense'
+            ),
             previous: signedComparisonDelta(
                 stats.expenseTotal,
                 stats.comparison.previousPeriod.expenseTotal,

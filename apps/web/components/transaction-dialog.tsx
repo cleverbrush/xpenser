@@ -35,7 +35,7 @@ import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 
 type TransactionDialogValues = Pick<
     Transaction,
-    'amount' | 'categoryId' | 'currency' | 'note'
+    'amount' | 'categoryId' | 'currency' | 'effect' | 'note'
 > & {
     readonly occurredAt: Date | string | number;
 };
@@ -74,14 +74,17 @@ export function TransactionDialog({
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
+    const [effect, setEffect] = useState<'normal' | 'reversal'>('normal');
     const categoryInvalid = categoryId.touched && Boolean(categoryId.error);
     const currencyInvalid = currency.touched && Boolean(currency.error);
 
     const resetForm = useCallback(() => {
+        setEffect(initialValues?.effect ?? 'normal');
         form.reset({
             amount: initialValues?.amount,
             categoryId: initialValues?.categoryId,
             currency: initialValues?.currency ?? defaultCurrency,
+            effect: initialValues?.effect ?? 'normal',
             occurredAt: initialValues?.occurredAt
                 ? new Date(initialValues.occurredAt)
                 : new Date(),
@@ -108,7 +111,7 @@ export function TransactionDialog({
             return;
         }
 
-        const formData = valuesToFormData(result.object);
+        const formData = valuesToFormData({ ...result.object, effect });
         if (transactionId !== undefined) {
             formData.append('id', String(transactionId));
         }
@@ -233,6 +236,32 @@ export function TransactionDialog({
                             name="occurredAt"
                             variant="datetime-local"
                         />
+                        <Field>
+                            <label className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
+                                <input
+                                    checked={effect === 'reversal'}
+                                    className="mt-0.5 size-4 rounded border-input"
+                                    name="effect"
+                                    onChange={event =>
+                                        setEffect(
+                                            event.target.checked
+                                                ? 'reversal'
+                                                : 'normal'
+                                        )
+                                    }
+                                    type="checkbox"
+                                    value="reversal"
+                                />
+                                <span className="flex min-w-0 flex-col gap-1">
+                                    <span className="text-sm font-medium">
+                                        Reversal
+                                    </span>
+                                    <span className="text-sm text-muted-foreground">
+                                        Subtracts from this category.
+                                    </span>
+                                </span>
+                            </label>
+                        </Field>
                         <SchemaField
                             forProperty={field => field.note}
                             form={form}

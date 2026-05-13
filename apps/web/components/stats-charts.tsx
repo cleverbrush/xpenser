@@ -15,9 +15,9 @@ import {
     YAxis
 } from 'recharts';
 import {
-    amountClassNameForType,
+    amountClassNameForCategoryTotal,
     amountClassNameForValue,
-    formatDirectionalMoney,
+    formatCategoryTotalMoney,
     formatMoney
 } from '@/lib/format';
 
@@ -157,11 +157,12 @@ function CategoryRow({
             </span>
             <span className="min-w-0 text-right">
                 <span
-                    className={`font-semibold ${amountClassNameForType(
+                    className={`font-semibold ${amountClassNameForCategoryTotal(
+                        category.total,
                         category.type
                     )}`}
                 >
-                    {formatDirectionalMoney(
+                    {formatCategoryTotalMoney(
                         category.total,
                         stats.currency,
                         category.type
@@ -180,7 +181,8 @@ function CategoryRow({
             </span>
             <span className="flex justify-end">
                 <DatatypeChart
-                    className={`text-xl ${amountClassNameForType(
+                    className={`text-xl ${amountClassNameForCategoryTotal(
+                        category.total,
                         category.type
                     )}`}
                     expression={datatypeExpression('l', category.trend)}

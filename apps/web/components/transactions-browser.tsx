@@ -42,10 +42,11 @@ import {
 } from '@/lib/actions';
 import { expiredSessionPath } from '@/lib/auth-routes';
 import {
-    amountClassNameForType,
+    amountClassNameForTransaction,
     directionBadgeClassName,
+    effectBadgeClassName,
     formatDateTime,
-    formatDirectionalMoney
+    formatTransactionMoney
 } from '@/lib/format';
 import { transactionPageSize } from '@/lib/transaction-query';
 import { TransactionDialog } from './transaction-dialog';
@@ -73,24 +74,55 @@ function transactionAmount(transaction: Transaction) {
     return (
         <div className="flex flex-col gap-0.5">
             <span
-                className={`font-medium ${amountClassNameForType(transaction.type)}`}
+                className={`font-medium ${amountClassNameForTransaction(
+                    transaction.amount,
+                    transaction.type,
+                    transaction.effect
+                )}`}
             >
-                {formatDirectionalMoney(
+                {formatTransactionMoney(
                     transaction.amount,
                     transaction.currency,
-                    transaction.type
+                    transaction.type,
+                    transaction.effect
                 )}
             </span>
             <span
-                className={`text-xs ${amountClassNameForType(transaction.type)}`}
+                className={`text-xs ${amountClassNameForTransaction(
+                    transaction.defaultCurrencyAmount,
+                    transaction.type,
+                    transaction.effect
+                )}`}
             >
-                {formatDirectionalMoney(
+                {formatTransactionMoney(
                     transaction.defaultCurrencyAmount,
                     transaction.defaultCurrency,
-                    transaction.type
+                    transaction.type,
+                    transaction.effect
                 )}
             </span>
         </div>
+    );
+}
+
+function transactionBadges(transaction: Transaction) {
+    return (
+        <>
+            <Badge
+                className={directionBadgeClassName(transaction.type)}
+                variant="outline"
+            >
+                {transaction.type}
+            </Badge>
+            {transaction.effect === 'reversal' ? (
+                <Badge
+                    className={effectBadgeClassName(transaction.effect)}
+                    variant="outline"
+                >
+                    reversal
+                </Badge>
+            ) : null}
+        </>
     );
 }
 
@@ -222,14 +254,7 @@ function TransactionCards({
                                 {transaction.categoryName}
                             </h2>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
-                                <Badge
-                                    className={directionBadgeClassName(
-                                        transaction.type
-                                    )}
-                                    variant="outline"
-                                >
-                                    {transaction.type}
-                                </Badge>
+                                {transactionBadges(transaction)}
                                 <span className="text-xs text-muted-foreground">
                                     {formatDateTime(transaction.occurredAt)}
                                 </span>
@@ -280,14 +305,9 @@ function TransactionTable({
                                     {transaction.categoryName}
                                 </TableCell>
                                 <TableCell>
-                                    <Badge
-                                        className={directionBadgeClassName(
-                                            transaction.type
-                                        )}
-                                        variant="outline"
-                                    >
-                                        {transaction.type}
-                                    </Badge>
+                                    <div className="flex flex-wrap gap-2">
+                                        {transactionBadges(transaction)}
+                                    </div>
                                 </TableCell>
                                 <TableCell>
                                     {transactionAmount(transaction)}

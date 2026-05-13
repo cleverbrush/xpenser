@@ -4,7 +4,8 @@ import {
     compareTransactionsByOccurrenceDesc,
     resolveStatsRanges,
     TransactionCategoryError,
-    TransactionNotFoundError
+    TransactionNotFoundError,
+    transactionSignedDefaultAmount
 } from './transactions.js';
 
 describe('transaction domain errors', () => {
@@ -41,6 +42,26 @@ describe('transaction sorting', () => {
         expect(
             rows.sort(compareTransactionsByOccurrenceAsc).map(row => row.id)
         ).toEqual([3, 1, 2, 4]);
+    });
+});
+
+describe('transaction effects', () => {
+    it('keeps normal transactions positive for category totals', () => {
+        expect(
+            transactionSignedDefaultAmount({
+                defaultCurrencyAmount: '12.34',
+                effect: 'normal'
+            })
+        ).toBe(12.34);
+    });
+
+    it('subtracts reversal transactions from category totals', () => {
+        expect(
+            transactionSignedDefaultAmount({
+                defaultCurrencyAmount: '12.34',
+                effect: 'reversal'
+            })
+        ).toBe(-12.34);
     });
 });
 

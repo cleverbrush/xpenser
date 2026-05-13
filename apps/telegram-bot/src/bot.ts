@@ -591,6 +591,7 @@ export class XpenserTelegramBot {
                     categoryId: draft.category.id,
                     amount: draft.amount,
                     currency: draft.currency,
+                    effect: 'normal',
                     occurredAt: new Date(),
                     note
                 }

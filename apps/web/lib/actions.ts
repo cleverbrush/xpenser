@@ -26,11 +26,16 @@ function editableString(formData: FormData, key: string): string | undefined {
     return typeof value === 'string' ? value.trim() : undefined;
 }
 
+function transactionEffect(formData: FormData): 'normal' | 'reversal' {
+    return formData.get('effect') === 'reversal' ? 'reversal' : 'normal';
+}
+
 function transactionBody(formData: FormData, editableNote = false) {
     return {
         categoryId: Number(requiredString(formData, 'categoryId')),
         amount: Number(requiredString(formData, 'amount')),
         currency: requiredString(formData, 'currency'),
+        effect: transactionEffect(formData),
         occurredAt: new Date(requiredString(formData, 'occurredAt')),
         note: editableNote
             ? editableString(formData, 'note')

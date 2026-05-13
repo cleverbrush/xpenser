@@ -79,6 +79,19 @@ describe('shared schemas', () => {
         expect(result.valid).toBe(true);
     });
 
+    it('accepts reversal transaction effects', () => {
+        const result = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 1234.56,
+            currency: 'USD',
+            effect: 'reversal',
+            occurredAt: new Date()
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.object?.effect).toBe('reversal');
+    });
+
     it('rejects transaction amounts below cent precision', () => {
         const result = CreateTransactionBodySchema.validate({
             categoryId: 1,

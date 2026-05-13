@@ -4,6 +4,7 @@ import type {
     StatsOverview,
     StatsQuery,
     Transaction,
+    TransactionEffect,
     TransactionListQuery
 } from '@xpenser/contracts';
 import type { Config } from '../config.js';
@@ -44,12 +45,30 @@ type CategoryComparison = {
     readonly total: number;
 };
 
+function normalizeTransactionEffect(
+    effect?: TransactionEffect | null
+): TransactionEffect {
+    return effect === 'reversal' ? 'reversal' : 'normal';
+}
+
+export function transactionSignedDefaultAmount(
+    transaction: Pick<TransactionDb, 'defaultCurrencyAmount'> & {
+        readonly effect?: TransactionEffect | null;
+    }
+): number {
+    const amount = Number(transaction.defaultCurrencyAmount);
+    return normalizeTransactionEffect(transaction.effect) === 'reversal'
+        ? -amount
+        : amount;
+}
+
 function mapTransaction(row: TransactionDb): Transaction {
     return {
         id: row.id,
         categoryId: row.categoryId,
         categoryName: row.category?.name ?? '',
         type: row.type,
+        effect: normalizeTransactionEffect(row.effect),
         amount: Number(row.amount),
         currency: row.currency,
         defaultCurrencyAmount: Number(row.defaultCurrencyAmount),
@@ -191,6 +210,7 @@ export async function createTransaction(
         userId,
         categoryId: body.categoryId,
         type: category.type,
+        effect: body.effect ?? 'normal',
         amount: body.amount,
         currency: body.currency,
         defaultCurrencyAmount: convertAmount(body.amount, exchange.rate),
@@ -230,6 +250,7 @@ export async function updateTransaction(
     const current = await getTransaction(db, userId, transactionId);
     const next = {
         categoryId: body.categoryId ?? current.categoryId,
+        effect: body.effect ?? current.effect,
         amount: body.amount ?? current.amount,
         currency: body.currency ?? current.currency,
         occurredAt: body.occurredAt ?? current.occurredAt,
@@ -252,6 +273,7 @@ export async function updateTransaction(
         .update({
             categoryId: next.categoryId,
             type: category.type,
+            effect: next.effect,
             amount: next.amount,
             currency: next.currency,
             defaultCurrencyAmount: convertAmount(next.amount, exchange.rate),
@@ -540,12 +562,10 @@ function topCategory(
     categories: readonly StatsCategory[],
     type: 'expense' | 'income'
 ): string {
-    return (
-        categories
-            .filter(category => category.type === type)
-            .sort((left, right) => right.total - left.total)[0]?.categoryName ??
-        ''
-    );
+    const category = categories
+        .filter(candidate => candidate.type === type)
+        .sort((left, right) => right.total - left.total)[0];
+    return category && category.total > 0 ? category.categoryName : '';
 }
 
 function emptyStatsCategory(
@@ -581,7 +601,7 @@ function summarizeSelectedRows(
     let expenseCount = 0;
 
     for (const row of rows) {
-        const total = Number(row.defaultCurrencyAmount);
+        const total = transactionSignedDefaultAmount(row);
         const type = row.type;
         const date = new Date(row.occurredAt);
         const bucket = buckets.get(statsBucketKey(date, groupBy));
@@ -651,7 +671,7 @@ function summarizeComparisonRows(
     let expenseCount = 0;
 
     for (const row of rows) {
-        const total = Number(row.defaultCurrencyAmount);
+        const total = transactionSignedDefaultAmount(row);
         const type = row.type;
 
         if (type === 'income') {
@@ -753,7 +773,7 @@ export async function dashboardSummary(
             type: row.type,
             total: 0
         };
-        current.total += Number(row.defaultCurrencyAmount);
+        current.total += transactionSignedDefaultAmount(row);
         totalsByCategory.set(key, current);
     }
 

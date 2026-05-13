@@ -138,7 +138,7 @@ used as a bearer token with curl or with the typed Node client:
 curl -X POST "$APP_URL/external-api/transactions" \
   -H "Authorization: Bearer $XPENSER_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"categoryId":1,"amount":12.34,"currency":"USD","occurredAt":"2026-05-13T12:00:00.000Z"}'
+  -d '{"categoryId":1,"amount":12.34,"currency":"USD","effect":"normal","occurredAt":"2026-05-13T12:00:00.000Z"}'
 ```
 
 ```ts
@@ -156,10 +156,16 @@ await client.transactions.create({
         categoryId: 1,
         amount: 12.34,
         currency: 'USD',
+        effect: 'normal',
         occurredAt: new Date()
     }
 });
 ```
+
+Omit `effect` or set it to `normal` for regular transactions. Use
+`effect: 'reversal'` for refunds in expense categories or payments/chargebacks
+in income categories; the entered amount stays positive and reports subtract it
+from that category.
 
 `X-API-Key: $XPENSER_API_KEY` is also accepted. In Docker Compose, the API
 service stays private on the Docker network and the Next app exposes it under

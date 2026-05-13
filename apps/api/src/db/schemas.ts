@@ -117,6 +117,7 @@ export const TransactionDbSchema = object({
         .onDelete('RESTRICT')
         .index('idx_transactions_category_id'),
     type: string(),
+    effect: string().defaultTo('normal'),
     amount: number(),
     currency: string(),
     defaultCurrencyAmount: number().hasColumnName('default_currency_amount'),
@@ -223,6 +224,7 @@ export type TransactionDb = {
     readonly categoryId: number;
     readonly category?: CategoryDb | null;
     readonly type: 'expense' | 'income';
+    readonly effect: 'normal' | 'reversal';
     readonly amount: string | number;
     readonly currency: string;
     readonly defaultCurrencyAmount: string | number;

@@ -1,4 +1,6 @@
 type DateInput = Date | string | number;
+type TransactionType = 'expense' | 'income';
+type TransactionEffect = 'normal' | 'reversal';
 
 function toDate(value: DateInput): Date {
     return value instanceof Date ? value : new Date(value);
@@ -31,7 +33,7 @@ export function formatMoney(value: number, currency: string): string {
 
 export function signedAmountForType(
     value: number,
-    type: 'expense' | 'income'
+    type: TransactionType
 ): number {
     return type === 'expense' ? -Math.abs(value) : Math.abs(value);
 }
@@ -39,15 +41,68 @@ export function signedAmountForType(
 export function formatDirectionalMoney(
     value: number,
     currency: string,
-    type: 'expense' | 'income'
+    type: TransactionType
 ): string {
     return formatMoney(signedAmountForType(value, type), currency);
 }
 
-export function amountClassNameForType(type: 'expense' | 'income'): string {
+export function signedAmountForTransaction(
+    value: number,
+    type: TransactionType,
+    effect: TransactionEffect = 'normal'
+): number {
+    const signedAmount = signedAmountForType(value, type);
+    return effect === 'reversal' ? -signedAmount : signedAmount;
+}
+
+export function formatTransactionMoney(
+    value: number,
+    currency: string,
+    type: TransactionType,
+    effect: TransactionEffect = 'normal'
+): string {
+    return formatMoney(
+        signedAmountForTransaction(value, type, effect),
+        currency
+    );
+}
+
+export function signedCategoryTotal(
+    value: number,
+    type: TransactionType
+): number {
+    return type === 'expense' ? -value : value;
+}
+
+export function formatCategoryTotalMoney(
+    value: number,
+    currency: string,
+    type: TransactionType
+): string {
+    return formatMoney(signedCategoryTotal(value, type), currency);
+}
+
+export function amountClassNameForType(type: TransactionType): string {
     return type === 'expense'
         ? 'text-rose-700 dark:text-rose-400'
         : 'text-emerald-700 dark:text-emerald-400';
+}
+
+export function amountClassNameForTransaction(
+    value: number,
+    type: TransactionType,
+    effect: TransactionEffect = 'normal'
+): string {
+    return amountClassNameForValue(
+        signedAmountForTransaction(value, type, effect)
+    );
+}
+
+export function amountClassNameForCategoryTotal(
+    value: number,
+    type: TransactionType
+): string {
+    return amountClassNameForValue(signedCategoryTotal(value, type));
 }
 
 export function amountClassNameForValue(value: number): string {
@@ -60,10 +115,16 @@ export function amountClassNameForValue(value: number): string {
     return 'text-muted-foreground';
 }
 
-export function directionBadgeClassName(type: 'expense' | 'income'): string {
+export function directionBadgeClassName(type: TransactionType): string {
     return type === 'expense'
         ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300'
         : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300';
+}
+
+export function effectBadgeClassName(effect: TransactionEffect): string {
+    return effect === 'reversal'
+        ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
+        : 'border-border text-muted-foreground';
 }
 
 export function formatPercent(value: number): string {
