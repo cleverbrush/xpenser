@@ -138,13 +138,16 @@ export async function getExchangeRate(
     quoteCurrency: string,
     date: string
 ): Promise<ExchangeRate> {
-    if (baseCurrency === quoteCurrency) {
+    const base = baseCurrency.trim().toUpperCase();
+    const quote = quoteCurrency.trim().toUpperCase();
+
+    if (base === quote) {
         return { rate: 1, rateDate: date };
     }
 
     const cached = await db.exchangeRates
-        .where(rate => rate.baseCurrency, baseCurrency)
-        .where(rate => rate.quoteCurrency, quoteCurrency)
+        .where(rate => rate.baseCurrency, base)
+        .where(rate => rate.quoteCurrency, quote)
         .where(rate => rate.rateDate, date)
         .first();
 
@@ -157,19 +160,15 @@ export async function getExchangeRate(
 
     const params = new URLSearchParams({ date });
     const response = await fetch(
-        `${config.frankfurter.baseUrl}/rate/${baseCurrency}/${quoteCurrency}?${params}`
+        `${config.frankfurter.baseUrl}/rate/${base}/${quote}?${params}`
     );
     if (!response.ok) {
-        throw new Error(
-            `Could not fetch ${baseCurrency}/${quoteCurrency} rate.`
-        );
+        throw new Error(`Could not fetch ${base}/${quote} rate.`);
     }
 
     const payload = (await response.json()) as FrankfurterRateResponse;
     if (typeof payload.rate !== 'number') {
-        throw new Error(
-            `Frankfurter returned no ${baseCurrency}/${quoteCurrency} rate.`
-        );
+        throw new Error(`Frankfurter returned no ${base}/${quote} rate.`);
     }
 
     const rateDate = normalizeRateDate(payload.date, date);
@@ -180,8 +179,8 @@ export async function getExchangeRate(
             rate => rate.rateDate
         )
         .ignore({
-            baseCurrency,
-            quoteCurrency,
+            baseCurrency: base,
+            quoteCurrency: quote,
             rateDate,
             rate: payload.rate
         });
@@ -200,20 +199,22 @@ export async function convertCurrencyForUser(
         throw new Error('User was not found.');
     }
 
+    const currency = query.currency.trim().toUpperCase();
+    const defaultCurrency = user.defaultCurrency.trim().toUpperCase();
     const rateDate = transactionDate(query.occurredAt ?? new Date());
     const exchange = await getExchangeRate(
         db,
         config,
-        query.currency,
-        user.defaultCurrency,
+        currency,
+        defaultCurrency,
         rateDate
     );
 
     return {
         amount: query.amount,
-        currency: query.currency,
+        currency,
         defaultCurrencyAmount: convertAmount(query.amount, exchange.rate),
-        defaultCurrency: user.defaultCurrency,
+        defaultCurrency,
         exchangeRate: exchange.rate,
         exchangeRateDate: exchange.rateDate
     };

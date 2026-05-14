@@ -158,6 +158,10 @@ function formatTelegramAmount(amount: number, currency: string): string {
     })} ${currency}`;
 }
 
+function rateDate(value = new Date()): string {
+    return value.toISOString().slice(0, 10);
+}
+
 function apiErrorMessage(err: unknown): string | undefined {
     const body =
         typeof err === 'object' && err !== null && 'body' in err
@@ -708,14 +712,26 @@ export class XpenserTelegramBot {
         }
 
         try {
-            const client = await this.userClient(user);
-            const conversion = await client.currencies.convert({
-                query: {
-                    amount: draft.amount,
-                    currency,
-                    occurredAt: new Date()
-                }
-            });
+            const defaultCurrency = draft.me.defaultCurrency
+                .trim()
+                .toUpperCase();
+            const conversion =
+                currency === defaultCurrency
+                    ? {
+                          amount: draft.amount,
+                          currency,
+                          defaultCurrencyAmount: draft.amount,
+                          defaultCurrency,
+                          exchangeRate: 1,
+                          exchangeRateDate: rateDate()
+                      }
+                    : await (await this.userClient(user)).currencies.convert({
+                          query: {
+                              amount: draft.amount,
+                              currency,
+                              occurredAt: new Date()
+                          }
+                      });
             const next: Draft = {
                 step: 'category',
                 me: draft.me,

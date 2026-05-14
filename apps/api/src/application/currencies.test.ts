@@ -34,6 +34,22 @@ describe('currency calculations', () => {
 });
 
 describe('exchange rates', () => {
+    it('uses rate 1 for same-currency conversions without querying rates', async () => {
+        const db = {
+            exchangeRates: {
+                where: vi.fn()
+            }
+        };
+
+        await expect(
+            getExchangeRate(db as never, config, 'usd', 'USD', '2026-05-11')
+        ).resolves.toEqual({
+            rate: 1,
+            rateDate: '2026-05-11'
+        });
+        expect(db.exchangeRates.where).not.toHaveBeenCalled();
+    });
+
     it('normalizes cached rate dates returned as Date objects', async () => {
         const db = {
             exchangeRates: {
@@ -90,6 +106,36 @@ describe('exchange rates', () => {
             exchangeRate: 1.5,
             exchangeRateDate: '2026-05-11'
         });
+    });
+
+    it('converts primary-currency amounts without querying exchange rates', async () => {
+        const db = {
+            users: {
+                find: vi.fn().mockResolvedValue({
+                    id: 1,
+                    defaultCurrency: 'USD'
+                })
+            },
+            exchangeRates: {
+                where: vi.fn()
+            }
+        };
+
+        await expect(
+            convertCurrencyForUser(db as never, config, 1, {
+                amount: 12,
+                currency: 'USD',
+                occurredAt: new Date('2026-05-11T12:00:00.000Z')
+            })
+        ).resolves.toEqual({
+            amount: 12,
+            currency: 'USD',
+            defaultCurrencyAmount: 12,
+            defaultCurrency: 'USD',
+            exchangeRate: 1,
+            exchangeRateDate: '2026-05-11'
+        });
+        expect(db.exchangeRates.where).not.toHaveBeenCalled();
     });
 });
 
