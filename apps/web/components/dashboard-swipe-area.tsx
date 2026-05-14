@@ -5,8 +5,10 @@ import {
     type MouseEvent,
     type PointerEvent,
     type ReactNode,
+    useEffect,
     useMemo,
-    useRef
+    useRef,
+    useState
 } from 'react';
 import {
     addDashboardPeriod,
@@ -33,6 +35,10 @@ export function DashboardSwipeArea({
     const router = useRouter();
     const pointerStart = useRef<PointerPoint | null>(null);
     const didSwipe = useRef(false);
+    const prefetchedHref = useRef<string | null>(null);
+    const [swipeOffset, setSwipeOffset] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+    const resetKey = `${period}:${date}`;
     const anchorDate = useMemo(
         () => parseDateParam(date) ?? new Date(),
         [date]
@@ -46,16 +52,42 @@ export function DashboardSwipeArea({
         ? undefined
         : dashboardHref(period, addDashboardPeriod(period, anchorDate, 1));
 
+    useEffect(() => {
+        if (!resetKey) {
+            return;
+        }
+
+        pointerStart.current = null;
+        prefetchedHref.current = null;
+        setIsDragging(false);
+        setSwipeOffset(0);
+    }, [resetKey]);
+
+    function prefetch(href?: string) {
+        if (!href || prefetchedHref.current === href) {
+            return;
+        }
+
+        prefetchedHref.current = href;
+        router.prefetch(href);
+    }
+
+    function offsetForSwipe(deltaX: number): number {
+        const canNavigate = deltaX > 0 || Boolean(nextHref);
+        const maxOffset = canNavigate ? 36 : 14;
+        return Math.max(-maxOffset, Math.min(maxOffset, deltaX / 4));
+    }
+
     function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
         pointerStart.current = { x: event.clientX, y: event.clientY };
         didSwipe.current = false;
+        setIsDragging(true);
+        setSwipeOffset(0);
         event.currentTarget.setPointerCapture(event.pointerId);
     }
 
-    function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
+    function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
         const start = pointerStart.current;
-        pointerStart.current = null;
-
         if (!start) {
             return;
         }
@@ -63,20 +95,50 @@ export function DashboardSwipeArea({
         const deltaX = event.clientX - start.x;
         const deltaY = event.clientY - start.y;
 
+        if (Math.abs(deltaX) < 8 || Math.abs(deltaX) < Math.abs(deltaY)) {
+            return;
+        }
+
+        setSwipeOffset(offsetForSwipe(deltaX));
+        if (Math.abs(deltaX) >= 18) {
+            prefetch(deltaX < 0 ? nextHref : previousHref);
+        }
+    }
+
+    function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
+        const start = pointerStart.current;
+        pointerStart.current = null;
+        setIsDragging(false);
+
+        if (!start) {
+            setSwipeOffset(0);
+            return;
+        }
+
+        const deltaX = event.clientX - start.x;
+        const deltaY = event.clientY - start.y;
+
         if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY)) {
+            setSwipeOffset(0);
             return;
         }
 
         didSwipe.current = true;
         if (deltaX < 0 && nextHref) {
+            setSwipeOffset(-36);
             router.push(nextHref, { scroll: false });
         } else if (deltaX > 0) {
+            setSwipeOffset(36);
             router.push(previousHref, { scroll: false });
+        } else {
+            setSwipeOffset(0);
         }
     }
 
     function handlePointerCancel() {
         pointerStart.current = null;
+        setIsDragging(false);
+        setSwipeOffset(0);
     }
 
     function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
@@ -91,13 +153,23 @@ export function DashboardSwipeArea({
 
     return (
         <div
-            className="flex touch-pan-y flex-col gap-5 sm:gap-6"
+            className="overflow-hidden touch-pan-y"
             onClickCapture={handleClickCapture}
             onPointerCancel={handlePointerCancel}
             onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
         >
-            {children}
+            <div
+                className={`flex flex-col gap-5 sm:gap-6 ${
+                    isDragging
+                        ? 'transition-none'
+                        : 'transition-transform duration-150 ease-out'
+                }`}
+                style={{ transform: `translateX(${swipeOffset}px)` }}
+            >
+                {children}
+            </div>
         </div>
     );
 }
