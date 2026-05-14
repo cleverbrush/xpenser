@@ -25,6 +25,8 @@ export class TransactionCategoryError extends Error {}
 
 type DashboardPeriod = NonNullable<DashboardSummary['period']>;
 
+type DashboardCategory = DashboardSummary['byCategory'][number];
+
 type StatsBucket = StatsOverview['trend'][number];
 
 type StatsCategory = StatsOverview['byCategory'][number];
@@ -37,6 +39,8 @@ type StatsRange = {
     readonly from: Date;
     readonly to: Date;
 };
+
+const dayMs = 24 * 60 * 60 * 1_000;
 
 type CategoryComparison = {
     readonly categoryId: number;
@@ -474,6 +478,48 @@ export function resolveDashboardRange(
     };
 }
 
+function dashboardTrendBucketCount(
+    period: DashboardPeriod,
+    range: StatsRange
+): number {
+    if (period === 'day') {
+        return 24;
+    }
+    if (period === 'week') {
+        return 7;
+    }
+    if (period === 'month') {
+        return daysInMonth(range.from.getFullYear(), range.from.getMonth());
+    }
+    if (period === 'quarter') {
+        return 3;
+    }
+    return 12;
+}
+
+function dashboardTrendBucketIndex(
+    period: DashboardPeriod,
+    date: Date,
+    range: StatsRange
+): number {
+    if (period === 'day') {
+        return date.getHours();
+    }
+    if (period === 'week') {
+        return Math.floor(
+            (startOfDay(date).getTime() - startOfDay(range.from).getTime()) /
+                dayMs
+        );
+    }
+    if (period === 'month') {
+        return date.getDate() - 1;
+    }
+    if (period === 'quarter') {
+        return date.getMonth() - range.from.getMonth();
+    }
+    return date.getMonth();
+}
+
 export function resolveStatsRanges(
     query: Partial<StatsQuery>,
     now = new Date()
@@ -801,15 +847,8 @@ export async function dashboardSummary(
             [range.from, range.to]
         )) as TransactionDb[];
 
-    const totalsByCategory = new Map<
-        string,
-        {
-            categoryId: number;
-            categoryName: string;
-            type: 'expense' | 'income';
-            total: number;
-        }
-    >();
+    const bucketCount = dashboardTrendBucketCount(period, range);
+    const totalsByCategory = new Map<string, DashboardCategory>();
 
     for (const row of rows) {
         const key = `${row.type}:${row.categoryId}`;
@@ -817,23 +856,32 @@ export async function dashboardSummary(
             categoryId: row.categoryId,
             categoryName: row.category?.name ?? '',
             type: row.type,
-            total: 0
+            total: 0,
+            transactionCount: 0,
+            trend: Array.from({ length: bucketCount }, () => 0)
         };
-        current.total += transactionSignedDefaultAmount(row);
+        const total = transactionSignedDefaultAmount(row);
+        const bucketIndex = dashboardTrendBucketIndex(
+            period,
+            row.occurredAt,
+            range
+        );
+
+        current.total += total;
+        current.transactionCount += 1;
+        if (bucketIndex >= 0 && bucketIndex < current.trend.length) {
+            current.trend[bucketIndex] =
+                (current.trend[bucketIndex] ?? 0) + total;
+        }
         totalsByCategory.set(key, current);
     }
 
-    const byCategory = Array.from(totalsByCategory.values());
-    const latest = (await db.transactions
-        .include(transaction => transaction.category)
-        .where(transaction => transaction.userId, userId)
-        .whereBetween(
-            transaction => transaction.occurredAt,
-            [range.from, range.to]
-        )
-        .orderBy(transaction => transaction.occurredAt, 'desc')
-        .orderBy(transaction => transaction.id, 'desc')
-        .limit(5)) as TransactionDb[];
+    const byCategory = Array.from(totalsByCategory.values()).sort(
+        (left, right) =>
+            right.total - left.total ||
+            left.type.localeCompare(right.type) ||
+            left.categoryName.localeCompare(right.categoryName)
+    );
 
     return {
         period,
@@ -846,10 +894,7 @@ export async function dashboardSummary(
         incomeTotal: byCategory
             .filter(item => item.type === 'income')
             .reduce((sum, item) => sum + item.total, 0),
-        byCategory,
-        latestTransactions: [...latest]
-            .sort(compareTransactionsByOccurrenceDesc)
-            .map(mapTransaction)
+        byCategory
     };
 }
 

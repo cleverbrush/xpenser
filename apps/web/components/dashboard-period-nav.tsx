@@ -1,10 +1,14 @@
 'use client';
 
 import { Button, cn } from '@xpenser/ui';
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
+import {
+    ChevronLeftIcon,
+    ChevronRightIcon,
+    ChevronsRightIcon
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type TouchEvent, useMemo, useRef } from 'react';
+import { type MouseEvent, type PointerEvent, useMemo, useRef } from 'react';
 import {
     addDashboardPeriod,
     type DashboardPeriod,
@@ -28,7 +32,8 @@ export function DashboardPeriodNav({
     readonly period: DashboardPeriod;
 }) {
     const router = useRouter();
-    const touchStart = useRef<TouchPoint | null>(null);
+    const pointerStart = useRef<TouchPoint | null>(null);
+    const didSwipe = useRef(false);
     const anchorDate = useMemo(
         () => parseDateParam(date) ?? new Date(),
         [date]
@@ -44,37 +49,28 @@ export function DashboardPeriodNav({
         : dashboardHref(period, addDashboardPeriod(period, anchorDate, 1));
     const latestHref = dashboardHref(period, now, { cleanDefault: true });
 
-    function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
-        if (event.touches.length !== 1) {
-            touchStart.current = null;
-            return;
-        }
-
-        const touch = event.touches.item(0);
-        if (!touch) {
-            touchStart.current = null;
-            return;
-        }
-
-        touchStart.current = { x: touch.clientX, y: touch.clientY };
+    function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+        pointerStart.current = { x: event.clientX, y: event.clientY };
+        didSwipe.current = false;
+        event.currentTarget.setPointerCapture(event.pointerId);
     }
 
-    function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
-        const start = touchStart.current;
-        const touch = event.changedTouches.item(0);
-        touchStart.current = null;
+    function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
+        const start = pointerStart.current;
+        pointerStart.current = null;
 
-        if (!start || !touch) {
+        if (!start) {
             return;
         }
 
-        const deltaX = touch.clientX - start.x;
-        const deltaY = touch.clientY - start.y;
+        const deltaX = event.clientX - start.x;
+        const deltaY = event.clientY - start.y;
 
         if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY)) {
             return;
         }
 
+        didSwipe.current = true;
         if (deltaX < 0 && nextHref) {
             router.push(nextHref, { scroll: false });
         } else if (deltaX > 0) {
@@ -82,70 +78,109 @@ export function DashboardPeriodNav({
         }
     }
 
+    function handlePointerCancel() {
+        pointerStart.current = null;
+    }
+
+    function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
+        if (!didSwipe.current) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        didSwipe.current = false;
+    }
+
     return (
         <div
-            className="flex touch-pan-y flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-            onTouchEnd={handleTouchEnd}
-            onTouchStart={handleTouchStart}
+            className="flex touch-pan-y items-center gap-2"
+            onClickCapture={handleClickCapture}
+            onPointerCancel={handlePointerCancel}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
         >
-            <div className="flex min-w-0 items-center gap-2">
-                <Button asChild size="icon-sm" variant="outline">
-                    <Link aria-label={`Previous ${period}`} href={previousHref}>
-                        <ChevronLeftIcon aria-hidden className="size-4" />
+            <Button
+                asChild
+                className="shrink-0"
+                size="icon-sm"
+                variant="outline"
+            >
+                <Link aria-label={`Previous ${period}`} href={previousHref}>
+                    <ChevronLeftIcon aria-hidden className="size-4" />
+                </Link>
+            </Button>
+            <div className="grid min-w-0 flex-1 grid-cols-5 gap-1 rounded-md border bg-muted p-1">
+                {dashboardPeriodOptions.map(option => (
+                    <Link
+                        aria-current={
+                            option.value === period ? 'page' : undefined
+                        }
+                        aria-label={option.label}
+                        className={cn(
+                            'rounded-sm px-1 py-1.5 text-center text-xs font-medium hover:bg-background hover:text-foreground sm:px-3 sm:text-sm',
+                            option.value === period
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground'
+                        )}
+                        href={dashboardHref(option.value, anchorDate, {
+                            cleanDefault: true
+                        })}
+                        key={option.value}
+                        scroll={false}
+                    >
+                        <span className="sm:hidden">{option.label[0]}</span>
+                        <span className="hidden sm:inline">{option.label}</span>
+                    </Link>
+                ))}
+            </div>
+            {nextHref ? (
+                <Button
+                    asChild
+                    className="shrink-0"
+                    size="icon-sm"
+                    variant="outline"
+                >
+                    <Link aria-label={`Next ${period}`} href={nextHref}>
+                        <ChevronRightIcon aria-hidden className="size-4" />
                     </Link>
                 </Button>
-                <div className="grid min-w-0 flex-1 grid-cols-5 gap-1 rounded-md border bg-muted p-1 sm:w-fit sm:flex-none">
-                    {dashboardPeriodOptions.map(option => (
+            ) : (
+                <Button
+                    aria-label={`Next ${period}`}
+                    className="shrink-0"
+                    disabled
+                    size="icon-sm"
+                    type="button"
+                    variant="outline"
+                >
+                    <ChevronRightIcon aria-hidden className="size-4" />
+                </Button>
+            )}
+            <div className="flex h-9 w-9 shrink-0 justify-end md:w-32">
+                {latest ? null : (
+                    <Button
+                        asChild
+                        className="md:w-full md:px-3"
+                        size="icon-sm"
+                        variant="secondary"
+                    >
                         <Link
-                            aria-current={
-                                option.value === period ? 'page' : undefined
-                            }
-                            className={cn(
-                                'rounded-sm px-1.5 py-1.5 text-center text-xs font-medium hover:bg-background hover:text-foreground sm:px-3 sm:text-sm',
-                                option.value === period
-                                    ? 'bg-background text-foreground shadow-sm'
-                                    : 'text-muted-foreground'
-                            )}
-                            href={dashboardHref(option.value, anchorDate, {
-                                cleanDefault: true
-                            })}
-                            key={option.value}
+                            aria-label={latestDashboardLabel(period)}
+                            href={latestHref}
                             scroll={false}
                         >
-                            {option.label}
+                            <ChevronsRightIcon
+                                aria-hidden
+                                className="size-4 md:hidden"
+                            />
+                            <span className="hidden md:inline">
+                                {latestDashboardLabel(period)}
+                            </span>
                         </Link>
-                    ))}
-                </div>
-                {nextHref ? (
-                    <Button asChild size="icon-sm" variant="outline">
-                        <Link aria-label={`Next ${period}`} href={nextHref}>
-                            <ChevronRightIcon aria-hidden className="size-4" />
-                        </Link>
-                    </Button>
-                ) : (
-                    <Button
-                        aria-label={`Next ${period}`}
-                        disabled
-                        size="icon-sm"
-                        type="button"
-                        variant="outline"
-                    >
-                        <ChevronRightIcon aria-hidden className="size-4" />
                     </Button>
                 )}
             </div>
-            {latest ? null : (
-                <Button
-                    asChild
-                    className="self-end sm:self-auto"
-                    size="sm"
-                    variant="secondary"
-                >
-                    <Link href={latestHref} scroll={false}>
-                        {latestDashboardLabel(period)}
-                    </Link>
-                </Button>
-            )}
         </div>
     );
 }

@@ -21,6 +21,7 @@ import {
     formatMoney,
     signedCategoryTotal
 } from '@/lib/format';
+import { DatatypeChart, datatypeExpression } from './datatype-chart';
 
 const incomeColor = '#047857';
 const expenseColor = '#be123c';
@@ -68,43 +69,6 @@ function ChartTooltip({
                 ))}
             </div>
         </div>
-    );
-}
-
-function normalize(values: readonly number[]): number[] {
-    const magnitudes = values.map(value => Math.abs(value));
-    const max = Math.max(...magnitudes, 0);
-    if (max <= 0) {
-        return values.map(() => 0);
-    }
-
-    return magnitudes.map(value => Math.round((value / max) * 100));
-}
-
-function datatypeExpression(
-    kind: 'b' | 'l',
-    values: readonly number[]
-): string {
-    return `{${kind}:${normalize(values)
-        .slice(-20)
-        .map(value => Math.max(0, Math.min(100, value)))
-        .join(',')}}`;
-}
-
-export function DatatypeChart({
-    expression,
-    className
-}: {
-    readonly expression: string;
-    readonly className?: string;
-}) {
-    return (
-        <span
-            aria-hidden
-            className={`datatype-chart text-2xl leading-none ${className ?? ''}`}
-        >
-            {expression}
-        </span>
     );
 }
 

@@ -1,20 +1,17 @@
+import type { DashboardSummary } from '@xpenser/contracts';
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
-    CardTitle,
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow
+    CardTitle
 } from '@xpenser/ui';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
 import { DashboardPeriodNav } from '@/components/dashboard-period-nav';
+import { DatatypeChart, datatypeExpression } from '@/components/datatype-chart';
 import { getApiClient } from '@/lib/api';
 import {
     dateParam,
@@ -24,10 +21,7 @@ import {
 } from '@/lib/dashboard-periods';
 import {
     amountClassNameForCategoryTotal,
-    amountClassNameForTransaction,
     amountClassNameForValue,
-    formatDateTime,
-    formatTransactionMoney,
     signedCategoryTotal
 } from '@/lib/format';
 
@@ -35,6 +29,103 @@ type DashboardSearchParams = {
     readonly date?: string;
     readonly period?: string;
 };
+
+type DashboardCategory = DashboardSummary['byCategory'][number];
+
+function categoryHref(
+    summary: DashboardSummary,
+    category: DashboardCategory
+): string {
+    const params = new URLSearchParams({
+        type: category.type,
+        categoryId: String(category.categoryId),
+        from: dateParam(summary.from),
+        to: dateParam(summary.to)
+    });
+    return `/transactions?${params.toString()}`;
+}
+
+function CategoryRow({
+    category,
+    summary
+}: {
+    readonly category: DashboardCategory;
+    readonly summary: DashboardSummary;
+}) {
+    return (
+        <Link
+            className="grid grid-cols-[minmax(0,1fr)_auto_82px] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1fr)_auto_116px] sm:px-2"
+            href={categoryHref(summary, category)}
+        >
+            <span className="min-w-0">
+                <span className="block truncate font-medium">
+                    {category.categoryName}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                    {category.transactionCount}{' '}
+                    {category.transactionCount === 1
+                        ? 'transaction'
+                        : 'transactions'}
+                </span>
+            </span>
+            <span
+                className={`font-semibold ${amountClassNameForCategoryTotal(
+                    category.total,
+                    category.type
+                )}`}
+            >
+                <AmountDisplay
+                    currency={summary.currency}
+                    value={signedCategoryTotal(category.total, category.type)}
+                />
+            </span>
+            <span className="flex justify-end">
+                <DatatypeChart
+                    className={`text-xl ${amountClassNameForCategoryTotal(
+                        category.total,
+                        category.type
+                    )}`}
+                    expression={datatypeExpression('l', category.trend, {
+                        maxPoints: 32
+                    })}
+                />
+            </span>
+        </Link>
+    );
+}
+
+function CategoryGroup({
+    categories,
+    summary,
+    title
+}: {
+    readonly categories: readonly DashboardCategory[];
+    readonly summary: DashboardSummary;
+    readonly title: string;
+}) {
+    return (
+        <div>
+            <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                {title}
+            </h3>
+            <div className="flex flex-col divide-y">
+                {categories.length === 0 ? (
+                    <p className="py-3 text-sm text-muted-foreground">
+                        No activity for this period.
+                    </p>
+                ) : (
+                    categories.map(category => (
+                        <CategoryRow
+                            category={category}
+                            key={`${category.type}-${category.categoryId}`}
+                            summary={summary}
+                        />
+                    ))
+                )}
+            </div>
+        </div>
+    );
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +155,13 @@ export default async function DashboardPage({
     if (!me.hasCategories) {
         redirect('/setup/categories');
     }
+
+    const incomeCategories = summary.byCategory.filter(
+        category => category.type === 'income'
+    );
+    const expenseCategories = summary.byCategory.filter(
+        category => category.type === 'expense'
+    );
 
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
@@ -145,109 +243,25 @@ export default async function DashboardPage({
                     </CardHeader>
                 </Card>
             </div>
-            <div>
-                <section className="sm:hidden">
-                    <h2 className="mb-3 text-base font-semibold">
-                        Transactions
-                    </h2>
-                    <div className="divide-y rounded-lg border bg-card">
-                        {summary.latestTransactions.length === 0 ? (
-                            <div className="p-4 text-sm text-muted-foreground">
-                                No transactions for this period.
-                            </div>
-                        ) : (
-                            summary.latestTransactions.map(transaction => (
-                                <div
-                                    className="flex items-center justify-between gap-3 p-4"
-                                    key={transaction.id}
-                                >
-                                    <div className="min-w-0">
-                                        <p className="truncate text-sm font-medium">
-                                            {transaction.categoryName}
-                                        </p>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            {formatDateTime(
-                                                transaction.occurredAt
-                                            )}
-                                        </p>
-                                    </div>
-                                    <p
-                                        className={`shrink-0 text-sm font-semibold ${amountClassNameForTransaction(
-                                            transaction.amount,
-                                            transaction.type,
-                                            transaction.effect
-                                        )}`}
-                                    >
-                                        {formatTransactionMoney(
-                                            transaction.amount,
-                                            transaction.currency,
-                                            transaction.type,
-                                            transaction.effect
-                                        )}
-                                    </p>
-                                </div>
-                            ))
-                        )}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Categories</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col gap-4">
+                        <CategoryGroup
+                            categories={incomeCategories}
+                            summary={summary}
+                            title="Income"
+                        />
+                        <CategoryGroup
+                            categories={expenseCategories}
+                            summary={summary}
+                            title="Expenses"
+                        />
                     </div>
-                </section>
-                <Card className="hidden sm:block">
-                    <CardHeader>
-                        <CardTitle>Transactions</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Category</TableHead>
-                                    <TableHead>Amount</TableHead>
-                                    <TableHead>When</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {summary.latestTransactions.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell
-                                            className="text-muted-foreground"
-                                            colSpan={3}
-                                        >
-                                            No transactions for this period.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    summary.latestTransactions.map(
-                                        transaction => (
-                                            <TableRow key={transaction.id}>
-                                                <TableCell>
-                                                    {transaction.categoryName}
-                                                </TableCell>
-                                                <TableCell
-                                                    className={amountClassNameForTransaction(
-                                                        transaction.amount,
-                                                        transaction.type,
-                                                        transaction.effect
-                                                    )}
-                                                >
-                                                    {formatTransactionMoney(
-                                                        transaction.amount,
-                                                        transaction.currency,
-                                                        transaction.type,
-                                                        transaction.effect
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {formatDateTime(
-                                                        transaction.occurredAt
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                    )
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

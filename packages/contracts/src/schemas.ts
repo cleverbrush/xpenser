@@ -650,6 +650,14 @@ export const DashboardCategoryTotalSchema = object({
     /** Net category total in the user's default currency after reversals. */
     total: decimalNumber().describe(
         "Net category total in the user's default currency after reversals."
+    ),
+    /** Number of selected-period transactions in the category. */
+    transactionCount: number().describe(
+        'Number of selected-period transactions in the category.'
+    ),
+    /** Selected-period bucket totals for lightweight category charts. */
+    trend: array(decimalNumber()).describe(
+        'Selected-period bucket totals for lightweight category charts.'
     )
 }).schemaName('DashboardCategoryTotal');
 
@@ -832,10 +840,6 @@ export const DashboardSummarySchema = object({
     /** Category totals for the selected period. */
     byCategory: array(DashboardCategoryTotalSchema).describe(
         'Category totals for the selected period.'
-    ),
-    /** Transactions for the selected dashboard period. */
-    latestTransactions: array(TransactionSchema).describe(
-        'Transactions for the selected dashboard period.'
     )
 }).schemaName('DashboardSummary');
 
