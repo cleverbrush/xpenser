@@ -70,6 +70,14 @@ function fieldValue(formData: FormData, key: string): string {
     return typeof value === 'string' ? value.trim() : '';
 }
 
+function shouldAutoExpandFilters(hasFilters: boolean): boolean {
+    return (
+        hasFilters &&
+        typeof window !== 'undefined' &&
+        window.matchMedia('(min-width: 640px)').matches
+    );
+}
+
 function transactionAmount(transaction: Transaction) {
     return (
         <div className="flex flex-col gap-0.5">
@@ -349,7 +357,7 @@ export function TransactionsBrowser({
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const searchKey = searchParams.toString();
-    const [expanded, setExpanded] = useState(hasInitialFilters);
+    const [expanded, setExpanded] = useState(false);
     const [items, setItems] = useState<readonly Transaction[]>(
         initialResponse.items
     );
@@ -369,7 +377,7 @@ export function TransactionsBrowser({
     );
 
     useEffect(() => {
-        setExpanded(hasInitialFilters);
+        setExpanded(shouldAutoExpandFilters(hasInitialFilters));
         setItems(initialResponse.items);
         setPage(initialResponse.page);
         setTotal(initialResponse.total);

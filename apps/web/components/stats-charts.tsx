@@ -14,18 +14,17 @@ import {
     XAxis,
     YAxis
 } from 'recharts';
-import { AmountDisplay } from '@/components/amount-display';
-import {
-    amountClassNameForCategoryTotal,
-    amountClassNameForValue,
-    formatMoney,
-    signedCategoryTotal
-} from '@/lib/format';
-import { DatatypeChart, datatypeExpression } from './datatype-chart';
+import { formatMoney } from '@/lib/format';
 
 const incomeColor = '#047857';
 const expenseColor = '#be123c';
 const netColor = 'hsl(var(--accent))';
+const skeletonChartKeys = [
+    'cashflow',
+    'income-expenses',
+    'cumulative-net',
+    'transaction-volume'
+] as const;
 
 type TooltipPayload = {
     readonly color?: string;
@@ -33,18 +32,18 @@ type TooltipPayload = {
     readonly value?: number | string;
 };
 
-type StatsCategory = StatsOverview['byCategory'][number];
-
 function ChartTooltip({
     active,
+    currency,
     label,
     payload,
-    currency
+    valueKind = 'money'
 }: {
     readonly active?: boolean;
+    readonly currency: string;
     readonly label?: string | number;
     readonly payload?: readonly TooltipPayload[];
-    readonly currency: string;
+    readonly valueKind?: 'count' | 'money';
 }) {
     if (!active || !payload?.length) {
         return null;
@@ -62,7 +61,9 @@ function ChartTooltip({
                         <span style={{ color: item.color }}>{item.name}</span>
                         <span className="font-medium">
                             {typeof item.value === 'number'
-                                ? formatMoney(item.value, currency)
+                                ? valueKind === 'money'
+                                    ? formatMoney(item.value, currency)
+                                    : item.value.toLocaleString('en-US')
                                 : item.value}
                         </span>
                     </div>
@@ -72,176 +73,41 @@ function ChartTooltip({
     );
 }
 
-function dateParam(value: Date | string): string {
-    const date = value instanceof Date ? value : new Date(value);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
-function transactionHref(
-    stats: StatsOverview,
-    category: StatsCategory
-): string {
-    const params = new URLSearchParams({
-        type: category.type,
-        categoryId: String(category.categoryId),
-        from: dateParam(stats.from),
-        to: dateParam(stats.to)
-    });
-    return `/transactions?${params.toString()}`;
-}
-
-function comparisonDelta(
-    category: StatsCategory,
-    field: 'previousPeriodTotal' | 'previousYearTotal'
-): number {
-    return category.type === 'expense'
-        ? category[field] - category.total
-        : category.total - category[field];
-}
-
-function CategoryRow({
-    category,
-    stats
-}: {
-    readonly category: StatsCategory;
-    readonly stats: StatsOverview;
-}) {
-    const previousDelta = comparisonDelta(category, 'previousPeriodTotal');
-    const yearDelta = comparisonDelta(category, 'previousYearTotal');
-
+export function StatsChartsSkeleton() {
     return (
-        <a
-            className="grid grid-cols-[minmax(0,1fr)_auto_74px] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1fr)_auto_110px] sm:px-2"
-            href={transactionHref(stats, category)}
-        >
-            <span className="min-w-0 truncate font-medium">
-                {category.categoryName}
-            </span>
-            <span className="min-w-0 text-right">
-                <span
-                    className={`font-semibold ${amountClassNameForCategoryTotal(
-                        category.total,
-                        category.type
-                    )}`}
-                >
-                    <AmountDisplay
-                        currency={stats.currency}
-                        value={signedCategoryTotal(
-                            category.total,
-                            category.type
-                        )}
-                    />
-                </span>
-                <span className="ml-2 hidden text-xs text-muted-foreground md:inline">
-                    P{' '}
-                    <AmountDisplay
-                        className={amountClassNameForValue(previousDelta)}
-                        currency={stats.currency}
-                        value={previousDelta}
-                    />
-                    , Y{' '}
-                    <AmountDisplay
-                        className={amountClassNameForValue(yearDelta)}
-                        currency={stats.currency}
-                        value={yearDelta}
-                    />
-                </span>
-            </span>
-            <span className="flex justify-end">
-                <DatatypeChart
-                    className={`text-xl ${amountClassNameForCategoryTotal(
-                        category.total,
-                        category.type
-                    )}`}
-                    expression={datatypeExpression('l', category.trend)}
-                />
-            </span>
-        </a>
-    );
-}
-
-function CategoryGroup({
-    title,
-    categories,
-    stats
-}: {
-    readonly title: string;
-    readonly categories: readonly StatsCategory[];
-    readonly stats: StatsOverview;
-}) {
-    return (
-        <div>
-            <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                {title}
-            </h3>
-            <div className="flex flex-col divide-y">
-                {categories.length === 0 ? (
-                    <p className="py-3 text-sm text-muted-foreground">
-                        No activity for this report.
-                    </p>
-                ) : (
-                    categories.map(category => (
-                        <CategoryRow
-                            category={category}
-                            key={`${category.type}-${category.categoryId}`}
-                            stats={stats}
-                        />
-                    ))
-                )}
+        <div aria-hidden className="grid gap-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+                {skeletonChartKeys.map(key => (
+                    <div
+                        className="rounded-lg border bg-card text-card-foreground shadow-sm"
+                        key={key}
+                    >
+                        <div className="flex flex-col space-y-1.5 p-6">
+                            <div className="h-6 w-36 rounded-md bg-muted" />
+                        </div>
+                        <div className="p-6 pt-0">
+                            <div className="h-72 rounded-md bg-muted" />
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
 }
 
-function CategoriesCard({
-    incomeCategories,
-    expenseCategories,
-    stats
-}: {
-    readonly incomeCategories: readonly StatsCategory[];
-    readonly expenseCategories: readonly StatsCategory[];
-    readonly stats: StatsOverview;
-}) {
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Categories</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="flex flex-col gap-4">
-                    <CategoryGroup
-                        categories={incomeCategories}
-                        stats={stats}
-                        title="Income"
-                    />
-                    <CategoryGroup
-                        categories={expenseCategories}
-                        stats={stats}
-                        title="Expenses"
-                    />
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
 export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
-    const trend = stats.trend.map(item => ({
-        label: item.label,
-        Income: item.incomeTotal,
-        Expenses: -item.expenseTotal,
-        Net: item.netTotal,
-        transactions: item.transactionCount
-    }));
-    const expenseCategories = stats.byCategory.filter(
-        category => category.type === 'expense'
-    );
-    const incomeCategories = stats.byCategory.filter(
-        category => category.type === 'income'
-    );
+    let cumulativeNet = 0;
+    const trend = stats.trend.map(item => {
+        cumulativeNet += item.netTotal;
+        return {
+            label: item.label,
+            Income: item.incomeTotal,
+            Expenses: -item.expenseTotal,
+            Net: item.netTotal,
+            'Cumulative net': cumulativeNet,
+            Transactions: item.transactionCount
+        };
+    });
 
     return (
         <div className="grid gap-4">
@@ -378,11 +244,109 @@ export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
                 </Card>
             </div>
 
-            <CategoriesCard
-                expenseCategories={expenseCategories}
-                incomeCategories={incomeCategories}
-                stats={stats}
-            />
+            <div className="grid gap-4 lg:grid-cols-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Cumulative net</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="h-72">
+                            <ResponsiveContainer height="100%" width="100%">
+                                <LineChart data={trend}>
+                                    <CartesianGrid
+                                        stroke="hsl(var(--border))"
+                                        strokeDasharray="3 3"
+                                        vertical={false}
+                                    />
+                                    <XAxis
+                                        dataKey="label"
+                                        fontSize={12}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        tickLine={false}
+                                    />
+                                    <YAxis
+                                        fontSize={12}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        tickFormatter={value =>
+                                            Number(value).toLocaleString(
+                                                'en-US',
+                                                {
+                                                    maximumFractionDigits: 0
+                                                }
+                                            )
+                                        }
+                                        tickLine={false}
+                                        width={48}
+                                    />
+                                    <ReferenceLine
+                                        stroke="hsl(var(--border))"
+                                        y={0}
+                                    />
+                                    <Tooltip
+                                        content={
+                                            <ChartTooltip
+                                                currency={stats.currency}
+                                            />
+                                        }
+                                    />
+                                    <Line
+                                        dataKey="Cumulative net"
+                                        dot={false}
+                                        stroke={netColor}
+                                        strokeWidth={3}
+                                        type="monotone"
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Transaction volume</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="h-72">
+                            <ResponsiveContainer height="100%" width="100%">
+                                <BarChart data={trend}>
+                                    <CartesianGrid
+                                        stroke="hsl(var(--border))"
+                                        strokeDasharray="3 3"
+                                        vertical={false}
+                                    />
+                                    <XAxis
+                                        dataKey="label"
+                                        fontSize={12}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        tickLine={false}
+                                    />
+                                    <YAxis
+                                        allowDecimals={false}
+                                        fontSize={12}
+                                        stroke="hsl(var(--muted-foreground))"
+                                        tickLine={false}
+                                        width={48}
+                                    />
+                                    <Tooltip
+                                        content={
+                                            <ChartTooltip
+                                                currency={stats.currency}
+                                                valueKind="count"
+                                            />
+                                        }
+                                    />
+                                    <Bar
+                                        dataKey="Transactions"
+                                        fill="hsl(var(--accent))"
+                                        radius={[4, 4, 0, 0]}
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }

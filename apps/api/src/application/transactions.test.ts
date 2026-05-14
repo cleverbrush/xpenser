@@ -125,6 +125,26 @@ describe('stats range resolution', () => {
             new Date(2026, 4, 3, 12, 34, 0, 0)
         );
     });
+
+    it('uses dashboard-style periods when stats period controls are supplied', () => {
+        const ranges = resolveStatsRanges(
+            {
+                groupBy: 'week',
+                period: 'month',
+                date: new Date(2026, 4, 10, 12, 34, 0, 0)
+            },
+            new Date(2026, 4, 10, 12, 34, 0, 0)
+        );
+
+        expect(ranges.selected.from).toEqual(new Date(2026, 4, 1, 0, 0, 0, 0));
+        expect(ranges.selected.to).toEqual(new Date(2026, 4, 10, 12, 34, 0, 0));
+        expect(ranges.previousPeriod.from).toEqual(
+            new Date(2026, 3, 1, 0, 0, 0, 0)
+        );
+        expect(ranges.previousPeriod.to).toEqual(
+            new Date(2026, 3, 30, 23, 59, 59, 999)
+        );
+    });
 });
 
 describe('dashboard range resolution', () => {

@@ -11,17 +11,19 @@ import { useMemo } from 'react';
 import {
     addDashboardPeriod,
     type DashboardPeriod,
-    dashboardHref,
     dashboardPeriodOptions,
     isLatestDashboardPeriod,
     latestDashboardLabel,
-    parseDateParam
+    parseDateParam,
+    periodHref
 } from '@/lib/dashboard-periods';
 
 export function DashboardPeriodNav({
+    basePath = '/dashboard',
     date,
     period
 }: {
+    readonly basePath?: string;
     readonly date: string;
     readonly period: DashboardPeriod;
 }) {
@@ -31,14 +33,21 @@ export function DashboardPeriodNav({
     );
     const now = useMemo(() => new Date(), []);
     const latest = isLatestDashboardPeriod(period, anchorDate, now);
-    const previousHref = dashboardHref(
+    const previousHref = periodHref(
+        basePath,
         period,
         addDashboardPeriod(period, anchorDate, -1)
     );
     const nextHref = latest
         ? undefined
-        : dashboardHref(period, addDashboardPeriod(period, anchorDate, 1));
-    const latestHref = dashboardHref(period, now, { cleanDefault: true });
+        : periodHref(
+              basePath,
+              period,
+              addDashboardPeriod(period, anchorDate, 1)
+          );
+    const latestHref = periodHref(basePath, period, now, {
+        cleanDefault: true
+    });
 
     return (
         <div className="flex items-center gap-2">
@@ -65,7 +74,7 @@ export function DashboardPeriodNav({
                                 ? 'bg-background text-foreground shadow-sm'
                                 : 'text-muted-foreground'
                         )}
-                        href={dashboardHref(option.value, anchorDate, {
+                        href={periodHref(basePath, option.value, anchorDate, {
                             cleanDefault: true
                         })}
                         key={option.value}

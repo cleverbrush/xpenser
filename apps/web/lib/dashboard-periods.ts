@@ -189,7 +189,8 @@ export function latestDashboardLabel(period: DashboardPeriod): string {
     return `This ${period}`;
 }
 
-export function dashboardHref(
+export function periodHref(
+    basePath: string,
     period: DashboardPeriod,
     value: Date,
     options: { readonly cleanDefault?: boolean } = {}
@@ -199,14 +200,22 @@ export function dashboardHref(
         period === 'day' &&
         isLatestDashboardPeriod(period, value)
     ) {
-        return '/dashboard';
+        return basePath;
     }
 
     const params = new URLSearchParams({
         period,
         date: dateParam(value)
     });
-    return `/dashboard?${params.toString()}`;
+    return `${basePath}?${params.toString()}`;
+}
+
+export function dashboardHref(
+    period: DashboardPeriod,
+    value: Date,
+    options: { readonly cleanDefault?: boolean } = {}
+): string {
+    return periodHref('/dashboard', period, value, options);
 }
 
 export function formatDashboardRangeLabel({

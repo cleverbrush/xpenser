@@ -243,7 +243,14 @@ export const api = defineApi({
             .get('/api/stats')
             .authorize(PrincipalSchema)
             .query(StatsQuerySchema)
-            .cacheTag('stats')
+            .cacheTag('stats', request => ({
+                date: request.query.date,
+                from: request.query.from,
+                groupBy: request.query.groupBy,
+                period: request.query.period,
+                timeframe: request.query.timeframe,
+                to: request.query.to
+            }))
             .responses({ 200: StatsOverviewSchema })
     }
 });

@@ -14,10 +14,10 @@ import {
 import {
     addDashboardPeriod,
     type DashboardPeriod,
-    dashboardHref,
     dateParam,
     isLatestDashboardPeriod,
-    parseDateParam
+    parseDateParam,
+    periodHref
 } from '@/lib/dashboard-periods';
 
 type PointerPoint = {
@@ -114,13 +114,17 @@ function DashboardPanelSkeleton() {
 }
 
 export function DashboardSwipeArea({
+    basePath = '/dashboard',
     children,
     date,
-    period
+    period,
+    skeleton
 }: {
+    readonly basePath?: string;
     readonly children: ReactNode;
     readonly date: string;
     readonly period: DashboardPeriod;
+    readonly skeleton?: ReactNode;
 }) {
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -132,7 +136,7 @@ export function DashboardSwipeArea({
     const [dragDirection, setDragDirection] = useState<-1 | 1 | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [swipeOffset, setSwipeOffset] = useState(0);
-    const resetKey = `${period}:${date}`;
+    const resetKey = `${basePath}:${period}:${date}`;
     const anchorDate = useMemo(
         () => parseDateParam(date) ?? new Date(),
         [date]
@@ -146,10 +150,12 @@ export function DashboardSwipeArea({
         () => addDashboardPeriod(period, anchorDate, 1),
         [anchorDate, period]
     );
-    const previousHref = dashboardHref(period, previousDate);
-    const nextHref = latest ? undefined : dashboardHref(period, nextDate);
-    const previousKey = `${period}:${dateParam(previousDate)}`;
-    const nextKey = `${period}:${dateParam(nextDate)}`;
+    const previousHref = periodHref(basePath, period, previousDate);
+    const nextHref = latest
+        ? undefined
+        : periodHref(basePath, period, nextDate);
+    const previousKey = `${basePath}:${period}:${dateParam(previousDate)}`;
+    const nextKey = `${basePath}:${period}:${dateParam(nextDate)}`;
     const targetKey =
         dragDirection === -1 ? nextKey : dragDirection === 1 ? previousKey : '';
     const targetPanel = targetKey ? panelCache.get(targetKey) : undefined;
@@ -342,7 +348,7 @@ export function DashboardSwipeArea({
                                 : `translateX(calc(${swipeOffset}px - 100%))`
                     }}
                 >
-                    {targetPanel ?? <DashboardPanelSkeleton />}
+                    {targetPanel ?? skeleton ?? <DashboardPanelSkeleton />}
                 </div>
             ) : null}
         </div>

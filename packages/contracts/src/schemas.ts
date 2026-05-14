@@ -31,7 +31,7 @@ export const PeriodSchema = enumOf('day', 'week', 'month', 'quarter', 'year')
     .describe('Dashboard reporting period.')
     .schemaName('Period');
 
-export const StatsGroupBySchema = enumOf('day', 'week', 'month')
+export const StatsGroupBySchema = enumOf('hour', 'day', 'week', 'month')
     .describe('Stats trend grouping.')
     .schemaName('StatsGroupBy');
 
@@ -637,7 +637,16 @@ export const StatsQuerySchema = object({
     /** Inclusive custom start date. */
     from: date().coerce().optional().describe('Inclusive custom start date.'),
     /** Inclusive custom end date. */
-    to: date().coerce().optional().describe('Inclusive custom end date.')
+    to: date().coerce().optional().describe('Inclusive custom end date.'),
+    /** Dashboard-style reporting period. */
+    period: PeriodSchema.optional().describe(
+        'Dashboard-style reporting period.'
+    ),
+    /** Date used to choose the dashboard-style reporting period. */
+    date: date()
+        .coerce()
+        .optional()
+        .describe('Date used to choose the dashboard-style reporting period.')
 }).schemaName('StatsQuery');
 
 export const DashboardCategoryTotalSchema = object({

@@ -1,43 +1,42 @@
+import type { DashboardSummary, StatsQuery } from '@xpenser/contracts';
 import { Card, CardDescription, CardHeader, CardTitle } from '@xpenser/ui';
 import { AmountDisplay } from '@/components/amount-display';
-import { ReportsFilters } from '@/components/reports-filters';
-import { StatsCharts } from '@/components/stats-charts';
+import { DashboardPeriodNav } from '@/components/dashboard-period-nav';
+import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
+import { StatsCharts, StatsChartsSkeleton } from '@/components/stats-charts';
 import { getApiClient } from '@/lib/api';
+import {
+    dateParam,
+    formatDashboardRangeLabel,
+    isDashboardPeriod,
+    parseDateParam
+} from '@/lib/dashboard-periods';
 import {
     amountClassNameForCategoryTotal,
     amountClassNameForValue,
-    formatDate,
     formatMoney,
     signedCategoryTotal
 } from '@/lib/format';
-import {
-    isReportGroupBy,
-    isReportTimeframe,
-    type ReportGroupBy,
-    type ReportTimeframe
-} from '@/lib/report-filters';
 
 type StatsSearchParams = {
-    readonly groupBy?: string;
-    readonly timeframe?: string;
-    readonly from?: string;
-    readonly to?: string;
+    readonly date?: string;
+    readonly period?: string;
 };
 
-function parseGroupBy(value?: string): ReportGroupBy {
-    return isReportGroupBy(value) ? value : 'day';
-}
+type DashboardPeriod = DashboardSummary['period'];
+type StatsGroupBy = NonNullable<StatsQuery['groupBy']>;
 
-function parseTimeframe(value?: string): ReportTimeframe {
-    return isReportTimeframe(value) ? value : 'this-month';
-}
-
-function parseDate(value?: string): Date | undefined {
-    if (!value) {
-        return undefined;
+function groupByForPeriod(period: DashboardPeriod): StatsGroupBy {
+    if (period === 'day') {
+        return 'hour';
     }
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? undefined : date;
+    if (period === 'week') {
+        return 'day';
+    }
+    if (period === 'year') {
+        return 'month';
+    }
+    return 'week';
 }
 
 function formatCountDelta(value: number): string {
@@ -55,28 +54,6 @@ function signedComparisonDelta(
     return type === 'expense' ? previous - current : current - previous;
 }
 
-async function getStats({
-    groupBy,
-    timeframe,
-    from,
-    to
-}: {
-    readonly groupBy: ReportGroupBy;
-    readonly timeframe: ReportTimeframe;
-    readonly from?: string;
-    readonly to?: string;
-}) {
-    const client = await getApiClient();
-    return client.stats.overview({
-        query: {
-            groupBy,
-            timeframe,
-            from: parseDate(from),
-            to: parseDate(to)
-        }
-    });
-}
-
 export const dynamic = 'force-dynamic';
 
 export default async function StatsPage({
@@ -85,13 +62,18 @@ export default async function StatsPage({
     readonly searchParams: Promise<StatsSearchParams>;
 }) {
     const params = await searchParams;
-    const groupBy = parseGroupBy(params.groupBy);
-    const timeframe = parseTimeframe(params.timeframe);
-    const stats = await getStats({
-        groupBy,
-        timeframe,
-        from: params.from,
-        to: params.to
+    const period = isDashboardPeriod(params.period) ? params.period : 'day';
+    const selectedDate = parseDateParam(params.date);
+    const anchorDate = selectedDate ?? new Date();
+    const anchorDateParam = dateParam(anchorDate);
+    const client = await getApiClient();
+    const stats = await client.stats.overview({
+        query: {
+            groupBy: groupByForPeriod(period),
+            period,
+            timeframe: 'custom',
+            ...(selectedDate ? { date: selectedDate } : {})
+        }
     });
     const netDeltaPrevious =
         stats.netTotal - stats.comparison.previousPeriod.netTotal;
@@ -177,21 +159,23 @@ export default async function StatsPage({
 
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                    <h1 className="text-2xl font-semibold">Reports</h1>
-                    <p className="text-sm text-muted-foreground">
-                        {formatDate(stats.from)} to {formatDate(stats.to)} in{' '}
-                        {stats.currency}.
-                    </p>
-                </div>
-                <ReportsFilters
-                    from={params.from}
-                    groupBy={groupBy}
-                    timeframe={timeframe}
-                    to={params.to}
-                />
+            <div>
+                <h1 className="text-2xl font-semibold">Reports</h1>
+                <p className="text-sm text-muted-foreground">
+                    {formatDashboardRangeLabel({
+                        from: stats.from,
+                        period,
+                        to: stats.to
+                    })}{' '}
+                    in {stats.currency}.
+                </p>
             </div>
+
+            <DashboardPeriodNav
+                basePath="/stats"
+                date={anchorDateParam}
+                period={period}
+            />
 
             <div className="grid grid-cols-4 gap-2 sm:gap-4">
                 {cards.map(card => (
@@ -244,7 +228,14 @@ export default async function StatsPage({
                 ))}
             </div>
 
-            <StatsCharts stats={stats} />
+            <DashboardSwipeArea
+                basePath="/stats"
+                date={anchorDateParam}
+                period={period}
+                skeleton={<StatsChartsSkeleton />}
+            >
+                <StatsCharts stats={stats} />
+            </DashboardSwipeArea>
         </div>
     );
 }

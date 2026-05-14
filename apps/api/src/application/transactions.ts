@@ -320,6 +320,12 @@ function startOfDay(value: Date): Date {
     return date;
 }
 
+function startOfHour(value: Date): Date {
+    const date = cloneDate(value);
+    date.setMinutes(0, 0, 0);
+    return date;
+}
+
 function endOfDay(value: Date): Date {
     const date = cloneDate(value);
     date.setHours(23, 59, 59, 999);
@@ -591,6 +597,18 @@ export function resolveStatsRanges(
     query: Partial<StatsQuery>,
     now = new Date()
 ) {
+    if (query.period) {
+        const selected = resolveDashboardRange(query.period, query.date, now);
+        return {
+            selected,
+            previousPeriod: resolveDashboardComparisonRange(
+                query.period,
+                selected
+            ),
+            previousYear: shiftRangeYears(selected, -1)
+        };
+    }
+
     const timeframe = (query.timeframe ?? 'this-month') as StatsTimeframe;
     const today = startOfDay(now);
     let selected: StatsRange;
@@ -643,6 +661,12 @@ export function resolveStatsRanges(
 function statsBucketKey(date: Date, groupBy: StatsGroupBy): string {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    if (groupBy === 'hour') {
+        const hour = String(date.getHours()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hour}`;
+    }
 
     if (groupBy === 'month') {
         return `${year}-${month}`;
@@ -655,6 +679,12 @@ function statsBucketKey(date: Date, groupBy: StatsGroupBy): string {
 }
 
 function statsBucketLabel(date: Date, groupBy: StatsGroupBy): string {
+    if (groupBy === 'hour') {
+        return new Intl.DateTimeFormat('en-US', {
+            hour: 'numeric'
+        }).format(date);
+    }
+
     if (groupBy === 'month') {
         return new Intl.DateTimeFormat('en-US', {
             month: 'short',
@@ -676,6 +706,11 @@ function statsBucketLabel(date: Date, groupBy: StatsGroupBy): string {
 }
 
 function addStatsBucketStep(date: Date, groupBy: StatsGroupBy): void {
+    if (groupBy === 'hour') {
+        date.setHours(date.getHours() + 1, 0, 0, 0);
+        return;
+    }
+
     if (groupBy === 'month') {
         date.setMonth(date.getMonth() + 1, 1);
         return;
@@ -690,11 +725,13 @@ function statsTrendBuckets(
 ): Map<string, StatsBucket> {
     const buckets = new Map<string, StatsBucket>();
     const current =
-        groupBy === 'week'
-            ? startOfWeek(range.from)
-            : groupBy === 'month'
-              ? startOfMonth(range.from)
-              : startOfDay(range.from);
+        groupBy === 'hour'
+            ? startOfHour(range.from)
+            : groupBy === 'week'
+              ? startOfWeek(range.from)
+              : groupBy === 'month'
+                ? startOfMonth(range.from)
+                : startOfDay(range.from);
 
     while (current <= range.to) {
         const key = statsBucketKey(current, groupBy);
@@ -987,7 +1024,9 @@ export async function statsOverview(
 ): Promise<StatsOverview> {
     const user = await getUser(db, userId);
     const groupBy = (query.groupBy ?? 'day') as StatsGroupBy;
-    const timeframe = (query.timeframe ?? 'this-month') as StatsTimeframe;
+    const timeframe = (
+        query.period ? 'custom' : (query.timeframe ?? 'this-month')
+    ) as StatsTimeframe;
     const ranges = resolveStatsRanges({ ...query, groupBy, timeframe });
     const buckets = statsTrendBuckets(groupBy, ranges.selected);
     const [selectedRows, previousPeriodRows, previousYearRows] =

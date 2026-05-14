@@ -169,6 +169,13 @@ describe('shared schemas', () => {
         ).toBe(true);
         expect(
             StatsQuerySchema.validate({
+                groupBy: 'hour',
+                period: 'day',
+                date: new Date('2026-05-10T00:00:00.000Z')
+            }).valid
+        ).toBe(true);
+        expect(
+            StatsQuerySchema.validate({
                 groupBy: 'quarter',
                 timeframe: 'this-month'
             } as never).valid
