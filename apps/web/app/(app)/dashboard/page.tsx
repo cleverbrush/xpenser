@@ -233,6 +233,7 @@ export default async function DashboardPage({
                         categories={categories}
                         currencies={currencies}
                         defaultCurrency={me.defaultCurrency}
+                        favoriteCurrencies={me.favoriteCurrencies}
                     />
                 </div>
             </div>

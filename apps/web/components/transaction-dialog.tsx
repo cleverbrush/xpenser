@@ -29,6 +29,7 @@ import {
     type ReactNode,
     useCallback,
     useEffect,
+    useMemo,
     useState
 } from 'react';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
@@ -39,6 +40,32 @@ type TransactionDialogValues = Pick<
 > & {
     readonly occurredAt: Date | string | number;
 };
+
+const lastTransactionCurrencyStorageKey = 'xpenser:last-transaction-currency';
+
+function readStoredTransactionCurrency(
+    availableCurrencyCodes: ReadonlySet<string>
+): string | undefined {
+    try {
+        const value = window.localStorage.getItem(
+            lastTransactionCurrencyStorageKey
+        );
+        return value && availableCurrencyCodes.has(value) ? value : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function writeStoredTransactionCurrency(currency: string): void {
+    try {
+        window.localStorage.setItem(
+            lastTransactionCurrencyStorageKey,
+            currency
+        );
+    } catch {
+        // Local storage can be unavailable in private browsing or locked-down environments.
+    }
+}
 
 export function TransactionDialog({
     action,
@@ -77,20 +104,46 @@ export function TransactionDialog({
     const [effect, setEffect] = useState<'normal' | 'reversal'>('normal');
     const categoryInvalid = categoryId.touched && Boolean(categoryId.error);
     const currencyInvalid = currency.touched && Boolean(currency.error);
+    const currencyOptions = useMemo(() => {
+        if (
+            !initialValues?.currency ||
+            currencies.some(
+                currency => currency.code === initialValues.currency
+            )
+        ) {
+            return currencies;
+        }
+
+        return [
+            { code: initialValues.currency, name: initialValues.currency },
+            ...currencies
+        ];
+    }, [currencies, initialValues?.currency]);
 
     const resetForm = useCallback(() => {
+        const availableCurrencyCodes = new Set(
+            currencyOptions.map(option => option.code)
+        );
+        const fallbackCurrency = availableCurrencyCodes.has(defaultCurrency)
+            ? defaultCurrency
+            : (currencyOptions[0]?.code ?? defaultCurrency);
+        const selectedCurrency =
+            initialValues?.currency ??
+            readStoredTransactionCurrency(availableCurrencyCodes) ??
+            fallbackCurrency;
+
         setEffect(initialValues?.effect ?? 'normal');
         form.reset({
             amount: initialValues?.amount,
             categoryId: initialValues?.categoryId,
-            currency: initialValues?.currency ?? defaultCurrency,
+            currency: selectedCurrency,
             effect: initialValues?.effect ?? 'normal',
             occurredAt: initialValues?.occurredAt
                 ? new Date(initialValues.occurredAt)
                 : new Date(),
             note: initialValues?.note ?? undefined
         });
-    }, [defaultCurrency, form, initialValues]);
+    }, [currencyOptions, defaultCurrency, form, initialValues]);
 
     useEffect(() => {
         if (open) {
@@ -120,6 +173,9 @@ export function TransactionDialog({
         setError(null);
         try {
             await action(formData);
+            if (!initialValues) {
+                writeStoredTransactionCurrency(result.object.currency);
+            }
             resetForm();
             setOpen(false);
             router.refresh();
@@ -203,7 +259,14 @@ export function TransactionDialog({
                                             currency.onBlur();
                                         }
                                     }}
-                                    onValueChange={currency.onChange}
+                                    onValueChange={value => {
+                                        currency.onChange(value);
+                                        if (!initialValues) {
+                                            writeStoredTransactionCurrency(
+                                                value
+                                            );
+                                        }
+                                    }}
                                     value={currency.value ?? defaultCurrency}
                                 >
                                     <SelectTrigger
@@ -213,7 +276,7 @@ export function TransactionDialog({
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectGroup>
-                                            {currencies.map(currency => (
+                                            {currencyOptions.map(currency => (
                                                 <SelectItem
                                                     key={currency.code}
                                                     value={currency.code}
@@ -254,10 +317,13 @@ export function TransactionDialog({
                                 />
                                 <span className="flex min-w-0 flex-col gap-1">
                                     <span className="text-sm font-medium">
-                                        Reversal
+                                        Refund or reversal
                                     </span>
                                     <span className="text-sm text-muted-foreground">
-                                        Subtracts from this category.
+                                        Use this when the entry cancels or
+                                        refunds an earlier transaction. It
+                                        reduces this category's total instead of
+                                        increasing it.
                                     </span>
                                 </span>
                             </label>

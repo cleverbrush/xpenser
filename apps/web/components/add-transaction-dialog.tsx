@@ -9,17 +9,30 @@ import { TransactionDialog } from './transaction-dialog';
 export function AddTransactionDialog({
     categories,
     currencies,
-    defaultCurrency
+    defaultCurrency,
+    favoriteCurrencies
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly favoriteCurrencies: readonly string[];
 }) {
+    const currenciesByCode = new Map(
+        currencies.map(currency => [currency.code, currency] as const)
+    );
+    const selectedCurrencyCodes = [
+        defaultCurrency,
+        ...favoriteCurrencies.filter(currency => currency !== defaultCurrency)
+    ];
+    const transactionCurrencies = selectedCurrencyCodes.map(
+        code => currenciesByCode.get(code) ?? { code, name: code }
+    );
+
     return (
         <TransactionDialog
             action={createTransactionAction}
             categories={categories}
-            currencies={currencies}
+            currencies={transactionCurrencies}
             defaultCurrency={defaultCurrency}
             description="Amounts are stored in the original currency and converted for reports."
             errorMessage="Could not save the transaction."
