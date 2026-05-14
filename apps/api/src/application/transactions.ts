@@ -494,27 +494,39 @@ export function resolveDashboardComparisonRange(
     range: StatsRange
 ): StatsRange {
     if (period === 'day') {
-        return shiftRangeDays(range, -1);
+        const previousDay = addDays(range.from, -1);
+        return {
+            from: startOfDay(previousDay),
+            to: endOfDay(previousDay)
+        };
     }
     if (period === 'week') {
-        return shiftRangeDays(range, -7);
+        const previousWeek = addDays(range.from, -7);
+        return {
+            from: startOfWeek(previousWeek),
+            to: endOfWeek(previousWeek)
+        };
     }
     if (period === 'month') {
-        return shiftRangeMonths(range, -1);
+        const previousMonth = addMonthsClamped(range.from, -1);
+        return {
+            from: startOfMonth(previousMonth),
+            to: endOfMonth(previousMonth)
+        };
     }
     if (period === 'quarter') {
-        if (range.to.getTime() === endOfQuarter(range.from).getTime()) {
-            const previousQuarter = addMonthsClamped(range.from, -3);
-            return {
-                from: startOfQuarter(previousQuarter),
-                to: endOfQuarter(previousQuarter)
-            };
-        }
-
-        return shiftRangeMonths(range, -3);
+        const previousQuarter = addMonthsClamped(range.from, -3);
+        return {
+            from: startOfQuarter(previousQuarter),
+            to: endOfQuarter(previousQuarter)
+        };
     }
 
-    return shiftRangeYears(range, -1);
+    const previousYear = addYearsClamped(range.from, -1);
+    return {
+        from: startOfYear(previousYear),
+        to: endOfYear(previousYear)
+    };
 }
 
 function dashboardTrendBucketCount(

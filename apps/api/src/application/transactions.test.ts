@@ -193,6 +193,19 @@ describe('dashboard range resolution', () => {
             to: new Date(2026, 2, 31, 23, 59, 59, 999)
         });
     });
+
+    it('uses the previous full calendar month for in-progress month comparisons', () => {
+        const range = resolveDashboardRange(
+            'month',
+            new Date(2026, 4, 10, 12, 34, 0, 0),
+            new Date(2026, 4, 10, 12, 34, 0, 0)
+        );
+
+        expect(resolveDashboardComparisonRange('month', range)).toEqual({
+            from: new Date(2026, 3, 1, 0, 0, 0, 0),
+            to: new Date(2026, 3, 30, 23, 59, 59, 999)
+        });
+    });
 });
 
 describe('percentage changes', () => {
