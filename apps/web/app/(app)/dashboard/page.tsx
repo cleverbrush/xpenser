@@ -170,8 +170,30 @@ export default async function DashboardPage({
         category => category.type === 'expense'
     );
 
+    const categoryPanel = (
+        <Card>
+            <CardHeader>
+                <CardTitle>Categories</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col gap-4">
+                    <CategoryGroup
+                        categories={incomeCategories}
+                        summary={summary}
+                        title="Income"
+                    />
+                    <CategoryGroup
+                        categories={expenseCategories}
+                        summary={summary}
+                        title="Expenses"
+                    />
+                </div>
+            </CardContent>
+        </Card>
+    );
+
     return (
-        <DashboardSwipeArea date={anchorDateParam} period={period}>
+        <div className="flex flex-col gap-5 sm:gap-6">
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <h1 className="text-2xl font-semibold">Dashboard</h1>
@@ -250,25 +272,9 @@ export default async function DashboardPage({
                     </CardHeader>
                 </Card>
             </div>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Categories</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col gap-4">
-                        <CategoryGroup
-                            categories={incomeCategories}
-                            summary={summary}
-                            title="Income"
-                        />
-                        <CategoryGroup
-                            categories={expenseCategories}
-                            summary={summary}
-                            title="Expenses"
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-        </DashboardSwipeArea>
+            <DashboardSwipeArea date={anchorDateParam} period={period}>
+                {categoryPanel}
+            </DashboardSwipeArea>
+        </div>
     );
 }

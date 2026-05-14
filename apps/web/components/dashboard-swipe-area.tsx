@@ -15,6 +15,7 @@ import {
     addDashboardPeriod,
     type DashboardPeriod,
     dashboardHref,
+    dateParam,
     isLatestDashboardPeriod,
     parseDateParam
 } from '@/lib/dashboard-periods';
@@ -24,7 +25,48 @@ type PointerPoint = {
     readonly y: number;
 };
 
+const maxCachedPanels = 8;
 const transitionMs = 180;
+const panelCache = new Map<string, ReactNode>();
+
+function cachePanel(key: string, panel: ReactNode) {
+    panelCache.delete(key);
+    panelCache.set(key, panel);
+
+    while (panelCache.size > maxCachedPanels) {
+        const oldest = panelCache.keys().next().value;
+        if (!oldest) {
+            return;
+        }
+        panelCache.delete(oldest);
+    }
+}
+
+function DashboardPanelSkeleton() {
+    return (
+        <div aria-hidden className="flex flex-col gap-5 sm:gap-6">
+            <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                    <div className="h-7 w-36 rounded-md bg-muted" />
+                    <div className="h-4 w-28 rounded-md bg-muted" />
+                </div>
+                <div className="h-9 w-16 rounded-md bg-muted" />
+            </div>
+            <div className="h-10 rounded-md bg-muted" />
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="h-20 rounded-md border bg-card" />
+                <div className="h-20 rounded-md border bg-card" />
+                <div className="h-20 rounded-md border bg-card" />
+            </div>
+            <div className="space-y-3 rounded-md border bg-card p-4">
+                <div className="h-5 w-24 rounded-md bg-muted" />
+                <div className="h-12 rounded-md bg-muted" />
+                <div className="h-12 rounded-md bg-muted" />
+                <div className="h-12 rounded-md bg-muted" />
+            </div>
+        </div>
+    );
+}
 
 export function DashboardSwipeArea({
     children,
@@ -40,23 +82,32 @@ export function DashboardSwipeArea({
     const pointerStart = useRef<PointerPoint | null>(null);
     const didSwipe = useRef(false);
     const prefetchedHref = useRef<string | null>(null);
-    const incomingDirection = useRef<-1 | 1 | null>(null);
     const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [swipeOffset, setSwipeOffset] = useState(0);
+    const [dragDirection, setDragDirection] = useState<-1 | 1 | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [swipeOffset, setSwipeOffset] = useState(0);
     const resetKey = `${period}:${date}`;
     const anchorDate = useMemo(
         () => parseDateParam(date) ?? new Date(),
         [date]
     );
     const latest = isLatestDashboardPeriod(period, anchorDate);
-    const previousHref = dashboardHref(
-        period,
-        addDashboardPeriod(period, anchorDate, -1)
+    const previousDate = useMemo(
+        () => addDashboardPeriod(period, anchorDate, -1),
+        [anchorDate, period]
     );
-    const nextHref = latest
-        ? undefined
-        : dashboardHref(period, addDashboardPeriod(period, anchorDate, 1));
+    const nextDate = useMemo(
+        () => addDashboardPeriod(period, anchorDate, 1),
+        [anchorDate, period]
+    );
+    const previousHref = dashboardHref(period, previousDate);
+    const nextHref = latest ? undefined : dashboardHref(period, nextDate);
+    const previousKey = `${period}:${dateParam(previousDate)}`;
+    const nextKey = `${period}:${dateParam(nextDate)}`;
+    const targetKey =
+        dragDirection === -1 ? nextKey : dragDirection === 1 ? previousKey : '';
+    const targetPanel = targetKey ? panelCache.get(targetKey) : undefined;
+    const canShowTarget = dragDirection === 1 || Boolean(nextHref);
 
     const viewportWidth = useCallback((): number => {
         return (
@@ -66,34 +117,23 @@ export function DashboardSwipeArea({
     }, []);
 
     useLayoutEffect(() => {
-        if (!resetKey) {
-            return;
-        }
-
         if (pushTimer.current) {
             clearTimeout(pushTimer.current);
             pushTimer.current = null;
         }
 
+        cachePanel(resetKey, children);
         pointerStart.current = null;
         prefetchedHref.current = null;
         didSwipe.current = false;
-
-        const direction = incomingDirection.current;
-        incomingDirection.current = null;
-        if (direction) {
-            setIsDragging(true);
-            setSwipeOffset(-direction * viewportWidth());
-            requestAnimationFrame(() => {
-                setIsDragging(false);
-                setSwipeOffset(0);
-            });
-            return;
-        }
-
+        setDragDirection(null);
         setIsDragging(false);
         setSwipeOffset(0);
-    }, [resetKey, viewportWidth]);
+        router.prefetch(previousHref);
+        if (nextHref) {
+            router.prefetch(nextHref);
+        }
+    }, [children, nextHref, previousHref, resetKey, router]);
 
     function prefetch(href?: string) {
         if (!href || prefetchedHref.current === href) {
@@ -122,6 +162,7 @@ export function DashboardSwipeArea({
 
         pointerStart.current = { x: event.clientX, y: event.clientY };
         didSwipe.current = false;
+        setDragDirection(null);
         setIsDragging(true);
         setSwipeOffset(0);
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -140,6 +181,7 @@ export function DashboardSwipeArea({
             return;
         }
 
+        setDragDirection(deltaX < 0 ? -1 : 1);
         setSwipeOffset(offsetForSwipe(deltaX));
         if (Math.abs(deltaX) >= 18) {
             prefetch(deltaX < 0 ? nextHref : previousHref);
@@ -152,6 +194,7 @@ export function DashboardSwipeArea({
         setIsDragging(false);
 
         if (!start) {
+            setDragDirection(null);
             setSwipeOffset(0);
             return;
         }
@@ -165,30 +208,33 @@ export function DashboardSwipeArea({
             Math.abs(deltaX) < threshold ||
             Math.abs(deltaX) < Math.abs(deltaY)
         ) {
+            setDragDirection(null);
             setSwipeOffset(0);
             return;
         }
 
         didSwipe.current = true;
         if (deltaX < 0 && nextHref) {
-            incomingDirection.current = -1;
+            setDragDirection(-1);
             setSwipeOffset(-width);
             pushTimer.current = setTimeout(() => {
                 router.push(nextHref, { scroll: false });
             }, transitionMs);
         } else if (deltaX > 0) {
-            incomingDirection.current = 1;
+            setDragDirection(1);
             setSwipeOffset(width);
             pushTimer.current = setTimeout(() => {
                 router.push(previousHref, { scroll: false });
             }, transitionMs);
         } else {
+            setDragDirection(null);
             setSwipeOffset(0);
         }
     }
 
     function handlePointerCancel() {
         pointerStart.current = null;
+        setDragDirection(null);
         setIsDragging(false);
         setSwipeOffset(0);
     }
@@ -205,7 +251,7 @@ export function DashboardSwipeArea({
 
     return (
         <div
-            className="overflow-hidden touch-pan-y"
+            className="relative overflow-hidden touch-pan-y"
             onClickCapture={handleClickCapture}
             onPointerCancel={handlePointerCancel}
             onPointerDown={handlePointerDown}
@@ -214,15 +260,33 @@ export function DashboardSwipeArea({
             ref={containerRef}
         >
             <div
-                className={`flex flex-col gap-5 sm:gap-6 ${
+                className={`${
                     isDragging
                         ? 'transition-none'
                         : 'transition-transform duration-200 ease-out'
                 }`}
                 style={{ transform: `translateX(${swipeOffset}px)` }}
             >
-                {children}
+                <div className="flex flex-col gap-5 sm:gap-6">{children}</div>
             </div>
+            {dragDirection && canShowTarget ? (
+                <div
+                    aria-hidden
+                    className={`pointer-events-none absolute inset-0 ${
+                        isDragging
+                            ? 'transition-none'
+                            : 'transition-transform duration-200 ease-out'
+                    }`}
+                    style={{
+                        transform:
+                            dragDirection === -1
+                                ? `translateX(calc(${swipeOffset}px + 100%))`
+                                : `translateX(calc(${swipeOffset}px - 100%))`
+                    }}
+                >
+                    {targetPanel ?? <DashboardPanelSkeleton />}
+                </div>
+            ) : null}
         </div>
     );
 }

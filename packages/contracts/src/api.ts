@@ -232,7 +232,10 @@ export const api = defineApi({
             .get('/api/dashboard')
             .authorize(PrincipalSchema)
             .query(DashboardQuerySchema)
-            .cacheTag('dashboard')
+            .cacheTag('dashboard', request => ({
+                date: request.query.date,
+                period: request.query.period
+            }))
             .responses({ 200: DashboardSummarySchema })
     },
     stats: {
