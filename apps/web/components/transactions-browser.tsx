@@ -198,13 +198,24 @@ function DeleteTransactionButton({
                 </DialogHeader>
                 <DialogFooter>
                     <DialogClose asChild>
-                        <Button type="button" variant="outline">
+                        <Button
+                            className="w-full sm:w-auto"
+                            type="button"
+                            variant="outline"
+                        >
                             Cancel
                         </Button>
                     </DialogClose>
-                    <form action={deleteTransactionAction}>
+                    <form
+                        action={deleteTransactionAction}
+                        className="w-full sm:w-auto"
+                    >
                         <input name="id" type="hidden" value={transaction.id} />
-                        <Button type="submit" variant="destructive">
+                        <Button
+                            className="w-full sm:w-auto"
+                            type="submit"
+                            variant="destructive"
+                        >
                             Delete
                         </Button>
                     </form>
