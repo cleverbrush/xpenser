@@ -201,9 +201,35 @@ Omit `effect` or set it to `normal` for regular transactions. Use
 in income categories; the entered amount stays positive and reports subtract it
 from that category.
 
-`X-API-Key: $XPENSER_API_KEY` is also accepted. In Docker Compose, the API
-service stays private on the Docker network and the Next app exposes it under
-`/external-api`. Put your host reverse proxy in front of the web app:
+`X-API-Key: $XPENSER_API_KEY` is also accepted.
+
+## MCP Server
+
+xpenser also exposes a read-only MCP Streamable HTTP endpoint for AI agents at
+`/external-api/mcp`. Use the same API key from Settings -> Preferences -> API
+keys as a bearer token:
+
+```json
+{
+  "mcpServers": {
+    "xpenser": {
+      "type": "streamable-http",
+      "url": "https://xpenser.example.com/external-api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${XPENSER_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+The MCP server exposes read-only tools for the current user, categories,
+transactions, dashboard summaries, and statistics. Transaction write operations
+are not exposed through MCP.
+
+In Docker Compose, the API service stays private on the Docker network and the
+Next app exposes it under `/external-api`. Put your host reverse proxy in front
+of the web app:
 
 ```nginx
 server {

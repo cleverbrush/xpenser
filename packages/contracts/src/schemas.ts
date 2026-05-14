@@ -72,7 +72,15 @@ export const PrincipalSchema = object({
         'Authenticated user identifier encoded in the API JWT.'
     ),
     /** Role assigned to the authenticated user. */
-    role: string().describe('Role assigned to the authenticated user.')
+    role: string().describe('Role assigned to the authenticated user.'),
+    /** Credential type used for the request. */
+    authType: string()
+        .optional()
+        .describe('Credential type used for the request.'),
+    /** API key identifier when the request used a durable API key. */
+    apiKeyId: number()
+        .optional()
+        .describe('API key identifier when the request used a durable API key.')
 }).schemaName('Principal');
 
 export const RegisterBodySchema = object({

@@ -11,6 +11,7 @@ import { endpoints } from './api/endpoints.js';
 import { handlers } from './api/handlers/index.js';
 import type { Config } from './config.js';
 import { configureDI, type DbResources } from './di/setup.js';
+import { McpEndpoint, mcpHandler } from './mcp/endpoint.js';
 import { xpenserAuthScheme } from './security/api-auth.js';
 
 function corsMiddleware(config: Config): Middleware {
@@ -22,11 +23,11 @@ function corsMiddleware(config: Config): Middleware {
         );
         ctx.response.setHeader(
             'Access-Control-Allow-Headers',
-            'Content-Type, Authorization, X-API-Key, traceparent, tracestate, baggage'
+            'Content-Type, Authorization, X-API-Key, Mcp-Protocol-Version, Mcp-Session-Id, traceparent, tracestate, baggage'
         );
         ctx.response.setHeader(
             'Access-Control-Expose-Headers',
-            'X-Trace-Id, X-Response-Time'
+            'WWW-Authenticate, Mcp-Protocol-Version, Mcp-Session-Id, X-Trace-Id, X-Response-Time'
         );
         if (ctx.method === 'OPTIONS') {
             ctx.response.writeHead(204);
@@ -93,6 +94,7 @@ export function buildServer(
         })
     );
 
+    server.handle(McpEndpoint, mcpHandler);
     server.handleAll(mapHandlers(endpoints, handlers));
 
     return server;

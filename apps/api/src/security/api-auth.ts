@@ -11,6 +11,8 @@ import type { AppDb } from '../db/schemas.js';
 type XpenserPrincipal = {
     readonly userId: number;
     readonly role: string;
+    readonly authType: 'jwt' | 'api_key';
+    readonly apiKeyId?: number;
 };
 
 function bearerToken(context: AuthenticationContext): string | undefined {
@@ -55,7 +57,8 @@ export function xpenserAuthScheme(
         secret: config.jwt.secret,
         mapClaims: claims => ({
             userId: Number(claims.sub),
-            role: claims.role as string
+            role: claims.role as string,
+            authType: 'jwt'
         })
     });
 
@@ -74,7 +77,12 @@ export function xpenserAuthScheme(
             succeeded: true,
             principal: new Principal(
                 true,
-                { userId: principal.userId, role: principal.role },
+                {
+                    userId: principal.userId,
+                    role: principal.role,
+                    authType: 'api_key',
+                    apiKeyId: principal.apiKeyId
+                },
                 apiKeyClaims(
                     principal.userId,
                     principal.role,
