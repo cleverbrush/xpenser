@@ -14,11 +14,12 @@ import {
     XAxis,
     YAxis
 } from 'recharts';
+import { AmountDisplay } from '@/components/amount-display';
 import {
     amountClassNameForCategoryTotal,
     amountClassNameForValue,
-    formatCategoryTotalMoney,
-    formatMoney
+    formatMoney,
+    signedCategoryTotal
 } from '@/lib/format';
 
 const incomeColor = '#047857';
@@ -162,21 +163,27 @@ function CategoryRow({
                         category.type
                     )}`}
                 >
-                    {formatCategoryTotalMoney(
-                        category.total,
-                        stats.currency,
-                        category.type
-                    )}
+                    <AmountDisplay
+                        currency={stats.currency}
+                        value={signedCategoryTotal(
+                            category.total,
+                            category.type
+                        )}
+                    />
                 </span>
                 <span className="ml-2 hidden text-xs text-muted-foreground md:inline">
                     P{' '}
-                    <span className={amountClassNameForValue(previousDelta)}>
-                        {formatMoney(previousDelta, stats.currency)}
-                    </span>
+                    <AmountDisplay
+                        className={amountClassNameForValue(previousDelta)}
+                        currency={stats.currency}
+                        value={previousDelta}
+                    />
                     , Y{' '}
-                    <span className={amountClassNameForValue(yearDelta)}>
-                        {formatMoney(yearDelta, stats.currency)}
-                    </span>
+                    <AmountDisplay
+                        className={amountClassNameForValue(yearDelta)}
+                        currency={stats.currency}
+                        value={yearDelta}
+                    />
                 </span>
             </span>
             <span className="flex justify-end">

@@ -192,7 +192,7 @@ export const DashboardSummaryEndpoint = api.dashboard.summary
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
     .summary('Dashboard summary')
-    .description('Returns period totals and latest transactions.')
+    .description('Returns period totals and selected-period transactions.')
     .tags('dashboard')
     .operationId('dashboardSummary');
 

@@ -1,13 +1,14 @@
 import { Card, CardDescription, CardHeader, CardTitle } from '@xpenser/ui';
+import { AmountDisplay } from '@/components/amount-display';
 import { ReportsFilters } from '@/components/reports-filters';
 import { StatsCharts } from '@/components/stats-charts';
 import { getApiClient } from '@/lib/api';
 import {
     amountClassNameForCategoryTotal,
     amountClassNameForValue,
-    formatCategoryTotalMoney,
     formatDate,
-    formatMoney
+    formatMoney,
+    signedCategoryTotal
 } from '@/lib/format';
 import {
     isReportGroupBy,
@@ -105,10 +106,11 @@ export default async function StatsPage({
     const cards = [
         {
             label: 'Income',
-            value: formatCategoryTotalMoney(
-                stats.incomeTotal,
-                stats.currency,
-                'income'
+            value: (
+                <AmountDisplay
+                    currency={stats.currency}
+                    value={signedCategoryTotal(stats.incomeTotal, 'income')}
+                />
             ),
             className: amountClassNameForCategoryTotal(
                 stats.incomeTotal,
@@ -128,10 +130,11 @@ export default async function StatsPage({
         },
         {
             label: 'Expenses',
-            value: formatCategoryTotalMoney(
-                stats.expenseTotal,
-                stats.currency,
-                'expense'
+            value: (
+                <AmountDisplay
+                    currency={stats.currency}
+                    value={signedCategoryTotal(stats.expenseTotal, 'expense')}
+                />
             ),
             className: amountClassNameForCategoryTotal(
                 stats.expenseTotal,
@@ -151,7 +154,12 @@ export default async function StatsPage({
         },
         {
             label: 'Net',
-            value: formatMoney(stats.netTotal, stats.currency),
+            value: (
+                <AmountDisplay
+                    currency={stats.currency}
+                    value={stats.netTotal}
+                />
+            ),
             className: amountClassNameForValue(stats.netTotal),
             previous: netDeltaPrevious,
             previousYear: netDeltaYear,

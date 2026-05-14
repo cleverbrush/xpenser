@@ -89,7 +89,12 @@ export const deleteTransactionHandler: Handler<
 export const dashboardSummaryHandler: Handler<
     typeof DashboardSummaryEndpoint
 > = async ({ query, principal }, { db }) => {
-    return dashboardSummary(db, principal.userId, query.period ?? 'month');
+    return dashboardSummary(
+        db,
+        principal.userId,
+        query.period ?? 'day',
+        query.date
+    );
 };
 
 export const statsOverviewHandler: Handler<

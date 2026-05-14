@@ -1,6 +1,18 @@
 type DateInput = Date | string | number;
 type TransactionType = 'expense' | 'income';
 type TransactionEffect = 'normal' | 'reversal';
+type MoneyFormatOptions = {
+    readonly compact?: boolean;
+    readonly compactThreshold?: number;
+};
+
+const defaultCompactThreshold = 10_000;
+const compactMoneyUnits = [
+    { divisor: 1_000_000_000_000, suffix: 't' },
+    { divisor: 1_000_000_000, suffix: 'b' },
+    { divisor: 1_000_000, suffix: 'm' },
+    { divisor: 1_000, suffix: 'k' }
+] as const;
 
 function toDate(value: DateInput): Date {
     return value instanceof Date ? value : new Date(value);
@@ -23,12 +35,46 @@ export function formatDateTime(value: DateInput): string {
           }).format(date);
 }
 
-export function formatMoney(value: number, currency: string): string {
+function formatCompactMoney(value: number, currency: string): string {
+    const magnitude = Math.abs(value);
+    const fallbackUnit = compactMoneyUnits[compactMoneyUnits.length - 1]!;
+    const unit =
+        compactMoneyUnits.find(item => magnitude >= item.divisor) ??
+        fallbackUnit;
+    const scaled = value / unit.divisor;
+
+    return `${new Intl.NumberFormat('en-US', {
+        currency,
+        maximumFractionDigits: 1,
+        style: 'currency'
+    }).format(scaled)}${unit.suffix}`;
+}
+
+export function formatMoney(
+    value: number,
+    currency: string,
+    options: MoneyFormatOptions = {}
+): string {
+    if (
+        options.compact &&
+        Math.abs(value) >= (options.compactThreshold ?? defaultCompactThreshold)
+    ) {
+        return formatCompactMoney(value, currency);
+    }
+
     return new Intl.NumberFormat('en-US', {
         currency,
         maximumFractionDigits: 2,
         style: 'currency'
     }).format(value);
+}
+
+export function formatAmount(
+    value: number,
+    currency: string,
+    options: MoneyFormatOptions = {}
+): string {
+    return formatMoney(value, currency, options);
 }
 
 export function signedAmountForType(

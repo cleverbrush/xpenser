@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     compareTransactionsByOccurrenceAsc,
     compareTransactionsByOccurrenceDesc,
+    resolveDashboardRange,
     resolveStatsRanges,
     TransactionCategoryError,
     TransactionNotFoundError,
@@ -121,5 +122,60 @@ describe('stats range resolution', () => {
         expect(ranges.previousPeriod.to).toEqual(
             new Date(2026, 4, 3, 12, 34, 0, 0)
         );
+    });
+});
+
+describe('dashboard range resolution', () => {
+    it('defaults a day range to the current day up to now', () => {
+        const now = new Date(2026, 4, 10, 12, 34, 0, 0);
+        const range = resolveDashboardRange('day', now, now);
+
+        expect(range.from).toEqual(new Date(2026, 4, 10, 0, 0, 0, 0));
+        expect(range.to).toEqual(now);
+    });
+
+    it('resolves a selected day to the full calendar day', () => {
+        const range = resolveDashboardRange(
+            'day',
+            new Date(2026, 4, 5, 8, 0, 0, 0),
+            new Date(2026, 4, 10, 12, 34, 0, 0)
+        );
+
+        expect(range.from).toEqual(new Date(2026, 4, 5, 0, 0, 0, 0));
+        expect(range.to).toEqual(new Date(2026, 4, 5, 23, 59, 59, 999));
+    });
+
+    it('uses Monday through Sunday for selected weeks', () => {
+        const range = resolveDashboardRange(
+            'week',
+            new Date(2026, 4, 13, 8, 0, 0, 0),
+            new Date(2026, 4, 20, 12, 34, 0, 0)
+        );
+
+        expect(range.from).toEqual(new Date(2026, 4, 11, 0, 0, 0, 0));
+        expect(range.to).toEqual(new Date(2026, 4, 17, 23, 59, 59, 999));
+    });
+
+    it('resolves full month, quarter, and year periods from an anchor date', () => {
+        const now = new Date(2026, 7, 20, 12, 34, 0, 0);
+
+        expect(
+            resolveDashboardRange('month', new Date(2026, 4, 13), now)
+        ).toEqual({
+            from: new Date(2026, 4, 1, 0, 0, 0, 0),
+            to: new Date(2026, 4, 31, 23, 59, 59, 999)
+        });
+        expect(
+            resolveDashboardRange('quarter', new Date(2026, 4, 13), now)
+        ).toEqual({
+            from: new Date(2026, 3, 1, 0, 0, 0, 0),
+            to: new Date(2026, 5, 30, 23, 59, 59, 999)
+        });
+        expect(
+            resolveDashboardRange('year', new Date(2025, 4, 13), now)
+        ).toEqual({
+            from: new Date(2025, 0, 1, 0, 0, 0, 0),
+            to: new Date(2025, 11, 31, 23, 59, 59, 999)
+        });
     });
 });

@@ -27,7 +27,7 @@ export const TransactionEffectSchema = enumOf('normal', 'reversal')
     )
     .schemaName('TransactionEffect');
 
-export const PeriodSchema = enumOf('week', 'month', 'quarter', 'year')
+export const PeriodSchema = enumOf('day', 'week', 'month', 'quarter', 'year')
     .describe('Dashboard reporting period.')
     .schemaName('Period');
 
@@ -617,7 +617,12 @@ export const TransactionListResponseSchema = object({
 
 export const DashboardQuerySchema = object({
     /** Reporting period. */
-    period: PeriodSchema.default('month').describe('Reporting period.')
+    period: PeriodSchema.default('day').describe('Reporting period.'),
+    /** Date used to choose the reporting period. */
+    date: date()
+        .coerce()
+        .optional()
+        .describe('Date used to choose the reporting period.')
 }).schemaName('DashboardQuery');
 
 export const StatsQuerySchema = object({
@@ -828,9 +833,9 @@ export const DashboardSummarySchema = object({
     byCategory: array(DashboardCategoryTotalSchema).describe(
         'Category totals for the selected period.'
     ),
-    /** Latest transactions for the dashboard table. */
+    /** Transactions for the selected dashboard period. */
     latestTransactions: array(TransactionSchema).describe(
-        'Latest transactions for the dashboard table.'
+        'Transactions for the selected dashboard period.'
     )
 }).schemaName('DashboardSummary');
 

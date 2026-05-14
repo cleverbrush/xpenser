@@ -23,7 +23,7 @@ import {
 export class TransactionNotFoundError extends Error {}
 export class TransactionCategoryError extends Error {}
 
-type DashboardPeriod = 'week' | 'month' | 'quarter' | 'year';
+type DashboardPeriod = NonNullable<DashboardSummary['period']>;
 
 type StatsBucket = StatsOverview['trend'][number];
 
@@ -302,24 +302,6 @@ export async function deleteTransaction(
     }
 }
 
-function periodRange(period: DashboardPeriod, now = new Date()) {
-    const from = new Date(now);
-    from.setHours(0, 0, 0, 0);
-
-    if (period === 'week') {
-        const day = from.getDay();
-        from.setDate(from.getDate() - (day === 0 ? 6 : day - 1));
-    } else if (period === 'month') {
-        from.setDate(1);
-    } else if (period === 'quarter') {
-        from.setMonth(Math.floor(from.getMonth() / 3) * 3, 1);
-    } else {
-        from.setMonth(0, 1);
-    }
-
-    return { from, to: now };
-}
-
 function cloneDate(value: Date): Date {
     return new Date(value.getTime());
 }
@@ -353,6 +335,32 @@ function startOfMonth(value: Date): Date {
     return date;
 }
 
+function endOfMonth(value: Date): Date {
+    return new Date(startOfMonth(addMonthsClamped(value, 1)).getTime() - 1);
+}
+
+function startOfQuarter(value: Date): Date {
+    const date = startOfMonth(value);
+    date.setMonth(Math.floor(date.getMonth() / 3) * 3, 1);
+    return date;
+}
+
+function endOfQuarter(value: Date): Date {
+    return new Date(addMonthsClamped(startOfQuarter(value), 3).getTime() - 1);
+}
+
+function startOfYear(value: Date): Date {
+    const date = startOfDay(value);
+    date.setMonth(0, 1);
+    return date;
+}
+
+function endOfYear(value: Date): Date {
+    const date = startOfYear(value);
+    date.setFullYear(date.getFullYear() + 1);
+    return new Date(date.getTime() - 1);
+}
+
 function daysInMonth(year: number, month: number): number {
     return new Date(year, month + 1, 0).getDate();
 }
@@ -361,6 +369,10 @@ function addDays(value: Date, days: number): Date {
     const date = cloneDate(value);
     date.setDate(date.getDate() + days);
     return date;
+}
+
+function endOfWeek(value: Date): Date {
+    return endOfDay(addDays(startOfWeek(value), 6));
 }
 
 function addMonthsClamped(value: Date, months: number): Date {
@@ -427,6 +439,39 @@ function normalizeRange(from: Date, to: Date): StatsRange {
     return from <= to
         ? { from, to }
         : { from: startOfDay(to), to: endOfDay(from) };
+}
+
+export function resolveDashboardRange(
+    period: DashboardPeriod,
+    date = new Date(),
+    now = new Date()
+): StatsRange {
+    const anchor = isValidDate(date) ? date : now;
+    const selected = startOfDay(anchor);
+    let from: Date;
+    let to: Date;
+
+    if (period === 'day') {
+        from = startOfDay(selected);
+        to = endOfDay(selected);
+    } else if (period === 'week') {
+        from = startOfWeek(selected);
+        to = endOfWeek(selected);
+    } else if (period === 'month') {
+        from = startOfMonth(selected);
+        to = endOfMonth(selected);
+    } else if (period === 'quarter') {
+        from = startOfQuarter(selected);
+        to = endOfQuarter(selected);
+    } else {
+        from = startOfYear(selected);
+        to = endOfYear(selected);
+    }
+
+    return {
+        from,
+        to: from <= now && now <= to ? now : to
+    };
 }
 
 export function resolveStatsRanges(
@@ -742,10 +787,11 @@ async function transactionsForRange(
 export async function dashboardSummary(
     db: AppDb,
     userId: number,
-    period: DashboardPeriod
+    period: DashboardPeriod,
+    date?: Date
 ): Promise<DashboardSummary> {
     const user = await getUser(db, userId);
-    const range = periodRange(period);
+    const range = resolveDashboardRange(period, date);
 
     const rows = (await db.transactions
         .include(transaction => transaction.category)
@@ -781,6 +827,10 @@ export async function dashboardSummary(
     const latest = (await db.transactions
         .include(transaction => transaction.category)
         .where(transaction => transaction.userId, userId)
+        .whereBetween(
+            transaction => transaction.occurredAt,
+            [range.from, range.to]
+        )
         .orderBy(transaction => transaction.occurredAt, 'desc')
         .orderBy(transaction => transaction.id, 'desc')
         .limit(5)) as TransactionDb[];

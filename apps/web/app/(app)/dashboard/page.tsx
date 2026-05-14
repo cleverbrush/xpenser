@@ -13,36 +13,52 @@ import {
 } from '@xpenser/ui';
 import { redirect } from 'next/navigation';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
+import { AmountDisplay } from '@/components/amount-display';
+import { DashboardPeriodNav } from '@/components/dashboard-period-nav';
 import { getApiClient } from '@/lib/api';
+import {
+    dateParam,
+    formatDashboardRangeLabel,
+    isDashboardPeriod,
+    parseDateParam
+} from '@/lib/dashboard-periods';
 import {
     amountClassNameForCategoryTotal,
     amountClassNameForTransaction,
     amountClassNameForValue,
-    formatCategoryTotalMoney,
     formatDateTime,
-    formatMoney,
-    formatTransactionMoney
+    formatTransactionMoney,
+    signedCategoryTotal
 } from '@/lib/format';
 
-const periods = ['week', 'month', 'quarter', 'year'] as const;
+type DashboardSearchParams = {
+    readonly date?: string;
+    readonly period?: string;
+};
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage({
     searchParams
 }: {
-    readonly searchParams: Promise<{ readonly period?: string }>;
+    readonly searchParams: Promise<DashboardSearchParams>;
 }) {
     const params = await searchParams;
-    const period = periods.includes(params.period as (typeof periods)[number])
-        ? (params.period as (typeof periods)[number])
-        : 'month';
+    const period = isDashboardPeriod(params.period) ? params.period : 'day';
+    const selectedDate = parseDateParam(params.date);
+    const anchorDate = selectedDate ?? new Date();
+    const anchorDateParam = dateParam(anchorDate);
     const client = await getApiClient();
     const [me, categories, currencies, summary] = await Promise.all([
         client.auth.me(),
         client.categories.list(),
         client.currencies.list(),
-        client.dashboard.summary({ query: { period } })
+        client.dashboard.summary({
+            query: {
+                period,
+                ...(selectedDate ? { date: selectedDate } : {})
+            }
+        })
     ]);
 
     if (!me.hasCategories) {
@@ -51,35 +67,27 @@ export default async function DashboardPage({
 
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
                     <h1 className="text-2xl font-semibold">Dashboard</h1>
                     <p className="text-sm text-muted-foreground">
-                        Totals shown in {summary.currency}.
+                        {formatDashboardRangeLabel({
+                            from: summary.from,
+                            period,
+                            to: summary.to
+                        })}{' '}
+                        in {summary.currency}.
                     </p>
                 </div>
-                <AddTransactionDialog
-                    categories={categories}
-                    currencies={currencies}
-                    defaultCurrency={me.defaultCurrency}
-                />
+                <div className="shrink-0">
+                    <AddTransactionDialog
+                        categories={categories}
+                        currencies={currencies}
+                        defaultCurrency={me.defaultCurrency}
+                    />
+                </div>
             </div>
-            <div className="grid grid-cols-4 gap-1 rounded-md border bg-muted p-1 sm:inline-grid sm:w-fit sm:gap-1">
-                {periods.map(item => (
-                    <a
-                        aria-current={item === period ? 'page' : undefined}
-                        className={`rounded-sm px-2 py-1.5 text-center text-xs font-medium capitalize hover:bg-background hover:text-foreground sm:px-3 sm:text-sm ${
-                            item === period
-                                ? 'bg-background text-foreground shadow-sm'
-                                : 'text-muted-foreground'
-                        }`}
-                        href={`/dashboard?period=${item}`}
-                        key={item}
-                    >
-                        {item}
-                    </a>
-                ))}
-            </div>
+            <DashboardPeriodNav date={anchorDateParam} period={period} />
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
                 <Card className="min-w-0">
                     <CardHeader className="min-w-0 p-3 sm:p-4">
@@ -89,11 +97,13 @@ export default async function DashboardPage({
                         <CardTitle
                             className={`truncate text-sm sm:text-lg ${amountClassNameForCategoryTotal(summary.incomeTotal, 'income')}`}
                         >
-                            {formatCategoryTotalMoney(
-                                summary.incomeTotal,
-                                summary.currency,
-                                'income'
-                            )}
+                            <AmountDisplay
+                                currency={summary.currency}
+                                value={signedCategoryTotal(
+                                    summary.incomeTotal,
+                                    'income'
+                                )}
+                            />
                         </CardTitle>
                     </CardHeader>
                 </Card>
@@ -105,11 +115,13 @@ export default async function DashboardPage({
                         <CardTitle
                             className={`truncate text-sm sm:text-lg ${amountClassNameForCategoryTotal(summary.expenseTotal, 'expense')}`}
                         >
-                            {formatCategoryTotalMoney(
-                                summary.expenseTotal,
-                                summary.currency,
-                                'expense'
-                            )}
+                            <AmountDisplay
+                                currency={summary.currency}
+                                value={signedCategoryTotal(
+                                    summary.expenseTotal,
+                                    'expense'
+                                )}
+                            />
                         </CardTitle>
                     </CardHeader>
                 </Card>
@@ -123,10 +135,12 @@ export default async function DashboardPage({
                                 summary.incomeTotal - summary.expenseTotal
                             )}`}
                         >
-                            {formatMoney(
-                                summary.incomeTotal - summary.expenseTotal,
-                                summary.currency
-                            )}
+                            <AmountDisplay
+                                currency={summary.currency}
+                                value={
+                                    summary.incomeTotal - summary.expenseTotal
+                                }
+                            />
                         </CardTitle>
                     </CardHeader>
                 </Card>
@@ -134,12 +148,12 @@ export default async function DashboardPage({
             <div>
                 <section className="sm:hidden">
                     <h2 className="mb-3 text-base font-semibold">
-                        Latest transactions
+                        Transactions
                     </h2>
                     <div className="divide-y rounded-lg border bg-card">
                         {summary.latestTransactions.length === 0 ? (
                             <div className="p-4 text-sm text-muted-foreground">
-                                No transactions yet.
+                                No transactions for this period.
                             </div>
                         ) : (
                             summary.latestTransactions.map(transaction => (
@@ -178,7 +192,7 @@ export default async function DashboardPage({
                 </section>
                 <Card className="hidden sm:block">
                     <CardHeader>
-                        <CardTitle>Latest transactions</CardTitle>
+                        <CardTitle>Transactions</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -190,32 +204,45 @@ export default async function DashboardPage({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {summary.latestTransactions.map(transaction => (
-                                    <TableRow key={transaction.id}>
-                                        <TableCell>
-                                            {transaction.categoryName}
-                                        </TableCell>
+                                {summary.latestTransactions.length === 0 ? (
+                                    <TableRow>
                                         <TableCell
-                                            className={amountClassNameForTransaction(
-                                                transaction.amount,
-                                                transaction.type,
-                                                transaction.effect
-                                            )}
+                                            className="text-muted-foreground"
+                                            colSpan={3}
                                         >
-                                            {formatTransactionMoney(
-                                                transaction.amount,
-                                                transaction.currency,
-                                                transaction.type,
-                                                transaction.effect
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {formatDateTime(
-                                                transaction.occurredAt
-                                            )}
+                                            No transactions for this period.
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                ) : (
+                                    summary.latestTransactions.map(
+                                        transaction => (
+                                            <TableRow key={transaction.id}>
+                                                <TableCell>
+                                                    {transaction.categoryName}
+                                                </TableCell>
+                                                <TableCell
+                                                    className={amountClassNameForTransaction(
+                                                        transaction.amount,
+                                                        transaction.type,
+                                                        transaction.effect
+                                                    )}
+                                                >
+                                                    {formatTransactionMoney(
+                                                        transaction.amount,
+                                                        transaction.currency,
+                                                        transaction.type,
+                                                        transaction.effect
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatDateTime(
+                                                        transaction.occurredAt
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    )
+                                )}
                             </TableBody>
                         </Table>
                     </CardContent>
