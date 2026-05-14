@@ -489,10 +489,20 @@ function dashboardTrendBucketCount(
         return 7;
     }
     if (period === 'month') {
-        return daysInMonth(range.from.getFullYear(), range.from.getMonth());
+        return Math.ceil(
+            (startOfDay(range.to).getTime() -
+                startOfDay(range.from).getTime() +
+                dayMs) /
+                (dayMs * 7)
+        );
     }
     if (period === 'quarter') {
-        return 3;
+        return Math.ceil(
+            (startOfDay(range.to).getTime() -
+                startOfDay(range.from).getTime() +
+                dayMs) /
+                (dayMs * 7)
+        );
     }
     return 12;
 }
@@ -512,10 +522,16 @@ function dashboardTrendBucketIndex(
         );
     }
     if (period === 'month') {
-        return date.getDate() - 1;
+        return Math.floor(
+            (startOfDay(date).getTime() - startOfDay(range.from).getTime()) /
+                (dayMs * 7)
+        );
     }
     if (period === 'quarter') {
-        return date.getMonth() - range.from.getMonth();
+        return Math.floor(
+            (startOfDay(date).getTime() - startOfDay(range.from).getTime()) /
+                (dayMs * 7)
+        );
     }
     return date.getMonth();
 }

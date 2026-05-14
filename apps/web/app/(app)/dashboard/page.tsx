@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
 import { DashboardPeriodNav } from '@/components/dashboard-period-nav';
+import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
 import { DatatypeChart, datatypeExpression } from '@/components/datatype-chart';
 import { getApiClient } from '@/lib/api';
 import {
@@ -52,9 +53,15 @@ function CategoryRow({
     readonly category: DashboardCategory;
     readonly summary: DashboardSummary;
 }) {
+    const showChart = summary.period !== 'day';
+
     return (
         <Link
-            className="grid grid-cols-[minmax(0,1fr)_auto_82px] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:grid-cols-[minmax(0,1fr)_auto_116px] sm:px-2"
+            className={`grid items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2 ${
+                showChart
+                    ? 'grid-cols-[minmax(0,1fr)_auto_74px] sm:grid-cols-[minmax(0,1fr)_auto_104px]'
+                    : 'grid-cols-[minmax(0,1fr)_auto]'
+            }`}
             href={categoryHref(summary, category)}
         >
             <span className="min-w-0">
@@ -79,17 +86,17 @@ function CategoryRow({
                     value={signedCategoryTotal(category.total, category.type)}
                 />
             </span>
-            <span className="flex justify-end">
-                <DatatypeChart
-                    className={`text-xl ${amountClassNameForCategoryTotal(
-                        category.total,
-                        category.type
-                    )}`}
-                    expression={datatypeExpression('l', category.trend, {
-                        maxPoints: 32
-                    })}
-                />
-            </span>
+            {showChart ? (
+                <span className="flex min-w-0 justify-end overflow-hidden">
+                    <DatatypeChart
+                        className={`text-xl ${amountClassNameForCategoryTotal(
+                            category.total,
+                            category.type
+                        )}`}
+                        expression={datatypeExpression('l', category.trend)}
+                    />
+                </span>
+            ) : null}
         </Link>
     );
 }
@@ -164,7 +171,7 @@ export default async function DashboardPage({
     );
 
     return (
-        <div className="flex flex-col gap-5 sm:gap-6">
+        <DashboardSwipeArea date={anchorDateParam} period={period}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <h1 className="text-2xl font-semibold">Dashboard</h1>
@@ -262,6 +269,6 @@ export default async function DashboardPage({
                     </div>
                 </CardContent>
             </Card>
-        </div>
+        </DashboardSwipeArea>
     );
 }

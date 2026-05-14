@@ -7,8 +7,7 @@ import {
     ChevronsRightIcon
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { type MouseEvent, type PointerEvent, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import {
     addDashboardPeriod,
     type DashboardPeriod,
@@ -19,11 +18,6 @@ import {
     parseDateParam
 } from '@/lib/dashboard-periods';
 
-type TouchPoint = {
-    readonly x: number;
-    readonly y: number;
-};
-
 export function DashboardPeriodNav({
     date,
     period
@@ -31,9 +25,6 @@ export function DashboardPeriodNav({
     readonly date: string;
     readonly period: DashboardPeriod;
 }) {
-    const router = useRouter();
-    const pointerStart = useRef<TouchPoint | null>(null);
-    const didSwipe = useRef(false);
     const anchorDate = useMemo(
         () => parseDateParam(date) ?? new Date(),
         [date]
@@ -49,57 +40,8 @@ export function DashboardPeriodNav({
         : dashboardHref(period, addDashboardPeriod(period, anchorDate, 1));
     const latestHref = dashboardHref(period, now, { cleanDefault: true });
 
-    function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
-        pointerStart.current = { x: event.clientX, y: event.clientY };
-        didSwipe.current = false;
-        event.currentTarget.setPointerCapture(event.pointerId);
-    }
-
-    function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
-        const start = pointerStart.current;
-        pointerStart.current = null;
-
-        if (!start) {
-            return;
-        }
-
-        const deltaX = event.clientX - start.x;
-        const deltaY = event.clientY - start.y;
-
-        if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY)) {
-            return;
-        }
-
-        didSwipe.current = true;
-        if (deltaX < 0 && nextHref) {
-            router.push(nextHref, { scroll: false });
-        } else if (deltaX > 0) {
-            router.push(previousHref, { scroll: false });
-        }
-    }
-
-    function handlePointerCancel() {
-        pointerStart.current = null;
-    }
-
-    function handleClickCapture(event: MouseEvent<HTMLDivElement>) {
-        if (!didSwipe.current) {
-            return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        didSwipe.current = false;
-    }
-
     return (
-        <div
-            className="flex touch-pan-y items-center gap-2"
-            onClickCapture={handleClickCapture}
-            onPointerCancel={handlePointerCancel}
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-        >
+        <div className="flex items-center gap-2">
             <Button
                 asChild
                 className="shrink-0"
@@ -158,7 +100,24 @@ export function DashboardPeriodNav({
                 </Button>
             )}
             <div className="flex h-9 w-9 shrink-0 justify-end md:w-32">
-                {latest ? null : (
+                {latest ? (
+                    <Button
+                        aria-label={latestDashboardLabel(period)}
+                        className="md:w-full md:px-3"
+                        disabled
+                        size="icon-sm"
+                        type="button"
+                        variant="secondary"
+                    >
+                        <ChevronsRightIcon
+                            aria-hidden
+                            className="size-4 md:hidden"
+                        />
+                        <span className="hidden md:inline">
+                            {latestDashboardLabel(period)}
+                        </span>
+                    </Button>
+                ) : (
                     <Button
                         asChild
                         className="md:w-full md:px-3"
