@@ -81,6 +81,7 @@ export function DashboardSwipeArea({
     const containerRef = useRef<HTMLDivElement>(null);
     const pointerStart = useRef<PointerPoint | null>(null);
     const didSwipe = useRef(false);
+    const committedSwipe = useRef(false);
     const prefetchedHref = useRef<string | null>(null);
     const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [dragDirection, setDragDirection] = useState<-1 | 1 | null>(null);
@@ -127,8 +128,17 @@ export function DashboardSwipeArea({
         prefetchedHref.current = null;
         didSwipe.current = false;
         setDragDirection(null);
-        setIsDragging(false);
-        setSwipeOffset(0);
+        if (committedSwipe.current) {
+            committedSwipe.current = false;
+            setIsDragging(true);
+            setSwipeOffset(0);
+            requestAnimationFrame(() => {
+                setIsDragging(false);
+            });
+        } else {
+            setIsDragging(false);
+            setSwipeOffset(0);
+        }
         router.prefetch(previousHref);
         if (nextHref) {
             router.prefetch(nextHref);
@@ -158,6 +168,7 @@ export function DashboardSwipeArea({
         if (pushTimer.current) {
             clearTimeout(pushTimer.current);
             pushTimer.current = null;
+            committedSwipe.current = false;
         }
 
         pointerStart.current = { x: event.clientX, y: event.clientY };
@@ -215,12 +226,14 @@ export function DashboardSwipeArea({
 
         didSwipe.current = true;
         if (deltaX < 0 && nextHref) {
+            committedSwipe.current = true;
             setDragDirection(-1);
             setSwipeOffset(-width);
             pushTimer.current = setTimeout(() => {
                 router.push(nextHref, { scroll: false });
             }, transitionMs);
         } else if (deltaX > 0) {
+            committedSwipe.current = true;
             setDragDirection(1);
             setSwipeOffset(width);
             pushTimer.current = setTimeout(() => {
