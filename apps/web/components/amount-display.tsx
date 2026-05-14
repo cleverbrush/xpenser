@@ -1,4 +1,3 @@
-import { cn } from '@xpenser/ui';
 import type { ComponentPropsWithoutRef } from 'react';
 import { formatAmount, formatMoney } from '@/lib/format';
 
@@ -26,7 +25,7 @@ export function AmountDisplay({
 
     return (
         <span
-            className={cn('tabular-nums', className)}
+            className={className ? `tabular-nums ${className}` : 'tabular-nums'}
             title={title ?? (formatted === exact ? undefined : exact)}
             {...props}
         >
