@@ -23,6 +23,8 @@ import {
 import {
     amountClassNameForCategoryTotal,
     amountClassNameForValue,
+    formatSignedPercent,
+    percentChangeClassNameForCategory,
     signedCategoryTotal
 } from '@/lib/format';
 
@@ -53,12 +55,13 @@ function CategoryRow({
     readonly category: DashboardCategory;
     readonly summary: DashboardSummary;
 }) {
-    const showChart = summary.period !== 'day';
+    const showPeriodDetails = summary.period !== 'day';
+    const percentChange = formatSignedPercent(category.percentChange);
 
     return (
         <Link
             className={`grid items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2 ${
-                showChart
+                showPeriodDetails
                     ? 'grid-cols-[minmax(0,1fr)_auto_74px] sm:grid-cols-[minmax(0,1fr)_auto_104px]'
                     : 'grid-cols-[minmax(0,1fr)_auto]'
             }`}
@@ -75,18 +78,37 @@ function CategoryRow({
                         : 'transactions'}
                 </span>
             </span>
-            <span
-                className={`font-semibold ${amountClassNameForCategoryTotal(
-                    category.total,
-                    category.type
-                )}`}
-            >
-                <AmountDisplay
-                    currency={summary.currency}
-                    value={signedCategoryTotal(category.total, category.type)}
-                />
+            <span className="min-w-0 text-right">
+                <span
+                    className={`font-semibold ${amountClassNameForCategoryTotal(
+                        category.total,
+                        category.type
+                    )}`}
+                >
+                    <AmountDisplay
+                        currency={summary.currency}
+                        value={signedCategoryTotal(
+                            category.total,
+                            category.type
+                        )}
+                    />
+                </span>
+                {showPeriodDetails ? (
+                    <span
+                        className={`block text-xs font-medium ${percentChangeClassNameForCategory(
+                            category.percentChange,
+                            category.type
+                        )}`}
+                        title={`Change from previous ${summary.period}: ${percentChange}`}
+                    >
+                        <span className="sr-only">
+                            Change from previous {summary.period}:{' '}
+                        </span>
+                        {percentChange}
+                    </span>
+                ) : null}
             </span>
-            {showChart ? (
+            {showPeriodDetails ? (
                 <span className="flex min-w-0 justify-end overflow-hidden">
                     <DatatypeChart
                         className={`text-xl ${amountClassNameForCategoryTotal(

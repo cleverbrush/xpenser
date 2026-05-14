@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
     compareTransactionsByOccurrenceAsc,
     compareTransactionsByOccurrenceDesc,
+    percentChange,
+    resolveDashboardComparisonRange,
     resolveDashboardRange,
     resolveStatsRanges,
     TransactionCategoryError,
@@ -177,5 +179,32 @@ describe('dashboard range resolution', () => {
             from: new Date(2025, 0, 1, 0, 0, 0, 0),
             to: new Date(2025, 11, 31, 23, 59, 59, 999)
         });
+    });
+
+    it('resolves previous full calendar quarters for dashboard comparisons', () => {
+        const range = resolveDashboardRange(
+            'quarter',
+            new Date(2026, 4, 13),
+            new Date(2026, 7, 20, 12, 34, 0, 0)
+        );
+
+        expect(resolveDashboardComparisonRange('quarter', range)).toEqual({
+            from: new Date(2026, 0, 1, 0, 0, 0, 0),
+            to: new Date(2026, 2, 31, 23, 59, 59, 999)
+        });
+    });
+});
+
+describe('percentage changes', () => {
+    it('calculates percentage change against the previous total', () => {
+        expect(percentChange(150, 100)).toBe(50);
+        expect(percentChange(75, 100)).toBe(-25);
+        expect(percentChange(0, 100)).toBe(-100);
+    });
+
+    it('uses a finite fallback when the previous total is zero', () => {
+        expect(percentChange(100, 0)).toBe(100);
+        expect(percentChange(-100, 0)).toBe(-100);
+        expect(percentChange(0, 0)).toBe(0);
     });
 });

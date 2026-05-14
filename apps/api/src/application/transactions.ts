@@ -439,6 +439,17 @@ function shiftRangeYears(range: StatsRange, years: number): StatsRange {
     };
 }
 
+export function percentChange(current: number, previous: number): number {
+    if (previous === 0) {
+        if (current === 0) {
+            return 0;
+        }
+        return current > 0 ? 100 : -100;
+    }
+
+    return ((current - previous) / Math.abs(previous)) * 100;
+}
+
 function normalizeRange(from: Date, to: Date): StatsRange {
     return from <= to
         ? { from, to }
@@ -476,6 +487,34 @@ export function resolveDashboardRange(
         from,
         to: from <= now && now <= to ? now : to
     };
+}
+
+export function resolveDashboardComparisonRange(
+    period: DashboardPeriod,
+    range: StatsRange
+): StatsRange {
+    if (period === 'day') {
+        return shiftRangeDays(range, -1);
+    }
+    if (period === 'week') {
+        return shiftRangeDays(range, -7);
+    }
+    if (period === 'month') {
+        return shiftRangeMonths(range, -1);
+    }
+    if (period === 'quarter') {
+        if (range.to.getTime() === endOfQuarter(range.from).getTime()) {
+            const previousQuarter = addMonthsClamped(range.from, -3);
+            return {
+                from: startOfQuarter(previousQuarter),
+                to: endOfQuarter(previousQuarter)
+            };
+        }
+
+        return shiftRangeMonths(range, -3);
+    }
+
+    return shiftRangeYears(range, -1);
 }
 
 function dashboardTrendBucketCount(
@@ -854,17 +893,24 @@ export async function dashboardSummary(
 ): Promise<DashboardSummary> {
     const user = await getUser(db, userId);
     const range = resolveDashboardRange(period, date);
-
-    const rows = (await db.transactions
-        .include(transaction => transaction.category)
-        .where(transaction => transaction.userId, userId)
-        .whereBetween(
-            transaction => transaction.occurredAt,
-            [range.from, range.to]
-        )) as TransactionDb[];
+    const comparisonRange = resolveDashboardComparisonRange(period, range);
+    const [rows, previousRows] = await Promise.all([
+        transactionsForRange(db, userId, range),
+        transactionsForRange(db, userId, comparisonRange)
+    ]);
 
     const bucketCount = dashboardTrendBucketCount(period, range);
     const totalsByCategory = new Map<string, DashboardCategory>();
+    const previousTotalsByCategory = new Map<string, number>();
+
+    for (const row of previousRows) {
+        const key = `${row.type}:${row.categoryId}`;
+        previousTotalsByCategory.set(
+            key,
+            (previousTotalsByCategory.get(key) ?? 0) +
+                transactionSignedDefaultAmount(row)
+        );
+    }
 
     for (const row of rows) {
         const key = `${row.type}:${row.categoryId}`;
@@ -874,6 +920,8 @@ export async function dashboardSummary(
             type: row.type,
             total: 0,
             transactionCount: 0,
+            previousPeriodTotal: 0,
+            percentChange: 0,
             trend: Array.from({ length: bucketCount }, () => 0)
         };
         const total = transactionSignedDefaultAmount(row);
@@ -890,6 +938,12 @@ export async function dashboardSummary(
                 (current.trend[bucketIndex] ?? 0) + total;
         }
         totalsByCategory.set(key, current);
+    }
+
+    for (const [key, category] of totalsByCategory) {
+        const previousTotal = previousTotalsByCategory.get(key) ?? 0;
+        category.previousPeriodTotal = previousTotal;
+        category.percentChange = percentChange(category.total, previousTotal);
     }
 
     const byCategory = Array.from(totalsByCategory.values()).sort(

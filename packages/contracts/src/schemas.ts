@@ -655,6 +655,14 @@ export const DashboardCategoryTotalSchema = object({
     transactionCount: number().describe(
         'Number of selected-period transactions in the category.'
     ),
+    /** Matching category total in the previous comparison period. */
+    previousPeriodTotal: decimalNumber().describe(
+        'Matching category total in the previous comparison period.'
+    ),
+    /** Percent change from the previous comparison period. */
+    percentChange: decimalNumber().describe(
+        'Percent change from the previous comparison period.'
+    ),
     /** Selected-period bucket totals for lightweight category charts. */
     trend: array(decimalNumber()).describe(
         'Selected-period bucket totals for lightweight category charts.'

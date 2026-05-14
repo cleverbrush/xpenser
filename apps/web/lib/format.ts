@@ -179,3 +179,15 @@ export function formatPercent(value: number): string {
         style: 'percent'
     }).format(value / 100);
 }
+
+export function formatSignedPercent(value: number): string {
+    const formatted = formatPercent(value);
+    return value > 0 ? `+${formatted}` : formatted;
+}
+
+export function percentChangeClassNameForCategory(
+    value: number,
+    type: TransactionType
+): string {
+    return amountClassNameForValue(type === 'expense' ? -value : value);
+}
