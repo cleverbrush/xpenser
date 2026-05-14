@@ -5,7 +5,8 @@ import {
     type MouseEvent,
     type PointerEvent,
     type ReactNode,
-    useEffect,
+    useCallback,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState
@@ -23,6 +24,8 @@ type PointerPoint = {
     readonly y: number;
 };
 
+const transitionMs = 180;
+
 export function DashboardSwipeArea({
     children,
     date,
@@ -33,9 +36,12 @@ export function DashboardSwipeArea({
     readonly period: DashboardPeriod;
 }) {
     const router = useRouter();
+    const containerRef = useRef<HTMLDivElement>(null);
     const pointerStart = useRef<PointerPoint | null>(null);
     const didSwipe = useRef(false);
     const prefetchedHref = useRef<string | null>(null);
+    const incomingDirection = useRef<-1 | 1 | null>(null);
+    const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [swipeOffset, setSwipeOffset] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const resetKey = `${period}:${date}`;
@@ -52,16 +58,42 @@ export function DashboardSwipeArea({
         ? undefined
         : dashboardHref(period, addDashboardPeriod(period, anchorDate, 1));
 
-    useEffect(() => {
+    const viewportWidth = useCallback((): number => {
+        return (
+            containerRef.current?.getBoundingClientRect().width ??
+            window.innerWidth
+        );
+    }, []);
+
+    useLayoutEffect(() => {
         if (!resetKey) {
             return;
         }
 
+        if (pushTimer.current) {
+            clearTimeout(pushTimer.current);
+            pushTimer.current = null;
+        }
+
         pointerStart.current = null;
         prefetchedHref.current = null;
+        didSwipe.current = false;
+
+        const direction = incomingDirection.current;
+        incomingDirection.current = null;
+        if (direction) {
+            setIsDragging(true);
+            setSwipeOffset(-direction * viewportWidth());
+            requestAnimationFrame(() => {
+                setIsDragging(false);
+                setSwipeOffset(0);
+            });
+            return;
+        }
+
         setIsDragging(false);
         setSwipeOffset(0);
-    }, [resetKey]);
+    }, [resetKey, viewportWidth]);
 
     function prefetch(href?: string) {
         if (!href || prefetchedHref.current === href) {
@@ -74,11 +106,20 @@ export function DashboardSwipeArea({
 
     function offsetForSwipe(deltaX: number): number {
         const canNavigate = deltaX > 0 || Boolean(nextHref);
-        const maxOffset = canNavigate ? 36 : 14;
-        return Math.max(-maxOffset, Math.min(maxOffset, deltaX / 4));
+        if (!canNavigate) {
+            return Math.max(-48, Math.min(48, deltaX / 3));
+        }
+
+        const width = viewportWidth();
+        return Math.max(-width, Math.min(width, deltaX));
     }
 
     function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
+        if (pushTimer.current) {
+            clearTimeout(pushTimer.current);
+            pushTimer.current = null;
+        }
+
         pointerStart.current = { x: event.clientX, y: event.clientY };
         didSwipe.current = false;
         setIsDragging(true);
@@ -117,19 +158,30 @@ export function DashboardSwipeArea({
 
         const deltaX = event.clientX - start.x;
         const deltaY = event.clientY - start.y;
+        const width = viewportWidth();
+        const threshold = Math.min(120, width * 0.25);
 
-        if (Math.abs(deltaX) < 48 || Math.abs(deltaX) < Math.abs(deltaY)) {
+        if (
+            Math.abs(deltaX) < threshold ||
+            Math.abs(deltaX) < Math.abs(deltaY)
+        ) {
             setSwipeOffset(0);
             return;
         }
 
         didSwipe.current = true;
         if (deltaX < 0 && nextHref) {
-            setSwipeOffset(-36);
-            router.push(nextHref, { scroll: false });
+            incomingDirection.current = -1;
+            setSwipeOffset(-width);
+            pushTimer.current = setTimeout(() => {
+                router.push(nextHref, { scroll: false });
+            }, transitionMs);
         } else if (deltaX > 0) {
-            setSwipeOffset(36);
-            router.push(previousHref, { scroll: false });
+            incomingDirection.current = 1;
+            setSwipeOffset(width);
+            pushTimer.current = setTimeout(() => {
+                router.push(previousHref, { scroll: false });
+            }, transitionMs);
         } else {
             setSwipeOffset(0);
         }
@@ -159,12 +211,13 @@ export function DashboardSwipeArea({
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
+            ref={containerRef}
         >
             <div
                 className={`flex flex-col gap-5 sm:gap-6 ${
                     isDragging
                         ? 'transition-none'
-                        : 'transition-transform duration-150 ease-out'
+                        : 'transition-transform duration-200 ease-out'
                 }`}
                 style={{ transform: `translateX(${swipeOffset}px)` }}
             >
