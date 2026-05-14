@@ -44,25 +44,70 @@ function cachePanel(key: string, panel: ReactNode) {
 
 function DashboardPanelSkeleton() {
     return (
-        <div aria-hidden className="flex flex-col gap-5 sm:gap-6">
-            <div className="flex items-start justify-between gap-3">
-                <div className="space-y-2">
-                    <div className="h-7 w-36 rounded-md bg-muted" />
-                    <div className="h-4 w-28 rounded-md bg-muted" />
+        <div
+            aria-hidden
+            className="rounded-lg border bg-card text-card-foreground shadow-sm"
+        >
+            <div className="flex flex-col space-y-1.5 p-6">
+                <div className="h-6 w-24 rounded-md bg-muted" />
+            </div>
+            <div className="p-6 pt-0">
+                <div className="flex flex-col gap-4">
+                    <div>
+                        <div className="mb-2 h-3 w-14 rounded-md bg-muted" />
+                        <div className="flex flex-col divide-y">
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto_74px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_104px]">
+                                <div className="space-y-2">
+                                    <div className="h-4 w-28 rounded-md bg-muted" />
+                                    <div className="h-3 w-20 rounded-md bg-muted" />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="ml-auto h-4 w-16 rounded-md bg-muted" />
+                                    <div className="ml-auto h-3 w-10 rounded-md bg-muted" />
+                                </div>
+                                <div className="h-5 w-full rounded-md bg-muted" />
+                            </div>
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto_74px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_104px]">
+                                <div className="space-y-2">
+                                    <div className="h-4 w-24 rounded-md bg-muted" />
+                                    <div className="h-3 w-16 rounded-md bg-muted" />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="ml-auto h-4 w-14 rounded-md bg-muted" />
+                                    <div className="ml-auto h-3 w-9 rounded-md bg-muted" />
+                                </div>
+                                <div className="h-5 w-full rounded-md bg-muted" />
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div className="mb-2 h-3 w-16 rounded-md bg-muted" />
+                        <div className="flex flex-col divide-y">
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto_74px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_104px]">
+                                <div className="space-y-2">
+                                    <div className="h-4 w-32 rounded-md bg-muted" />
+                                    <div className="h-3 w-20 rounded-md bg-muted" />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="ml-auto h-4 w-16 rounded-md bg-muted" />
+                                    <div className="ml-auto h-3 w-10 rounded-md bg-muted" />
+                                </div>
+                                <div className="h-5 w-full rounded-md bg-muted" />
+                            </div>
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto_74px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_104px]">
+                                <div className="space-y-2">
+                                    <div className="h-4 w-20 rounded-md bg-muted" />
+                                    <div className="h-3 w-16 rounded-md bg-muted" />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="ml-auto h-4 w-14 rounded-md bg-muted" />
+                                    <div className="ml-auto h-3 w-9 rounded-md bg-muted" />
+                                </div>
+                                <div className="h-5 w-full rounded-md bg-muted" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div className="h-9 w-16 rounded-md bg-muted" />
-            </div>
-            <div className="h-10 rounded-md bg-muted" />
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                <div className="h-20 rounded-md border bg-card" />
-                <div className="h-20 rounded-md border bg-card" />
-                <div className="h-20 rounded-md border bg-card" />
-            </div>
-            <div className="space-y-3 rounded-md border bg-card p-4">
-                <div className="h-5 w-24 rounded-md bg-muted" />
-                <div className="h-12 rounded-md bg-muted" />
-                <div className="h-12 rounded-md bg-muted" />
-                <div className="h-12 rounded-md bg-muted" />
             </div>
         </div>
     );
