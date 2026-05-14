@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
 import {
     convertAmount,
+    convertCurrencyForUser,
     getExchangeRate,
     listCurrencies,
     transactionDate
@@ -55,6 +56,39 @@ describe('exchange rates', () => {
         expect(exchange).toEqual({
             rate: 1.2345,
             rateDate: '2026-05-11'
+        });
+    });
+
+    it('converts amounts to the user default currency', async () => {
+        const db = {
+            users: {
+                find: vi.fn().mockResolvedValue({
+                    id: 1,
+                    defaultCurrency: 'USD'
+                })
+            },
+            exchangeRates: {
+                where: vi.fn().mockReturnThis(),
+                first: vi.fn().mockResolvedValue({
+                    rate: 1.5,
+                    rateDate: '2026-05-11'
+                })
+            }
+        };
+
+        await expect(
+            convertCurrencyForUser(db as never, config, 1, {
+                amount: 12,
+                currency: 'EUR',
+                occurredAt: new Date('2026-05-11T12:00:00.000Z')
+            })
+        ).resolves.toEqual({
+            amount: 12,
+            currency: 'EUR',
+            defaultCurrencyAmount: 18,
+            defaultCurrency: 'USD',
+            exchangeRate: 1.5,
+            exchangeRateDate: '2026-05-11'
         });
     });
 });

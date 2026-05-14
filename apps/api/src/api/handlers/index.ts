@@ -17,7 +17,7 @@ import {
     listCategoriesHandler,
     updateCategoryHandler
 } from './categories.js';
-import { listCurrenciesHandler } from './currencies.js';
+import { convertCurrencyHandler, listCurrenciesHandler } from './currencies.js';
 import {
     createTelegramLinkTokenHandler,
     disconnectTelegramHandler,
@@ -56,7 +56,8 @@ export const handlers = {
         token: telegramTokenHandler
     },
     currencies: {
-        list: listCurrenciesHandler
+        list: listCurrenciesHandler,
+        convert: convertCurrencyHandler
     },
     categories: {
         list: listCategoriesHandler,

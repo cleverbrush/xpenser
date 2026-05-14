@@ -122,6 +122,16 @@ export const ListCurrenciesEndpoint = api.currencies.list
     .tags('currencies')
     .operationId('listCurrencies');
 
+export const ConvertCurrencyEndpoint = api.currencies.convert
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Convert currency')
+    .description(
+        'Converts an entered amount to the authenticated user default currency.'
+    )
+    .tags('currencies')
+    .operationId('convertCurrency');
+
 export const ListCategoriesEndpoint = api.categories.list
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -226,7 +236,8 @@ export const endpoints = {
         token: TelegramTokenEndpoint
     },
     currencies: {
-        list: ListCurrenciesEndpoint
+        list: ListCurrenciesEndpoint,
+        convert: ConvertCurrencyEndpoint
     },
     categories: {
         list: ListCategoriesEndpoint,

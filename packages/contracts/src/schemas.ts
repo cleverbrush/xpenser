@@ -399,6 +399,50 @@ export const CurrencySchema = object({
     name: string().describe('Human-readable currency name.')
 }).schemaName('Currency');
 
+export const CurrencyConversionQuerySchema = object({
+    /** Amount entered by the user in the original currency. */
+    amount: decimalNumber()
+        .required('amount is required')
+        .positive('amount must be greater than zero')
+        .describe('Amount entered by the user in the original currency.'),
+    /** Currency used for the entered amount. */
+    currency: CurrencyCodeSchema.describe(
+        'Currency used for the entered amount.'
+    ),
+    /** Date used to choose a historical exchange rate. */
+    occurredAt: date()
+        .coerce()
+        .optional()
+        .describe('Date used to choose a historical exchange rate.')
+}).schemaName('CurrencyConversionQuery');
+
+export const CurrencyConversionSchema = object({
+    /** Amount entered by the user in the original currency. */
+    amount: decimalNumber().describe(
+        'Amount entered by the user in the original currency.'
+    ),
+    /** Currency used for the entered amount. */
+    currency: CurrencyCodeSchema.describe(
+        'Currency used for the entered amount.'
+    ),
+    /** Amount converted to the user default currency. */
+    defaultCurrencyAmount: decimalNumber().describe(
+        'Amount converted to the user default currency.'
+    ),
+    /** User default currency used for conversion. */
+    defaultCurrency: CurrencyCodeSchema.describe(
+        'User default currency used for conversion.'
+    ),
+    /** Exchange rate used for the conversion. */
+    exchangeRate: decimalNumber().describe(
+        'Exchange rate used for the conversion.'
+    ),
+    /** Date associated with the exchange rate. */
+    exchangeRateDate: string().describe(
+        'Date associated with the exchange rate.'
+    )
+}).schemaName('CurrencyConversion');
+
 export const CategorySchema = object({
     /** Unique category identifier. */
     id: number().describe('Unique category identifier.'),
@@ -886,6 +930,10 @@ export type LinkTelegramAccountResponse = InferType<
     typeof LinkTelegramAccountResponseSchema
 >;
 export type Currency = InferType<typeof CurrencySchema>;
+export type CurrencyConversionQuery = InferType<
+    typeof CurrencyConversionQuerySchema
+>;
+export type CurrencyConversion = InferType<typeof CurrencyConversionSchema>;
 export type Category = InferType<typeof CategorySchema>;
 export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;
 export type TransactionEffect = InferType<typeof TransactionEffectSchema>;

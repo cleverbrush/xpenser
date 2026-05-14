@@ -8,6 +8,8 @@ import {
     CreateCategoryBodySchema,
     CreateTelegramLinkTokenResponseSchema,
     CreateTransactionBodySchema,
+    CurrencyConversionQuerySchema,
+    CurrencyConversionSchema,
     CurrencySchema,
     DashboardQuerySchema,
     DashboardSummarySchema,
@@ -164,7 +166,21 @@ export const api = defineApi({
         list: endpoint
             .get('/api/currencies')
             .cacheTag('currencies')
-            .responses({ 200: array(CurrencySchema) })
+            .responses({ 200: array(CurrencySchema) }),
+        convert: endpoint
+            .get('/api/currencies/convert')
+            .authorize(PrincipalSchema)
+            .query(CurrencyConversionQuerySchema)
+            .cacheTag('currency-conversion', request => ({
+                amount: request.query.amount,
+                currency: request.query.currency,
+                occurredAt: request.query.occurredAt
+            }))
+            .responses({
+                200: CurrencyConversionSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            })
     },
     categories: {
         list: categories

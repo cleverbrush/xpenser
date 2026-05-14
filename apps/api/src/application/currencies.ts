@@ -1,7 +1,11 @@
 import type { Logger } from '@cleverbrush/log';
-import type { Currency } from '@xpenser/contracts';
+import type {
+    Currency,
+    CurrencyConversion,
+    CurrencyConversionQuery
+} from '@xpenser/contracts';
 import type { Config } from '../config.js';
-import type { AppDb } from '../db/schemas.js';
+import type { AppDb, UserDb } from '../db/schemas.js';
 import { frankfurterCurrencyCatalog } from './frankfurter-currency-catalog.js';
 
 type FrankfurterCurrencyResponse =
@@ -183,4 +187,34 @@ export async function getExchangeRate(
         });
 
     return { rate: payload.rate, rateDate };
+}
+
+export async function convertCurrencyForUser(
+    db: AppDb,
+    config: Config,
+    userId: number,
+    query: CurrencyConversionQuery
+): Promise<CurrencyConversion> {
+    const user = (await db.users.find(userId)) as UserDb | undefined;
+    if (!user) {
+        throw new Error('User was not found.');
+    }
+
+    const rateDate = transactionDate(query.occurredAt ?? new Date());
+    const exchange = await getExchangeRate(
+        db,
+        config,
+        query.currency,
+        user.defaultCurrency,
+        rateDate
+    );
+
+    return {
+        amount: query.amount,
+        currency: query.currency,
+        defaultCurrencyAmount: convertAmount(query.amount, exchange.rate),
+        defaultCurrency: user.defaultCurrency,
+        exchangeRate: exchange.rate,
+        exchangeRateDate: exchange.rateDate
+    };
 }

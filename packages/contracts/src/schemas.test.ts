@@ -3,6 +3,7 @@ import {
     CreateApiKeyBodySchema,
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
+    CurrencyConversionQuerySchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
     PassportExchangeBodySchema,
@@ -179,6 +180,21 @@ describe('shared schemas', () => {
                 groupBy: 'quarter',
                 timeframe: 'this-month'
             } as never).valid
+        ).toBe(false);
+    });
+
+    it('validates currency conversion previews', () => {
+        const result = CurrencyConversionQuerySchema.validate({
+            amount: 12.5,
+            currency: 'EUR'
+        });
+
+        expect(result.valid).toBe(true);
+        expect(
+            CurrencyConversionQuerySchema.validate({
+                amount: 0,
+                currency: 'EUR'
+            }).valid
         ).toBe(false);
     });
 

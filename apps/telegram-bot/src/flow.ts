@@ -1,9 +1,17 @@
-import type { Currency, UserPreference } from '@xpenser/contracts';
+import type {
+    Category,
+    Currency,
+    Transaction,
+    UserPreference
+} from '@xpenser/contracts';
 
 export const cancelCallback = 'cancel';
 export const noteSkipCallback = 'note:skip';
 export const noteAddCallback = 'note:add';
+export const reversalNoCallback = 'reversal:no';
+export const reversalYesCallback = 'reversal:yes';
 export const addCommand = '/add';
+export const addButtonText = 'Add';
 
 type InlineKeyboardButton = {
     readonly text: string;
@@ -16,11 +24,15 @@ type InlineKeyboardMarkup = {
 
 export function quickAddReplyKeyboard() {
     return {
-        keyboard: [[{ text: addCommand }]],
+        keyboard: [[{ text: addButtonText }]],
         is_persistent: true,
         resize_keyboard: true,
-        input_field_placeholder: 'Tap /add to record a transaction'
+        input_field_placeholder: 'Tap Add to record a transaction'
     };
+}
+
+export function isAddButtonText(text: string | undefined): boolean {
+    return (text ?? '').trim().toLowerCase() === addButtonText.toLowerCase();
 }
 
 export function parseStartToken(text: string | undefined): string | undefined {
@@ -61,4 +73,65 @@ export function currencyKeyboard(
     rows.push([{ text: 'Cancel', callback_data: cancelCallback }]);
 
     return { inline_keyboard: rows };
+}
+
+export function reversalKeyboard(): InlineKeyboardMarkup {
+    return {
+        inline_keyboard: [
+            [
+                { text: 'No', callback_data: reversalNoCallback },
+                { text: 'Yes, reversal', callback_data: reversalYesCallback }
+            ],
+            [{ text: 'Cancel', callback_data: cancelCallback }]
+        ]
+    };
+}
+
+export function categoriesByRecentUse(
+    categories: readonly Category[],
+    transactions: readonly Transaction[]
+): Category[] {
+    const originalIndex = new Map(
+        categories.map((category, index) => [category.id, index] as const)
+    );
+    const usage = new Map<number, { count: number; firstSeen: number }>();
+
+    transactions.forEach((transaction, index) => {
+        const current = usage.get(transaction.categoryId) ?? {
+            count: 0,
+            firstSeen: index
+        };
+        usage.set(transaction.categoryId, {
+            count: current.count + 1,
+            firstSeen: Math.min(current.firstSeen, index)
+        });
+    });
+
+    return [...categories].sort((left, right) => {
+        const leftUsage = usage.get(left.id);
+        const rightUsage = usage.get(right.id);
+        const usageDelta = (rightUsage?.count ?? 0) - (leftUsage?.count ?? 0);
+
+        if (usageDelta !== 0) {
+            return usageDelta;
+        }
+        if (
+            leftUsage &&
+            rightUsage &&
+            leftUsage.firstSeen !== rightUsage.firstSeen
+        ) {
+            return leftUsage.firstSeen - rightUsage.firstSeen;
+        }
+        if (leftUsage && !rightUsage) {
+            return -1;
+        }
+        if (!leftUsage && rightUsage) {
+            return 1;
+        }
+
+        return (
+            (originalIndex.get(left.id) ?? 0) -
+            (originalIndex.get(right.id) ?? 0)
+        );
+    });
 }
