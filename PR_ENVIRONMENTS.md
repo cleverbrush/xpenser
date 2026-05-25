@@ -405,6 +405,11 @@ Notes:
 Create optional secret `PR_ENV_NGINX_SSH_PORT` if the nginx SSH daemon does not
 use port `22`.
 
+Create optional secret `PR_ENV_GITHUB_TOKEN` if the default `GITHUB_TOKEN`
+cannot delete GitHub repository environments in your repo. Use a token with
+permission to delete repository environments; the workflow falls back to
+`github.token` when this secret is not set.
+
 Create these optional repository variables if you need non-default values:
 
 ```text
@@ -446,11 +451,11 @@ PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT=
 - On PR close, the workflow runs the proxy script with `cleanup`; the private
   environment host removes Docker, Passport, checkout, and state resources, then
   runs `docker system prune -f` to clear unused Docker artifacts.
-- After remote cleanup succeeds, the workflow marks all GitHub deployments for
-  the PR environment as `inactive`, so GitHub shows the preview as destroyed
-  instead of active. The cleanup job intentionally does not declare the GitHub
-  environment itself, because that would create a fresh active deployment while
-  tearing the preview down.
+- After remote cleanup, the workflow marks all GitHub deployments for the PR
+  environment as `inactive` and deletes the GitHub repository environment. The
+  cleanup job intentionally does not declare the GitHub environment itself,
+  because that would create a fresh active deployment while tearing the preview
+  down.
 - The same workflow can also be run manually with `workflow_dispatch` and a
   `pr_number` input to retry cleanup for an already-closed PR.
 

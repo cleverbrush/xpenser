@@ -372,10 +372,27 @@ initialize_database() {
 }
 
 passport_headers() {
-    curl -fsS \
+    curl -fsSL \
         -H "Authorization: ServiceKey ${PASSPORT_SERVICE_KEY}" \
         -H 'Content-Type: application/json' \
         "$@"
+}
+
+urlencode() {
+    jq -nr --arg value "$1" '$value | @uri'
+}
+
+passport_environment_url() {
+    local environment_name="$1"
+    local encoded_project
+    local encoded_environment
+
+    encoded_project="$(urlencode "$PASSPORT_PROJECT")"
+    encoded_environment="$(urlencode "$environment_name")"
+    printf '%s/api/projects/%s/environments/%s' \
+        "${PASSPORT_BASE_URL%/}" \
+        "$encoded_project" \
+        "$encoded_environment"
 }
 
 upsert_passport_environment() {
@@ -397,21 +414,62 @@ upsert_passport_environment() {
     passport_headers \
         -X PUT \
         -d "$body" \
-        "${PASSPORT_BASE_URL%/}/api/projects/${PASSPORT_PROJECT}/environments/${PASSPORT_ENVIRONMENT}" \
+        "$(passport_environment_url "$PASSPORT_ENVIRONMENT")" \
         >/dev/null
 }
 
-delete_passport_environment() {
+list_matching_passport_environment_names() {
     local response_file
     local status
     local url
 
     response_file="$(mktemp)"
-    url="${PASSPORT_BASE_URL%/}/api/projects/${PASSPORT_PROJECT}/environments/${PASSPORT_ENVIRONMENT}"
+    url="${PASSPORT_BASE_URL%/}/api/projects/$(urlencode "$PASSPORT_PROJECT")/environments"
 
-    log "Deleting Passport environment ${PASSPORT_ENVIRONMENT}"
     status="$(
-        curl -sS \
+        curl -sSL \
+            -o "$response_file" \
+            -w '%{http_code}' \
+            -H "Authorization: ServiceKey ${PASSPORT_SERVICE_KEY}" \
+            -H 'Content-Type: application/json' \
+            "$url" || true
+    )"
+
+    if [[ "$status" != "200" ]]; then
+        log "Passport environment list failed with HTTP ${status}: $(tr '\n' ' ' <"$response_file")"
+        rm -f "$response_file"
+        return 1
+    fi
+
+    jq -r \
+        --arg env "$PASSPORT_ENVIRONMENT" \
+        --arg host_env "$HOST_ENV_NAME" \
+        --arg frontend_origin "https://${DOMAIN}" \
+        --arg backend_auth_url "https://${DOMAIN}/external-api/auth/passport" \
+        '(. // [])[]? |
+            select(
+                .name == $env or
+                .name == $host_env or
+                (.frontendOrigin // .frontend_origin // "") == $frontend_origin or
+                (.backendAuthUrl // .backend_auth_url // "") == $backend_auth_url
+            ) |
+            .name' \
+        "$response_file"
+    rm -f "$response_file"
+}
+
+delete_passport_environment_name() {
+    local environment_name="$1"
+    local response_file
+    local status
+    local url
+
+    response_file="$(mktemp)"
+    url="$(passport_environment_url "$environment_name")"
+
+    log "Deleting Passport environment ${environment_name}"
+    status="$(
+        curl -sSL \
             -o "$response_file" \
             -w '%{http_code}' \
             -H "Authorization: ServiceKey ${PASSPORT_SERVICE_KEY}" \
@@ -426,7 +484,7 @@ delete_passport_environment() {
             return 0
             ;;
         404)
-            log "Passport environment ${PASSPORT_ENVIRONMENT} is already absent"
+            log "Passport environment ${environment_name} is already absent"
             rm -f "$response_file"
             return 0
             ;;
@@ -436,6 +494,36 @@ delete_passport_environment() {
             return 1
             ;;
     esac
+}
+
+delete_passport_environment() {
+    local candidate_file
+    local environment_name
+    local failed=0
+    local list_failed=0
+    local seen_names=" "
+
+    candidate_file="$(mktemp)"
+    {
+        printf '%s\n' "$PASSPORT_ENVIRONMENT"
+        printf '%s\n' "$HOST_ENV_NAME"
+        list_matching_passport_environment_names || list_failed=1
+    } >"$candidate_file"
+
+    while IFS= read -r environment_name; do
+        [[ -n "$environment_name" ]] || continue
+        if [[ "$seen_names" == *" ${environment_name} "* ]]; then
+            continue
+        fi
+        seen_names="${seen_names}${environment_name} "
+        delete_passport_environment_name "$environment_name" || failed=1
+    done <"$candidate_file"
+
+    rm -f "$candidate_file"
+
+    if (( list_failed != 0 || failed != 0 )); then
+        return 1
+    fi
 }
 
 cloudflare_enabled() {

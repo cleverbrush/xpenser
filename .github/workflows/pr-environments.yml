@@ -242,10 +242,11 @@ jobs:
             "$PR_ENV_NGINX_SSH_USER@$PR_ENV_NGINX_SSH_HOST" \
             "PR_ENV_SECRET_STREAM=1 ${remote_script} cleanup '${PR_NUMBER}'"
 
-      - name: Mark GitHub environment inactive
+      - name: Cleanup GitHub environment
+        if: always()
         env:
-          ENVIRONMENT_NAME: pr-${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.number }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.PR_ENV_GITHUB_TOKEN || github.token }}
+          PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -255,46 +256,78 @@ jobs:
             -H "Accept: application/vnd.github+json"
             -H "X-GitHub-Api-Version: 2022-11-28"
           )
-          page=1
-          marked=0
+          environment_names=("pr-${PR_NUMBER}")
+          padded_environment="$(printf 'pr-%03d' "$PR_NUMBER")"
+          if [[ "$padded_environment" != "${environment_names[0]}" ]]; then
+            environment_names+=("$padded_environment")
+          fi
 
-          while true; do
-            deployments="$(
-              curl -fsSL -G "${headers[@]}" \
-                --data-urlencode "environment=${ENVIRONMENT_NAME}" \
-                --data-urlencode "per_page=100" \
-                --data-urlencode "page=${page}" \
-                "${api}/deployments"
-            )"
-            page_count="$(jq 'length' <<<"$deployments")"
-            (( page_count == 0 )) && break
+          for environment_name in "${environment_names[@]}"; do
+            page=1
+            marked=0
 
-            mapfile -t deployment_ids < <(
-              jq -r --arg environment "$ENVIRONMENT_NAME" \
-                '.[] | select(.environment == $environment) | .id' \
-                <<<"$deployments"
-            )
-
-            for deployment_id in "${deployment_ids[@]}"; do
-              body="$(
-                jq -n \
-                  --arg environment "$ENVIRONMENT_NAME" \
-                  --arg description "Destroyed ${ENVIRONMENT_NAME}" \
-                  '{
-                    state: "inactive",
-                    environment: $environment,
-                    description: $description,
-                    auto_inactive: false
-                  }'
+            while true; do
+              deployments="$(
+                curl -fsSL -G "${headers[@]}" \
+                  --data-urlencode "environment=${environment_name}" \
+                  --data-urlencode "per_page=100" \
+                  --data-urlencode "page=${page}" \
+                  "${api}/deployments"
               )"
-              curl -fsSL -X POST "${headers[@]}" \
-                -d "$body" \
-                "${api}/deployments/${deployment_id}/statuses" >/dev/null
-              marked="$((marked + 1))"
+              page_count="$(jq 'length' <<<"$deployments")"
+              (( page_count == 0 )) && break
+
+              mapfile -t deployment_ids < <(
+                jq -r --arg environment "$environment_name" \
+                  '.[] | select(.environment == $environment) | .id' \
+                  <<<"$deployments"
+              )
+
+              for deployment_id in "${deployment_ids[@]}"; do
+                body="$(
+                  jq -n \
+                    --arg environment "$environment_name" \
+                    --arg description "Destroyed ${environment_name}" \
+                    '{
+                      state: "inactive",
+                      environment: $environment,
+                      description: $description,
+                      auto_inactive: false
+                    }'
+                )"
+                curl -fsSL -X POST "${headers[@]}" \
+                  -d "$body" \
+                  "${api}/deployments/${deployment_id}/statuses" >/dev/null
+                marked="$((marked + 1))"
+              done
+
+              (( page_count < 100 )) && break
+              page="$((page + 1))"
             done
 
-            (( page_count < 100 )) && break
-            page="$((page + 1))"
+            encoded_environment="$(jq -nr --arg value "$environment_name" '$value | @uri')"
+            response_file="$(mktemp)"
+            status="$(
+              curl -sSL -X DELETE "${headers[@]}" \
+                -o "$response_file" \
+                -w '%{http_code}' \
+                "${api}/environments/${encoded_environment}" || true
+            )"
+            case "$status" in
+              204)
+                printf 'Deleted GitHub environment %s after marking %s deployment(s) inactive\n' \
+                  "$environment_name" "$marked"
+                ;;
+              404)
+                printf 'GitHub environment %s is already absent after marking %s deployment(s) inactive\n' \
+                  "$environment_name" "$marked"
+                ;;
+              *)
+                printf 'Failed to delete GitHub environment %s with HTTP %s: %s\n' \
+                  "$environment_name" "$status" "$(tr '\n' ' ' <"$response_file")" >&2
+                rm -f "$response_file"
+                exit 1
+                ;;
+            esac
+            rm -f "$response_file"
           done
-
-          printf 'Marked %s deployment(s) inactive for %s\n' "$marked" "$ENVIRONMENT_NAME"
