@@ -67,9 +67,9 @@ jobs:
           PR_NUMBER: ${{ github.event.number }}
         run: |
           set -euo pipefail
-          printf 'url=https://pr-%03d.%s.%s\n' \
-            "$PR_NUMBER" \
+          printf 'url=https://%s-pr-%03d.%s\n' \
             "$PR_ENV_DOMAIN_PROJECT" \
+            "$PR_NUMBER" \
             "$PR_ENV_DOMAIN_SUFFIX" >> "$GITHUB_OUTPUT"
 
       - name: Configure SSH
@@ -86,6 +86,8 @@ jobs:
 
       - name: Deploy
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID || vars.CLOUDFLARE_ZONE_ID }}
           GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || format('git@github.com:{0}.git', github.repository) }}
           PASSPORT_BASE_URL: ${{ vars.PASSPORT_BASE_URL || 'https://auth.cleverbrush.com' }}
           PASSPORT_PROJECT: ${{ vars.PASSPORT_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
@@ -94,6 +96,10 @@ jobs:
           POSTGRES_USER: ${{ vars.POSTGRES_USER || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
+          PR_ENV_DNS_RECORD_CONTENT: ${{ vars.PR_ENV_DNS_RECORD_CONTENT || format('{0}.{1}', vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser', vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com') }}
+          PR_ENV_DNS_RECORD_PROXIED: ${{ vars.PR_ENV_DNS_RECORD_PROXIED || 'true' }}
+          PR_ENV_DNS_RECORD_TTL: ${{ vars.PR_ENV_DNS_RECORD_TTL || '1' }}
+          PR_ENV_DNS_RECORD_TYPE: ${{ vars.PR_ENV_DNS_RECORD_TYPE || 'CNAME' }}
           PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT }}
           PR_ENV_PORT_BASE: ${{ vars.PR_ENV_PORT_BASE || '3000' }}
           PR_ENV_PROJECT_NAME: ${{ vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
@@ -131,6 +137,12 @@ jobs:
             b64 "$PASSPORT_PROJECT"
             b64 "$POSTGRES_DB"
             b64 "$POSTGRES_USER"
+            b64 "$CLOUDFLARE_API_TOKEN"
+            b64 "$CLOUDFLARE_ZONE_ID"
+            b64 "$PR_ENV_DNS_RECORD_TYPE"
+            b64 "$PR_ENV_DNS_RECORD_CONTENT"
+            b64 "$PR_ENV_DNS_RECORD_PROXIED"
+            b64 "$PR_ENV_DNS_RECORD_TTL"
           } | ssh -T -o BatchMode=yes -i ~/.ssh/pr-env-nginx -p "$ssh_port" \
             "$PR_ENV_NGINX_SSH_USER@$PR_ENV_NGINX_SSH_HOST" \
             "PR_ENV_SECRET_STREAM=1 ${remote_script} deploy '${PR_NUMBER}' '${PR_SHA}'"
@@ -154,9 +166,9 @@ jobs:
           PR_NUMBER: ${{ github.event.number }}
         run: |
           set -euo pipefail
-          printf 'url=https://pr-%03d.%s.%s\n' \
-            "$PR_NUMBER" \
+          printf 'url=https://%s-pr-%03d.%s\n' \
             "$PR_ENV_DOMAIN_PROJECT" \
+            "$PR_NUMBER" \
             "$PR_ENV_DOMAIN_SUFFIX" >> "$GITHUB_OUTPUT"
 
       - name: Configure SSH
@@ -173,6 +185,8 @@ jobs:
 
       - name: Cleanup
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID || vars.CLOUDFLARE_ZONE_ID }}
           GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || format('git@github.com:{0}.git', github.repository) }}
           PASSPORT_BASE_URL: ${{ vars.PASSPORT_BASE_URL || 'https://auth.cleverbrush.com' }}
           PASSPORT_PROJECT: ${{ vars.PASSPORT_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
@@ -181,6 +195,10 @@ jobs:
           POSTGRES_USER: ${{ vars.POSTGRES_USER || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
+          PR_ENV_DNS_RECORD_CONTENT: ${{ vars.PR_ENV_DNS_RECORD_CONTENT || format('{0}.{1}', vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser', vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com') }}
+          PR_ENV_DNS_RECORD_PROXIED: ${{ vars.PR_ENV_DNS_RECORD_PROXIED || 'true' }}
+          PR_ENV_DNS_RECORD_TTL: ${{ vars.PR_ENV_DNS_RECORD_TTL || '1' }}
+          PR_ENV_DNS_RECORD_TYPE: ${{ vars.PR_ENV_DNS_RECORD_TYPE || 'CNAME' }}
           PR_ENV_PORT_BASE: ${{ vars.PR_ENV_PORT_BASE || '3000' }}
           PR_ENV_PROJECT_NAME: ${{ vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PR_ENV_ROOT: ${{ vars.PR_ENV_ROOT || '/opt/pr-envs' }}
@@ -216,6 +234,12 @@ jobs:
             b64 "$PASSPORT_PROJECT"
             b64 "$POSTGRES_DB"
             b64 "$POSTGRES_USER"
+            b64 "$CLOUDFLARE_API_TOKEN"
+            b64 "$CLOUDFLARE_ZONE_ID"
+            b64 "$PR_ENV_DNS_RECORD_TYPE"
+            b64 "$PR_ENV_DNS_RECORD_CONTENT"
+            b64 "$PR_ENV_DNS_RECORD_PROXIED"
+            b64 "$PR_ENV_DNS_RECORD_TTL"
           } | ssh -T -o BatchMode=yes -i ~/.ssh/pr-env-nginx -p "$ssh_port" \
             "$PR_ENV_NGINX_SSH_USER@$PR_ENV_NGINX_SSH_HOST" \
             "PR_ENV_SECRET_STREAM=1 ${remote_script} cleanup '${PR_NUMBER}'"
