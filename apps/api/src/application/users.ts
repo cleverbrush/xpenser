@@ -39,24 +39,31 @@ async function recentCurrencyTransactions(
     db: AppDb,
     userId: number
 ): Promise<TransactionDb[]> {
-    return (await db.transactions
-        .where(transaction => transaction.userId, userId)
-        .orderBy(transaction => transaction.occurredAt, 'desc')
-        .orderBy(transaction => transaction.id, 'desc')
-        .limit(10)) as TransactionDb[];
+    const rows = (await db.transactions.where(
+        transaction => transaction.userId,
+        userId
+    )) as TransactionDb[];
+
+    return rows
+        .sort(
+            (left, right) =>
+                right.occurredAt.getTime() - left.occurredAt.getTime() ||
+                right.id - left.id
+        )
+        .slice(0, 10);
 }
 
 export function transactionCurrenciesByRecentPopularity(
     currencies: readonly string[],
     recentTransactions: readonly CurrencyTransaction[]
 ): string[] {
-    const originalOrder = new Map<string, number>();
+    const configuredOrder = new Map<string, number>();
     const configuredCurrencies: string[] = [];
 
     for (const currency of currencies) {
         const normalized = currency.trim().toUpperCase();
-        if (!originalOrder.has(normalized)) {
-            originalOrder.set(normalized, configuredCurrencies.length);
+        if (!configuredOrder.has(normalized)) {
+            configuredOrder.set(normalized, configuredCurrencies.length);
             configuredCurrencies.push(normalized);
         }
     }
@@ -65,7 +72,7 @@ export function transactionCurrenciesByRecentPopularity(
 
     recentTransactions.forEach((transaction, index) => {
         const currency = transaction.currency.trim().toUpperCase();
-        if (!originalOrder.has(currency)) {
+        if (currency === '') {
             return;
         }
 
@@ -77,30 +84,36 @@ export function transactionCurrenciesByRecentPopularity(
         }
     });
 
-    return [...configuredCurrencies].sort((left, right) => {
-        const leftUsage = usage.get(left);
-        const rightUsage = usage.get(right);
-        const usageDelta = (rightUsage?.count ?? 0) - (leftUsage?.count ?? 0);
+    return Array.from(new Set([...usage.keys(), ...configuredCurrencies])).sort(
+        (left, right) => {
+            const leftUsage = usage.get(left);
+            const rightUsage = usage.get(right);
+            const usageDelta =
+                (rightUsage?.count ?? 0) - (leftUsage?.count ?? 0);
 
-        if (usageDelta !== 0) {
-            return usageDelta;
-        }
-        if (
-            leftUsage &&
-            rightUsage &&
-            leftUsage.latestIndex !== rightUsage.latestIndex
-        ) {
-            return leftUsage.latestIndex - rightUsage.latestIndex;
-        }
-        if (leftUsage && !rightUsage) {
-            return -1;
-        }
-        if (!leftUsage && rightUsage) {
-            return 1;
-        }
+            if (usageDelta !== 0) {
+                return usageDelta;
+            }
+            if (
+                leftUsage &&
+                rightUsage &&
+                leftUsage.latestIndex !== rightUsage.latestIndex
+            ) {
+                return leftUsage.latestIndex - rightUsage.latestIndex;
+            }
+            if (leftUsage && !rightUsage) {
+                return -1;
+            }
+            if (!leftUsage && rightUsage) {
+                return 1;
+            }
 
-        return (originalOrder.get(left) ?? 0) - (originalOrder.get(right) ?? 0);
-    });
+            return (
+                (configuredOrder.get(left) ?? configuredCurrencies.length) -
+                (configuredOrder.get(right) ?? configuredCurrencies.length)
+            );
+        }
+    );
 }
 
 async function setFavoriteCurrencies(

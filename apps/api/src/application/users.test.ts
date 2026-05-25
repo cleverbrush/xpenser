@@ -39,12 +39,18 @@ describe('transaction currency ordering', () => {
         ).toEqual(['GBP', 'EUR', 'USD']);
     });
 
-    it('ignores unavailable currencies and falls back to original order', () => {
+    it('includes recent currencies outside primary and favorites', () => {
         expect(
             transactionCurrenciesByRecentPopularity(
                 ['USD', 'EUR'],
-                [{ currency: 'GBP' }, { currency: 'JPY' }]
+                [{ currency: 'UAH' }, { currency: 'USD' }, { currency: 'UAH' }]
             )
+        ).toEqual(['UAH', 'USD', 'EUR']);
+    });
+
+    it('falls back to original configured order without recent transactions', () => {
+        expect(
+            transactionCurrenciesByRecentPopularity(['USD', 'EUR'], [])
         ).toEqual(['USD', 'EUR']);
     });
 });
