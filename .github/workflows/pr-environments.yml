@@ -13,7 +13,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: xpenser-pr-${{ github.event.number }}
+  group: ${{ vars.PR_ENV_PROJECT_NAME || 'xpenser' }}-pr-${{ github.event.number }}
   cancel-in-progress: false
 
 jobs:
@@ -56,9 +56,22 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pr-${{ github.event.number }}
-      url: https://xpenser-pr-${{ github.event.number }}.${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
+      url: ${{ steps.preview-url.outputs.url }}
 
     steps:
+      - name: Preview URL
+        id: preview-url
+        env:
+          PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          printf 'url=https://pr-%03d.%s.%s\n' \
+            "$PR_NUMBER" \
+            "$PR_ENV_DOMAIN_PROJECT" \
+            "$PR_ENV_DOMAIN_SUFFIX" >> "$GITHUB_OUTPUT"
+
       - name: Configure SSH
         env:
           PR_ENV_NGINX_SSH_KNOWN_HOSTS: ${{ secrets.PR_ENV_NGINX_SSH_KNOWN_HOSTS }}
@@ -66,33 +79,36 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$PR_ENV_NGINX_SSH_PRIVATE_KEY" > ~/.ssh/xpenser-pr-env-nginx
-          chmod 600 ~/.ssh/xpenser-pr-env-nginx
+          printf '%s\n' "$PR_ENV_NGINX_SSH_PRIVATE_KEY" > ~/.ssh/pr-env-nginx
+          chmod 600 ~/.ssh/pr-env-nginx
           printf '%s\n' "$PR_ENV_NGINX_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy
         env:
-          GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || 'git@github.com:cleverbrush/xpenser.git' }}
+          GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || format('git@github.com:{0}.git', github.repository) }}
           PASSPORT_BASE_URL: ${{ vars.PASSPORT_BASE_URL || 'https://auth.cleverbrush.com' }}
+          PASSPORT_PROJECT: ${{ vars.PASSPORT_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PASSPORT_SERVICE_KEY: ${{ secrets.PASSPORT_SERVICE_KEY }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
           PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT }}
           PR_ENV_PORT_BASE: ${{ vars.PR_ENV_PORT_BASE || '3000' }}
-          PR_ENV_ROOT: ${{ vars.PR_ENV_ROOT || '/opt/xpenser-pr-envs' }}
-          PR_ENV_STATE_DIR: ${{ vars.PR_ENV_STATE_DIR || '/var/lib/xpenser-pr-envs' }}
-          PR_ENV_WEB_BIND_ADDRESS: ${{ vars.PR_ENV_WEB_BIND_ADDRESS }}
+          PR_ENV_PROJECT_NAME: ${{ vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          PR_ENV_ROOT: ${{ vars.PR_ENV_ROOT || '/opt/pr-envs' }}
+          PR_ENV_STATE_DIR: ${{ vars.PR_ENV_STATE_DIR || '/var/lib/pr-envs' }}
           PR_ENV_NGINX_PROXY_SCRIPT: ${{ secrets.PR_ENV_NGINX_PROXY_SCRIPT }}
           PR_ENV_NGINX_SSH_HOST: ${{ secrets.PR_ENV_NGINX_SSH_HOST }}
           PR_ENV_NGINX_SSH_PORT: ${{ secrets.PR_ENV_NGINX_SSH_PORT || '22' }}
           PR_ENV_NGINX_SSH_USER: ${{ secrets.PR_ENV_NGINX_SSH_USER }}
           PR_NUMBER: ${{ github.event.number }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
-          PROD_COMPOSE_PROJECT: ${{ vars.PROD_COMPOSE_PROJECT || 'xpenser' }}
+          PROD_COMPOSE_PROJECT: ${{ vars.PROD_COMPOSE_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
         run: |
           set -euo pipefail
           : "${PR_ENV_NGINX_PROXY_SCRIPT:?PR_ENV_NGINX_PROXY_SCRIPT is required}"
-          : "${PR_ENV_WEB_BIND_ADDRESS:?PR_ENV_WEB_BIND_ADDRESS repository variable is required}"
           ssh_port="${PR_ENV_NGINX_SSH_PORT:-22}"
           remote_script="$(printf '%q' "$PR_ENV_NGINX_PROXY_SCRIPT")"
           b64() {
@@ -107,11 +123,15 @@ jobs:
             b64 "$PROD_COMPOSE_PROJECT"
             b64 "$PR_ENV_ROOT"
             b64 "$PR_ENV_STATE_DIR"
-            b64 "$PR_ENV_WEB_BIND_ADDRESS"
             b64 "$PR_ENV_PORT_BASE"
             b64 "$GIT_REPOSITORY_URL"
             b64 "$PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT"
-          } | ssh -T -o BatchMode=yes -i ~/.ssh/xpenser-pr-env-nginx -p "$ssh_port" \
+            b64 "$PR_ENV_PROJECT_NAME"
+            b64 "$PR_ENV_DOMAIN_PROJECT"
+            b64 "$PASSPORT_PROJECT"
+            b64 "$POSTGRES_DB"
+            b64 "$POSTGRES_USER"
+          } | ssh -T -o BatchMode=yes -i ~/.ssh/pr-env-nginx -p "$ssh_port" \
             "$PR_ENV_NGINX_SSH_USER@$PR_ENV_NGINX_SSH_HOST" \
             "PR_ENV_SECRET_STREAM=1 ${remote_script} deploy '${PR_NUMBER}' '${PR_SHA}'"
 
@@ -123,9 +143,22 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pr-${{ github.event.number }}
-      url: https://xpenser-pr-${{ github.event.number }}.${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
+      url: ${{ steps.preview-url.outputs.url }}
 
     steps:
+      - name: Preview URL
+        id: preview-url
+        env:
+          PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          printf 'url=https://pr-%03d.%s.%s\n' \
+            "$PR_NUMBER" \
+            "$PR_ENV_DOMAIN_PROJECT" \
+            "$PR_ENV_DOMAIN_SUFFIX" >> "$GITHUB_OUTPUT"
+
       - name: Configure SSH
         env:
           PR_ENV_NGINX_SSH_KNOWN_HOSTS: ${{ secrets.PR_ENV_NGINX_SSH_KNOWN_HOSTS }}
@@ -133,27 +166,31 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf '%s\n' "$PR_ENV_NGINX_SSH_PRIVATE_KEY" > ~/.ssh/xpenser-pr-env-nginx
-          chmod 600 ~/.ssh/xpenser-pr-env-nginx
+          printf '%s\n' "$PR_ENV_NGINX_SSH_PRIVATE_KEY" > ~/.ssh/pr-env-nginx
+          chmod 600 ~/.ssh/pr-env-nginx
           printf '%s\n' "$PR_ENV_NGINX_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Cleanup
         env:
-          GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || 'git@github.com:cleverbrush/xpenser.git' }}
+          GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || format('git@github.com:{0}.git', github.repository) }}
           PASSPORT_BASE_URL: ${{ vars.PASSPORT_BASE_URL || 'https://auth.cleverbrush.com' }}
+          PASSPORT_PROJECT: ${{ vars.PASSPORT_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PASSPORT_SERVICE_KEY: ${{ secrets.PASSPORT_SERVICE_KEY }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
           PR_ENV_PORT_BASE: ${{ vars.PR_ENV_PORT_BASE || '3000' }}
-          PR_ENV_ROOT: ${{ vars.PR_ENV_ROOT || '/opt/xpenser-pr-envs' }}
-          PR_ENV_STATE_DIR: ${{ vars.PR_ENV_STATE_DIR || '/var/lib/xpenser-pr-envs' }}
-          PR_ENV_WEB_BIND_ADDRESS: ${{ vars.PR_ENV_WEB_BIND_ADDRESS }}
+          PR_ENV_PROJECT_NAME: ${{ vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          PR_ENV_ROOT: ${{ vars.PR_ENV_ROOT || '/opt/pr-envs' }}
+          PR_ENV_STATE_DIR: ${{ vars.PR_ENV_STATE_DIR || '/var/lib/pr-envs' }}
           PR_ENV_NGINX_PROXY_SCRIPT: ${{ secrets.PR_ENV_NGINX_PROXY_SCRIPT }}
           PR_ENV_NGINX_SSH_HOST: ${{ secrets.PR_ENV_NGINX_SSH_HOST }}
           PR_ENV_NGINX_SSH_PORT: ${{ secrets.PR_ENV_NGINX_SSH_PORT || '22' }}
           PR_ENV_NGINX_SSH_USER: ${{ secrets.PR_ENV_NGINX_SSH_USER }}
           PR_NUMBER: ${{ github.event.number }}
-          PROD_COMPOSE_PROJECT: ${{ vars.PROD_COMPOSE_PROJECT || 'xpenser' }}
+          PROD_COMPOSE_PROJECT: ${{ vars.PROD_COMPOSE_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
         run: |
           set -euo pipefail
           : "${PR_ENV_NGINX_PROXY_SCRIPT:?PR_ENV_NGINX_PROXY_SCRIPT is required}"
@@ -171,10 +208,14 @@ jobs:
             b64 "$PROD_COMPOSE_PROJECT"
             b64 "$PR_ENV_ROOT"
             b64 "$PR_ENV_STATE_DIR"
-            b64 "$PR_ENV_WEB_BIND_ADDRESS"
             b64 "$PR_ENV_PORT_BASE"
             b64 "$GIT_REPOSITORY_URL"
             b64 ""
-          } | ssh -T -o BatchMode=yes -i ~/.ssh/xpenser-pr-env-nginx -p "$ssh_port" \
+            b64 "$PR_ENV_PROJECT_NAME"
+            b64 "$PR_ENV_DOMAIN_PROJECT"
+            b64 "$PASSPORT_PROJECT"
+            b64 "$POSTGRES_DB"
+            b64 "$POSTGRES_USER"
+          } | ssh -T -o BatchMode=yes -i ~/.ssh/pr-env-nginx -p "$ssh_port" \
             "$PR_ENV_NGINX_SSH_USER@$PR_ENV_NGINX_SSH_HOST" \
             "PR_ENV_SECRET_STREAM=1 ${remote_script} cleanup '${PR_NUMBER}'"

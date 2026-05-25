@@ -1,0 +1,458 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+ACTION="${1:-}"
+PR_NUMBER="${2:-}"
+PR_SHA="${3:-}"
+
+log() {
+    printf '[%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >&2
+}
+
+die() {
+    log "ERROR: $*"
+    exit 1
+}
+
+usage() {
+    cat >&2 <<USAGE
+Usage:
+  $SCRIPT_NAME deploy <pr-number> <commit-sha>
+  $SCRIPT_NAME cleanup <pr-number>
+USAGE
+    exit 2
+}
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
+}
+
+base64_decode() {
+    if base64 --help 2>/dev/null | grep -q -- '--decode'; then
+        base64 --decode
+    else
+        base64 -d
+    fi
+}
+
+read_secret_line() {
+    local target="$1"
+    local encoded=""
+
+    IFS= read -r encoded || encoded=""
+    printf -v "$target" '%s' "$(printf '%s' "$encoded" | base64_decode)"
+}
+
+load_secret_stream() {
+    if [[ "${PR_ENV_SECRET_STREAM:-}" != "1" ]]; then
+        return
+    fi
+
+    read_secret_line PASSPORT_SERVICE_KEY
+    read_secret_line PR_ENV_DOMAIN_SUFFIX
+    read_secret_line PASSPORT_BASE_URL
+    read_secret_line PROD_COMPOSE_PROJECT
+    read_secret_line PR_ENV_ROOT
+    read_secret_line PR_ENV_STATE_DIR
+    read_secret_line PR_ENV_PORT_BASE
+    read_secret_line GIT_REPOSITORY_URL
+    read_secret_line PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT
+    read_secret_line PR_ENV_PROJECT_NAME
+    read_secret_line PR_ENV_DOMAIN_PROJECT
+    read_secret_line PASSPORT_PROJECT
+    read_secret_line POSTGRES_DB
+    read_secret_line POSTGRES_USER
+
+    export PASSPORT_SERVICE_KEY
+    export PR_ENV_DOMAIN_SUFFIX
+    export PASSPORT_BASE_URL
+    export PROD_COMPOSE_PROJECT
+    export PR_ENV_ROOT
+    export PR_ENV_STATE_DIR
+    export PR_ENV_PORT_BASE
+    export GIT_REPOSITORY_URL
+    export PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT
+    export PR_ENV_PROJECT_NAME
+    export PR_ENV_DOMAIN_PROJECT
+    export PASSPORT_PROJECT
+    export POSTGRES_DB
+    export POSTGRES_USER
+}
+
+require_env() {
+    local name="$1"
+    [[ -n "${!name:-}" ]] || die "Required environment variable is missing: $name"
+}
+
+run_sudo() {
+    if [[ "$(id -u)" == "0" ]]; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+ensure_writable_dir() {
+    local dir="$1"
+
+    if mkdir -p "$dir" 2>/dev/null; then
+        return
+    fi
+
+    run_sudo mkdir -p "$dir"
+    run_sudo chown "$(id -u):$(id -g)" "$dir"
+}
+
+quote_env() {
+    printf '%q' "$1"
+}
+
+write_shell_env() {
+    local file="$1"
+    shift
+
+    : >"$file"
+    while (($# > 0)); do
+        local key="$1"
+        local value="$2"
+        shift 2
+        printf '%s=%s\n' "$key" "$(quote_env "$value")" >>"$file"
+    done
+}
+
+write_compose_env() {
+    local file="$1"
+
+    cat >"$file" <<ENV
+NODE_ENV=production
+APP_URL=https://${DOMAIN}
+PUBLIC_API_BASE_URL=https://${DOMAIN}/external-api
+WEB_PORT=${WEB_PORT}
+POSTGRES_DB=${POSTGRES_DB}
+POSTGRES_USER=${POSTGRES_USER}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+JWT_SECRET=${JWT_SECRET}
+JWT_EXPIRES_IN=86400
+NEXTAUTH_URL=https://${DOMAIN}
+NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+AUTH_SECRET=${NEXTAUTH_SECRET}
+PASSPORT_BASE_URL=${PASSPORT_BASE_URL}
+PASSPORT_PROJECT=${PASSPORT_PROJECT}
+PASSPORT_ENVIRONMENT=${PASSPORT_ENVIRONMENT}
+PASSPORT_PUBLIC_KEY=
+TELEGRAM_BOT_SERVICE_SECRET=${TELEGRAM_BOT_SERVICE_SECRET}
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_USERNAME=
+TELEGRAM_LINK_TOKEN_TTL_SECONDS=600
+TELEGRAM_JWT_EXPIRES_IN=300
+FRANKFURTER_BASE_URL=https://api.frankfurter.dev/v2
+OTEL_API_SERVICE_NAME=${PR_ENV_PROJECT_NAME}-api-${PASSPORT_ENVIRONMENT}
+OTEL_WEB_SERVICE_NAME=${PR_ENV_PROJECT_NAME}-web-${PASSPORT_ENVIRONMENT}
+OTEL_TELEGRAM_SERVICE_NAME=${PR_ENV_PROJECT_NAME}-telegram-bot-${PASSPORT_ENVIRONMENT}
+LOG_LEVEL=information
+ENV
+
+    if [[ -n "${PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]]; then
+        printf 'OTEL_EXPORTER_OTLP_ENDPOINT=%s\n' \
+            "$PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT" >>"$file"
+    fi
+}
+
+random_secret() {
+    openssl rand -hex 32
+}
+
+validate_inputs() {
+    [[ -n "$ACTION" ]] || usage
+    [[ "$ACTION" == "deploy" || "$ACTION" == "cleanup" ]] || usage
+    [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || die "PR number must be numeric"
+
+    if [[ "$ACTION" == "deploy" ]]; then
+        [[ "$PR_SHA" =~ ^[0-9a-fA-F]{40,64}$ ]] ||
+            die "Commit SHA must be a 40-64 character hexadecimal value"
+    fi
+}
+
+validate_config() {
+    [[ "$PR_ENV_PORT_BASE" =~ ^[0-9]+$ ]] ||
+        die "PR_ENV_PORT_BASE must be numeric"
+}
+
+set_defaults() {
+    PR_ENV_PROJECT_NAME="${PR_ENV_PROJECT_NAME:-xpenser}"
+    PR_ENV_DOMAIN_SUFFIX="${PR_ENV_DOMAIN_SUFFIX:-cleverbrush.com}"
+    PR_ENV_DOMAIN_PROJECT="${PR_ENV_DOMAIN_PROJECT:-$PR_ENV_PROJECT_NAME}"
+    PASSPORT_BASE_URL="${PASSPORT_BASE_URL:-https://auth.cleverbrush.com}"
+    PASSPORT_PROJECT="${PASSPORT_PROJECT:-$PR_ENV_PROJECT_NAME}"
+    PROD_COMPOSE_PROJECT="${PROD_COMPOSE_PROJECT:-$PR_ENV_PROJECT_NAME}"
+    PR_ENV_ROOT="${PR_ENV_ROOT:-/opt/pr-envs}"
+    PR_ENV_STATE_DIR="${PR_ENV_STATE_DIR:-/var/lib/pr-envs}"
+    PR_ENV_PORT_BASE="${PR_ENV_PORT_BASE:-3000}"
+    GIT_REPOSITORY_URL="${GIT_REPOSITORY_URL:-git@github.com:cleverbrush/${PR_ENV_PROJECT_NAME}.git}"
+
+    ENV_NAME="pr-${PR_NUMBER}"
+    HOST_ENV_NAME="$(printf 'pr-%03d' "$PR_NUMBER")"
+    COMPOSE_PROJECT="pr${PR_NUMBER}"
+    PASSPORT_ENVIRONMENT="$ENV_NAME"
+    DOMAIN="${HOST_ENV_NAME}.${PR_ENV_DOMAIN_PROJECT}.${PR_ENV_DOMAIN_SUFFIX}"
+    CHECKOUT_DIR="${PR_ENV_ROOT}/${ENV_NAME}"
+    STATE_DIR="${PR_ENV_STATE_DIR}/${ENV_NAME}"
+    STATE_FILE="${STATE_DIR}/state.env"
+    DB_INITIALIZED_FILE="${STATE_DIR}/db.initialized"
+    POSTGRES_DB="${POSTGRES_DB:-$PR_ENV_PROJECT_NAME}"
+    POSTGRES_USER="${POSTGRES_USER:-$PR_ENV_PROJECT_NAME}"
+}
+
+load_state() {
+    if [[ -f "$STATE_FILE" ]]; then
+        # shellcheck disable=SC1090
+        source "$STATE_FILE"
+    fi
+}
+
+ensure_state() {
+    ensure_writable_dir "$PR_ENV_ROOT"
+    ensure_writable_dir "$PR_ENV_STATE_DIR"
+    ensure_writable_dir "$STATE_DIR"
+    load_state
+    WEB_PORT="$((10#$PR_ENV_PORT_BASE + 10#$PR_NUMBER))"
+
+    POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(random_secret)}"
+    JWT_SECRET="${JWT_SECRET:-$(random_secret)}"
+    NEXTAUTH_SECRET="${NEXTAUTH_SECRET:-$(random_secret)}"
+    TELEGRAM_BOT_SERVICE_SECRET="${TELEGRAM_BOT_SERVICE_SECRET:-$(random_secret)}"
+
+    write_shell_env "$STATE_FILE" \
+        WEB_PORT "$WEB_PORT" \
+        POSTGRES_PASSWORD "$POSTGRES_PASSWORD" \
+        JWT_SECRET "$JWT_SECRET" \
+        NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
+        TELEGRAM_BOT_SERVICE_SECRET "$TELEGRAM_BOT_SERVICE_SECRET"
+    chmod 600 "$STATE_FILE"
+}
+
+compose() {
+    docker compose \
+        --project-name "$COMPOSE_PROJECT" \
+        --env-file "${CHECKOUT_DIR}/.env" \
+        -f "${CHECKOUT_DIR}/docker-compose.prod.yml" \
+        "$@"
+}
+
+find_compose_container() {
+    local project="$1"
+    local service="$2"
+
+    docker ps \
+        --filter "label=com.docker.compose.project=${project}" \
+        --filter "label=com.docker.compose.service=${service}" \
+        --format '{{.ID}}' |
+        head -n 1
+}
+
+wait_for_container_healthy() {
+    local container_id="$1"
+    local name="$2"
+    local timeout_seconds="${3:-120}"
+    local started_at
+
+    started_at="$(date +%s)"
+    while true; do
+        local status
+        status="$(
+            docker inspect \
+                --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+                "$container_id"
+        )"
+
+        if [[ "$status" == "healthy" || "$status" == "running" ]]; then
+            return
+        fi
+
+        if (( $(date +%s) - started_at > timeout_seconds )); then
+            die "Timed out waiting for ${name} to become healthy; last status: ${status}"
+        fi
+
+        sleep 2
+    done
+}
+
+sync_repo() {
+    ensure_writable_dir "$(dirname "$CHECKOUT_DIR")"
+
+    if [[ ! -d "${CHECKOUT_DIR}/.git" ]]; then
+        log "Cloning repository into ${CHECKOUT_DIR}"
+        git clone --no-checkout "$GIT_REPOSITORY_URL" "$CHECKOUT_DIR"
+    fi
+
+    git -C "$CHECKOUT_DIR" remote set-url origin "$GIT_REPOSITORY_URL"
+    git -C "$CHECKOUT_DIR" fetch --depth=1 origin \
+        "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-${PR_NUMBER}"
+    git -C "$CHECKOUT_DIR" checkout --force "$PR_SHA"
+    git -C "$CHECKOUT_DIR" reset --hard "$PR_SHA"
+    git -C "$CHECKOUT_DIR" clean -fdx -e .env
+}
+
+initialize_database() {
+    if [[ -f "$DB_INITIALIZED_FILE" ]]; then
+        log "PR database already initialized; preserving existing volume"
+        return
+    fi
+
+    local prod_container
+    local pr_container
+    local prod_db
+    local prod_user
+    local prod_password
+
+    prod_container="$(find_compose_container "$PROD_COMPOSE_PROJECT" postgres)"
+    [[ -n "$prod_container" ]] ||
+        die "Could not find running production postgres container for project ${PROD_COMPOSE_PROJECT}"
+
+    pr_container="$(find_compose_container "$COMPOSE_PROJECT" postgres)"
+    [[ -n "$pr_container" ]] ||
+        die "Could not find PR postgres container for project ${COMPOSE_PROJECT}"
+
+    prod_db="$(docker exec "$prod_container" printenv POSTGRES_DB 2>/dev/null || true)"
+    prod_user="$(docker exec "$prod_container" printenv POSTGRES_USER 2>/dev/null || true)"
+    prod_password="$(docker exec "$prod_container" printenv POSTGRES_PASSWORD 2>/dev/null || true)"
+    prod_db="${prod_db:-$POSTGRES_DB}"
+    prod_user="${prod_user:-$POSTGRES_USER}"
+
+    log "Copying production database into ${COMPOSE_PROJECT}_postgres_data"
+    docker exec -e "PGPASSWORD=${prod_password}" "$prod_container" \
+        pg_dump --format=custom --no-owner --no-privileges \
+        -U "$prod_user" -d "$prod_db" |
+        docker exec -i -e "PGPASSWORD=${POSTGRES_PASSWORD}" "$pr_container" \
+            pg_restore --clean --if-exists --no-owner --no-privileges \
+            -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+
+    touch "$DB_INITIALIZED_FILE"
+}
+
+passport_headers() {
+    curl -fsS \
+        -H "Authorization: ServiceKey ${PASSPORT_SERVICE_KEY}" \
+        -H 'Content-Type: application/json' \
+        "$@"
+}
+
+upsert_passport_environment() {
+    local body
+
+    body="$(
+        jq -n \
+            --arg frontend_origin "https://${DOMAIN}" \
+            --arg backend_auth_url "https://${DOMAIN}/external-api/auth/passport" \
+            '{
+                frontend_origin: $frontend_origin,
+                callback_path: "/auth/callback",
+                backend_auth_url: $backend_auth_url,
+                status: "active"
+            }'
+    )"
+
+    log "Creating Passport environment ${PASSPORT_ENVIRONMENT}"
+    passport_headers \
+        -X PUT \
+        -d "$body" \
+        "${PASSPORT_BASE_URL%/}/api/projects/${PASSPORT_PROJECT}/environments/${PASSPORT_ENVIRONMENT}" \
+        >/dev/null
+}
+
+delete_passport_environment() {
+    log "Deleting Passport environment ${PASSPORT_ENVIRONMENT}"
+    passport_headers \
+        -X DELETE \
+        "${PASSPORT_BASE_URL%/}/api/projects/${PASSPORT_PROJECT}/environments/${PASSPORT_ENVIRONMENT}" \
+        >/dev/null
+}
+
+deploy() {
+    require_env PASSPORT_SERVICE_KEY
+
+    ensure_state
+    sync_repo
+    write_compose_env "${CHECKOUT_DIR}/.env"
+    chmod 600 "${CHECKOUT_DIR}/.env"
+
+    upsert_passport_environment
+
+    log "Starting PR postgres for ${ENV_NAME}"
+    compose up -d postgres
+    local pr_postgres
+    pr_postgres="$(find_compose_container "$COMPOSE_PROJECT" postgres)"
+    [[ -n "$pr_postgres" ]] ||
+        die "Could not find PR postgres container after compose up"
+    wait_for_container_healthy "$pr_postgres" "${COMPOSE_PROJECT} postgres" 180
+    initialize_database
+
+    log "Building and starting PR web/API for ${ENV_NAME}"
+    compose up -d --build --remove-orphans api web
+
+    local api_container
+    api_container="$(find_compose_container "$COMPOSE_PROJECT" api)"
+    [[ -n "$api_container" ]] ||
+        die "Could not find PR api container after compose up"
+    wait_for_container_healthy "$api_container" "${COMPOSE_PROJECT} api" 240
+
+    log "PR environment ready: https://${DOMAIN}"
+}
+
+cleanup() {
+    load_state || true
+
+    if [[ -d "$CHECKOUT_DIR" && -f "${CHECKOUT_DIR}/docker-compose.prod.yml" ]]; then
+        if [[ -f "${CHECKOUT_DIR}/.env" ]]; then
+            log "Stopping Docker Compose project ${COMPOSE_PROJECT}"
+            compose down -v --remove-orphans --rmi local || true
+        else
+            docker compose \
+                --project-name "$COMPOSE_PROJECT" \
+                -f "${CHECKOUT_DIR}/docker-compose.prod.yml" \
+                down -v --remove-orphans --rmi local || true
+        fi
+    else
+        log "Removing Docker resources for ${COMPOSE_PROJECT}"
+        docker ps -aq \
+            --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" |
+            xargs -r docker rm -f || true
+        docker volume rm "${COMPOSE_PROJECT}_postgres_data" >/dev/null 2>&1 || true
+        docker network rm "${COMPOSE_PROJECT}_default" >/dev/null 2>&1 || true
+    fi
+
+    if [[ -n "${PASSPORT_SERVICE_KEY:-}" ]]; then
+        delete_passport_environment || true
+    else
+        log "Skipping Passport cleanup because PASSPORT_SERVICE_KEY is not configured"
+    fi
+
+    rm -rf "${PR_ENV_ROOT:?}/${ENV_NAME}" "$STATE_DIR"
+    log "Pruning unused Docker resources"
+    docker system prune -f || true
+    log "Cleaned PR environment ${ENV_NAME}"
+}
+
+main() {
+    validate_inputs
+    require_command base64
+    load_secret_stream
+    set_defaults
+    validate_config
+
+    require_command curl
+    require_command docker
+    require_command git
+    require_command jq
+    require_command openssl
+
+    case "$ACTION" in
+        deploy) deploy ;;
+        cleanup) cleanup ;;
+        *) usage ;;
+    esac
+}
+
+main "$@"

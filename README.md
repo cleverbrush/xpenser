@@ -248,6 +248,11 @@ Set `APP_URL` to the public web origin. The API's OpenAPI server URL defaults to
 `${APP_URL}/external-api` in Compose and can be overridden with
 `PUBLIC_API_BASE_URL`.
 
+## Ephemeral PR Environments
+
+See [PR_ENVIRONMENTS.md](./PR_ENVIRONMENTS.md) for the nginx proxy script,
+environment deploy script, and GitHub Actions setup.
+
 ## Troubleshooting
 
 If port `5432` is already in use, change `POSTGRES_PORT` in `.env` and update
