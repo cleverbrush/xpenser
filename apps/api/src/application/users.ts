@@ -7,7 +7,7 @@ import type {
 } from '@xpenser/contracts';
 import { defaultTimeZone, normalizeTimeZone } from '@xpenser/timezone';
 import type { Config } from '../config.js';
-import type { AppDb, UserDb } from '../db/schemas.js';
+import type { AppDb, TransactionDb, UserDb } from '../db/schemas.js';
 import { hashPassword, verifyPassword } from '../security/password.js';
 import { issueToken } from '../security/token.js';
 
@@ -15,6 +15,8 @@ export class DuplicateEmailError extends Error {}
 export class InvalidCredentialsError extends Error {}
 export class InvalidPassportIdentityError extends Error {}
 export class PasswordMismatchError extends Error {}
+
+type CurrencyTransaction = Pick<TransactionDb, 'currency'>;
 
 async function favoriteCurrencies(
     db: AppDb,
@@ -31,6 +33,87 @@ async function hasCategories(db: AppDb, userId: number): Promise<boolean> {
         .where(category => category.userId, userId)
         .limit(1);
     return rows.length > 0;
+}
+
+async function recentCurrencyTransactions(
+    db: AppDb,
+    userId: number
+): Promise<TransactionDb[]> {
+    const rows = (await db.transactions.where(
+        transaction => transaction.userId,
+        userId
+    )) as TransactionDb[];
+
+    return rows
+        .sort(
+            (left, right) =>
+                right.occurredAt.getTime() - left.occurredAt.getTime() ||
+                right.id - left.id
+        )
+        .slice(0, 10);
+}
+
+export function transactionCurrenciesByRecentPopularity(
+    currencies: readonly string[],
+    recentTransactions: readonly CurrencyTransaction[]
+): string[] {
+    const configuredOrder = new Map<string, number>();
+    const configuredCurrencies: string[] = [];
+
+    for (const currency of currencies) {
+        const normalized = currency.trim().toUpperCase();
+        if (!configuredOrder.has(normalized)) {
+            configuredOrder.set(normalized, configuredCurrencies.length);
+            configuredCurrencies.push(normalized);
+        }
+    }
+
+    const usage = new Map<string, { count: number; latestIndex: number }>();
+
+    recentTransactions.forEach((transaction, index) => {
+        const currency = transaction.currency.trim().toUpperCase();
+        if (currency === '') {
+            return;
+        }
+
+        const current = usage.get(currency);
+        if (current) {
+            current.count += 1;
+        } else {
+            usage.set(currency, { count: 1, latestIndex: index });
+        }
+    });
+
+    return Array.from(new Set([...usage.keys(), ...configuredCurrencies])).sort(
+        (left, right) => {
+            const leftUsage = usage.get(left);
+            const rightUsage = usage.get(right);
+            const usageDelta =
+                (rightUsage?.count ?? 0) - (leftUsage?.count ?? 0);
+
+            if (usageDelta !== 0) {
+                return usageDelta;
+            }
+            if (
+                leftUsage &&
+                rightUsage &&
+                leftUsage.latestIndex !== rightUsage.latestIndex
+            ) {
+                return leftUsage.latestIndex - rightUsage.latestIndex;
+            }
+            if (leftUsage && !rightUsage) {
+                return -1;
+            }
+            if (!leftUsage && rightUsage) {
+                return 1;
+            }
+
+            return (
+                (configuredOrder.get(left) ?? configuredCurrencies.length) -
+                (configuredOrder.get(right) ?? configuredCurrencies.length)
+            );
+        }
+    );
 }
 
 async function setFavoriteCurrencies(
@@ -253,13 +336,24 @@ export async function getUserPreference(
         return undefined;
     }
 
+    const [favorites, recentTransactions, categories] = await Promise.all([
+        favoriteCurrencies(db, userId),
+        recentCurrencyTransactions(db, userId),
+        hasCategories(db, userId)
+    ]);
+    const transactionCurrencies = transactionCurrenciesByRecentPopularity(
+        [user.defaultCurrency, ...favorites],
+        recentTransactions
+    );
+
     return {
         id: user.id,
         email: user.email,
         defaultCurrency: user.defaultCurrency,
-        favoriteCurrencies: await favoriteCurrencies(db, userId),
+        favoriteCurrencies: favorites,
+        transactionCurrencies,
         timezone: normalizeTimeZone(user.timezone),
-        hasCategories: await hasCategories(db, userId)
+        hasCategories: categories
     };
 }
 

@@ -222,6 +222,7 @@ export const api = defineApi({
             .post()
             .body(CreateTransactionBodySchema)
             .clearsCacheTag('transactions')
+            .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
             .responses({ 201: TransactionSchema, 400: ErrorResponseSchema }),
@@ -229,6 +230,7 @@ export const api = defineApi({
             .patch(ById)
             .body(UpdateTransactionBodySchema)
             .clearsCacheTag('transactions')
+            .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
             .responses({
@@ -239,6 +241,7 @@ export const api = defineApi({
         delete: transactions
             .delete(ById)
             .clearsCacheTag('transactions')
+            .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
             .responses({ 204: null, 404: ErrorResponseSchema })

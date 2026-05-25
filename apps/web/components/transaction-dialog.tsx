@@ -46,32 +46,6 @@ type TransactionDialogValues = Pick<
     readonly occurredAt: Date | string | number;
 };
 
-const lastTransactionCurrencyStorageKey = 'xpenser:last-transaction-currency';
-
-function readStoredTransactionCurrency(
-    availableCurrencyCodes: ReadonlySet<string>
-): string | undefined {
-    try {
-        const value = window.localStorage.getItem(
-            lastTransactionCurrencyStorageKey
-        );
-        return value && availableCurrencyCodes.has(value) ? value : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-function writeStoredTransactionCurrency(currency: string): void {
-    try {
-        window.localStorage.setItem(
-            lastTransactionCurrencyStorageKey,
-            currency
-        );
-    } catch {
-        // Local storage can be unavailable in private browsing or locked-down environments.
-    }
-}
-
 export function TransactionDialog({
     action,
     categories,
@@ -80,6 +54,7 @@ export function TransactionDialog({
     description,
     errorMessage,
     initialValues,
+    preferredCurrency,
     submitLabel = 'Save',
     submittingLabel = 'Saving...',
     title,
@@ -94,6 +69,7 @@ export function TransactionDialog({
     readonly description: string;
     readonly errorMessage: string;
     readonly initialValues?: TransactionDialogValues;
+    readonly preferredCurrency?: string;
     readonly submitLabel?: string;
     readonly submittingLabel?: string;
     readonly title: string;
@@ -130,17 +106,26 @@ export function TransactionDialog({
         ];
     }, [currencies, initialValues?.currency]);
 
-    const resetForm = useCallback(() => {
+    const initialCurrency = useMemo(() => {
         const availableCurrencyCodes = new Set(
             currencyOptions.map(option => option.code)
         );
         const fallbackCurrency = availableCurrencyCodes.has(defaultCurrency)
             ? defaultCurrency
             : (currencyOptions[0]?.code ?? defaultCurrency);
-        const selectedCurrency =
-            initialValues?.currency ??
-            readStoredTransactionCurrency(availableCurrencyCodes) ??
-            fallbackCurrency;
+        const creationCurrency =
+            preferredCurrency && availableCurrencyCodes.has(preferredCurrency)
+                ? preferredCurrency
+                : fallbackCurrency;
+        return initialValues?.currency ?? creationCurrency;
+    }, [
+        currencyOptions,
+        defaultCurrency,
+        initialValues?.currency,
+        preferredCurrency
+    ]);
+
+    const resetForm = useCallback(() => {
         const initialOccurredAt = initialValues?.occurredAt
             ? new Date(initialValues.occurredAt)
             : new Date();
@@ -152,12 +137,12 @@ export function TransactionDialog({
         form.reset({
             amount: initialValues?.amount,
             categoryId: initialValues?.categoryId,
-            currency: selectedCurrency,
+            currency: initialCurrency,
             effect: initialValues?.effect ?? 'normal',
             occurredAt: initialOccurredAt,
             note: initialValues?.note ?? undefined
         });
-    }, [currencyOptions, defaultCurrency, form, initialValues, timezone]);
+    }, [form, initialCurrency, initialValues, timezone]);
 
     useEffect(() => {
         if (open) {
@@ -187,9 +172,6 @@ export function TransactionDialog({
         setError(null);
         try {
             await action(formData);
-            if (!initialValues) {
-                writeStoredTransactionCurrency(result.object.currency);
-            }
             resetForm();
             setOpen(false);
             router.refresh();
@@ -273,15 +255,10 @@ export function TransactionDialog({
                                             currency.onBlur();
                                         }
                                     }}
-                                    onValueChange={value => {
-                                        currency.onChange(value);
-                                        if (!initialValues) {
-                                            writeStoredTransactionCurrency(
-                                                value
-                                            );
-                                        }
-                                    }}
-                                    value={currency.value ?? defaultCurrency}
+                                    onValueChange={value =>
+                                        currency.onChange(value)
+                                    }
+                                    value={currency.value ?? initialCurrency}
                                 >
                                     <SelectTrigger
                                         aria-invalid={currencyInvalid}

@@ -36,17 +36,18 @@ describe('telegram bot flow helpers', () => {
         expect(parseAmount('12,345')).toBeUndefined();
     });
 
-    it('builds preferred currency choices from profile and available currencies', () => {
+    it('builds preferred currency choices from API popularity order', () => {
         const me = {
             defaultCurrency: 'USD',
-            favoriteCurrencies: ['EUR', 'USD', 'GBP']
+            favoriteCurrencies: ['EUR', 'USD', 'GBP'],
+            transactionCurrencies: ['EUR', 'USD', 'GBP']
         } as UserPreference;
         const currencies = [
             { code: 'USD', name: 'US Dollar' },
             { code: 'EUR', name: 'Euro' }
         ] as Currency[];
 
-        expect(preferredCurrencies(me, currencies)).toEqual(['USD', 'EUR']);
+        expect(preferredCurrencies(me, currencies)).toEqual(['EUR', 'USD']);
     });
 
     it('builds a persistent quick-add reply keyboard', () => {
@@ -62,7 +63,8 @@ describe('telegram bot flow helpers', () => {
     it('builds currency buttons only from default and favorites', () => {
         const me = {
             defaultCurrency: 'USD',
-            favoriteCurrencies: ['EUR']
+            favoriteCurrencies: ['EUR'],
+            transactionCurrencies: ['EUR', 'USD']
         } as UserPreference;
         const currencies = [
             { code: 'USD', name: 'US Dollar' },
@@ -71,8 +73,8 @@ describe('telegram bot flow helpers', () => {
         ] as Currency[];
 
         expect(currencyKeyboard(me, currencies).inline_keyboard).toEqual([
-            [{ text: 'USD', callback_data: 'cur:USD' }],
             [{ text: 'EUR', callback_data: 'cur:EUR' }],
+            [{ text: 'USD', callback_data: 'cur:USD' }],
             [{ text: 'Cancel', callback_data: 'cancel' }]
         ]);
     });

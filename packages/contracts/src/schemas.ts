@@ -264,6 +264,10 @@ export const UserPreferenceSchema = object({
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
         'Favorite currencies offered when entering transactions.'
     ),
+    /** Transaction entry currencies ordered by recent usage popularity. */
+    transactionCurrencies: array(CurrencyCodeSchema).describe(
+        'Transaction entry currencies ordered by recent usage popularity.'
+    ),
     /** Time zone used for transaction display and reporting periods. */
     timezone: TimeZoneSchema.describe(
         'Time zone used for transaction display and reporting periods.'

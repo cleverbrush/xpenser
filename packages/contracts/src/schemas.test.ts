@@ -11,7 +11,8 @@ import {
     RegisterBodySchema,
     StatsQuerySchema,
     TimeZoneSchema,
-    UpdateUserPreferenceBodySchema
+    UpdateUserPreferenceBodySchema,
+    UserPreferenceSchema
 } from './schemas.js';
 
 describe('shared schemas', () => {
@@ -43,6 +44,20 @@ describe('shared schemas', () => {
                 timezone: 'Europe/London'
             }).valid
         ).toBe(true);
+    });
+
+    it('validates user preferences with derived transaction currencies', () => {
+        const result = UserPreferenceSchema.validate({
+            id: 1,
+            email: 'jane@example.com',
+            defaultCurrency: 'USD',
+            favoriteCurrencies: ['EUR'],
+            transactionCurrencies: ['EUR', 'USD'],
+            timezone: 'UTC',
+            hasCategories: true
+        });
+
+        expect(result.valid).toBe(true);
     });
 
     it('returns required messages before format messages for empty login fields', () => {

@@ -57,9 +57,13 @@ export function preferredCurrencies(
     currencies: readonly Currency[]
 ): string[] {
     const available = new Set(currencies.map(currency => currency.code));
-    return Array.from(
-        new Set([me.defaultCurrency, ...me.favoriteCurrencies])
-    ).filter(currency => available.has(currency));
+    const configured =
+        me.transactionCurrencies.length > 0
+            ? me.transactionCurrencies
+            : [me.defaultCurrency, ...me.favoriteCurrencies];
+    return Array.from(new Set(configured)).filter(currency =>
+        available.has(currency)
+    );
 }
 
 export function currencyKeyboard(
