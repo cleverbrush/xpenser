@@ -16,6 +16,23 @@ export const CurrencyCodeSchema = string()
     .describe('ISO 4217 currency code, for example USD or EUR.')
     .schemaName('CurrencyCode');
 
+export const TimeZoneSchema = string()
+    .required('timezone is required')
+    .nonempty('timezone is required')
+    .addValidator(value => {
+        try {
+            new Intl.DateTimeFormat('en-US', { timeZone: value });
+            return { valid: true };
+        } catch {
+            return {
+                valid: false,
+                errors: [{ message: 'timezone must be a valid IANA time zone' }]
+            };
+        }
+    })
+    .describe('IANA time zone identifier, for example UTC or America/New_York.')
+    .schemaName('TimeZone');
+
 export const CategoryTypeSchema = enumOf('expense', 'income')
     .required('category type is required')
     .describe('Whether a category is used for expenses or income.')
@@ -109,7 +126,13 @@ export const RegisterBodySchema = object({
     /** Favorite currencies shown first when creating transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema)
         .default([])
-        .describe('Favorite currencies shown first when creating transactions.')
+        .describe(
+            'Favorite currencies shown first when creating transactions.'
+        ),
+    /** Time zone used for transaction display and reporting periods. */
+    timezone: TimeZoneSchema.default('UTC').describe(
+        'Time zone used for transaction display and reporting periods.'
+    )
 })
     .addValidator(value => {
         if (value.password !== value.confirmPassword) {
@@ -217,6 +240,10 @@ export const TokenResponseSchema = object({
         defaultCurrency: CurrencyCodeSchema.describe(
             'Default currency used for reports.'
         ),
+        /** Time zone used for transaction display and reporting periods. */
+        timezone: TimeZoneSchema.describe(
+            'Time zone used for transaction display and reporting periods.'
+        ),
         /** True when the user has at least one category. */
         hasCategories: boolean().describe(
             'True when the user has at least one category.'
@@ -236,6 +263,10 @@ export const UserPreferenceSchema = object({
     /** Favorite currencies offered when entering transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
         'Favorite currencies offered when entering transactions.'
+    ),
+    /** Time zone used for transaction display and reporting periods. */
+    timezone: TimeZoneSchema.describe(
+        'Time zone used for transaction display and reporting periods.'
     ),
     /** True when the user has at least one category. */
     hasCategories: boolean().describe(
@@ -301,6 +332,10 @@ export const UpdateUserPreferenceBodySchema = object({
     /** Favorite currencies offered when entering transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
         'Favorite currencies offered when entering transactions.'
+    ),
+    /** Time zone used for transaction display and reporting periods. */
+    timezone: TimeZoneSchema.optional().describe(
+        'Time zone used for transaction display and reporting periods.'
     )
 }).schemaName('UpdateUserPreferenceBody');
 

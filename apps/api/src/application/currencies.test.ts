@@ -30,6 +30,12 @@ describe('currency calculations', () => {
         expect(transactionDate(new Date('2026-05-09T18:30:00.000Z'))).toBe(
             '2026-05-09'
         );
+        expect(
+            transactionDate(
+                new Date('2026-05-10T06:30:00.000Z'),
+                'America/Los_Angeles'
+            )
+        ).toBe('2026-05-09');
     });
 });
 
@@ -80,7 +86,8 @@ describe('exchange rates', () => {
             users: {
                 find: vi.fn().mockResolvedValue({
                     id: 1,
-                    defaultCurrency: 'USD'
+                    defaultCurrency: 'USD',
+                    timezone: 'UTC'
                 })
             },
             exchangeRates: {
@@ -113,7 +120,8 @@ describe('exchange rates', () => {
             users: {
                 find: vi.fn().mockResolvedValue({
                     id: 1,
-                    defaultCurrency: 'USD'
+                    defaultCurrency: 'USD',
+                    timezone: 'UTC'
                 })
             },
             exchangeRates: {

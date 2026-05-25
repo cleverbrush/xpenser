@@ -1,4 +1,5 @@
 import type { TransactionListQuery } from '@xpenser/contracts';
+import { defaultTimeZone, localDateParamToDate } from '@xpenser/timezone';
 
 export const transactionPageSize = 30;
 
@@ -41,24 +42,10 @@ export function parseTransactionId(value?: string): number | undefined {
 
 export function parseTransactionDateFilter(
     value: string | undefined,
-    boundary: 'end' | 'start'
+    boundary: 'end' | 'start',
+    timeZone = defaultTimeZone
 ): Date | undefined {
-    if (!value) {
-        return undefined;
-    }
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-        return undefined;
-    }
-
-    if (boundary === 'start') {
-        date.setHours(0, 0, 0, 0);
-    } else {
-        date.setHours(23, 59, 59, 999);
-    }
-
-    return date;
+    return localDateParamToDate(value, timeZone, boundary);
 }
 
 function parsePositiveInteger(
@@ -88,7 +75,8 @@ export function buildTransactionListQuery(
     overrides: {
         readonly page?: number;
         readonly limit?: number;
-    } = {}
+    } = {},
+    timeZone = defaultTimeZone
 ): TransactionListQuery {
     const search = readParam(params, 'search')?.trim();
     const direction = readParam(params, 'direction') === 'asc' ? 'asc' : 'desc';
@@ -97,8 +85,16 @@ export function buildTransactionListQuery(
         search: search || undefined,
         type: parseTransactionType(readParam(params, 'type')),
         categoryId: parseTransactionId(readParam(params, 'categoryId')),
-        from: parseTransactionDateFilter(readParam(params, 'from'), 'start'),
-        to: parseTransactionDateFilter(readParam(params, 'to'), 'end'),
+        from: parseTransactionDateFilter(
+            readParam(params, 'from'),
+            'start',
+            timeZone
+        ),
+        to: parseTransactionDateFilter(
+            readParam(params, 'to'),
+            'end',
+            timeZone
+        ),
         page:
             overrides.page ??
             parsePositiveInteger(readParam(params, 'page'), 1),

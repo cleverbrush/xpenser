@@ -53,6 +53,20 @@ describe('transaction query helpers', () => {
         });
     });
 
+    it('builds date filter boundaries in the user timezone', () => {
+        const query = buildTransactionListQuery(
+            new URLSearchParams({
+                from: '2026-05-10',
+                to: '2026-05-10'
+            }),
+            {},
+            'America/Los_Angeles'
+        );
+
+        expect(query.from).toEqual(new Date('2026-05-10T07:00:00.000Z'));
+        expect(query.to).toEqual(new Date('2026-05-11T06:59:59.999Z'));
+    });
+
     it('detects filters and pagination end state', () => {
         expect(
             hasTransactionFilters(new URLSearchParams({ search: 'rent' }))

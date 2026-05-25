@@ -115,7 +115,8 @@ export async function registerAction(formData: FormData) {
                 favoriteCurrencies: favoriteCurrencies(
                     formData,
                     defaultCurrency
-                )
+                ),
+                timezone: optionalString(formData, 'timezone') ?? 'UTC'
             }
         });
     } catch (err) {
@@ -232,7 +233,8 @@ export async function updatePreferencesAction(formData: FormData) {
     await client.users.updatePreferences({
         body: {
             defaultCurrency,
-            favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency)
+            favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency),
+            timezone: optionalString(formData, 'timezone') ?? 'UTC'
         }
     });
     revalidateTag('user-profile', 'max');

@@ -167,6 +167,18 @@ describe('dashboard range resolution', () => {
         expect(range.to).toEqual(new Date(2026, 4, 5, 23, 59, 59, 999));
     });
 
+    it('resolves calendar days in the user timezone', () => {
+        const range = resolveDashboardRange(
+            'day',
+            new Date('2026-05-10T12:00:00.000Z'),
+            new Date('2026-05-12T12:00:00.000Z'),
+            'America/Los_Angeles'
+        );
+
+        expect(range.from).toEqual(new Date('2026-05-10T07:00:00.000Z'));
+        expect(range.to).toEqual(new Date('2026-05-11T06:59:59.999Z'));
+    });
+
     it('uses Monday through Sunday for selected weeks', () => {
         const range = resolveDashboardRange(
             'week',

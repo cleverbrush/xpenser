@@ -4,6 +4,7 @@ import type {
     CurrencyConversion,
     CurrencyConversionQuery
 } from '@xpenser/contracts';
+import { dateToLocalDateParam, defaultTimeZone } from '@xpenser/timezone';
 import type { Config } from '../config.js';
 import type { AppDb, UserDb } from '../db/schemas.js';
 import { frankfurterCurrencyCatalog } from './frankfurter-currency-catalog.js';
@@ -22,8 +23,11 @@ export type ExchangeRate = {
     readonly rateDate: string;
 };
 
-export function transactionDate(value: Date): string {
-    return value.toISOString().slice(0, 10);
+export function transactionDate(
+    value: Date,
+    timeZone = defaultTimeZone
+): string {
+    return dateToLocalDateParam(value, timeZone);
 }
 
 export function convertAmount(amount: number, rate: number): number {
@@ -201,7 +205,10 @@ export async function convertCurrencyForUser(
 
     const currency = query.currency.trim().toUpperCase();
     const defaultCurrency = user.defaultCurrency.trim().toUpperCase();
-    const rateDate = transactionDate(query.occurredAt ?? new Date());
+    const rateDate = transactionDate(
+        query.occurredAt ?? new Date(),
+        user.timezone
+    );
     const exchange = await getExchangeRate(
         db,
         config,

@@ -5,6 +5,7 @@ import type {
     TokenResponse,
     UserPreference
 } from '@xpenser/contracts';
+import { defaultTimeZone, normalizeTimeZone } from '@xpenser/timezone';
 import type { Config } from '../config.js';
 import type { AppDb, UserDb } from '../db/schemas.js';
 import { hashPassword, verifyPassword } from '../security/password.js';
@@ -53,7 +54,10 @@ async function setFavoriteCurrencies(
 
 function toTokenResponse(
     config: Config,
-    user: Pick<UserDb, 'id' | 'email' | 'role' | 'defaultCurrency'>,
+    user: Pick<
+        UserDb,
+        'defaultCurrency' | 'email' | 'id' | 'role' | 'timezone'
+    >,
     categories: boolean,
     expiresInSeconds?: number
 ): TokenResponse {
@@ -68,6 +72,7 @@ function toTokenResponse(
             email: user.email,
             role: user.role,
             defaultCurrency: user.defaultCurrency,
+            timezone: normalizeTimeZone(user.timezone),
             hasCategories: categories
         }
     };
@@ -114,7 +119,8 @@ export async function registerUser(
             passwordHash: await hashPassword(body.password),
             role: 'user',
             authProvider: 'local',
-            defaultCurrency: body.defaultCurrency
+            defaultCurrency: body.defaultCurrency,
+            timezone: normalizeTimeZone(body.timezone)
         });
 
         await setFavoriteCurrencies(
@@ -197,7 +203,8 @@ export async function resolvePassportGoogleUser(
                 passwordHash: undefined,
                 role: 'user',
                 authProvider: 'google',
-                defaultCurrency: 'USD'
+                defaultCurrency: 'USD',
+                timezone: defaultTimeZone
             }));
 
         const userIdentity = await trx.externalIdentities
@@ -251,6 +258,7 @@ export async function getUserPreference(
         email: user.email,
         defaultCurrency: user.defaultCurrency,
         favoriteCurrencies: await favoriteCurrencies(db, userId),
+        timezone: normalizeTimeZone(user.timezone),
         hasCategories: await hasCategories(db, userId)
     };
 }
@@ -259,7 +267,8 @@ export async function updateUserPreference(
     db: AppDb,
     userId: number,
     defaultCurrency: string,
-    currencies: readonly string[]
+    currencies: readonly string[],
+    timezone?: string
 ): Promise<UserPreference | undefined> {
     const user = await db.users.find(userId);
     if (!user) {
@@ -271,6 +280,7 @@ export async function updateUserPreference(
             .where(candidate => candidate.id, userId)
             .update({
                 defaultCurrency,
+                timezone: normalizeTimeZone(timezone ?? user.timezone),
                 updatedAt: new Date()
             });
         await setFavoriteCurrencies(trx, userId, currencies, defaultCurrency);

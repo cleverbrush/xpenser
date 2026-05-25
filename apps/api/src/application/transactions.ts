@@ -7,6 +7,25 @@ import type {
     TransactionEffect,
     TransactionListQuery
 } from '@xpenser/contracts';
+import {
+    addLocalDays,
+    addLocalMonths,
+    addLocalYears,
+    addStatsBucketStepInTimeZone,
+    defaultTimeZone,
+    localDayDifference,
+    localEndOfDay,
+    localHour,
+    localMonthIndex,
+    localStartOfDay,
+    localStartOfHour,
+    localStartOfMonth,
+    localStartOfWeek,
+    resolveDashboardComparisonRangeInTimeZone,
+    resolveDashboardRangeInTimeZone,
+    statsBucketKeyInTimeZone,
+    statsBucketLabelInTimeZone
+} from '@xpenser/timezone';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -39,8 +58,6 @@ type StatsRange = {
     readonly from: Date;
     readonly to: Date;
 };
-
-const dayMs = 24 * 60 * 60 * 1_000;
 
 type CategoryComparison = {
     readonly categoryId: number;
@@ -201,7 +218,7 @@ export async function createTransaction(
 ): Promise<Transaction> {
     const user = await getUser(db, userId);
     const category = await getCategory(db, userId, body.categoryId);
-    const date = transactionDate(body.occurredAt);
+    const date = transactionDate(body.occurredAt, user.timezone);
     const exchange = await getExchangeRate(
         db,
         config,
@@ -268,7 +285,7 @@ export async function updateTransaction(
         config,
         next.currency,
         user.defaultCurrency,
-        transactionDate(next.occurredAt)
+        transactionDate(next.occurredAt, user.timezone)
     );
 
     await db.transactions
@@ -306,105 +323,8 @@ export async function deleteTransaction(
     }
 }
 
-function cloneDate(value: Date): Date {
-    return new Date(value.getTime());
-}
-
 function isValidDate(value: unknown): value is Date {
     return value instanceof Date && !Number.isNaN(value.getTime());
-}
-
-function startOfDay(value: Date): Date {
-    const date = cloneDate(value);
-    date.setHours(0, 0, 0, 0);
-    return date;
-}
-
-function startOfHour(value: Date): Date {
-    const date = cloneDate(value);
-    date.setMinutes(0, 0, 0);
-    return date;
-}
-
-function endOfDay(value: Date): Date {
-    const date = cloneDate(value);
-    date.setHours(23, 59, 59, 999);
-    return date;
-}
-
-function startOfWeek(value: Date): Date {
-    const date = startOfDay(value);
-    const day = date.getDay();
-    date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
-    return date;
-}
-
-function startOfMonth(value: Date): Date {
-    const date = startOfDay(value);
-    date.setDate(1);
-    return date;
-}
-
-function endOfMonth(value: Date): Date {
-    return new Date(startOfMonth(addMonthsClamped(value, 1)).getTime() - 1);
-}
-
-function startOfQuarter(value: Date): Date {
-    const date = startOfMonth(value);
-    date.setMonth(Math.floor(date.getMonth() / 3) * 3, 1);
-    return date;
-}
-
-function endOfQuarter(value: Date): Date {
-    return new Date(addMonthsClamped(startOfQuarter(value), 3).getTime() - 1);
-}
-
-function startOfYear(value: Date): Date {
-    const date = startOfDay(value);
-    date.setMonth(0, 1);
-    return date;
-}
-
-function endOfYear(value: Date): Date {
-    const date = startOfYear(value);
-    date.setFullYear(date.getFullYear() + 1);
-    return new Date(date.getTime() - 1);
-}
-
-function daysInMonth(year: number, month: number): number {
-    return new Date(year, month + 1, 0).getDate();
-}
-
-function addDays(value: Date, days: number): Date {
-    const date = cloneDate(value);
-    date.setDate(date.getDate() + days);
-    return date;
-}
-
-function endOfWeek(value: Date): Date {
-    return endOfDay(addDays(startOfWeek(value), 6));
-}
-
-function addMonthsClamped(value: Date, months: number): Date {
-    const source = cloneDate(value);
-    const day = source.getDate();
-    source.setDate(1);
-    source.setMonth(source.getMonth() + months);
-    source.setDate(
-        Math.min(day, daysInMonth(source.getFullYear(), source.getMonth()))
-    );
-    return source;
-}
-
-function addYearsClamped(value: Date, years: number): Date {
-    const source = cloneDate(value);
-    const day = source.getDate();
-    source.setDate(1);
-    source.setFullYear(source.getFullYear() + years);
-    source.setDate(
-        Math.min(day, daysInMonth(source.getFullYear(), source.getMonth()))
-    );
-    return source;
 }
 
 function previousRollingRange(range: StatsRange): StatsRange {
@@ -416,32 +336,51 @@ function previousRollingRange(range: StatsRange): StatsRange {
     };
 }
 
-function previousCalendarMonthRange(range: StatsRange): StatsRange {
-    const to = new Date(startOfMonth(range.from).getTime() - 1);
+function previousCalendarMonthRange(
+    range: StatsRange,
+    timeZone: string
+): StatsRange {
+    const currentMonth = localStartOfMonth(range.from, timeZone);
+    const to = new Date(currentMonth.getTime() - 1);
     return {
-        from: startOfMonth(addMonthsClamped(range.from, -1)),
+        from: localStartOfMonth(
+            addLocalMonths(currentMonth, -1, timeZone),
+            timeZone
+        ),
         to
     };
 }
 
-function shiftRangeDays(range: StatsRange, days: number): StatsRange {
+function shiftRangeDays(
+    range: StatsRange,
+    days: number,
+    timeZone: string
+): StatsRange {
     return {
-        from: addDays(range.from, days),
-        to: addDays(range.to, days)
+        from: addLocalDays(range.from, days, timeZone),
+        to: addLocalDays(range.to, days, timeZone)
     };
 }
 
-function shiftRangeMonths(range: StatsRange, months: number): StatsRange {
+function shiftRangeMonths(
+    range: StatsRange,
+    months: number,
+    timeZone: string
+): StatsRange {
     return {
-        from: addMonthsClamped(range.from, months),
-        to: addMonthsClamped(range.to, months)
+        from: addLocalMonths(range.from, months, timeZone),
+        to: addLocalMonths(range.to, months, timeZone)
     };
 }
 
-function shiftRangeYears(range: StatsRange, years: number): StatsRange {
+function shiftRangeYears(
+    range: StatsRange,
+    years: number,
+    timeZone: string
+): StatsRange {
     return {
-        from: addYearsClamped(range.from, years),
-        to: addYearsClamped(range.to, years)
+        from: addLocalYears(range.from, years, timeZone),
+        to: addLocalYears(range.to, years, timeZone)
     };
 }
 
@@ -456,88 +395,36 @@ export function percentChange(current: number, previous: number): number {
     return ((current - previous) / Math.abs(previous)) * 100;
 }
 
-function normalizeRange(from: Date, to: Date): StatsRange {
+function normalizeRange(from: Date, to: Date, timeZone: string): StatsRange {
     return from <= to
         ? { from, to }
-        : { from: startOfDay(to), to: endOfDay(from) };
+        : {
+              from: localStartOfDay(to, timeZone),
+              to: localEndOfDay(from, timeZone)
+          };
 }
 
 export function resolveDashboardRange(
     period: DashboardPeriod,
     date = new Date(),
-    now = new Date()
+    now = new Date(),
+    timeZone = defaultTimeZone
 ): StatsRange {
-    const anchor = isValidDate(date) ? date : now;
-    const selected = startOfDay(anchor);
-    let from: Date;
-    let to: Date;
-
-    if (period === 'day') {
-        from = startOfDay(selected);
-        to = endOfDay(selected);
-    } else if (period === 'week') {
-        from = startOfWeek(selected);
-        to = endOfWeek(selected);
-    } else if (period === 'month') {
-        from = startOfMonth(selected);
-        to = endOfMonth(selected);
-    } else if (period === 'quarter') {
-        from = startOfQuarter(selected);
-        to = endOfQuarter(selected);
-    } else {
-        from = startOfYear(selected);
-        to = endOfYear(selected);
-    }
-
-    return {
-        from,
-        to: from <= now && now <= to ? now : to
-    };
+    return resolveDashboardRangeInTimeZone(period, date, now, timeZone);
 }
 
 export function resolveDashboardComparisonRange(
     period: DashboardPeriod,
-    range: StatsRange
+    range: StatsRange,
+    timeZone = defaultTimeZone
 ): StatsRange {
-    if (period === 'day') {
-        const previousDay = addDays(range.from, -1);
-        return {
-            from: startOfDay(previousDay),
-            to: endOfDay(previousDay)
-        };
-    }
-    if (period === 'week') {
-        const previousWeek = addDays(range.from, -7);
-        return {
-            from: startOfWeek(previousWeek),
-            to: endOfWeek(previousWeek)
-        };
-    }
-    if (period === 'month') {
-        const previousMonth = addMonthsClamped(range.from, -1);
-        return {
-            from: startOfMonth(previousMonth),
-            to: endOfMonth(previousMonth)
-        };
-    }
-    if (period === 'quarter') {
-        const previousQuarter = addMonthsClamped(range.from, -3);
-        return {
-            from: startOfQuarter(previousQuarter),
-            to: endOfQuarter(previousQuarter)
-        };
-    }
-
-    const previousYear = addYearsClamped(range.from, -1);
-    return {
-        from: startOfYear(previousYear),
-        to: endOfYear(previousYear)
-    };
+    return resolveDashboardComparisonRangeInTimeZone(period, range, timeZone);
 }
 
 function dashboardTrendBucketCount(
     period: DashboardPeriod,
-    range: StatsRange
+    range: StatsRange,
+    timeZone: string
 ): number {
     if (period === 'day') {
         return 24;
@@ -547,18 +434,12 @@ function dashboardTrendBucketCount(
     }
     if (period === 'month') {
         return Math.ceil(
-            (startOfDay(range.to).getTime() -
-                startOfDay(range.from).getTime() +
-                dayMs) /
-                (dayMs * 7)
+            (localDayDifference(range.from, range.to, timeZone) + 1) / 7
         );
     }
     if (period === 'quarter') {
         return Math.ceil(
-            (startOfDay(range.to).getTime() -
-                startOfDay(range.from).getTime() +
-                dayMs) /
-                (dayMs * 7)
+            (localDayDifference(range.from, range.to, timeZone) + 1) / 7
         );
     }
     return 12;
@@ -567,86 +448,89 @@ function dashboardTrendBucketCount(
 function dashboardTrendBucketIndex(
     period: DashboardPeriod,
     date: Date,
-    range: StatsRange
+    range: StatsRange,
+    timeZone: string
 ): number {
     if (period === 'day') {
-        return date.getHours();
+        return localHour(date, timeZone);
     }
     if (period === 'week') {
-        return Math.floor(
-            (startOfDay(date).getTime() - startOfDay(range.from).getTime()) /
-                dayMs
-        );
+        return localDayDifference(range.from, date, timeZone);
     }
     if (period === 'month') {
-        return Math.floor(
-            (startOfDay(date).getTime() - startOfDay(range.from).getTime()) /
-                (dayMs * 7)
-        );
+        return Math.floor(localDayDifference(range.from, date, timeZone) / 7);
     }
     if (period === 'quarter') {
-        return Math.floor(
-            (startOfDay(date).getTime() - startOfDay(range.from).getTime()) /
-                (dayMs * 7)
-        );
+        return Math.floor(localDayDifference(range.from, date, timeZone) / 7);
     }
-    return date.getMonth();
+    return localMonthIndex(date, timeZone);
 }
 
 export function resolveStatsRanges(
     query: Partial<StatsQuery>,
-    now = new Date()
+    now = new Date(),
+    timeZone = defaultTimeZone
 ) {
     if (query.period) {
-        const selected = resolveDashboardRange(query.period, query.date, now);
+        const selected = resolveDashboardRange(
+            query.period,
+            query.date,
+            now,
+            timeZone
+        );
         return {
             selected,
             previousPeriod: resolveDashboardComparisonRange(
                 query.period,
-                selected
+                selected,
+                timeZone
             ),
-            previousYear: shiftRangeYears(selected, -1)
+            previousYear: shiftRangeYears(selected, -1, timeZone)
         };
     }
 
     const timeframe = (query.timeframe ?? 'this-month') as StatsTimeframe;
-    const today = startOfDay(now);
+    const today = localStartOfDay(now, timeZone);
     let selected: StatsRange;
 
     if (timeframe === 'this-week') {
-        selected = { from: startOfWeek(now), to: now };
+        selected = { from: localStartOfWeek(now, timeZone), to: now };
     } else if (timeframe === 'last-7-days') {
-        selected = { from: addDays(today, -6), to: now };
+        selected = { from: addLocalDays(today, -6, timeZone), to: now };
     } else if (timeframe === 'last-month') {
-        const currentMonth = startOfMonth(now);
+        const currentMonth = localStartOfMonth(now, timeZone);
         selected = {
-            from: startOfMonth(addMonthsClamped(currentMonth, -1)),
+            from: localStartOfMonth(
+                addLocalMonths(currentMonth, -1, timeZone),
+                timeZone
+            ),
             to: new Date(currentMonth.getTime() - 1)
         };
     } else if (timeframe === 'last-30-days') {
-        selected = { from: addDays(today, -29), to: now };
+        selected = { from: addLocalDays(today, -29, timeZone), to: now };
     } else if (timeframe === 'custom') {
         selected = normalizeRange(
             isValidDate(query.from)
-                ? startOfDay(query.from)
-                : startOfMonth(now),
-            isValidDate(query.to) ? endOfDay(query.to) : now
+                ? localStartOfDay(query.from, timeZone)
+                : localStartOfMonth(now, timeZone),
+            isValidDate(query.to) ? localEndOfDay(query.to, timeZone) : now,
+            timeZone
         );
     } else {
-        selected = { from: startOfMonth(now), to: now };
+        selected = { from: localStartOfMonth(now, timeZone), to: now };
     }
 
     let previousPeriod: StatsRange;
     if (timeframe === 'this-week') {
-        previousPeriod = shiftRangeDays(selected, -7);
+        previousPeriod = shiftRangeDays(selected, -7, timeZone);
     } else if (timeframe === 'this-month') {
-        previousPeriod = shiftRangeMonths(selected, -1);
+        previousPeriod = shiftRangeMonths(selected, -1, timeZone);
     } else if (timeframe === 'last-month') {
-        previousPeriod = previousCalendarMonthRange(selected);
+        previousPeriod = previousCalendarMonthRange(selected, timeZone);
     } else if (timeframe === 'last-7-days') {
-        previousPeriod = shiftRangeDays(selected, -7);
+        previousPeriod = shiftRangeDays(selected, -7, timeZone);
     } else if (timeframe === 'last-30-days') {
-        previousPeriod = shiftRangeDays(selected, -30);
+        previousPeriod = shiftRangeDays(selected, -30, timeZone);
     } else {
         previousPeriod = previousRollingRange(selected);
     }
@@ -654,96 +538,36 @@ export function resolveStatsRanges(
     return {
         selected,
         previousPeriod,
-        previousYear: shiftRangeYears(selected, -1)
+        previousYear: shiftRangeYears(selected, -1, timeZone)
     };
-}
-
-function statsBucketKey(date: Date, groupBy: StatsGroupBy): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-
-    if (groupBy === 'hour') {
-        const hour = String(date.getHours()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hour}`;
-    }
-
-    if (groupBy === 'month') {
-        return `${year}-${month}`;
-    }
-
-    const bucketDate = groupBy === 'week' ? startOfWeek(date) : date;
-    const bucketMonth = String(bucketDate.getMonth() + 1).padStart(2, '0');
-    const bucketDay = String(bucketDate.getDate()).padStart(2, '0');
-    return `${bucketDate.getFullYear()}-${bucketMonth}-${bucketDay}`;
-}
-
-function statsBucketLabel(date: Date, groupBy: StatsGroupBy): string {
-    if (groupBy === 'hour') {
-        return new Intl.DateTimeFormat('en-US', {
-            hour: 'numeric'
-        }).format(date);
-    }
-
-    if (groupBy === 'month') {
-        return new Intl.DateTimeFormat('en-US', {
-            month: 'short',
-            year: '2-digit'
-        }).format(date);
-    }
-
-    if (groupBy === 'week') {
-        return `Week of ${new Intl.DateTimeFormat('en-US', {
-            month: 'short',
-            day: 'numeric'
-        }).format(date)}`;
-    }
-
-    return new Intl.DateTimeFormat('en-US', {
-        month: 'short',
-        day: 'numeric'
-    }).format(date);
-}
-
-function addStatsBucketStep(date: Date, groupBy: StatsGroupBy): void {
-    if (groupBy === 'hour') {
-        date.setHours(date.getHours() + 1, 0, 0, 0);
-        return;
-    }
-
-    if (groupBy === 'month') {
-        date.setMonth(date.getMonth() + 1, 1);
-        return;
-    }
-
-    date.setDate(date.getDate() + (groupBy === 'week' ? 7 : 1));
 }
 
 function statsTrendBuckets(
     groupBy: StatsGroupBy,
-    range: StatsRange
+    range: StatsRange,
+    timeZone: string
 ): Map<string, StatsBucket> {
     const buckets = new Map<string, StatsBucket>();
-    const current =
+    let current =
         groupBy === 'hour'
-            ? startOfHour(range.from)
+            ? localStartOfHour(range.from, timeZone)
             : groupBy === 'week'
-              ? startOfWeek(range.from)
+              ? localStartOfWeek(range.from, timeZone)
               : groupBy === 'month'
-                ? startOfMonth(range.from)
-                : startOfDay(range.from);
+                ? localStartOfMonth(range.from, timeZone)
+                : localStartOfDay(range.from, timeZone);
 
     while (current <= range.to) {
-        const key = statsBucketKey(current, groupBy);
+        const key = statsBucketKeyInTimeZone(current, groupBy, timeZone);
         buckets.set(key, {
             bucket: key,
-            label: statsBucketLabel(current, groupBy),
+            label: statsBucketLabelInTimeZone(current, groupBy, timeZone),
             incomeTotal: 0,
             expenseTotal: 0,
             netTotal: 0,
             transactionCount: 0
         });
-        addStatsBucketStep(current, groupBy);
+        current = addStatsBucketStepInTimeZone(current, groupBy, timeZone);
     }
 
     return buckets;
@@ -783,7 +607,8 @@ function emptyStatsCategory(
 function summarizeSelectedRows(
     rows: readonly TransactionDb[],
     groupBy: StatsGroupBy,
-    buckets: Map<string, StatsBucket>
+    buckets: Map<string, StatsBucket>,
+    timeZone: string
 ) {
     const bucketKeys = Array.from(buckets.keys());
     const bucketIndexes = new Map(
@@ -799,7 +624,9 @@ function summarizeSelectedRows(
         const total = transactionSignedDefaultAmount(row);
         const type = row.type;
         const date = new Date(row.occurredAt);
-        const bucket = buckets.get(statsBucketKey(date, groupBy));
+        const bucket = buckets.get(
+            statsBucketKeyInTimeZone(date, groupBy, timeZone)
+        );
 
         if (type === 'income') {
             incomeTotal += total;
@@ -830,7 +657,9 @@ function summarizeSelectedRows(
                 },
                 bucketKeys.length
             );
-        const bucketIndex = bucketIndexes.get(statsBucketKey(date, groupBy));
+        const bucketIndex = bucketIndexes.get(
+            statsBucketKeyInTimeZone(date, groupBy, timeZone)
+        );
         category.total += total;
         category.transactionCount += 1;
         if (bucketIndex !== undefined) {
@@ -941,14 +770,23 @@ export async function dashboardSummary(
     date?: Date
 ): Promise<DashboardSummary> {
     const user = await getUser(db, userId);
-    const range = resolveDashboardRange(period, date);
-    const comparisonRange = resolveDashboardComparisonRange(period, range);
+    const range = resolveDashboardRange(
+        period,
+        date,
+        new Date(),
+        user.timezone
+    );
+    const comparisonRange = resolveDashboardComparisonRange(
+        period,
+        range,
+        user.timezone
+    );
     const [rows, previousRows] = await Promise.all([
         transactionsForRange(db, userId, range),
         transactionsForRange(db, userId, comparisonRange)
     ]);
 
-    const bucketCount = dashboardTrendBucketCount(period, range);
+    const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
     const previousTotalsByCategory = new Map<string, number>();
 
@@ -977,7 +815,8 @@ export async function dashboardSummary(
         const bucketIndex = dashboardTrendBucketIndex(
             period,
             row.occurredAt,
-            range
+            range,
+            user.timezone
         );
 
         current.total += total;
@@ -1027,15 +866,24 @@ export async function statsOverview(
     const timeframe = (
         query.period ? 'custom' : (query.timeframe ?? 'this-month')
     ) as StatsTimeframe;
-    const ranges = resolveStatsRanges({ ...query, groupBy, timeframe });
-    const buckets = statsTrendBuckets(groupBy, ranges.selected);
+    const ranges = resolveStatsRanges(
+        { ...query, groupBy, timeframe },
+        new Date(),
+        user.timezone
+    );
+    const buckets = statsTrendBuckets(groupBy, ranges.selected, user.timezone);
     const [selectedRows, previousPeriodRows, previousYearRows] =
         await Promise.all([
             transactionsForRange(db, userId, ranges.selected),
             transactionsForRange(db, userId, ranges.previousPeriod),
             transactionsForRange(db, userId, ranges.previousYear)
         ]);
-    const selected = summarizeSelectedRows(selectedRows, groupBy, buckets);
+    const selected = summarizeSelectedRows(
+        selectedRows,
+        groupBy,
+        buckets,
+        user.timezone
+    );
     const previousPeriod = summarizeComparisonRows(
         previousPeriodRows,
         ranges.previousPeriod

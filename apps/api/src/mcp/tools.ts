@@ -408,7 +408,7 @@ function createXpenserMcpTools(
             name: 'xpenser_get_current_user',
             title: 'Get current xpenser user',
             description:
-                'Return profile and default currency context for the authenticated xpenser API key owner.',
+                'Return profile, default currency, and timezone context for the authenticated xpenser API key owner.',
             inputSchema: EmptyInputSchema,
             annotations: readOnlyAnnotations,
             handler: () => handleGetCurrentUser(context)

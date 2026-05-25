@@ -43,7 +43,9 @@ export const UpdatePreferencesEndpoint = api.users.updatePreferences
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
     .summary('Update preferences')
-    .description('Updates the current user default and favorite currencies.')
+    .description(
+        'Updates the current user default currency, favorite currencies, and timezone.'
+    )
     .tags('users')
     .operationId('updateUserPreferences');
 

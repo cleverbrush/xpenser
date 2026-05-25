@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { registerAction } from '@/lib/actions';
 import { sortCurrenciesForDisplay } from '@/lib/currency-display';
+import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
 import { CurrencyMultiSelect } from './currency-multi-select';
 import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
@@ -33,12 +34,14 @@ export function RegisterForm({
     const defaultCurrency = form.useField(field => field.defaultCurrency);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
+    const [selectedTimezone, setSelectedTimezone] = useState('UTC');
     const [selectedFavoriteCurrencies, setSelectedFavoriteCurrencies] =
         useState<string[]>([]);
     const sortedCurrencies = useMemo(
         () => sortCurrenciesForDisplay(currencies),
         [currencies]
     );
+    const timeZones = useMemo(() => supportedTimeZones(), []);
 
     const initialDefaultCurrency = useMemo(
         () =>
@@ -57,6 +60,7 @@ export function RegisterForm({
             defaultCurrency: initialDefaultCurrency,
             favoriteCurrencies: []
         });
+        setSelectedTimezone('UTC');
         setSelectedFavoriteCurrencies([]);
     }, [form, initialDefaultCurrency]);
 
@@ -71,7 +75,7 @@ export function RegisterForm({
         const favoriteCurrencies = selectedFavoriteCurrencies.filter(
             currency => currency !== selectedDefault
         );
-        form.setValue({ favoriteCurrencies });
+        form.setValue({ favoriteCurrencies, timezone: selectedTimezone });
         const result = await form.submit();
         if (!result.valid || !result.object) {
             return;
@@ -169,6 +173,26 @@ export function RegisterForm({
                     onChange={setSelectedFavoriteCurrencies}
                     selectedCurrencies={selectedFavoriteCurrencies}
                 />
+                <Field>
+                    <FieldLabel>Time zone</FieldLabel>
+                    <Select
+                        onValueChange={setSelectedTimezone}
+                        value={selectedTimezone}
+                    >
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                {timeZones.map(timeZone => (
+                                    <SelectItem key={timeZone} value={timeZone}>
+                                        {timeZoneLabel(timeZone)}
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </Field>
                 {error ? <FieldError role="alert">{error}</FieldError> : null}
                 <Button className="w-full" disabled={pending} type="submit">
                     {pending ? 'Creating account...' : 'Create account'}

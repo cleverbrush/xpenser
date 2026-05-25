@@ -118,13 +118,15 @@ export function DashboardSwipeArea({
     children,
     date,
     period,
-    skeleton
+    skeleton,
+    timezone
 }: {
     readonly basePath?: string;
     readonly children: ReactNode;
     readonly date: string;
     readonly period: DashboardPeriod;
     readonly skeleton?: ReactNode;
+    readonly timezone: string;
 }) {
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
@@ -138,24 +140,34 @@ export function DashboardSwipeArea({
     const [swipeOffset, setSwipeOffset] = useState(0);
     const resetKey = `${basePath}:${period}:${date}`;
     const anchorDate = useMemo(
-        () => parseDateParam(date) ?? new Date(),
-        [date]
+        () => parseDateParam(date, timezone) ?? new Date(),
+        [date, timezone]
     );
-    const latest = isLatestDashboardPeriod(period, anchorDate);
+    const latest = isLatestDashboardPeriod(
+        period,
+        anchorDate,
+        new Date(),
+        timezone
+    );
     const previousDate = useMemo(
-        () => addDashboardPeriod(period, anchorDate, -1),
-        [anchorDate, period]
+        () => addDashboardPeriod(period, anchorDate, -1, timezone),
+        [anchorDate, period, timezone]
     );
     const nextDate = useMemo(
-        () => addDashboardPeriod(period, anchorDate, 1),
-        [anchorDate, period]
+        () => addDashboardPeriod(period, anchorDate, 1, timezone),
+        [anchorDate, period, timezone]
     );
-    const previousHref = periodHref(basePath, period, previousDate);
+    const previousHref = periodHref(basePath, period, previousDate, {
+        timeZone: timezone
+    });
     const nextHref = latest
         ? undefined
-        : periodHref(basePath, period, nextDate);
-    const previousKey = `${basePath}:${period}:${dateParam(previousDate)}`;
-    const nextKey = `${basePath}:${period}:${dateParam(nextDate)}`;
+        : periodHref(basePath, period, nextDate, { timeZone: timezone });
+    const previousKey = `${basePath}:${period}:${dateParam(
+        previousDate,
+        timezone
+    )}`;
+    const nextKey = `${basePath}:${period}:${dateParam(nextDate, timezone)}`;
     const targetKey =
         dragDirection === -1 ? nextKey : dragDirection === 1 ? previousKey : '';
     const targetPanel = targetKey ? panelCache.get(targetKey) : undefined;

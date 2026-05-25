@@ -23,6 +23,7 @@ import {
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { updatePreferencesAction } from '@/lib/actions';
 import { sortCurrenciesForDisplay } from '@/lib/currency-display';
+import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
 import { CurrencyMultiSelect } from './currency-multi-select';
 import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
@@ -37,6 +38,7 @@ export function PreferencesForm({
     const form = useSchemaForm(UpdateUserPreferenceBodySchema);
     const defaultCurrency = form.useField(field => field.defaultCurrency);
     const favoriteCurrencies = form.useField(field => field.favoriteCurrencies);
+    const timezone = form.useField(field => field.timezone);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
     const sortedCurrencies = useMemo(
@@ -44,20 +46,24 @@ export function PreferencesForm({
         [currencies]
     );
     const selectedDefaultCurrency = defaultCurrency.value ?? me.defaultCurrency;
+    const selectedTimezone = timezone.value ?? me.timezone;
     const selectedFavoriteCurrencies = (
         favoriteCurrencies.value ?? me.favoriteCurrencies
     ).filter(currency => currency !== selectedDefaultCurrency);
     const defaultCurrencyInvalid =
         defaultCurrency.touched && Boolean(defaultCurrency.error);
+    const timezoneInvalid = timezone.touched && Boolean(timezone.error);
+    const timeZones = useMemo(() => supportedTimeZones(), []);
 
     useEffect(() => {
         form.reset({
             defaultCurrency: me.defaultCurrency,
             favoriteCurrencies: me.favoriteCurrencies.filter(
                 currency => currency !== me.defaultCurrency
-            )
+            ),
+            timezone: me.timezone
         });
-    }, [form, me.defaultCurrency, me.favoriteCurrencies]);
+    }, [form, me.defaultCurrency, me.favoriteCurrencies, me.timezone]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -65,7 +71,7 @@ export function PreferencesForm({
         const favoriteCurrencies = selectedFavoriteCurrencies.filter(
             currency => currency !== selectedDefaultCurrency
         );
-        form.setValue({ favoriteCurrencies });
+        form.setValue({ favoriteCurrencies, timezone: selectedTimezone });
         const result = await form.submit();
         if (!result.valid || !result.object) {
             return;
@@ -141,6 +147,34 @@ export function PreferencesForm({
                     selectedCurrencies={selectedFavoriteCurrencies}
                     touched={favoriteCurrencies.touched}
                 />
+                <Field data-invalid={timezoneInvalid ? true : undefined}>
+                    <FieldLabel>Time zone</FieldLabel>
+                    <Select
+                        onOpenChange={open => {
+                            if (!open) {
+                                timezone.onBlur();
+                            }
+                        }}
+                        onValueChange={value => timezone.onChange(value)}
+                        value={selectedTimezone}
+                    >
+                        <SelectTrigger aria-invalid={timezoneInvalid}>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectGroup>
+                                {timeZones.map(timeZone => (
+                                    <SelectItem key={timeZone} value={timeZone}>
+                                        {timeZoneLabel(timeZone)}
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                    {timezone.touched && timezone.error ? (
+                        <FieldError>{timezone.error}</FieldError>
+                    ) : null}
+                </Field>
                 {error ? <FieldError role="alert">{error}</FieldError> : null}
                 <Button
                     className="w-full sm:w-auto"

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    dateParam,
     formatDashboardRangeLabel,
     isLatestDashboardPeriod,
     parseDateParam
@@ -9,6 +10,15 @@ describe('dashboard period helpers', () => {
     it('parses only valid date params', () => {
         expect(parseDateParam('2026-05-14')).toEqual(new Date(2026, 4, 14));
         expect(parseDateParam('2026-02-31')).toBeUndefined();
+    });
+
+    it('formats date params in the selected timezone', () => {
+        const instant = new Date('2026-05-10T06:30:00.000Z');
+
+        expect(dateParam(instant, 'America/Los_Angeles')).toBe('2026-05-09');
+        expect(parseDateParam('2026-05-09', 'America/Los_Angeles')).toEqual(
+            new Date('2026-05-09T07:00:00.000Z')
+        );
     });
 
     it('formats current-year period labels without the year', () => {

@@ -12,6 +12,7 @@ type ApiUser = {
     readonly email: string;
     readonly role: string;
     readonly defaultCurrency: string;
+    readonly timezone: string;
     readonly hasCategories: boolean;
 };
 
@@ -25,6 +26,7 @@ declare module 'next-auth' {
         apiToken?: string;
         role?: string;
         defaultCurrency?: string;
+        timezone?: string;
         hasCategories?: boolean;
     }
 }
@@ -34,6 +36,7 @@ declare module 'next-auth/jwt' {
         apiToken?: string;
         role?: string;
         defaultCurrency?: string;
+        timezone?: string;
         hasCategories?: boolean;
     }
 }
@@ -93,6 +96,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     apiToken: response.token,
                     role: response.user.role,
                     defaultCurrency: response.user.defaultCurrency,
+                    timezone: response.user.timezone,
                     hasCategories: response.user.hasCategories
                 };
             }
@@ -117,6 +121,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     apiToken: response.token,
                     role: response.user.role,
                     defaultCurrency: response.user.defaultCurrency,
+                    timezone: response.user.timezone,
                     hasCategories: response.user.hasCategories
                 };
             }
@@ -134,6 +139,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                 token.email = user.email;
                 token.role = user.role;
                 token.defaultCurrency = user.defaultCurrency;
+                token.timezone = user.timezone;
                 token.hasCategories = user.hasCategories;
             }
 
@@ -149,6 +155,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     email: token.email ?? '',
                     role: token.role ?? 'user',
                     defaultCurrency: token.defaultCurrency ?? 'USD',
+                    timezone: token.timezone ?? 'UTC',
                     hasCategories: Boolean(token.hasCategories)
                 }
             };

@@ -37,23 +37,26 @@ type DashboardCategory = DashboardSummary['byCategory'][number];
 
 function categoryHref(
     summary: DashboardSummary,
-    category: DashboardCategory
+    category: DashboardCategory,
+    timezone: string
 ): string {
     const params = new URLSearchParams({
         type: category.type,
         categoryId: String(category.categoryId),
-        from: dateParam(summary.from),
-        to: dateParam(summary.to)
+        from: dateParam(summary.from, timezone),
+        to: dateParam(summary.to, timezone)
     });
     return `/transactions?${params.toString()}`;
 }
 
 function CategoryRow({
     category,
-    summary
+    summary,
+    timezone
 }: {
     readonly category: DashboardCategory;
     readonly summary: DashboardSummary;
+    readonly timezone: string;
 }) {
     const showPeriodDetails = summary.period !== 'day';
     const percentChange = formatSignedPercent(category.percentChange);
@@ -65,7 +68,7 @@ function CategoryRow({
                     ? 'grid-cols-[minmax(0,1fr)_auto_74px] sm:grid-cols-[minmax(0,1fr)_auto_104px]'
                     : 'grid-cols-[minmax(0,1fr)_auto]'
             }`}
-            href={categoryHref(summary, category)}
+            href={categoryHref(summary, category, timezone)}
         >
             <span className="min-w-0">
                 <span className="block truncate font-medium">
@@ -126,10 +129,12 @@ function CategoryRow({
 function CategoryGroup({
     categories,
     summary,
+    timezone,
     title
 }: {
     readonly categories: readonly DashboardCategory[];
     readonly summary: DashboardSummary;
+    readonly timezone: string;
     readonly title: string;
 }) {
     return (
@@ -148,6 +153,7 @@ function CategoryGroup({
                             category={category}
                             key={`${category.type}-${category.categoryId}`}
                             summary={summary}
+                            timezone={timezone}
                         />
                     ))
                 )}
@@ -165,12 +171,12 @@ export default async function DashboardPage({
 }) {
     const params = await searchParams;
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
-    const selectedDate = parseDateParam(params.date);
-    const anchorDate = selectedDate ?? new Date();
-    const anchorDateParam = dateParam(anchorDate);
     const client = await getApiClient();
-    const [me, categories, currencies, summary] = await Promise.all([
-        client.auth.me(),
+    const me = await client.auth.me();
+    const selectedDate = parseDateParam(params.date, me.timezone);
+    const anchorDate = selectedDate ?? new Date();
+    const anchorDateParam = dateParam(anchorDate, me.timezone);
+    const [categories, currencies, summary] = await Promise.all([
         client.categories.list(),
         client.currencies.list(),
         client.dashboard.summary({
@@ -202,11 +208,13 @@ export default async function DashboardPage({
                     <CategoryGroup
                         categories={incomeCategories}
                         summary={summary}
+                        timezone={me.timezone}
                         title="Income"
                     />
                     <CategoryGroup
                         categories={expenseCategories}
                         summary={summary}
+                        timezone={me.timezone}
                         title="Expenses"
                     />
                 </div>
@@ -223,7 +231,8 @@ export default async function DashboardPage({
                         {formatDashboardRangeLabel({
                             from: summary.from,
                             period,
-                            to: summary.to
+                            to: summary.to,
+                            timeZone: me.timezone
                         })}{' '}
                         in {summary.currency}.
                     </p>
@@ -234,10 +243,15 @@ export default async function DashboardPage({
                         currencies={currencies}
                         defaultCurrency={me.defaultCurrency}
                         favoriteCurrencies={me.favoriteCurrencies}
+                        timezone={me.timezone}
                     />
                 </div>
             </div>
-            <DashboardPeriodNav date={anchorDateParam} period={period} />
+            <DashboardPeriodNav
+                date={anchorDateParam}
+                period={period}
+                timezone={me.timezone}
+            />
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
                 <Card className="min-w-0">
                     <CardHeader className="min-w-0 p-3 sm:p-4">
@@ -295,7 +309,11 @@ export default async function DashboardPage({
                     </CardHeader>
                 </Card>
             </div>
-            <DashboardSwipeArea date={anchorDateParam} period={period}>
+            <DashboardSwipeArea
+                date={anchorDateParam}
+                period={period}
+                timezone={me.timezone}
+            >
                 {categoryPanel}
             </DashboardSwipeArea>
         </div>
