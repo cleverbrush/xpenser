@@ -106,7 +106,7 @@ export function TransactionDialog({
         ];
     }, [currencies, initialValues?.currency]);
 
-    const resetForm = useCallback(() => {
+    const initialCurrency = useMemo(() => {
         const availableCurrencyCodes = new Set(
             currencyOptions.map(option => option.code)
         );
@@ -117,7 +117,15 @@ export function TransactionDialog({
             preferredCurrency && availableCurrencyCodes.has(preferredCurrency)
                 ? preferredCurrency
                 : fallbackCurrency;
-        const selectedCurrency = initialValues?.currency ?? creationCurrency;
+        return initialValues?.currency ?? creationCurrency;
+    }, [
+        currencyOptions,
+        defaultCurrency,
+        initialValues?.currency,
+        preferredCurrency
+    ]);
+
+    const resetForm = useCallback(() => {
         const initialOccurredAt = initialValues?.occurredAt
             ? new Date(initialValues.occurredAt)
             : new Date();
@@ -129,19 +137,12 @@ export function TransactionDialog({
         form.reset({
             amount: initialValues?.amount,
             categoryId: initialValues?.categoryId,
-            currency: selectedCurrency,
+            currency: initialCurrency,
             effect: initialValues?.effect ?? 'normal',
             occurredAt: initialOccurredAt,
             note: initialValues?.note ?? undefined
         });
-    }, [
-        currencyOptions,
-        defaultCurrency,
-        form,
-        initialValues,
-        preferredCurrency,
-        timezone
-    ]);
+    }, [form, initialCurrency, initialValues, timezone]);
 
     useEffect(() => {
         if (open) {
@@ -257,7 +258,7 @@ export function TransactionDialog({
                                     onValueChange={value =>
                                         currency.onChange(value)
                                     }
-                                    value={currency.value ?? defaultCurrency}
+                                    value={currency.value ?? initialCurrency}
                                 >
                                     <SelectTrigger
                                         aria-invalid={currencyInvalid}
