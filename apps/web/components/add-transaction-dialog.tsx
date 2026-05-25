@@ -10,23 +10,26 @@ export function AddTransactionDialog({
     categories,
     currencies,
     defaultCurrency,
-    favoriteCurrencies,
+    transactionCurrencies,
     timezone
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
-    readonly favoriteCurrencies: readonly string[];
+    readonly transactionCurrencies: readonly string[];
     readonly timezone: string;
 }) {
     const currenciesByCode = new Map(
         currencies.map(currency => [currency.code, currency] as const)
     );
-    const selectedCurrencyCodes = [
-        defaultCurrency,
-        ...favoriteCurrencies.filter(currency => currency !== defaultCurrency)
-    ];
-    const transactionCurrencies = selectedCurrencyCodes.map(
+    const selectedCurrencyCodes = Array.from(
+        new Set(
+            transactionCurrencies.length > 0
+                ? transactionCurrencies
+                : [defaultCurrency]
+        )
+    );
+    const transactionCurrencyOptions = selectedCurrencyCodes.map(
         code => currenciesByCode.get(code) ?? { code, name: code }
     );
 
@@ -34,10 +37,11 @@ export function AddTransactionDialog({
         <TransactionDialog
             action={createTransactionAction}
             categories={categories}
-            currencies={transactionCurrencies}
+            currencies={transactionCurrencyOptions}
             defaultCurrency={defaultCurrency}
             description="Amounts are stored in the original currency and converted for reports."
             errorMessage="Could not save the transaction."
+            preferredCurrency={selectedCurrencyCodes[0] ?? defaultCurrency}
             title="Add transaction"
             timezone={timezone}
             trigger={

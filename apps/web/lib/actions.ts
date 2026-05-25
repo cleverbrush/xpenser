@@ -193,6 +193,7 @@ export async function createTransactionAction(formData: FormData) {
         body: transactionBody(formData)
     });
     revalidateTag('transactions', 'max');
+    revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/dashboard');
@@ -207,6 +208,7 @@ export async function updateTransactionAction(formData: FormData) {
         body: transactionBody(formData, true)
     });
     revalidateTag('transactions', 'max');
+    revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/dashboard');
@@ -220,6 +222,7 @@ export async function deleteTransactionAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'id')) }
     });
     revalidateTag('transactions', 'max');
+    revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/dashboard');

@@ -35,7 +35,9 @@ export const GetMeEndpoint = api.auth.me
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
     .summary('Current user')
-    .description('Returns preferences for the authenticated user.')
+    .description(
+        'Returns preferences and transaction currency ordering for the authenticated user.'
+    )
     .tags('users')
     .operationId('getCurrentUser');
 

@@ -197,7 +197,6 @@ export default async function DashboardPage({
     const expenseCategories = summary.byCategory.filter(
         category => category.type === 'expense'
     );
-
     const categoryPanel = (
         <Card>
             <CardHeader>
@@ -242,7 +241,7 @@ export default async function DashboardPage({
                         categories={categories}
                         currencies={currencies}
                         defaultCurrency={me.defaultCurrency}
-                        favoriteCurrencies={me.favoriteCurrencies}
+                        transactionCurrencies={me.transactionCurrencies}
                         timezone={me.timezone}
                     />
                 </div>
