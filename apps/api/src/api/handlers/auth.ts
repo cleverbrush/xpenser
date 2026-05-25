@@ -126,7 +126,8 @@ export const updatePreferencesHandler: Handler<
         db,
         principal.userId,
         body.defaultCurrency,
-        body.favoriteCurrencies
+        body.favoriteCurrencies,
+        body.timezone
     );
     if (!preference) {
         return ActionResult.unauthorized({ message: 'User was not found.' });

@@ -10,12 +10,14 @@ export function AddTransactionDialog({
     categories,
     currencies,
     defaultCurrency,
-    favoriteCurrencies
+    favoriteCurrencies,
+    timezone
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
     readonly favoriteCurrencies: readonly string[];
+    readonly timezone: string;
 }) {
     const currenciesByCode = new Map(
         currencies.map(currency => [currency.code, currency] as const)
@@ -37,6 +39,7 @@ export function AddTransactionDialog({
             description="Amounts are stored in the original currency and converted for reports."
             errorMessage="Could not save the transaction."
             title="Add transaction"
+            timezone={timezone}
             trigger={
                 <Button className="w-auto self-start" size="sm">
                     <PlusIcon aria-hidden className="size-4" />

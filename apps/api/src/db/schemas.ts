@@ -14,6 +14,7 @@ export const UserDbSchema = object({
     role: string(),
     authProvider: string().hasColumnName('auth_provider'),
     defaultCurrency: string().hasColumnName('default_currency'),
+    timezone: string().defaultTo('UTC'),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 })
@@ -25,6 +26,7 @@ export const UserDbSchema = object({
         'role',
         'authProvider',
         'defaultCurrency',
+        'timezone',
         'createdAt',
         'updatedAt'
     )
@@ -35,7 +37,8 @@ export const UserDbSchema = object({
         'passwordHash',
         'role',
         'authProvider',
-        'defaultCurrency'
+        'defaultCurrency',
+        'timezone'
     );
 
 export const FavoriteCurrencyDbSchema = object({
@@ -190,6 +193,7 @@ export type UserDb = {
     readonly role: string;
     readonly authProvider: string;
     readonly defaultCurrency: string;
+    readonly timezone: string;
     readonly createdAt: Date;
     readonly updatedAt: Date;
 };

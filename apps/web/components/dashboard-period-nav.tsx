@@ -21,32 +21,37 @@ import {
 export function DashboardPeriodNav({
     basePath = '/dashboard',
     date,
-    period
+    period,
+    timezone
 }: {
     readonly basePath?: string;
     readonly date: string;
     readonly period: DashboardPeriod;
+    readonly timezone: string;
 }) {
     const anchorDate = useMemo(
-        () => parseDateParam(date) ?? new Date(),
-        [date]
+        () => parseDateParam(date, timezone) ?? new Date(),
+        [date, timezone]
     );
     const now = useMemo(() => new Date(), []);
-    const latest = isLatestDashboardPeriod(period, anchorDate, now);
+    const latest = isLatestDashboardPeriod(period, anchorDate, now, timezone);
     const previousHref = periodHref(
         basePath,
         period,
-        addDashboardPeriod(period, anchorDate, -1)
+        addDashboardPeriod(period, anchorDate, -1, timezone),
+        { timeZone: timezone }
     );
     const nextHref = latest
         ? undefined
         : periodHref(
               basePath,
               period,
-              addDashboardPeriod(period, anchorDate, 1)
+              addDashboardPeriod(period, anchorDate, 1, timezone),
+              { timeZone: timezone }
           );
     const latestHref = periodHref(basePath, period, now, {
-        cleanDefault: true
+        cleanDefault: true,
+        timeZone: timezone
     });
 
     return (
@@ -75,7 +80,8 @@ export function DashboardPeriodNav({
                                 : 'text-muted-foreground'
                         )}
                         href={periodHref(basePath, option.value, anchorDate, {
-                            cleanDefault: true
+                            cleanDefault: true,
+                            timeZone: timezone
                         })}
                         key={option.value}
                         scroll={false}

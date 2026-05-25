@@ -1,3 +1,5 @@
+import { defaultTimeZone, formatDateInTimeZone } from '@xpenser/timezone';
+
 type DateInput = Date | string | number;
 type TransactionType = 'expense' | 'income';
 type TransactionEffect = 'normal' | 'reversal';
@@ -18,21 +20,27 @@ function toDate(value: DateInput): Date {
     return value instanceof Date ? value : new Date(value);
 }
 
-export function formatDate(value: DateInput): string {
+export function formatDate(
+    value: DateInput,
+    timeZone = defaultTimeZone
+): string {
     const date = toDate(value);
     return Number.isNaN(date.getTime())
         ? ''
-        : new Intl.DateTimeFormat('en-US').format(date);
+        : formatDateInTimeZone(date, timeZone, {});
 }
 
-export function formatDateTime(value: DateInput): string {
+export function formatDateTime(
+    value: DateInput,
+    timeZone = defaultTimeZone
+): string {
     const date = toDate(value);
     return Number.isNaN(date.getTime())
         ? ''
-        : new Intl.DateTimeFormat('en-US', {
+        : formatDateInTimeZone(date, timeZone, {
               dateStyle: 'short',
               timeStyle: 'short'
-          }).format(date);
+          });
 }
 
 function formatCompactMoney(value: number, currency: string): string {

@@ -8,6 +8,7 @@ COPY apps/web/package.json ./apps/web/package.json
 COPY apps/telegram-bot/package.json ./apps/telegram-bot/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/client/package.json ./packages/client/package.json
+COPY packages/timezone/package.json ./packages/timezone/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 
 RUN npm install --ignore-scripts
@@ -17,6 +18,7 @@ COPY packages ./packages
 
 RUN npm run build -w @xpenser/contracts && \
     npm run build -w @xpenser/client && \
+    npm run build -w @xpenser/timezone && \
     npm run build -w @xpenser/ui && \
     npm run build -w @xpenser/web
 

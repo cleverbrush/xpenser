@@ -64,6 +64,12 @@ load_secret_stream() {
     read_secret_line PASSPORT_PROJECT
     read_secret_line POSTGRES_DB
     read_secret_line POSTGRES_USER
+    read_secret_line CLOUDFLARE_API_TOKEN
+    read_secret_line CLOUDFLARE_ZONE_ID
+    read_secret_line PR_ENV_DNS_RECORD_TYPE
+    read_secret_line PR_ENV_DNS_RECORD_CONTENT
+    read_secret_line PR_ENV_DNS_RECORD_PROXIED
+    read_secret_line PR_ENV_DNS_RECORD_TTL
 
     export PASSPORT_SERVICE_KEY
     export PR_ENV_DOMAIN_SUFFIX
@@ -79,6 +85,12 @@ load_secret_stream() {
     export PASSPORT_PROJECT
     export POSTGRES_DB
     export POSTGRES_USER
+    export CLOUDFLARE_API_TOKEN
+    export CLOUDFLARE_ZONE_ID
+    export PR_ENV_DNS_RECORD_TYPE
+    export PR_ENV_DNS_RECORD_CONTENT
+    export PR_ENV_DNS_RECORD_PROXIED
+    export PR_ENV_DNS_RECORD_TTL
 }
 
 require_env() {
@@ -178,6 +190,21 @@ validate_inputs() {
 validate_config() {
     [[ "$PR_ENV_PORT_BASE" =~ ^[0-9]+$ ]] ||
         die "PR_ENV_PORT_BASE must be numeric"
+    [[ "$PR_ENV_DNS_RECORD_TTL" =~ ^[0-9]+$ ]] ||
+        die "PR_ENV_DNS_RECORD_TTL must be numeric"
+    [[ "$PR_ENV_DNS_RECORD_PROXIED" == "true" ||
+        "$PR_ENV_DNS_RECORD_PROXIED" == "false" ]] ||
+        die "PR_ENV_DNS_RECORD_PROXIED must be true or false"
+    [[ "$PR_ENV_DNS_RECORD_TYPE" == "A" ||
+        "$PR_ENV_DNS_RECORD_TYPE" == "AAAA" ||
+        "$PR_ENV_DNS_RECORD_TYPE" == "CNAME" ]] ||
+        die "PR_ENV_DNS_RECORD_TYPE must be A, AAAA, or CNAME"
+
+    if [[ "$ACTION" == "deploy" ]]; then
+        require_env CLOUDFLARE_API_TOKEN
+        require_env CLOUDFLARE_ZONE_ID
+        require_env PR_ENV_DNS_RECORD_CONTENT
+    fi
 }
 
 set_defaults() {
@@ -191,12 +218,17 @@ set_defaults() {
     PR_ENV_STATE_DIR="${PR_ENV_STATE_DIR:-/var/lib/pr-envs}"
     PR_ENV_PORT_BASE="${PR_ENV_PORT_BASE:-3000}"
     GIT_REPOSITORY_URL="${GIT_REPOSITORY_URL:-git@github.com:cleverbrush/${PR_ENV_PROJECT_NAME}.git}"
+    PR_ENV_DNS_RECORD_TYPE="${PR_ENV_DNS_RECORD_TYPE:-CNAME}"
+    PR_ENV_DNS_RECORD_TYPE="${PR_ENV_DNS_RECORD_TYPE^^}"
+    PR_ENV_DNS_RECORD_CONTENT="${PR_ENV_DNS_RECORD_CONTENT:-${PR_ENV_DOMAIN_PROJECT}.${PR_ENV_DOMAIN_SUFFIX}}"
+    PR_ENV_DNS_RECORD_PROXIED="${PR_ENV_DNS_RECORD_PROXIED:-true}"
+    PR_ENV_DNS_RECORD_TTL="${PR_ENV_DNS_RECORD_TTL:-1}"
 
     ENV_NAME="pr-${PR_NUMBER}"
     HOST_ENV_NAME="$(printf 'pr-%03d' "$PR_NUMBER")"
     COMPOSE_PROJECT="pr${PR_NUMBER}"
     PASSPORT_ENVIRONMENT="$ENV_NAME"
-    DOMAIN="${HOST_ENV_NAME}.${PR_ENV_DOMAIN_PROJECT}.${PR_ENV_DOMAIN_SUFFIX}"
+    DOMAIN="${PR_ENV_DOMAIN_PROJECT}-${HOST_ENV_NAME}.${PR_ENV_DOMAIN_SUFFIX}"
     CHECKOUT_DIR="${PR_ENV_ROOT}/${ENV_NAME}"
     STATE_DIR="${PR_ENV_STATE_DIR}/${ENV_NAME}"
     STATE_FILE="${STATE_DIR}/state.env"
@@ -212,6 +244,19 @@ load_state() {
     fi
 }
 
+save_state() {
+    write_shell_env "$STATE_FILE" \
+        WEB_PORT "$WEB_PORT" \
+        POSTGRES_PASSWORD "$POSTGRES_PASSWORD" \
+        JWT_SECRET "$JWT_SECRET" \
+        NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
+        TELEGRAM_BOT_SERVICE_SECRET "$TELEGRAM_BOT_SERVICE_SECRET" \
+        CLOUDFLARE_DNS_RECORD_ID "${CLOUDFLARE_DNS_RECORD_ID:-}" \
+        CLOUDFLARE_DNS_RECORD_NAME "${CLOUDFLARE_DNS_RECORD_NAME:-}" \
+        CLOUDFLARE_DNS_RECORD_TYPE "${CLOUDFLARE_DNS_RECORD_TYPE:-$PR_ENV_DNS_RECORD_TYPE}"
+    chmod 600 "$STATE_FILE"
+}
+
 ensure_state() {
     ensure_writable_dir "$PR_ENV_ROOT"
     ensure_writable_dir "$PR_ENV_STATE_DIR"
@@ -224,13 +269,7 @@ ensure_state() {
     NEXTAUTH_SECRET="${NEXTAUTH_SECRET:-$(random_secret)}"
     TELEGRAM_BOT_SERVICE_SECRET="${TELEGRAM_BOT_SERVICE_SECRET:-$(random_secret)}"
 
-    write_shell_env "$STATE_FILE" \
-        WEB_PORT "$WEB_PORT" \
-        POSTGRES_PASSWORD "$POSTGRES_PASSWORD" \
-        JWT_SECRET "$JWT_SECRET" \
-        NEXTAUTH_SECRET "$NEXTAUTH_SECRET" \
-        TELEGRAM_BOT_SERVICE_SECRET "$TELEGRAM_BOT_SERVICE_SECRET"
-    chmod 600 "$STATE_FILE"
+    save_state
 }
 
 compose() {
@@ -370,10 +409,135 @@ delete_passport_environment() {
         >/dev/null
 }
 
+cloudflare_enabled() {
+    [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${CLOUDFLARE_ZONE_ID:-}" ]]
+}
+
+cloudflare_headers() {
+    curl -fsS \
+        -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+        -H 'Content-Type: application/json' \
+        "$@"
+}
+
+find_cloudflare_dns_record_ids() {
+    local record_name="$1"
+    local record_type="${2:-}"
+    local curl_args=(
+        -G
+        --data-urlencode "name=${record_name}"
+    )
+    local response
+
+    if [[ -n "$record_type" ]]; then
+        curl_args+=(--data-urlencode "type=${record_type}")
+    fi
+
+    response="$(
+        cloudflare_headers \
+            "${curl_args[@]}" \
+            "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records"
+    )"
+
+    jq -er '.success == true' <<<"$response" >/dev/null ||
+        die "Cloudflare DNS record lookup failed"
+    jq -r '.result[].id' <<<"$response"
+}
+
+delete_cloudflare_dns_record_id() {
+    local record_id="$1"
+    local response
+
+    response="$(
+        cloudflare_headers \
+            -X DELETE \
+            "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records/${record_id}"
+    )"
+    if ! jq -er '.success == true' <<<"$response" >/dev/null; then
+        log "Cloudflare DNS record delete failed for ${record_id}"
+        return 1
+    fi
+}
+
+upsert_cloudflare_dns_record() {
+    local existing_ids
+    local body
+    local response
+
+    mapfile -t existing_ids < <(
+        find_cloudflare_dns_record_ids "$DOMAIN"
+    )
+
+    for record_id in "${existing_ids[@]}"; do
+        log "Deleting existing Cloudflare DNS record ${record_id} for ${DOMAIN}"
+        delete_cloudflare_dns_record_id "$record_id"
+    done
+
+    body="$(
+        jq -n \
+            --arg type "$PR_ENV_DNS_RECORD_TYPE" \
+            --arg name "$DOMAIN" \
+            --arg content "$PR_ENV_DNS_RECORD_CONTENT" \
+            --arg comment "PR environment ${ENV_NAME}" \
+            --argjson proxied "$PR_ENV_DNS_RECORD_PROXIED" \
+            --argjson ttl "$PR_ENV_DNS_RECORD_TTL" \
+            '{
+                type: $type,
+                name: $name,
+                content: $content,
+                ttl: $ttl,
+                proxied: $proxied,
+                comment: $comment
+            }'
+    )"
+
+    log "Creating Cloudflare DNS record ${DOMAIN}"
+    response="$(
+        cloudflare_headers \
+            -X POST \
+            -d "$body" \
+            "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records"
+    )"
+    jq -er '.success == true' <<<"$response" >/dev/null ||
+        die "Cloudflare DNS record create failed for ${DOMAIN}"
+
+    CLOUDFLARE_DNS_RECORD_ID="$(jq -r '.result.id' <<<"$response")"
+    CLOUDFLARE_DNS_RECORD_NAME="$DOMAIN"
+    CLOUDFLARE_DNS_RECORD_TYPE="$PR_ENV_DNS_RECORD_TYPE"
+    save_state
+}
+
+delete_cloudflare_dns_record() {
+    local record_name="${CLOUDFLARE_DNS_RECORD_NAME:-$DOMAIN}"
+    local record_id
+    local existing_ids
+
+    if ! cloudflare_enabled; then
+        log "Skipping Cloudflare DNS cleanup because credentials are not configured"
+        return
+    fi
+
+    if [[ -n "${CLOUDFLARE_DNS_RECORD_ID:-}" ]]; then
+        log "Deleting Cloudflare DNS record ${CLOUDFLARE_DNS_RECORD_ID} for ${record_name}"
+        delete_cloudflare_dns_record_id "$CLOUDFLARE_DNS_RECORD_ID" || true
+    fi
+
+    mapfile -t existing_ids < <(
+        find_cloudflare_dns_record_ids "$record_name"
+    )
+
+    for record_id in "${existing_ids[@]}"; do
+        [[ "$record_id" == "${CLOUDFLARE_DNS_RECORD_ID:-}" ]] && continue
+        log "Deleting Cloudflare DNS record ${record_id} for ${record_name}"
+        delete_cloudflare_dns_record_id "$record_id" || true
+    done
+}
+
 deploy() {
     require_env PASSPORT_SERVICE_KEY
 
     ensure_state
+    upsert_cloudflare_dns_record
     sync_repo
     write_compose_env "${CHECKOUT_DIR}/.env"
     chmod 600 "${CHECKOUT_DIR}/.env"
@@ -428,6 +592,8 @@ cleanup() {
     else
         log "Skipping Passport cleanup because PASSPORT_SERVICE_KEY is not configured"
     fi
+
+    delete_cloudflare_dns_record || true
 
     rm -rf "${PR_ENV_ROOT:?}/${ENV_NAME}" "$STATE_DIR"
     log "Pruning unused Docker resources"

@@ -4,6 +4,10 @@ import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
 import type { Category, Currency, Transaction } from '@xpenser/contracts';
 import { CreateTransactionBodySchema } from '@xpenser/contracts';
 import {
+    dateToLocalDateTimeInput,
+    localDateTimeInputToDate
+} from '@xpenser/timezone';
+import {
     Button,
     Dialog,
     DialogContent,
@@ -16,6 +20,7 @@ import {
     FieldError,
     FieldGroup,
     FieldLabel,
+    Input,
     Select,
     SelectContent,
     SelectGroup,
@@ -79,7 +84,8 @@ export function TransactionDialog({
     submittingLabel = 'Saving...',
     title,
     transactionId,
-    trigger
+    trigger,
+    timezone
 }: {
     readonly action: (formData: FormData) => Promise<void>;
     readonly categories: readonly Category[];
@@ -93,17 +99,21 @@ export function TransactionDialog({
     readonly title: string;
     readonly transactionId?: number;
     readonly trigger: ReactNode;
+    readonly timezone: string;
 }) {
     const form = useSchemaForm(CreateTransactionBodySchema);
     const categoryId = form.useField(field => field.categoryId);
     const currency = form.useField(field => field.currency);
+    const occurredAt = form.useField(field => field.occurredAt);
     const router = useRouter();
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
     const [effect, setEffect] = useState<'normal' | 'reversal'>('normal');
+    const [occurredAtText, setOccurredAtText] = useState('');
     const categoryInvalid = categoryId.touched && Boolean(categoryId.error);
     const currencyInvalid = currency.touched && Boolean(currency.error);
+    const occurredAtInvalid = occurredAt.touched && Boolean(occurredAt.error);
     const currencyOptions = useMemo(() => {
         if (
             !initialValues?.currency ||
@@ -131,19 +141,23 @@ export function TransactionDialog({
             initialValues?.currency ??
             readStoredTransactionCurrency(availableCurrencyCodes) ??
             fallbackCurrency;
+        const initialOccurredAt = initialValues?.occurredAt
+            ? new Date(initialValues.occurredAt)
+            : new Date();
 
         setEffect(initialValues?.effect ?? 'normal');
+        setOccurredAtText(
+            dateToLocalDateTimeInput(initialOccurredAt, timezone)
+        );
         form.reset({
             amount: initialValues?.amount,
             categoryId: initialValues?.categoryId,
             currency: selectedCurrency,
             effect: initialValues?.effect ?? 'normal',
-            occurredAt: initialValues?.occurredAt
-                ? new Date(initialValues.occurredAt)
-                : new Date(),
+            occurredAt: initialOccurredAt,
             note: initialValues?.note ?? undefined
         });
-    }, [currencyOptions, defaultCurrency, form, initialValues]);
+    }, [currencyOptions, defaultCurrency, form, initialValues, timezone]);
 
     useEffect(() => {
         if (open) {
@@ -292,13 +306,34 @@ export function TransactionDialog({
                                 ) : null}
                             </Field>
                         </div>
-                        <SchemaField
-                            forProperty={field => field.occurredAt}
-                            form={form}
-                            label="Date and time"
-                            name="occurredAt"
-                            variant="datetime-local"
-                        />
+                        <Field
+                            data-invalid={occurredAtInvalid ? true : undefined}
+                        >
+                            <FieldLabel htmlFor="occurredAt">
+                                Date and time
+                            </FieldLabel>
+                            <Input
+                                aria-invalid={occurredAtInvalid}
+                                id="occurredAt"
+                                name="occurredAt"
+                                onBlur={occurredAt.onBlur}
+                                onChange={event => {
+                                    const value = event.target.value;
+                                    setOccurredAtText(value);
+                                    occurredAt.onChange(
+                                        localDateTimeInputToDate(
+                                            value,
+                                            timezone
+                                        ) ?? new Date(Number.NaN)
+                                    );
+                                }}
+                                type="datetime-local"
+                                value={occurredAtText}
+                            />
+                            {occurredAt.touched && occurredAt.error ? (
+                                <FieldError>{occurredAt.error}</FieldError>
+                            ) : null}
+                        </Field>
                         <Field>
                             <label className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
                                 <input

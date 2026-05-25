@@ -63,10 +63,11 @@ export default async function StatsPage({
 }) {
     const params = await searchParams;
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
-    const selectedDate = parseDateParam(params.date);
-    const anchorDate = selectedDate ?? new Date();
-    const anchorDateParam = dateParam(anchorDate);
     const client = await getApiClient();
+    const me = await client.auth.me();
+    const selectedDate = parseDateParam(params.date, me.timezone);
+    const anchorDate = selectedDate ?? new Date();
+    const anchorDateParam = dateParam(anchorDate, me.timezone);
     const stats = await client.stats.overview({
         query: {
             groupBy: groupByForPeriod(period),
@@ -165,7 +166,8 @@ export default async function StatsPage({
                     {formatDashboardRangeLabel({
                         from: stats.from,
                         period,
-                        to: stats.to
+                        to: stats.to,
+                        timeZone: me.timezone
                     })}{' '}
                     in {stats.currency}.
                 </p>
@@ -175,6 +177,7 @@ export default async function StatsPage({
                 basePath="/stats"
                 date={anchorDateParam}
                 period={period}
+                timezone={me.timezone}
             />
 
             <div className="grid grid-cols-4 gap-2 sm:gap-4">
@@ -233,6 +236,7 @@ export default async function StatsPage({
                 date={anchorDateParam}
                 period={period}
                 skeleton={<StatsChartsSkeleton />}
+                timezone={me.timezone}
             >
                 <StatsCharts stats={stats} />
             </DashboardSwipeArea>

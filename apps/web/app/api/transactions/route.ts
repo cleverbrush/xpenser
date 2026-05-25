@@ -30,7 +30,11 @@ export async function GET(request: NextRequest) {
     });
     try {
         const transactions = await client.transactions.list({
-            query: buildTransactionListQuery(request.nextUrl.searchParams)
+            query: buildTransactionListQuery(
+                request.nextUrl.searchParams,
+                {},
+                session.user.timezone
+            )
         });
 
         return NextResponse.json({

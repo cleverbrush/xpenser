@@ -9,7 +9,9 @@ import {
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
     RegisterBodySchema,
-    StatsQuerySchema
+    StatsQuerySchema,
+    TimeZoneSchema,
+    UpdateUserPreferenceBodySchema
 } from './schemas.js';
 
 describe('shared schemas', () => {
@@ -28,6 +30,19 @@ describe('shared schemas', () => {
         });
 
         expect(result.valid).toBe(true);
+        expect(result.object?.timezone).toBe('UTC');
+    });
+
+    it('validates IANA time zones in preferences', () => {
+        expect(TimeZoneSchema.validate('America/New_York').valid).toBe(true);
+        expect(TimeZoneSchema.validate('Not/AZone').valid).toBe(false);
+        expect(
+            UpdateUserPreferenceBodySchema.validate({
+                defaultCurrency: 'USD',
+                favoriteCurrencies: ['EUR'],
+                timezone: 'Europe/London'
+            }).valid
+        ).toBe(true);
     });
 
     it('returns required messages before format messages for empty login fields', () => {

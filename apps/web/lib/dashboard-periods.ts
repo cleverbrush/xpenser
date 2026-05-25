@@ -1,4 +1,12 @@
 import type { DashboardSummary } from '@xpenser/contracts';
+import {
+    addDashboardPeriodInTimeZone,
+    dateToLocalDateParam,
+    defaultTimeZone,
+    formatDateInTimeZone,
+    isLatestDashboardPeriodInTimeZone,
+    localDateParamToDate
+} from '@xpenser/timezone';
 
 export type DashboardPeriod = DashboardSummary['period'];
 
@@ -17,169 +25,78 @@ const dashboardPeriods = dashboardPeriodOptions.map(option => option.value);
 
 type DateInput = Date | string | number;
 
-function toDate(value: DateInput): Date {
-    return value instanceof Date ? value : new Date(value);
-}
-
-function startOfDay(value: Date): Date {
-    const date = new Date(value.getTime());
-    date.setHours(0, 0, 0, 0);
-    return date;
-}
-
-function startOfWeek(value: Date): Date {
-    const date = startOfDay(value);
-    const day = date.getDay();
-    date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
-    return date;
-}
-
-function startOfMonth(value: Date): Date {
-    const date = startOfDay(value);
-    date.setDate(1);
-    return date;
-}
-
-function startOfQuarter(value: Date): Date {
-    const date = startOfMonth(value);
-    date.setMonth(Math.floor(date.getMonth() / 3) * 3, 1);
-    return date;
-}
-
-function startOfYear(value: Date): Date {
-    const date = startOfDay(value);
-    date.setMonth(0, 1);
-    return date;
-}
-
-function daysInMonth(year: number, month: number): number {
-    return new Date(year, month + 1, 0).getDate();
-}
-
-function addDays(value: Date, days: number): Date {
-    const date = new Date(value.getTime());
-    date.setDate(date.getDate() + days);
-    return date;
-}
-
-function addMonthsClamped(value: Date, months: number): Date {
-    const source = new Date(value.getTime());
-    const day = source.getDate();
-    source.setDate(1);
-    source.setMonth(source.getMonth() + months);
-    source.setDate(
-        Math.min(day, daysInMonth(source.getFullYear(), source.getMonth()))
-    );
-    return source;
-}
-
-function addYearsClamped(value: Date, years: number): Date {
-    const source = new Date(value.getTime());
-    const day = source.getDate();
-    source.setDate(1);
-    source.setFullYear(source.getFullYear() + years);
-    source.setDate(
-        Math.min(day, daysInMonth(source.getFullYear(), source.getMonth()))
-    );
-    return source;
-}
-
-function periodStart(period: DashboardPeriod, value: Date): Date {
-    if (period === 'day') {
-        return startOfDay(value);
-    }
-    if (period === 'week') {
-        return startOfWeek(value);
-    }
-    if (period === 'month') {
-        return startOfMonth(value);
-    }
-    if (period === 'quarter') {
-        return startOfQuarter(value);
-    }
-    return startOfYear(value);
+function localParts(value: DateInput, timeZone: string) {
+    const [year, month, day] = dateToLocalDateParam(value, timeZone)
+        .split('-')
+        .map(Number);
+    return { year: year ?? 0, month: month ?? 0, day: day ?? 0 };
 }
 
 function formatRangeDate(
     value: Date,
     currentYear: number,
+    timeZone: string,
     forceYear = false
 ): string {
-    return new Intl.DateTimeFormat('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        ...(forceYear || value.getFullYear() !== currentYear
-            ? { year: 'numeric' }
-            : {})
-    }).format(value);
+    const { year } = localParts(value, timeZone);
+    return formatDateInTimeZone(
+        value,
+        timeZone,
+        {
+            day: 'numeric',
+            month: 'short',
+            ...(forceYear || year !== currentYear ? { year: 'numeric' } : {})
+        },
+        'en-GB'
+    );
 }
 
-function formatMonth(value: Date, currentYear: number): string {
-    return new Intl.DateTimeFormat('en-US', {
+function formatMonth(
+    value: Date,
+    currentYear: number,
+    timeZone: string
+): string {
+    const { year } = localParts(value, timeZone);
+    return formatDateInTimeZone(value, timeZone, {
         month: 'long',
-        ...(value.getFullYear() !== currentYear ? { year: 'numeric' } : {})
-    }).format(value);
+        ...(year !== currentYear ? { year: 'numeric' } : {})
+    });
 }
 
 export function isDashboardPeriod(value?: string): value is DashboardPeriod {
     return dashboardPeriods.includes(value as DashboardPeriod);
 }
 
-export function dateParam(value: DateInput): string {
-    const date = toDate(value);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+export function dateParam(
+    value: DateInput,
+    timeZone = defaultTimeZone
+): string {
+    return dateToLocalDateParam(value, timeZone);
 }
 
-export function parseDateParam(value?: string): Date | undefined {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
-    if (!match) {
-        return undefined;
-    }
-
-    const year = Number(match[1]);
-    const month = Number(match[2]) - 1;
-    const day = Number(match[3]);
-    const date = new Date(year, month, day);
-
-    return date.getFullYear() === year &&
-        date.getMonth() === month &&
-        date.getDate() === day
-        ? date
-        : undefined;
+export function parseDateParam(
+    value?: string,
+    timeZone = defaultTimeZone
+): Date | undefined {
+    return localDateParamToDate(value, timeZone, 'start');
 }
 
 export function addDashboardPeriod(
     period: DashboardPeriod,
     value: Date,
-    direction: -1 | 1
+    direction: -1 | 1,
+    timeZone = defaultTimeZone
 ): Date {
-    if (period === 'day') {
-        return addDays(value, direction);
-    }
-    if (period === 'week') {
-        return addDays(value, direction * 7);
-    }
-    if (period === 'month') {
-        return addMonthsClamped(value, direction);
-    }
-    if (period === 'quarter') {
-        return addMonthsClamped(value, direction * 3);
-    }
-    return addYearsClamped(value, direction);
+    return addDashboardPeriodInTimeZone(period, value, direction, timeZone);
 }
 
 export function isLatestDashboardPeriod(
     period: DashboardPeriod,
     value: Date,
-    now = new Date()
+    now = new Date(),
+    timeZone = defaultTimeZone
 ): boolean {
-    return (
-        periodStart(period, value).getTime() ===
-        periodStart(period, now).getTime()
-    );
+    return isLatestDashboardPeriodInTimeZone(period, value, now, timeZone);
 }
 
 export function latestDashboardLabel(period: DashboardPeriod): string {
@@ -193,19 +110,23 @@ export function periodHref(
     basePath: string,
     period: DashboardPeriod,
     value: Date,
-    options: { readonly cleanDefault?: boolean } = {}
+    options: {
+        readonly cleanDefault?: boolean;
+        readonly timeZone?: string;
+    } = {}
 ): string {
+    const timeZone = options.timeZone ?? defaultTimeZone;
     if (
         options.cleanDefault &&
         period === 'day' &&
-        isLatestDashboardPeriod(period, value)
+        isLatestDashboardPeriod(period, value, new Date(), timeZone)
     ) {
         return basePath;
     }
 
     const params = new URLSearchParams({
         period,
-        date: dateParam(value)
+        date: dateParam(value, timeZone)
     });
     return `${basePath}?${params.toString()}`;
 }
@@ -213,7 +134,10 @@ export function periodHref(
 export function dashboardHref(
     period: DashboardPeriod,
     value: Date,
-    options: { readonly cleanDefault?: boolean } = {}
+    options: {
+        readonly cleanDefault?: boolean;
+        readonly timeZone?: string;
+    } = {}
 ): string {
     return periodHref('/dashboard', period, value, options);
 }
@@ -222,52 +146,59 @@ export function formatDashboardRangeLabel({
     from,
     period,
     to,
-    now = new Date()
+    now = new Date(),
+    timeZone = defaultTimeZone
 }: {
     readonly from: DateInput;
     readonly period: DashboardPeriod;
     readonly to: DateInput;
     readonly now?: Date;
+    readonly timeZone?: string;
 }): string {
-    const start = toDate(from);
-    const end = toDate(to);
-    const currentYear = now.getFullYear();
+    const start = from instanceof Date ? from : new Date(from);
+    const end = to instanceof Date ? to : new Date(to);
+    const currentYear = localParts(now, timeZone).year;
+    const startParts = localParts(start, timeZone);
+    const endParts = localParts(end, timeZone);
 
     if (period === 'month') {
-        return formatMonth(start, currentYear);
+        return formatMonth(start, currentYear, timeZone);
     }
 
     if (period === 'quarter') {
-        const quarter = Math.floor(start.getMonth() / 3) + 1;
-        return start.getFullYear() === currentYear
+        const quarter = Math.floor((startParts.month - 1) / 3) + 1;
+        return startParts.year === currentYear
             ? `Q${quarter}`
-            : `Q${quarter} ${start.getFullYear()}`;
+            : `Q${quarter} ${startParts.year}`;
     }
 
     if (period === 'year') {
-        return String(start.getFullYear());
+        return String(startParts.year);
     }
 
-    if (dateParam(start) === dateParam(end)) {
-        return formatRangeDate(start, currentYear);
+    if (dateParam(start, timeZone) === dateParam(end, timeZone)) {
+        return formatRangeDate(start, currentYear, timeZone);
     }
 
-    if (start.getFullYear() === end.getFullYear()) {
-        return start.getFullYear() === currentYear
-            ? `${formatRangeDate(start, currentYear)} - ${formatRangeDate(
-                  end,
-                  currentYear
-              )}`
-            : `${formatRangeDate(start, currentYear)} - ${formatRangeDate(
+    if (startParts.year === endParts.year) {
+        return startParts.year === currentYear
+            ? `${formatRangeDate(start, currentYear, timeZone)} - ${formatRangeDate(
                   end,
                   currentYear,
+                  timeZone
+              )}`
+            : `${formatRangeDate(
+                  start,
+                  currentYear,
+                  timeZone,
                   true
-              )}`;
+              )} - ${formatRangeDate(end, currentYear, timeZone, true)}`;
     }
 
-    return `${formatRangeDate(start, currentYear, true)} - ${formatRangeDate(
-        end,
+    return `${formatRangeDate(
+        start,
         currentYear,
+        timeZone,
         true
-    )}`;
+    )} - ${formatRangeDate(end, currentYear, timeZone, true)}`;
 }

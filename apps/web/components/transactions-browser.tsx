@@ -138,11 +138,13 @@ function EditTransactionButton({
     categories,
     currencies,
     defaultCurrency,
+    timezone,
     transaction
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly timezone: string;
     readonly transaction: Transaction;
 }) {
     return (
@@ -157,6 +159,7 @@ function EditTransactionButton({
             submitLabel="Save changes"
             title="Edit transaction"
             transactionId={transaction.id}
+            timezone={timezone}
             trigger={
                 <Button
                     aria-label="Edit transaction"
@@ -172,8 +175,10 @@ function EditTransactionButton({
 }
 
 function DeleteTransactionButton({
+    timezone,
     transaction
 }: {
+    readonly timezone: string;
     readonly transaction: Transaction;
 }) {
     return (
@@ -193,7 +198,7 @@ function DeleteTransactionButton({
                     <DialogTitle>Delete transaction?</DialogTitle>
                     <DialogDescription>
                         This will remove {transaction.categoryName} from{' '}
-                        {formatDateTime(transaction.occurredAt)}.
+                        {formatDateTime(transaction.occurredAt, timezone)}.
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -229,11 +234,13 @@ function TransactionActions({
     categories,
     currencies,
     defaultCurrency,
+    timezone,
     transaction
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly timezone: string;
     readonly transaction: Transaction;
 }) {
     return (
@@ -242,9 +249,13 @@ function TransactionActions({
                 categories={categories}
                 currencies={currencies}
                 defaultCurrency={defaultCurrency}
+                timezone={timezone}
                 transaction={transaction}
             />
-            <DeleteTransactionButton transaction={transaction} />
+            <DeleteTransactionButton
+                timezone={timezone}
+                transaction={transaction}
+            />
         </div>
     );
 }
@@ -253,11 +264,13 @@ function TransactionCards({
     categories,
     currencies,
     defaultCurrency,
+    timezone,
     transactions
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly timezone: string;
     readonly transactions: readonly Transaction[];
 }) {
     return (
@@ -275,7 +288,10 @@ function TransactionCards({
                             <div className="mt-1 flex flex-wrap items-center gap-2">
                                 {transactionBadges(transaction)}
                                 <span className="text-xs text-muted-foreground">
-                                    {formatDateTime(transaction.occurredAt)}
+                                    {formatDateTime(
+                                        transaction.occurredAt,
+                                        timezone
+                                    )}
                                 </span>
                             </div>
                         </div>
@@ -283,6 +299,7 @@ function TransactionCards({
                             categories={categories}
                             currencies={currencies}
                             defaultCurrency={defaultCurrency}
+                            timezone={timezone}
                             transaction={transaction}
                         />
                     </div>
@@ -297,11 +314,13 @@ function TransactionTable({
     categories,
     currencies,
     defaultCurrency,
+    timezone,
     transactions
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly timezone: string;
     readonly transactions: readonly Transaction[];
 }) {
     return (
@@ -332,13 +351,17 @@ function TransactionTable({
                                     {transactionAmount(transaction)}
                                 </TableCell>
                                 <TableCell>
-                                    {formatDateTime(transaction.occurredAt)}
+                                    {formatDateTime(
+                                        transaction.occurredAt,
+                                        timezone
+                                    )}
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <TransactionActions
                                         categories={categories}
                                         currencies={currencies}
                                         defaultCurrency={defaultCurrency}
+                                        timezone={timezone}
                                         transaction={transaction}
                                     />
                                 </TableCell>
@@ -356,13 +379,15 @@ export function TransactionsBrowser({
     currencies,
     defaultCurrency,
     hasInitialFilters,
-    initialResponse
+    initialResponse,
+    timezone
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
     readonly hasInitialFilters: boolean;
     readonly initialResponse: TransactionFeedResponse;
+    readonly timezone: string;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -599,12 +624,14 @@ export function TransactionsBrowser({
                         categories={categories}
                         currencies={currencies}
                         defaultCurrency={defaultCurrency}
+                        timezone={timezone}
                         transactions={items}
                     />
                     <TransactionTable
                         categories={categories}
                         currencies={currencies}
                         defaultCurrency={defaultCurrency}
+                        timezone={timezone}
                         transactions={items}
                     />
                 </>

@@ -92,6 +92,7 @@ describe('MCP tool helpers', () => {
                 email: 'jane@example.com',
                 defaultCurrency: 'USD',
                 favoriteCurrencies: ['EUR'],
+                timezone: 'UTC',
                 hasCategories: true
             })),
             listCategories: vi.fn(async () => [

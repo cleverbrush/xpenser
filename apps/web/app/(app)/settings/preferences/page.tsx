@@ -40,7 +40,8 @@ export default async function PreferencesPage() {
                 <CardHeader>
                     <CardTitle>User preferences</CardTitle>
                     <CardDescription>
-                        Default currency changes affect future conversions.
+                        Default currency affects future conversions. Time zone
+                        affects transaction display and reports.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

@@ -22,7 +22,7 @@ config.
 HTTP traffic is separate:
 
 ```text
-Cloudflare wildcard DNS -> nginx host -> environment host port 3000 + PR number
+Cloudflare per-PR DNS record -> nginx host -> environment host port 3000 + PR number
 ```
 
 Use a dedicated preview network for the environment host. PR code should be
@@ -158,7 +158,7 @@ nc -vz 10.200.1.2 22
 ```
 
 The existing nginx address `10.30.1.11` remains the address GitHub Actions SSHes
-to and the address wildcard DNS resolves to.
+to and the address Cloudflare preview DNS records resolve to.
 
 ### PR Environment Host NIC
 
@@ -293,10 +293,12 @@ sudo -u <nginx-deploy-user> ssh -i /home/<nginx-deploy-user>/.ssh/pr-env-host \
   'test -x /opt/pr-env/pr-env.sh && docker compose version'
 ```
 
-15. Create wildcard DNS records so preview domains resolve to the nginx host.
-    For xpenser, configure a wildcard that covers
-    `*.xpenser.cleverbrush.com`; PR 3 will be
-    `pr-003.xpenser.cleverbrush.com`.
+15. Create a Cloudflare API token that can edit DNS records for
+    `cleverbrush.com`. The deploy script creates one exact DNS record per PR,
+    such as `xpenser-pr-003.cleverbrush.com`, and deletes it during cleanup.
+    The record defaults to a proxied CNAME pointing at
+    `xpenser.cleverbrush.com`, so the normal `*.cleverbrush.com` edge
+    certificate can cover preview traffic.
 
 16. Configure nginx njs routing on the nginx host. First create the static port
     calculation script:
@@ -307,7 +309,7 @@ var portBase = 3000;
 
 function port(r) {
     var host = r.variables.host || r.headersIn.Host || '';
-    var match = host.match(/^pr-0*(\d+)\.[^.]+\./);
+    var match = host.match(/^[^.]+-pr-0*(\d+)\./);
 
     if (!match) {
         return '0';
@@ -340,7 +342,7 @@ js_import pr from /etc/nginx/pr-port.js;
 
 server {
     listen 80;
-    server_name ~^pr-(?<pr>\d+)\.(?<project>[^.]+)\.cleverbrush\.com$;
+    server_name ~^xpenser-pr-(?<pr>\d+)\.cleverbrush\.com$;
 
     js_set $target_port pr.port;
 
@@ -382,6 +384,8 @@ PR_ENV_NGINX_SSH_PRIVATE_KEY
 PR_ENV_NGINX_SSH_KNOWN_HOSTS
 PR_ENV_NGINX_PROXY_SCRIPT
 PASSPORT_SERVICE_KEY
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ZONE_ID
 ```
 
 Notes:
@@ -394,6 +398,9 @@ Notes:
   `pr-env-proxy.sh`, for example `/opt/pr-env/pr-env-proxy.sh`.
 - No GitHub secret is needed for the private environment host SSH key. That key
   lives on the nginx host and is referenced by `/etc/pr-env/pr-env-proxy.env`.
+- `CLOUDFLARE_API_TOKEN` should be scoped to edit DNS for the
+  `cleverbrush.com` zone.
+- `CLOUDFLARE_ZONE_ID` is the Cloudflare zone ID for `cleverbrush.com`.
 
 Create optional secret `PR_ENV_NGINX_SSH_PORT` if the nginx SSH daemon does not
 use port `22`.
@@ -403,6 +410,10 @@ Create these optional repository variables if you need non-default values:
 ```text
 PR_ENV_DOMAIN_SUFFIX=cleverbrush.com
 PR_ENV_DOMAIN_PROJECT=xpenser
+PR_ENV_DNS_RECORD_TYPE=CNAME
+PR_ENV_DNS_RECORD_CONTENT=xpenser.cleverbrush.com
+PR_ENV_DNS_RECORD_PROXIED=true
+PR_ENV_DNS_RECORD_TTL=1
 PR_ENV_PROJECT_NAME=xpenser
 PR_ENV_ROOT=/opt/pr-envs
 PR_ENV_STATE_DIR=/var/lib/pr-envs
@@ -426,10 +437,10 @@ PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT=
   `/opt/pr-env/pr-env.sh` on the private environment host.
 - Fork PRs run CI only; they do not receive SSH or deployment secrets.
 - The environment script creates or updates Passport environment `pr-N`, a
-  checkout of the exact PR commit at `${PR_ENV_ROOT}/pr-N`, deterministic web
-  port `3000 + N` by default, public hostname
-  `pr-NNN.<project>.cleverbrush.com`, Docker Compose services under project
-  `prN`, and no nginx-side per-PR state.
+  Cloudflare DNS record for `<project>-pr-NNN.cleverbrush.com`, a checkout of
+  the exact PR commit at `${PR_ENV_ROOT}/pr-N`, deterministic web port
+  `3000 + N` by default, Docker Compose services under project `prN`, and no
+  nginx-side per-PR state.
 - The PR database is initialized once from production with
   `pg_dump`/`pg_restore`. Later commits preserve `prN_postgres_data`.
 - On PR close, the workflow runs the proxy script with `cleanup`; the private
@@ -442,6 +453,8 @@ First test the environment host script directly from the environment host:
 
 ```sh
 export PASSPORT_SERVICE_KEY=...
+export CLOUDFLARE_API_TOKEN=...
+export CLOUDFLARE_ZONE_ID=...
 export GIT_REPOSITORY_URL=git@github.com:cleverbrush/xpenser.git
 
 /opt/pr-env/pr-env.sh deploy 123 <commit-sha>
@@ -474,6 +487,12 @@ b64() {
   b64 "xpenser"
   b64 "xpenser"
   b64 "xpenser"
+  b64 "$CLOUDFLARE_API_TOKEN"
+  b64 "$CLOUDFLARE_ZONE_ID"
+  b64 "CNAME"
+  b64 "xpenser.cleverbrush.com"
+  b64 "true"
+  b64 "1"
 } | PR_ENV_SECRET_STREAM=1 /opt/pr-env/pr-env-proxy.sh deploy 123 <commit-sha>
 
 {
@@ -491,8 +510,14 @@ b64() {
   b64 "xpenser"
   b64 "xpenser"
   b64 "xpenser"
+  b64 "$CLOUDFLARE_API_TOKEN"
+  b64 "$CLOUDFLARE_ZONE_ID"
+  b64 "CNAME"
+  b64 "xpenser.cleverbrush.com"
+  b64 "true"
+  b64 "1"
 } | PR_ENV_SECRET_STREAM=1 /opt/pr-env/pr-env-proxy.sh cleanup 123
 ```
 
 Use a real PR number and commit SHA. The deploy command should make
-`https://pr-123.xpenser.cleverbrush.com` available after the containers start.
+`https://xpenser-pr-123.cleverbrush.com` available after the containers start.
