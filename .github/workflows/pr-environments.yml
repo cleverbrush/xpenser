@@ -7,19 +7,28 @@ on:
       - reopened
       - synchronize
       - closed
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to clean up
+        required: true
+        type: number
 
 permissions:
   contents: read
+  deployments: write
   pull-requests: read
 
 concurrency:
-  group: ${{ vars.PR_ENV_PROJECT_NAME || 'xpenser' }}-pr-${{ github.event.number }}
+  group: ${{ vars.PR_ENV_PROJECT_NAME || 'xpenser' }}-pr-${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.number }}
   cancel-in-progress: false
 
 jobs:
   ci:
     name: Lint and test
-    if: github.event.action != 'closed'
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action != 'closed'
     runs-on: ubuntu-latest
 
     steps:
@@ -51,6 +60,7 @@ jobs:
     name: Deploy PR environment
     needs: ci
     if: >-
+      github.event_name == 'pull_request' &&
       github.event.action != 'closed' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -150,27 +160,15 @@ jobs:
   cleanup:
     name: Cleanup PR environment
     if: >-
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.action == 'closed' &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
     runs-on: ubuntu-latest
-    environment:
-      name: pr-${{ github.event.number }}
-      url: ${{ steps.preview-url.outputs.url }}
 
     steps:
-      - name: Preview URL
-        id: preview-url
-        env:
-          PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
-          PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
-          PR_NUMBER: ${{ github.event.number }}
-        run: |
-          set -euo pipefail
-          printf 'url=https://%s-pr-%03d.%s\n' \
-            "$PR_ENV_DOMAIN_PROJECT" \
-            "$PR_NUMBER" \
-            "$PR_ENV_DOMAIN_SUFFIX" >> "$GITHUB_OUTPUT"
-
       - name: Configure SSH
         env:
           PR_ENV_NGINX_SSH_KNOWN_HOSTS: ${{ secrets.PR_ENV_NGINX_SSH_KNOWN_HOSTS }}
@@ -207,7 +205,7 @@ jobs:
           PR_ENV_NGINX_SSH_HOST: ${{ secrets.PR_ENV_NGINX_SSH_HOST }}
           PR_ENV_NGINX_SSH_PORT: ${{ secrets.PR_ENV_NGINX_SSH_PORT || '22' }}
           PR_ENV_NGINX_SSH_USER: ${{ secrets.PR_ENV_NGINX_SSH_USER }}
-          PR_NUMBER: ${{ github.event.number }}
+          PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.number }}
           PROD_COMPOSE_PROJECT: ${{ vars.PROD_COMPOSE_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
         run: |
           set -euo pipefail
@@ -243,3 +241,60 @@ jobs:
           } | ssh -T -o BatchMode=yes -i ~/.ssh/pr-env-nginx -p "$ssh_port" \
             "$PR_ENV_NGINX_SSH_USER@$PR_ENV_NGINX_SSH_HOST" \
             "PR_ENV_SECRET_STREAM=1 ${remote_script} cleanup '${PR_NUMBER}'"
+
+      - name: Mark GitHub environment inactive
+        env:
+          ENVIRONMENT_NAME: pr-${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.number }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${REPOSITORY}"
+          headers=(
+            -H "Authorization: Bearer ${GITHUB_TOKEN}"
+            -H "Accept: application/vnd.github+json"
+            -H "X-GitHub-Api-Version: 2022-11-28"
+          )
+          page=1
+          marked=0
+
+          while true; do
+            deployments="$(
+              curl -fsSL -G "${headers[@]}" \
+                --data-urlencode "environment=${ENVIRONMENT_NAME}" \
+                --data-urlencode "per_page=100" \
+                --data-urlencode "page=${page}" \
+                "${api}/deployments"
+            )"
+            page_count="$(jq 'length' <<<"$deployments")"
+            (( page_count == 0 )) && break
+
+            mapfile -t deployment_ids < <(
+              jq -r --arg environment "$ENVIRONMENT_NAME" \
+                '.[] | select(.environment == $environment) | .id' \
+                <<<"$deployments"
+            )
+
+            for deployment_id in "${deployment_ids[@]}"; do
+              body="$(
+                jq -n \
+                  --arg environment "$ENVIRONMENT_NAME" \
+                  --arg description "Destroyed ${ENVIRONMENT_NAME}" \
+                  '{
+                    state: "inactive",
+                    environment: $environment,
+                    description: $description,
+                    auto_inactive: false
+                  }'
+              )"
+              curl -fsSL -X POST "${headers[@]}" \
+                -d "$body" \
+                "${api}/deployments/${deployment_id}/statuses" >/dev/null
+              marked="$((marked + 1))"
+            done
+
+            (( page_count < 100 )) && break
+            page="$((page + 1))"
+          done
+
+          printf 'Marked %s deployment(s) inactive for %s\n' "$marked" "$ENVIRONMENT_NAME"

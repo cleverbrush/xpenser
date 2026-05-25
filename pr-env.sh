@@ -402,11 +402,40 @@ upsert_passport_environment() {
 }
 
 delete_passport_environment() {
+    local response_file
+    local status
+    local url
+
+    response_file="$(mktemp)"
+    url="${PASSPORT_BASE_URL%/}/api/projects/${PASSPORT_PROJECT}/environments/${PASSPORT_ENVIRONMENT}"
+
     log "Deleting Passport environment ${PASSPORT_ENVIRONMENT}"
-    passport_headers \
-        -X DELETE \
-        "${PASSPORT_BASE_URL%/}/api/projects/${PASSPORT_PROJECT}/environments/${PASSPORT_ENVIRONMENT}" \
-        >/dev/null
+    status="$(
+        curl -sS \
+            -o "$response_file" \
+            -w '%{http_code}' \
+            -H "Authorization: ServiceKey ${PASSPORT_SERVICE_KEY}" \
+            -H 'Content-Type: application/json' \
+            -X DELETE \
+            "$url" || true
+    )"
+
+    case "$status" in
+        200|202|204)
+            rm -f "$response_file"
+            return 0
+            ;;
+        404)
+            log "Passport environment ${PASSPORT_ENVIRONMENT} is already absent"
+            rm -f "$response_file"
+            return 0
+            ;;
+        *)
+            log "Passport environment delete failed with HTTP ${status}: $(tr '\n' ' ' <"$response_file")"
+            rm -f "$response_file"
+            return 1
+            ;;
+    esac
 }
 
 cloudflare_enabled() {
@@ -511,6 +540,7 @@ delete_cloudflare_dns_record() {
     local record_name="${CLOUDFLARE_DNS_RECORD_NAME:-$DOMAIN}"
     local record_id
     local existing_ids
+    local failed=0
 
     if ! cloudflare_enabled; then
         log "Skipping Cloudflare DNS cleanup because credentials are not configured"
@@ -519,7 +549,7 @@ delete_cloudflare_dns_record() {
 
     if [[ -n "${CLOUDFLARE_DNS_RECORD_ID:-}" ]]; then
         log "Deleting Cloudflare DNS record ${CLOUDFLARE_DNS_RECORD_ID} for ${record_name}"
-        delete_cloudflare_dns_record_id "$CLOUDFLARE_DNS_RECORD_ID" || true
+        delete_cloudflare_dns_record_id "$CLOUDFLARE_DNS_RECORD_ID" || failed=1
     fi
 
     mapfile -t existing_ids < <(
@@ -529,8 +559,10 @@ delete_cloudflare_dns_record() {
     for record_id in "${existing_ids[@]}"; do
         [[ "$record_id" == "${CLOUDFLARE_DNS_RECORD_ID:-}" ]] && continue
         log "Deleting Cloudflare DNS record ${record_id} for ${record_name}"
-        delete_cloudflare_dns_record_id "$record_id" || true
+        delete_cloudflare_dns_record_id "$record_id" || failed=1
     done
+
+    return "$failed"
 }
 
 deploy() {
@@ -566,6 +598,8 @@ deploy() {
 }
 
 cleanup() {
+    local cleanup_failed=0
+
     load_state || true
 
     if [[ -d "$CHECKOUT_DIR" && -f "${CHECKOUT_DIR}/docker-compose.prod.yml" ]]; then
@@ -588,16 +622,19 @@ cleanup() {
     fi
 
     if [[ -n "${PASSPORT_SERVICE_KEY:-}" ]]; then
-        delete_passport_environment || true
+        delete_passport_environment || cleanup_failed=1
     else
         log "Skipping Passport cleanup because PASSPORT_SERVICE_KEY is not configured"
     fi
 
-    delete_cloudflare_dns_record || true
+    delete_cloudflare_dns_record || cleanup_failed=1
 
     rm -rf "${PR_ENV_ROOT:?}/${ENV_NAME}" "$STATE_DIR"
     log "Pruning unused Docker resources"
     docker system prune -f || true
+    if (( cleanup_failed != 0 )); then
+        die "Cleanup completed with errors"
+    fi
     log "Cleaned PR environment ${ENV_NAME}"
 }
 
@@ -612,6 +649,7 @@ main() {
     require_command docker
     require_command git
     require_command jq
+    require_command mktemp
     require_command openssl
 
     case "$ACTION" in
