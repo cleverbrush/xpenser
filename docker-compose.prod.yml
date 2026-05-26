@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: always
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-xpenser}
       POSTGRES_USER: ${POSTGRES_USER:-xpenser}
@@ -17,6 +18,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    restart: always
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +56,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+    restart: always
     depends_on:
       api:
         condition: service_healthy
@@ -77,6 +80,7 @@ services:
     build:
       context: .
       dockerfile: apps/telegram-bot/Dockerfile
+    restart: always
     depends_on:
       api:
         condition: service_healthy

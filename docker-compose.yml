@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: always
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-xpenser}
       POSTGRES_USER: ${POSTGRES_USER:-xpenser}
@@ -17,6 +18,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    restart: always
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,6 +58,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+    restart: always
     depends_on:
       api:
         condition: service_healthy
@@ -79,6 +82,7 @@ services:
     build:
       context: .
       dockerfile: apps/telegram-bot/Dockerfile
+    restart: always
     depends_on:
       api:
         condition: service_healthy
@@ -95,6 +99,7 @@ services:
 
   swagger-ui:
     image: swaggerapi/swagger-ui:latest
+    restart: always
     environment:
       URL: http://localhost:${WEB_PORT:-3000}/external-api/openapi.json
       DISPLAY_OPERATION_ID: "true"
@@ -104,7 +109,7 @@ services:
 
   zookeeper-1:
     image: signoz/zookeeper:3.7.1
-    restart: unless-stopped
+    restart: always
     user: root
     healthcheck:
       test: ["CMD-SHELL", "curl -s -m 2 http://localhost:8080/commands/ruok | grep error | grep null"]
@@ -141,7 +146,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.5.6
-    restart: unless-stopped
+    restart: always
     tty: true
     depends_on:
       init-clickhouse:
@@ -187,7 +192,7 @@ services:
 
   otel-collector:
     image: signoz/signoz-otel-collector:v0.144.3
-    restart: unless-stopped
+    restart: always
     depends_on:
       clickhouse:
         condition: service_healthy
@@ -217,7 +222,7 @@ services:
 
   signoz:
     image: signoz/signoz:v0.120.0
-    restart: unless-stopped
+    restart: always
     depends_on:
       clickhouse:
         condition: service_healthy
