@@ -90,6 +90,9 @@ export function TransactionDialog({
     const [effect, setEffect] = useState<'normal' | 'reversal'>('normal');
     const [selectedType, setSelectedType] =
         useState<TransactionType>('expense');
+    const [selectedCategoryId, setSelectedCategoryId] = useState<
+        number | undefined
+    >();
     const [occurredAtText, setOccurredAtText] = useState('');
     const categoryInvalid = categoryId.touched && Boolean(categoryId.error);
     const currencyInvalid = currency.touched && Boolean(currency.error);
@@ -106,6 +109,10 @@ export function TransactionDialog({
     const filteredCategories = useMemo(
         () => categories.filter(category => category.type === selectedType),
         [categories, selectedType]
+    );
+    const selectedCategory = useMemo(
+        () => categories.find(category => category.id === selectedCategoryId),
+        [categories, selectedCategoryId]
     );
     const currencyOptions = useMemo(() => {
         if (
@@ -149,6 +156,7 @@ export function TransactionDialog({
 
         setEffect(initialValues?.effect ?? 'normal');
         setSelectedType(initialType);
+        setSelectedCategoryId(initialValues?.categoryId);
         setOccurredAtText(
             dateToLocalDateTimeInput(initialOccurredAt, timezone)
         );
@@ -177,7 +185,7 @@ export function TransactionDialog({
         setSelectedType(value);
 
         const currentCategory = categories.find(
-            category => category.id === categoryId.value
+            category => category.id === selectedCategoryId
         );
         if (currentCategory?.type === value) {
             return;
@@ -187,15 +195,27 @@ export function TransactionDialog({
             category => category.type === value
         );
         if (nextCategory) {
+            setSelectedCategoryId(nextCategory.id);
             categoryId.onChange(nextCategory.id);
             return;
         }
 
+        setSelectedCategoryId(undefined);
         form.setValue({ categoryId: undefined });
+    }
+
+    function handleCategoryChange(value: string) {
+        const nextCategoryId = Number(value);
+        setSelectedCategoryId(nextCategoryId);
+        categoryId.onChange(nextCategoryId);
     }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+
+        if (selectedCategoryId !== undefined) {
+            form.setValue({ categoryId: selectedCategoryId });
+        }
 
         const result = await form.submit();
         if (!result.valid || !result.object) {
@@ -267,17 +287,17 @@ export function TransactionDialog({
                                         categoryId.onBlur();
                                     }
                                 }}
-                                onValueChange={value =>
-                                    categoryId.onChange(Number(value))
-                                }
+                                onValueChange={handleCategoryChange}
                                 value={
-                                    categoryId.value === undefined
+                                    selectedCategoryId === undefined
                                         ? ''
-                                        : String(categoryId.value)
+                                        : String(selectedCategoryId)
                                 }
                             >
                                 <SelectTrigger aria-invalid={categoryInvalid}>
-                                    <SelectValue placeholder="Select category" />
+                                    <SelectValue placeholder="Select category">
+                                        {selectedCategory?.name}
+                                    </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectGroup>
