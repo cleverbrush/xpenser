@@ -125,6 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           : "${PR_ENV_NGINX_PROXY_SCRIPT:?PR_ENV_NGINX_PROXY_SCRIPT is required}"
+          : "${PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT:?PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT repository variable is required}"
           ssh_port="${PR_ENV_NGINX_SSH_PORT:-22}"
           remote_script="$(printf '%q' "$PR_ENV_NGINX_PROXY_SCRIPT")"
           b64() {

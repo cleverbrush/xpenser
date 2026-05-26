@@ -410,6 +410,11 @@ cannot delete GitHub repository environments in your repo. Use a token with
 permission to delete repository environments; the workflow falls back to
 `github.token` when this secret is not set.
 
+Create required repository variable `PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT` with
+the external collector's OTLP/HTTP base URL. Do not include signal paths such as
+`/v1/traces`, `/v1/logs`, or `/v1/metrics`; the application telemetry setup
+adds those paths.
+
 Create these optional repository variables if you need non-default values:
 
 ```text
@@ -429,7 +434,6 @@ PASSPORT_BASE_URL=https://auth.cleverbrush.com
 PASSPORT_PROJECT=xpenser
 POSTGRES_DB=xpenser
 POSTGRES_USER=xpenser
-PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT=
 ```
 
 ## Runtime Behavior
@@ -468,6 +472,7 @@ export PASSPORT_SERVICE_KEY=...
 export CLOUDFLARE_API_TOKEN=...
 export CLOUDFLARE_ZONE_ID=...
 export GIT_REPOSITORY_URL=git@github.com:cleverbrush/xpenser.git
+export PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.example.com
 
 /opt/pr-env/pr-env.sh deploy 123 <commit-sha>
 /opt/pr-env/pr-env.sh cleanup 123
@@ -478,6 +483,7 @@ GitHub Actions sends:
 
 ```sh
 export PASSPORT_SERVICE_KEY=...
+export PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT=https://collector.example.com
 
 b64() {
   printf '%s' "$1" | base64 -w 0
@@ -493,7 +499,7 @@ b64() {
   b64 "/var/lib/pr-envs"
   b64 "3000"
   b64 "git@github.com:cleverbrush/xpenser.git"
-  b64 ""
+  b64 "$PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT"
   b64 "xpenser"
   b64 "xpenser"
   b64 "xpenser"
@@ -507,6 +513,8 @@ b64() {
   b64 "1"
 } | PR_ENV_SECRET_STREAM=1 /opt/pr-env/pr-env-proxy.sh deploy 123 <commit-sha>
 
+# Cleanup keeps the endpoint slot empty because cleanup does not export
+# telemetry, but the secret stream order must stay stable.
 {
   b64 "$PASSPORT_SERVICE_KEY"
   b64 "cleverbrush.com"

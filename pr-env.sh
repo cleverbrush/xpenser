@@ -204,6 +204,7 @@ validate_config() {
         require_env CLOUDFLARE_API_TOKEN
         require_env CLOUDFLARE_ZONE_ID
         require_env PR_ENV_DNS_RECORD_CONTENT
+        require_env PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT
     fi
 }
 
