@@ -246,14 +246,15 @@ jobs:
       - name: Cleanup GitHub environment
         if: always()
         env:
-          GITHUB_TOKEN: ${{ secrets.PR_ENV_GITHUB_TOKEN || github.token }}
+          PR_ENV_GITHUB_TOKEN: ${{ secrets.PR_ENV_GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event_name == 'workflow_dispatch' && inputs.pr_number || github.event.number }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
+          : "${PR_ENV_GITHUB_TOKEN:?PR_ENV_GITHUB_TOKEN secret is required; create a fine-grained PAT with Administration read/write access for this repository}"
           api="https://api.github.com/repos/${REPOSITORY}"
           headers=(
-            -H "Authorization: Bearer ${GITHUB_TOKEN}"
+            -H "Authorization: Bearer ${PR_ENV_GITHUB_TOKEN}"
             -H "Accept: application/vnd.github+json"
             -H "X-GitHub-Api-Version: 2022-11-28"
           )

@@ -386,6 +386,7 @@ PR_ENV_NGINX_PROXY_SCRIPT
 PASSPORT_SERVICE_KEY
 CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ZONE_ID
+PR_ENV_GITHUB_TOKEN
 ```
 
 Notes:
@@ -401,14 +402,13 @@ Notes:
 - `CLOUDFLARE_API_TOKEN` should be scoped to edit DNS for the
   `cleverbrush.com` zone.
 - `CLOUDFLARE_ZONE_ID` is the Cloudflare zone ID for `cleverbrush.com`.
+- `PR_ENV_GITHUB_TOKEN` should be a fine-grained personal access token scoped
+  only to this repository with `Administration` repository permissions set to
+  read/write. GitHub requires this permission to delete repository
+  environments during cleanup.
 
 Create optional secret `PR_ENV_NGINX_SSH_PORT` if the nginx SSH daemon does not
 use port `22`.
-
-Create optional secret `PR_ENV_GITHUB_TOKEN` if the default `GITHUB_TOKEN`
-cannot delete GitHub repository environments in your repo. Use a token with
-permission to delete repository environments; the workflow falls back to
-`github.token` when this secret is not set.
 
 Create required repository variable `PR_ENV_OTEL_EXPORTER_OTLP_ENDPOINT` with
 the external collector's OTLP/HTTP base URL. Do not include signal paths such as
