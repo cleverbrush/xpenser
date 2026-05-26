@@ -110,10 +110,6 @@ export function TransactionDialog({
         () => categories.filter(category => category.type === selectedType),
         [categories, selectedType]
     );
-    const selectedCategory = useMemo(
-        () => categories.find(category => category.id === selectedCategoryId),
-        [categories, selectedCategoryId]
-    );
     const currencyOptions = useMemo(() => {
         if (
             !initialValues?.currency ||
@@ -295,9 +291,7 @@ export function TransactionDialog({
                                 }
                             >
                                 <SelectTrigger aria-invalid={categoryInvalid}>
-                                    <SelectValue placeholder="Select category">
-                                        {selectedCategory?.name}
-                                    </SelectValue>
+                                    <SelectValue placeholder="Select category" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectGroup>
