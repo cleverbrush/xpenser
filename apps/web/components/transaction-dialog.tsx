@@ -110,6 +110,31 @@ export function TransactionDialog({
         () => categories.filter(category => category.type === selectedType),
         [categories, selectedType]
     );
+    const activeCategory = useMemo(() => {
+        const selectedCategory = categories.find(
+            category =>
+                category.id === selectedCategoryId &&
+                category.type === selectedType
+        );
+        if (selectedCategory) {
+            return selectedCategory;
+        }
+
+        if (initialValues?.type !== selectedType) {
+            return undefined;
+        }
+
+        return categories.find(
+            category => category.id === initialValues.categoryId
+        );
+    }, [
+        categories,
+        initialValues?.categoryId,
+        initialValues?.type,
+        selectedCategoryId,
+        selectedType
+    ]);
+    const activeCategoryId = activeCategory?.id;
     const currencyOptions = useMemo(() => {
         if (
             !initialValues?.currency ||
@@ -181,7 +206,7 @@ export function TransactionDialog({
         setSelectedType(value);
 
         const currentCategory = categories.find(
-            category => category.id === selectedCategoryId
+            category => category.id === activeCategoryId
         );
         if (currentCategory?.type === value) {
             return;
@@ -209,8 +234,8 @@ export function TransactionDialog({
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        if (selectedCategoryId !== undefined) {
-            form.setValue({ categoryId: selectedCategoryId });
+        if (activeCategoryId !== undefined) {
+            form.setValue({ categoryId: activeCategoryId });
         }
 
         const result = await form.submit();
@@ -278,6 +303,9 @@ export function TransactionDialog({
                         >
                             <FieldLabel>Category</FieldLabel>
                             <Select
+                                key={`${selectedType}:${
+                                    activeCategoryId ?? 'none'
+                                }`}
                                 onOpenChange={selectOpen => {
                                     if (!selectOpen) {
                                         categoryId.onBlur();
@@ -285,9 +313,9 @@ export function TransactionDialog({
                                 }}
                                 onValueChange={handleCategoryChange}
                                 value={
-                                    selectedCategoryId === undefined
+                                    activeCategoryId === undefined
                                         ? ''
-                                        : String(selectedCategoryId)
+                                        : String(activeCategoryId)
                                 }
                             >
                                 <SelectTrigger aria-invalid={categoryInvalid}>
