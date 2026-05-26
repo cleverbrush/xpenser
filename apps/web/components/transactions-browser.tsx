@@ -48,6 +48,7 @@ import {
     formatDateTime,
     formatTransactionMoney
 } from '@/lib/format';
+import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { transactionPageSize } from '@/lib/transaction-query';
 import { TransactionDialog } from './transaction-dialog';
 
@@ -380,6 +381,7 @@ export function TransactionsBrowser({
     defaultCurrency,
     hasInitialFilters,
     initialResponse,
+    transactionCurrencies,
     timezone
 }: {
     readonly categories: readonly Category[];
@@ -387,6 +389,7 @@ export function TransactionsBrowser({
     readonly defaultCurrency: string;
     readonly hasInitialFilters: boolean;
     readonly initialResponse: TransactionFeedResponse;
+    readonly transactionCurrencies: readonly string[];
     readonly timezone: string;
 }) {
     const router = useRouter();
@@ -410,6 +413,15 @@ export function TransactionsBrowser({
     const filters = useMemo(
         () => activeFilterCount(new URLSearchParams(searchKey)),
         [searchKey]
+    );
+    const dialogCurrencies = useMemo(
+        () =>
+            transactionCurrencyOptions(
+                currencies,
+                defaultCurrency,
+                transactionCurrencies
+            ),
+        [currencies, defaultCurrency, transactionCurrencies]
     );
 
     useEffect(() => {
@@ -622,14 +634,14 @@ export function TransactionsBrowser({
                 <>
                     <TransactionCards
                         categories={categories}
-                        currencies={currencies}
+                        currencies={dialogCurrencies}
                         defaultCurrency={defaultCurrency}
                         timezone={timezone}
                         transactions={items}
                     />
                     <TransactionTable
                         categories={categories}
-                        currencies={currencies}
+                        currencies={dialogCurrencies}
                         defaultCurrency={defaultCurrency}
                         timezone={timezone}
                         transactions={items}

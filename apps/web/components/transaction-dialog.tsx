@@ -41,10 +41,12 @@ import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 
 type TransactionDialogValues = Pick<
     Transaction,
-    'amount' | 'categoryId' | 'currency' | 'effect' | 'note'
+    'amount' | 'categoryId' | 'currency' | 'effect' | 'note' | 'type'
 > & {
     readonly occurredAt: Date | string | number;
 };
+
+type TransactionType = Transaction['type'];
 
 export function TransactionDialog({
     action,
@@ -86,10 +88,25 @@ export function TransactionDialog({
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
     const [effect, setEffect] = useState<'normal' | 'reversal'>('normal');
+    const [selectedType, setSelectedType] =
+        useState<TransactionType>('expense');
     const [occurredAtText, setOccurredAtText] = useState('');
     const categoryInvalid = categoryId.touched && Boolean(categoryId.error);
     const currencyInvalid = currency.touched && Boolean(currency.error);
     const occurredAtInvalid = occurredAt.touched && Boolean(occurredAt.error);
+    const initialType = useMemo<TransactionType>(() => {
+        if (initialValues?.type) {
+            return initialValues.type;
+        }
+
+        return categories.some(category => category.type === 'expense')
+            ? 'expense'
+            : (categories[0]?.type ?? 'expense');
+    }, [categories, initialValues?.type]);
+    const filteredCategories = useMemo(
+        () => categories.filter(category => category.type === selectedType),
+        [categories, selectedType]
+    );
     const currencyOptions = useMemo(() => {
         if (
             !initialValues?.currency ||
@@ -131,6 +148,7 @@ export function TransactionDialog({
             : new Date();
 
         setEffect(initialValues?.effect ?? 'normal');
+        setSelectedType(initialType);
         setOccurredAtText(
             dateToLocalDateTimeInput(initialOccurredAt, timezone)
         );
@@ -142,7 +160,7 @@ export function TransactionDialog({
             occurredAt: initialOccurredAt,
             note: initialValues?.note ?? undefined
         });
-    }, [form, initialCurrency, initialValues, timezone]);
+    }, [form, initialCurrency, initialType, initialValues, timezone]);
 
     useEffect(() => {
         if (open) {
@@ -153,6 +171,27 @@ export function TransactionDialog({
     function handleOpenChange(nextOpen: boolean) {
         setOpen(nextOpen);
         setError(null);
+    }
+
+    function handleTypeChange(value: TransactionType) {
+        setSelectedType(value);
+
+        const currentCategory = categories.find(
+            category => category.id === categoryId.value
+        );
+        if (currentCategory?.type === value) {
+            return;
+        }
+
+        const nextCategory = categories.find(
+            category => category.type === value
+        );
+        if (nextCategory) {
+            categoryId.onChange(nextCategory.id);
+            return;
+        }
+
+        form.setValue({ categoryId: undefined });
     }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -195,6 +234,29 @@ export function TransactionDialog({
                 </DialogHeader>
                 <form noValidate onSubmit={handleSubmit}>
                     <FieldGroup>
+                        <Field>
+                            <FieldLabel>Type</FieldLabel>
+                            <Select
+                                onValueChange={value =>
+                                    handleTypeChange(value as TransactionType)
+                                }
+                                value={selectedType}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        <SelectItem value="expense">
+                                            Expense
+                                        </SelectItem>
+                                        <SelectItem value="income">
+                                            Income
+                                        </SelectItem>
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </Field>
                         <Field
                             data-invalid={categoryInvalid ? true : undefined}
                         >
@@ -219,13 +281,12 @@ export function TransactionDialog({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectGroup>
-                                        {categories.map(category => (
+                                        {filteredCategories.map(category => (
                                             <SelectItem
                                                 key={category.id}
                                                 value={String(category.id)}
                                             >
-                                                {category.name} ({category.type}
-                                                )
+                                                {category.name}
                                             </SelectItem>
                                         ))}
                                     </SelectGroup>

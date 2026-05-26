@@ -51,6 +51,7 @@ export default async function TransactionsPage({
                     ...transactions,
                     hasMore: transactionHasMore(transactions)
                 }}
+                transactionCurrencies={me.transactionCurrencies}
                 timezone={me.timezone}
             />
         </div>
