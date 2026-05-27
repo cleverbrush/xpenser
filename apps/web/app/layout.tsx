@@ -6,7 +6,8 @@ import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
     title: 'xpenser',
-    description: 'Personal income and expense tracking'
+    description:
+        'Personal finance tracking and Cleverbrush Framework demonstrator'
 };
 
 export default function RootLayout({
