@@ -110,7 +110,8 @@ const heroProofs = [
     'Fast financial entry',
     'Mobile-friendly interface',
     'MCP server access',
-    'Telegram bot integration'
+    'Telegram bot integration',
+    'Open-source and self-hosted ready'
 ] as const;
 
 const resourceLinks = [
@@ -380,10 +381,11 @@ export function LandingPage() {
                             xpenser
                         </h1>
                         <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
-                            Personal income and expense tracking that initially
-                            demonstrates what can be built with Cleverbrush
-                            Framework: typed contracts, schema-driven forms,
-                            observable services, and connected app workflows.
+                            Open-source, self-hosted ready personal income and
+                            expense tracking that initially demonstrates what
+                            can be built with Cleverbrush Framework: typed
+                            contracts, schema-driven forms, observable services,
+                            and connected app workflows.
                         </p>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
@@ -423,8 +425,8 @@ export function LandingPage() {
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
                         xpenser is a working app, not a static showcase. The
                         demo covers the product surfaces a user expects from a
-                        finance tracker while keeping the implementation small
-                        enough to inspect.
+                        finance tracker while keeping the implementation
+                        open-source and small enough to inspect or self-host.
                     </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -448,7 +450,8 @@ export function LandingPage() {
                             possibilities: a single app path that exercises
                             Cleverbrush contracts, server handlers, generated
                             clients, schema-backed React forms, auth, Telegram
-                            bot integration, an MCP server, logs, and telemetry.
+                            bot integration, an MCP server, logs, telemetry, and
+                            deployment-ready configuration for self-hosting.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -524,7 +527,8 @@ export function LandingPage() {
                             <p className="mt-2 text-sm leading-6 text-muted-foreground">
                                 Sign in to use the app, or review the framework
                                 docs behind the contracts, forms, APIs, and
-                                telemetry.
+                                telemetry for an open-source, self-hosted ready
+                                setup.
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row">

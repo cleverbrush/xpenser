@@ -25,6 +25,8 @@ describe('LandingPage', () => {
         expect(
             screen.getAllByText(/Mobile-friendly interface/i).length
         ).toBeGreaterThan(0);
+        expect(screen.getAllByText(/open-source/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/self-hosted/i).length).toBeGreaterThan(0);
 
         const signInLinks = screen.getAllByRole('link', { name: /sign in/i });
         expect(
