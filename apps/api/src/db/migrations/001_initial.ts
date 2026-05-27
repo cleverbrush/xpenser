@@ -8,7 +8,6 @@ export async function up(knex: Knex): Promise<void> {
         table.string('role', 50).notNullable().defaultTo('user');
         table.string('auth_provider', 50).notNullable().defaultTo('local');
         table.string('default_currency', 3).notNullable().defaultTo('USD');
-        table.string('timezone', 64).notNullable().defaultTo('UTC');
         table
             .timestamp('created_at', { useTz: true })
             .notNullable()
