@@ -6,7 +6,8 @@ import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
     title: 'xpenser',
-    description: 'Personal income and expense tracking'
+    description:
+        'Personal finance tracking and Cleverbrush Framework demonstrator'
 };
 
 export default function RootLayout({
@@ -16,7 +17,7 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <GoogleTagManager gtmId="GTM-PSC6NS8P" />
+            <GoogleTagManager gtmId="GTM-WRLXDMG" />
             <body>
                 <ThemeProvider
                     attribute="class"
