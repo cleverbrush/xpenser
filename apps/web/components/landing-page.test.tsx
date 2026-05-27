@@ -35,13 +35,29 @@ describe('LandingPage', () => {
             )
         ).toBe(true);
 
-        const docsLinks = screen.getAllByRole('link', {
-            name: /cleverbrush docs/i
-        });
+        const githubLinks = screen.getAllByRole('link', { name: /github/i });
+        expect(
+            githubLinks.every(
+                link =>
+                    link.getAttribute('href') ===
+                    'https://github.com/cleverbrush/xpenser'
+            )
+        ).toBe(true);
+
+        const docsLinks = screen.getAllByRole('link', { name: /docs/i });
         expect(
             docsLinks.every(
                 link =>
                     link.getAttribute('href') === 'https://docs.cleverbrush.com'
+            )
+        ).toBe(true);
+
+        const schemaLinks = screen.getAllByRole('link', { name: /schema/i });
+        expect(
+            schemaLinks.every(
+                link =>
+                    link.getAttribute('href') ===
+                    'https://schema.cleverbrush.com'
             )
         ).toBe(true);
     });

@@ -8,10 +8,13 @@ import {
 } from '@xpenser/ui';
 import {
     ArrowRightIcon,
+    BookOpenIcon,
     BotIcon,
+    BracesIcon,
     CheckCircle2Icon,
     DatabaseIcon,
     ExternalLinkIcon,
+    GithubIcon,
     KeyRoundIcon,
     LayoutDashboardIcon,
     LineChartIcon,
@@ -95,6 +98,24 @@ const capabilityRows = [
     ['External API', 'Typed client, API keys, and read-only MCP endpoint']
 ] as const;
 
+const resourceLinks = [
+    {
+        href: 'https://github.com/cleverbrush/xpenser',
+        icon: GithubIcon,
+        label: 'GitHub'
+    },
+    {
+        href: 'https://docs.cleverbrush.com',
+        icon: BookOpenIcon,
+        label: 'Docs'
+    },
+    {
+        href: 'https://schema.cleverbrush.com',
+        icon: BracesIcon,
+        label: 'Schema'
+    }
+] as const;
+
 function FeatureCard({ description, icon: IconComponent, title }: Feature) {
     return (
         <Card className="h-full">
@@ -119,7 +140,7 @@ function ProductPreview() {
     return (
         <div
             aria-label="xpenser dashboard preview"
-            className="pointer-events-none absolute inset-x-3 bottom-0 top-48 overflow-hidden sm:inset-x-auto sm:left-[44%] sm:right-6 sm:top-20 lg:left-[46%] lg:right-10"
+            className="pointer-events-none absolute inset-x-4 bottom-0 top-[500px] overflow-hidden sm:inset-x-auto sm:left-[48%] sm:right-6 sm:top-24 lg:left-[52%] lg:right-10"
             role="img"
         >
             <div className="mx-auto flex h-full max-w-xl items-end sm:items-center">
@@ -237,6 +258,24 @@ export function LandingPage() {
                         <span>xpenser</span>
                     </Link>
                     <nav className="flex items-center gap-2">
+                        <div className="hidden items-center gap-1 md:flex">
+                            {resourceLinks.map(({ href, label }) => (
+                                <Button
+                                    asChild
+                                    key={href}
+                                    size="sm"
+                                    variant="ghost"
+                                >
+                                    <a
+                                        href={href}
+                                        rel="noreferrer"
+                                        target="_blank"
+                                    >
+                                        {label}
+                                    </a>
+                                </Button>
+                            ))}
+                        </div>
                         <Button
                             asChild
                             className="hidden sm:inline-flex"
@@ -255,9 +294,9 @@ export function LandingPage() {
                 </div>
             </header>
 
-            <section className="relative min-h-[720px] overflow-hidden border-b bg-muted/40 sm:min-h-[680px]">
+            <section className="relative min-h-[820px] overflow-hidden border-b bg-background sm:min-h-[680px]">
                 <ProductPreview />
-                <div className="relative z-10 mx-auto flex max-w-6xl flex-col px-4 pb-72 pt-14 sm:pb-24 sm:pt-20">
+                <div className="relative z-10 mx-auto flex max-w-6xl flex-col px-4 pb-[340px] pt-14 sm:pb-24 sm:pt-20">
                     <Badge className="mb-5 w-fit" variant="secondary">
                         Cleverbrush Framework demonstrator
                     </Badge>
@@ -272,8 +311,8 @@ export function LandingPage() {
                             observable services, and connected app workflows.
                         </p>
                     </div>
-                    <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                        <Button asChild size="lg">
+                    <div className="mt-8 flex max-w-xl flex-col gap-3 rounded-md border bg-card p-3 shadow-sm sm:flex-row sm:items-center">
+                        <Button asChild className="sm:flex-1" size="lg">
                             <Link href="/login">
                                 Sign in
                                 <ArrowRightIcon
@@ -282,22 +321,42 @@ export function LandingPage() {
                                 />
                             </Link>
                         </Button>
-                        <Button asChild size="lg" variant="outline">
+                        <Button
+                            asChild
+                            className="sm:flex-1"
+                            size="lg"
+                            variant="outline"
+                        >
                             <Link href="/register">Create account</Link>
                         </Button>
-                        <Button asChild size="lg" variant="ghost">
-                            <a
-                                href="https://docs.cleverbrush.com"
-                                rel="noreferrer"
-                                target="_blank"
-                            >
-                                Cleverbrush docs
-                                <ExternalLinkIcon
-                                    aria-hidden
-                                    className="size-4"
-                                />
-                            </a>
-                        </Button>
+                    </div>
+                    <div className="mt-5 flex max-w-xl flex-wrap gap-2">
+                        {resourceLinks.map(
+                            ({ href, icon: IconComponent, label }) => (
+                                <Button
+                                    asChild
+                                    key={href}
+                                    size="sm"
+                                    variant="ghost"
+                                >
+                                    <a
+                                        href={href}
+                                        rel="noreferrer"
+                                        target="_blank"
+                                    >
+                                        <IconComponent
+                                            aria-hidden
+                                            className="size-4"
+                                        />
+                                        {label}
+                                        <ExternalLinkIcon
+                                            aria-hidden
+                                            className="size-3"
+                                        />
+                                    </a>
+                                </Button>
+                            )
+                        )}
                     </div>
                     <div className="mt-8 grid max-w-2xl gap-3 text-sm text-muted-foreground sm:grid-cols-3">
                         {[
@@ -411,42 +470,53 @@ export function LandingPage() {
                 </div>
             </section>
 
-            <section className="border-t bg-foreground text-background">
+            <section className="border-t bg-muted/40">
                 <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-10 sm:flex-row sm:items-center sm:justify-between">
                     <div className="max-w-xl">
                         <h2 className="text-2xl font-semibold">
                             Open the demonstrator
                         </h2>
-                        <p className="mt-2 text-sm leading-6 text-background/75">
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
                             Sign in to use the app, or review the framework docs
                             behind the contracts, forms, APIs, and telemetry.
                         </p>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row">
-                        <Button asChild size="lg" variant="secondary">
+                        <Button asChild size="lg">
                             <Link href="/login">Sign in</Link>
                         </Button>
-                        <Button
-                            asChild
-                            className="border-background/30 text-background hover:bg-background/10 hover:text-background"
-                            size="lg"
-                            variant="outline"
-                        >
-                            <a
-                                href="https://docs.cleverbrush.com"
-                                rel="noreferrer"
-                                target="_blank"
-                            >
-                                Read Cleverbrush docs
-                                <ExternalLinkIcon
-                                    aria-hidden
-                                    className="size-4"
-                                />
-                            </a>
+                        <Button asChild size="lg" variant="outline">
+                            <Link href="/register">Create account</Link>
                         </Button>
                     </div>
                 </div>
             </section>
+
+            <footer className="border-t bg-background">
+                <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                    <p>
+                        xpenser is an initial Cleverbrush Framework
+                        demonstrator.
+                    </p>
+                    <nav className="flex flex-wrap gap-3">
+                        {resourceLinks.map(({ href, label }) => (
+                            <a
+                                className="inline-flex items-center gap-1 font-medium text-foreground transition-colors hover:text-primary"
+                                href={href}
+                                key={href}
+                                rel="noreferrer"
+                                target="_blank"
+                            >
+                                {label}
+                                <ExternalLinkIcon
+                                    aria-hidden
+                                    className="size-3"
+                                />
+                            </a>
+                        ))}
+                    </nav>
+                </div>
+            </footer>
         </main>
     );
 }
