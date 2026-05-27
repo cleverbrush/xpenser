@@ -12,6 +12,7 @@ import {
     BotIcon,
     BracesIcon,
     CheckCircle2Icon,
+    CoinsIcon,
     DatabaseIcon,
     ExternalLinkIcon,
     GithubIcon,
@@ -51,6 +52,12 @@ const appFeatures: readonly Feature[] = [
             'Record income, expenses, refunds, and reversals with category, note, date, and currency context.',
         icon: ReceiptTextIcon,
         title: 'Transaction tracking'
+    },
+    {
+        description:
+            'Use multiple transaction currencies with automatic conversion to your default currency through Frankfurter rates.',
+        icon: CoinsIcon,
+        title: 'Multi-currency conversion'
     },
     {
         description:
@@ -102,6 +109,7 @@ const frameworkFeatures: readonly Feature[] = [
 const capabilityRows = [
     ['Dashboard', 'Cash flow, net total, category split, trend marks'],
     ['Transactions', 'Filtering, editing, reversals, multi-currency input'],
+    ['Conversion', 'Automatic default-currency conversion via Frankfurter'],
     ['Reports', 'Period comparison with charted historical context'],
     ['External API', 'Typed client, API keys, and read-only MCP server']
 ] as const;
@@ -111,7 +119,8 @@ const heroProofs = [
     'Mobile-friendly interface',
     'MCP server access',
     'Telegram bot integration',
-    'Open-source and self-hosted ready'
+    'Open-source and self-hosted ready',
+    'Frankfurter currency conversion'
 ] as const;
 
 const resourceLinks = [
@@ -426,10 +435,12 @@ export function LandingPage() {
                         xpenser is a working app, not a static showcase. The
                         demo covers the product surfaces a user expects from a
                         finance tracker while keeping the implementation
-                        open-source and small enough to inspect or self-host.
+                        open-source and small enough to inspect or self-host,
+                        including multiple currencies and Frankfurter-backed
+                        automatic conversion.
                     </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {appFeatures.map(feature => (
                         <FeatureCard key={feature.title} {...feature} />
                     ))}
