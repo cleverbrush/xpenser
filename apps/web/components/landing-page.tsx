@@ -98,6 +98,12 @@ const capabilityRows = [
     ['External API', 'Typed client, API keys, and read-only MCP endpoint']
 ] as const;
 
+const heroProofs = [
+    'Fast financial entry',
+    'Typed external API',
+    'Traceable production stack'
+] as const;
+
 const resourceLinks = [
     {
         href: 'https://github.com/cleverbrush/xpenser',
@@ -115,6 +121,9 @@ const resourceLinks = [
         label: 'Schema'
     }
 ] as const;
+
+const heroResourceLinkClassName =
+    'inline-flex h-9 items-center justify-start gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 function FeatureCard({ description, icon: IconComponent, title }: Feature) {
     return (
@@ -140,100 +149,158 @@ function ProductPreview() {
     return (
         <div
             aria-label="xpenser dashboard preview"
-            className="pointer-events-none absolute inset-x-4 bottom-0 top-[500px] overflow-hidden sm:inset-x-auto sm:left-[48%] sm:right-6 sm:top-24 lg:left-[52%] lg:right-10"
+            className="mx-auto w-full max-w-xl rounded-lg border bg-card p-2 shadow-xl sm:p-3 lg:max-w-none"
             role="img"
         >
-            <div className="mx-auto flex h-full max-w-xl items-end sm:items-center">
-                <div className="w-full rounded-t-lg border bg-background/96 p-3 shadow-2xl sm:rounded-lg sm:p-4">
-                    <div className="mb-4 flex items-center justify-between border-b pb-3">
-                        <div className="flex items-center gap-2">
-                            <Image
-                                alt=""
-                                aria-hidden
-                                className="rounded-md"
-                                height={28}
-                                src="/icon.svg"
-                                width={28}
-                            />
-                            <div>
-                                <div className="h-2.5 w-20 rounded bg-foreground/80" />
-                                <div className="mt-1.5 h-2 w-28 rounded bg-muted-foreground/30" />
+            <div className="rounded-md border bg-background p-3 sm:p-4">
+                <div className="mb-4 flex items-center justify-between border-b pb-3">
+                    <div className="flex items-center gap-2">
+                        <Image
+                            alt=""
+                            aria-hidden
+                            className="rounded-md"
+                            height={28}
+                            src="/icon.svg"
+                            width={28}
+                        />
+                        <div>
+                            <div className="text-sm font-semibold">
+                                Monthly overview
                             </div>
-                        </div>
-                        <div className="h-7 w-20 rounded-md bg-primary/90" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="rounded-md border p-3">
-                            <div className="text-[10px] font-medium uppercase text-muted-foreground">
-                                Income
-                            </div>
-                            <div className="mt-2 h-3 w-16 rounded bg-emerald-500" />
-                            <div className="mt-3 h-1.5 w-full rounded bg-muted" />
-                        </div>
-                        <div className="rounded-md border p-3">
-                            <div className="text-[10px] font-medium uppercase text-muted-foreground">
-                                Expenses
-                            </div>
-                            <div className="mt-2 h-3 w-14 rounded bg-amber-500" />
-                            <div className="mt-3 h-1.5 w-full rounded bg-muted" />
-                        </div>
-                        <div className="rounded-md border p-3">
-                            <div className="text-[10px] font-medium uppercase text-muted-foreground">
-                                Net
-                            </div>
-                            <div className="mt-2 h-3 w-12 rounded bg-sky-500" />
-                            <div className="mt-3 h-1.5 w-full rounded bg-muted" />
-                        </div>
-                    </div>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
-                        <div className="rounded-md border p-3">
-                            <div className="mb-3 flex items-center justify-between">
-                                <div className="h-3 w-24 rounded bg-foreground/80" />
-                                <div className="h-2.5 w-14 rounded bg-muted-foreground/30" />
-                            </div>
-                            <div className="space-y-2">
-                                {[72, 54, 86, 48].map(width => (
-                                    <div
-                                        className="grid grid-cols-[1fr_auto] items-center gap-4"
-                                        key={width}
-                                    >
-                                        <div className="h-2 rounded bg-muted" />
-                                        <div
-                                            className="h-2 rounded bg-primary/70"
-                                            style={{ width }}
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="rounded-md border p-3">
-                            <div className="mb-3 h-3 w-20 rounded bg-foreground/80" />
-                            <div className="flex h-24 items-end gap-1.5">
-                                {[30, 62, 42, 76, 50, 88, 58].map(height => (
-                                    <div
-                                        className="flex-1 rounded-t bg-accent"
-                                        key={height}
-                                        style={{ height }}
-                                    />
-                                ))}
+                            <div className="mt-0.5 text-xs text-muted-foreground">
+                                Income, expenses, and net trend
                             </div>
                         </div>
                     </div>
-                    <div className="mt-3 rounded-md border">
-                        {capabilityRows.map(([label, detail]) => (
-                            <div
-                                className="grid grid-cols-[104px_1fr] gap-3 border-b px-3 py-2 text-xs last:border-b-0"
-                                key={label}
-                            >
-                                <span className="font-medium">{label}</span>
-                                <span className="truncate text-muted-foreground">
-                                    {detail}
-                                </span>
-                            </div>
-                        ))}
+                    <div className="hidden h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground sm:flex">
+                        Live data
                     </div>
                 </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-md border bg-card p-3">
+                        <div className="text-[10px] font-medium uppercase text-muted-foreground">
+                            Income
+                        </div>
+                        <div className="mt-2 text-sm font-semibold">$4,280</div>
+                        <div className="mt-3 h-1.5 w-full rounded bg-muted">
+                            <div className="h-full w-4/5 rounded bg-primary" />
+                        </div>
+                    </div>
+                    <div className="rounded-md border bg-card p-3">
+                        <div className="text-[10px] font-medium uppercase text-muted-foreground">
+                            Expenses
+                        </div>
+                        <div className="mt-2 text-sm font-semibold">$2,420</div>
+                        <div className="mt-3 h-1.5 w-full rounded bg-muted">
+                            <div className="h-full w-3/5 rounded bg-foreground/70" />
+                        </div>
+                    </div>
+                    <div className="rounded-md border bg-card p-3">
+                        <div className="text-[10px] font-medium uppercase text-muted-foreground">
+                            Net
+                        </div>
+                        <div className="mt-2 text-sm font-semibold">$1,860</div>
+                        <div className="mt-3 h-1.5 w-full rounded bg-muted">
+                            <div className="h-full w-1/2 rounded bg-accent" />
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-md border bg-card p-3">
+                        <div className="mb-3 flex items-center justify-between">
+                            <div className="text-sm font-medium">
+                                Category split
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                                30 days
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            {[72, 54, 86, 48].map(width => (
+                                <div
+                                    className="grid grid-cols-[1fr_auto] items-center gap-4"
+                                    key={width}
+                                >
+                                    <div className="h-2 rounded bg-muted" />
+                                    <div
+                                        className="h-2 rounded bg-primary/70"
+                                        style={{ width }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="rounded-md border bg-card p-3">
+                        <div className="mb-3 text-sm font-medium">
+                            Spending trend
+                        </div>
+                        <div className="flex h-24 items-end gap-1.5">
+                            {[30, 62, 42, 76, 50, 88, 58].map(height => (
+                                <div
+                                    className="flex-1 rounded-t bg-accent"
+                                    key={height}
+                                    style={{ height }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-3 rounded-md border bg-card">
+                    {capabilityRows.map(([label, detail]) => (
+                        <div
+                            className="grid grid-cols-[96px_1fr] gap-3 border-b px-3 py-2 text-xs last:border-b-0 sm:grid-cols-[112px_1fr]"
+                            key={label}
+                        >
+                            <span className="font-medium">{label}</span>
+                            <span className="truncate text-muted-foreground">
+                                {detail}
+                            </span>
+                        </div>
+                    ))}
+                </div>
             </div>
+        </div>
+    );
+}
+
+function ResourceButtons() {
+    return (
+        <div className="grid gap-2 sm:grid-cols-3">
+            {resourceLinks.map(({ href, icon: IconComponent, label }) => (
+                <a
+                    className={heroResourceLinkClassName}
+                    href={href}
+                    key={href}
+                    rel="noreferrer"
+                    target="_blank"
+                >
+                    <IconComponent aria-hidden className="size-4 shrink-0" />
+                    {label}
+                    <ExternalLinkIcon
+                        aria-hidden
+                        className="ml-auto size-3 shrink-0"
+                    />
+                </a>
+            ))}
+        </div>
+    );
+}
+
+function HeroProofs() {
+    return (
+        <div className="grid gap-2 sm:grid-cols-3">
+            {heroProofs.map(item => (
+                <div
+                    className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm text-foreground"
+                    key={item}
+                >
+                    <CheckCircle2Icon
+                        aria-hidden
+                        className="size-4 shrink-0 text-primary"
+                    />
+                    <span className="leading-5">{item}</span>
+                </div>
+            ))}
         </div>
     );
 }
@@ -294,13 +361,12 @@ export function LandingPage() {
                 </div>
             </header>
 
-            <section className="relative min-h-[820px] overflow-hidden border-b bg-background sm:min-h-[680px]">
-                <ProductPreview />
-                <div className="relative z-10 mx-auto flex max-w-6xl flex-col px-4 pb-[340px] pt-14 sm:pb-24 sm:pt-20">
-                    <Badge className="mb-5 w-fit" variant="secondary">
-                        Cleverbrush Framework demonstrator
-                    </Badge>
-                    <div className="max-w-2xl">
+            <section className="border-b bg-muted/35">
+                <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-center lg:py-16">
+                    <div className="rounded-lg border bg-background p-5 shadow-sm sm:p-7 lg:p-8">
+                        <Badge className="mb-5 w-fit" variant="secondary">
+                            Cleverbrush Framework demonstrator
+                        </Badge>
                         <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
                             xpenser
                         </h1>
@@ -310,69 +376,33 @@ export function LandingPage() {
                             Framework: typed contracts, schema-driven forms,
                             observable services, and connected app workflows.
                         </p>
+                        <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                            <Button asChild className="sm:flex-1" size="lg">
+                                <Link href="/login">
+                                    Sign in
+                                    <ArrowRightIcon
+                                        aria-hidden
+                                        className="size-4"
+                                    />
+                                </Link>
+                            </Button>
+                            <Button
+                                asChild
+                                className="sm:flex-1"
+                                size="lg"
+                                variant="outline"
+                            >
+                                <Link href="/register">Create account</Link>
+                            </Button>
+                        </div>
+                        <div className="mt-5">
+                            <ResourceButtons />
+                        </div>
+                        <div className="mt-6">
+                            <HeroProofs />
+                        </div>
                     </div>
-                    <div className="mt-8 flex max-w-xl flex-col gap-3 rounded-md border bg-card p-3 shadow-sm sm:flex-row sm:items-center">
-                        <Button asChild className="sm:flex-1" size="lg">
-                            <Link href="/login">
-                                Sign in
-                                <ArrowRightIcon
-                                    aria-hidden
-                                    className="size-4"
-                                />
-                            </Link>
-                        </Button>
-                        <Button
-                            asChild
-                            className="sm:flex-1"
-                            size="lg"
-                            variant="outline"
-                        >
-                            <Link href="/register">Create account</Link>
-                        </Button>
-                    </div>
-                    <div className="mt-5 flex max-w-xl flex-wrap gap-2">
-                        {resourceLinks.map(
-                            ({ href, icon: IconComponent, label }) => (
-                                <Button
-                                    asChild
-                                    key={href}
-                                    size="sm"
-                                    variant="ghost"
-                                >
-                                    <a
-                                        href={href}
-                                        rel="noreferrer"
-                                        target="_blank"
-                                    >
-                                        <IconComponent
-                                            aria-hidden
-                                            className="size-4"
-                                        />
-                                        {label}
-                                        <ExternalLinkIcon
-                                            aria-hidden
-                                            className="size-3"
-                                        />
-                                    </a>
-                                </Button>
-                            )
-                        )}
-                    </div>
-                    <div className="mt-8 grid max-w-2xl gap-3 text-sm text-muted-foreground sm:grid-cols-3">
-                        {[
-                            'Fast financial entry',
-                            'Typed external API',
-                            'Traceable production stack'
-                        ].map(item => (
-                            <div className="flex items-center gap-2" key={item}>
-                                <CheckCircle2Icon
-                                    aria-hidden
-                                    className="size-4 text-primary"
-                                />
-                                <span>{item}</span>
-                            </div>
-                        ))}
-                    </div>
+                    <ProductPreview />
                 </div>
             </section>
 
@@ -470,34 +500,49 @@ export function LandingPage() {
                 </div>
             </section>
 
-            <section className="border-t bg-muted/40">
-                <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-10 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="max-w-xl">
-                        <h2 className="text-2xl font-semibold">
-                            Open the demonstrator
-                        </h2>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                            Sign in to use the app, or review the framework docs
-                            behind the contracts, forms, APIs, and telemetry.
-                        </p>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                        <Button asChild size="lg">
-                            <Link href="/login">Sign in</Link>
-                        </Button>
-                        <Button asChild size="lg" variant="outline">
-                            <Link href="/register">Create account</Link>
-                        </Button>
+            <section className="border-t bg-background">
+                <div className="mx-auto max-w-6xl px-4 py-10">
+                    <div className="flex flex-col gap-5 rounded-lg border bg-muted/35 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                        <div className="max-w-xl">
+                            <h2 className="text-2xl font-semibold">
+                                Open the demonstrator
+                            </h2>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                                Sign in to use the app, or review the framework
+                                docs behind the contracts, forms, APIs, and
+                                telemetry.
+                            </p>
+                        </div>
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                            <Button asChild size="lg">
+                                <Link href="/login">Sign in</Link>
+                            </Button>
+                            <Button asChild size="lg" variant="outline">
+                                <Link href="/register">Create account</Link>
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </section>
 
             <footer className="border-t bg-background">
-                <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                    <p>
-                        xpenser is an initial Cleverbrush Framework
-                        demonstrator.
-                    </p>
+                <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-7 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                        <Image
+                            alt=""
+                            aria-hidden
+                            className="rounded-md"
+                            height={28}
+                            src="/icon.svg"
+                            width={28}
+                        />
+                        <div>
+                            <div className="font-semibold text-foreground">
+                                xpenser
+                            </div>
+                            <p>Initial Cleverbrush Framework demonstrator.</p>
+                        </div>
+                    </div>
                     <nav className="flex flex-wrap gap-3">
                         {resourceLinks.map(({ href, label }) => (
                             <a
