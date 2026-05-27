@@ -20,6 +20,11 @@ describe('LandingPage', () => {
         expect(
             screen.getByText(/initially a demonstrator of possibilities/i)
         ).toBeTruthy();
+        expect(screen.getAllByText(/Telegram bot/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/MCP server/i).length).toBeGreaterThan(0);
+        expect(
+            screen.getAllByText(/Mobile-friendly interface/i).length
+        ).toBeGreaterThan(0);
 
         const signInLinks = screen.getAllByRole('link', { name: /sign in/i });
         expect(

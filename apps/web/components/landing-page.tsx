@@ -22,7 +22,9 @@ import {
     LogInIcon,
     RadioTowerIcon,
     ReceiptTextIcon,
+    SendIcon,
     ShieldCheckIcon,
+    SmartphoneIcon,
     WorkflowIcon
 } from 'lucide-react';
 import Image from 'next/image';
@@ -58,9 +60,15 @@ const appFeatures: readonly Feature[] = [
     },
     {
         description:
-            'Preferences cover default currency, favorite transaction currencies, time zone, API keys, and Telegram linking.',
+            'Preferences cover default currency, favorite transaction currencies, time zone, API keys, and Telegram bot linking.',
         icon: ListChecksIcon,
         title: 'Personal setup'
+    },
+    {
+        description:
+            'Responsive screens keep dashboard, transaction, and setup workflows usable on phones and desktops.',
+        icon: SmartphoneIcon,
+        title: 'Mobile-friendly interface'
     }
 ];
 
@@ -95,13 +103,14 @@ const capabilityRows = [
     ['Dashboard', 'Cash flow, net total, category split, trend marks'],
     ['Transactions', 'Filtering, editing, reversals, multi-currency input'],
     ['Reports', 'Period comparison with charted historical context'],
-    ['External API', 'Typed client, API keys, and read-only MCP endpoint']
+    ['External API', 'Typed client, API keys, and read-only MCP server']
 ] as const;
 
 const heroProofs = [
     'Fast financial entry',
-    'Typed external API',
-    'Traceable production stack'
+    'Mobile-friendly interface',
+    'MCP server access',
+    'Telegram bot integration'
 ] as const;
 
 const resourceLinks = [
@@ -288,7 +297,7 @@ function ResourceButtons() {
 
 function HeroProofs() {
     return (
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {heroProofs.map(item => (
                 <div
                     className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm text-foreground"
@@ -418,7 +427,7 @@ export function LandingPage() {
                         enough to inspect.
                     </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     {appFeatures.map(feature => (
                         <FeatureCard key={feature.title} {...feature} />
                     ))}
@@ -438,8 +447,8 @@ export function LandingPage() {
                             The current version is initially a demonstrator of
                             possibilities: a single app path that exercises
                             Cleverbrush contracts, server handlers, generated
-                            clients, schema-backed React forms, auth, logs, and
-                            telemetry.
+                            clients, schema-backed React forms, auth, Telegram
+                            bot integration, an MCP server, logs, and telemetry.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -450,7 +459,7 @@ export function LandingPage() {
                 </div>
             </section>
 
-            <section className="mx-auto grid max-w-6xl gap-5 px-4 py-14 sm:py-16 lg:grid-cols-3">
+            <section className="mx-auto grid max-w-6xl gap-5 px-4 py-14 sm:py-16 lg:grid-cols-[0.75fr_1.25fr]">
                 <div className="lg:col-span-1">
                     <h2 className="text-2xl font-semibold">
                         Connected entry points
@@ -460,7 +469,7 @@ export function LandingPage() {
                         for agents, services, and external clients.
                     </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-3 lg:col-span-2">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
                         {
                             icon: KeyRoundIcon,
@@ -469,8 +478,13 @@ export function LandingPage() {
                         },
                         {
                             icon: BotIcon,
-                            title: 'MCP endpoint',
-                            text: 'Read dashboard, category, and transaction data through tools.'
+                            title: 'MCP server',
+                            text: 'Expose dashboard, category, and transaction data through tool calls.'
+                        },
+                        {
+                            icon: SendIcon,
+                            title: 'Telegram bot',
+                            text: 'Link Telegram and use bot-driven finance workflows alongside the web UI.'
                         },
                         {
                             icon: RadioTowerIcon,
