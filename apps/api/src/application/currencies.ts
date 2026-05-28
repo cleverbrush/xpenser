@@ -7,6 +7,7 @@ import type {
 import { dateToLocalDateParam, defaultTimeZone } from '@xpenser/timezone';
 import type { Config } from '../config.js';
 import type { AppDb, UserDb } from '../db/schemas.js';
+import { FrankfurterCurrencyCatalogFallback } from '../log-templates.js';
 import { frankfurterCurrencyCatalog } from './frankfurter-currency-catalog.js';
 
 type FrankfurterCurrencyResponse =
@@ -62,7 +63,7 @@ function fallbackCurrencies(
     reason?: string,
     error?: unknown
 ): Currency[] {
-    logger?.warn('Using bundled Frankfurter currency catalog fallback', {
+    logger?.warn(FrankfurterCurrencyCatalogFallback, {
         Reason: reason,
         Error:
             error instanceof Error

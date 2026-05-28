@@ -33,6 +33,7 @@ import {
 } from '../application/transactions.js';
 import { getUserPreference } from '../application/users.js';
 import type { AppDb } from '../db/schemas.js';
+import { McpToolCalled } from '../log-templates.js';
 import type { McpApiKeyPrincipal } from './auth.js';
 
 type JsonValue =
@@ -324,14 +325,11 @@ async function validateToolInput(
 }
 
 function logToolCall(context: XpenserMcpToolContext, toolName: string): void {
-    context.logger.info(
-        'MCP tool {ToolName} called by {UserId} using API key {ApiKeyId}',
-        {
-            ToolName: toolName,
-            UserId: context.principal.userId,
-            ApiKeyId: context.principal.apiKeyId
-        }
-    );
+    context.logger.info(McpToolCalled, {
+        ToolName: toolName,
+        UserId: context.principal.userId,
+        ApiKeyId: context.principal.apiKeyId
+    });
 }
 
 export async function handleGetCurrentUser(

@@ -19,6 +19,7 @@ import {
     reversalNoCallback,
     reversalYesCallback
 } from './flow.js';
+import { TelegramPollingError } from './log-templates.js';
 import {
     telegramCallbackAction,
     telegramCommand,
@@ -300,7 +301,7 @@ export class XpenserTelegramBot {
             return;
         }
 
-        this.#logger.error(err, 'Telegram polling error', {
+        this.#logger.error(err, TelegramPollingError, {
             SuppressedCount: this.#suppressedPollingErrorCount
         });
         this.#lastPollingErrorMessage = err.message;

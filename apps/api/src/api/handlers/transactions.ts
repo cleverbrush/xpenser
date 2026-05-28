@@ -9,6 +9,7 @@ import {
     TransactionNotFoundError,
     updateTransaction
 } from '../../application/transactions.js';
+import { TransactionCreated } from '../../log-templates.js';
 import type {
     CreateTransactionEndpoint,
     DashboardSummaryEndpoint,
@@ -34,7 +35,7 @@ export const createTransactionHandler: Handler<
             principal.userId,
             body
         );
-        logger.info('Transaction {TransactionId} created by {UserId}', {
+        logger.info(TransactionCreated, {
             TransactionId: transaction.id,
             UserId: principal.userId
         });

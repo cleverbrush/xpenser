@@ -4,6 +4,11 @@ import type {} from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import { expiredSessionPath } from './lib/auth-routes';
 import { getNextAuthSecret, webConfig } from './lib/config';
+import {
+    AuthDebugLogged,
+    AuthErrorLogged,
+    AuthWarningLogged
+} from './lib/log-templates';
 import { loggerFor } from './lib/logger';
 import { configureAuthPublicUrl } from './lib/public-url';
 
@@ -60,18 +65,18 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
     trustHost: true,
     logger: {
         error(error) {
-            authLogger.error(error, 'Auth.js error {AuthErrorType}', {
+            authLogger.error(error, AuthErrorLogged, {
                 AuthErrorType: authErrorType(error),
                 AuthErrorMessage: error.message
             });
         },
         warn(code) {
-            authLogger.warn('Auth.js warning {AuthWarningCode}', {
+            authLogger.warn(AuthWarningLogged, {
                 AuthWarningCode: code
             });
         },
         debug(message, metadata) {
-            authLogger.debug('Auth.js debug {AuthDebugMessage}', {
+            authLogger.debug(AuthDebugLogged, {
                 AuthDebugMessage: message,
                 AuthDebugMetadata: metadata
             });

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { signOut } from '@/auth';
+import { InvalidCheckSignOut } from '@/lib/log-templates';
 import { loggerFor } from '@/lib/logger';
 import { publicAppUrl } from '@/lib/public-url';
 
@@ -18,13 +19,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (authError === 'InvalidCheck') {
-        authLogger.warn(
-            'Signing out after Auth.js InvalidCheck and redirecting to login',
-            {
-                AuthErrorType: 'InvalidCheck',
-                Url: request.url
-            }
-        );
+        authLogger.warn(InvalidCheckSignOut, {
+            AuthErrorType: 'InvalidCheck',
+            Url: request.url
+        });
     }
 
     await signOut({ redirect: false, redirectTo: '/login' });

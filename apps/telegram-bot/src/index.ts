@@ -1,5 +1,6 @@
 import type { Logger } from '@cleverbrush/log';
 import type { XpenserTelegramBot } from './bot.js';
+import { ShutdownSignalReceived } from './log-templates.js';
 import { otel } from './telemetry.js';
 
 let bot: XpenserTelegramBot | undefined;
@@ -46,7 +47,7 @@ async function shutdown(signal: string, exitCode = 0) {
     }
 
     shuttingDown = true;
-    logger?.info('Received shutdown signal {Signal}', { Signal: signal });
+    logger?.info(ShutdownSignalReceived, { Signal: signal });
     try {
         await bot?.stop();
     } finally {

@@ -2,6 +2,7 @@ import { ActionResult, endpoint, type Handler } from '@cleverbrush/server';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { PrincipalSchema } from '@xpenser/contracts';
 import { DbToken, LoggerToken } from '../di/tokens.js';
+import { McpTransportError } from '../log-templates.js';
 import { requireMcpApiKeyPrincipal } from './auth.js';
 import { createXpenserMcpServer } from './server.js';
 
@@ -38,7 +39,7 @@ export const mcpHandler: Handler<typeof McpEndpoint> = async (
     });
 
     transport.onerror = error => {
-        logger.error(error, 'MCP transport error for {UserId}', {
+        logger.error(error, McpTransportError, {
             UserId: apiKeyPrincipal.userId
         });
     };
