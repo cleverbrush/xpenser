@@ -92,6 +92,7 @@ describe('QuickCaptureForm', () => {
 
         expect(screen.getByRole('combobox', { name: 'Currency' })).toBeTruthy();
         expect(screen.getByLabelText('Date and time')).toBeTruthy();
+        expect(screen.getByRole('checkbox', { name: 'Reversal' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Details' })).toBeNull();
         expect(
             screen.queryByRole('combobox', { name: 'All categories' })
@@ -129,6 +130,61 @@ describe('QuickCaptureForm', () => {
             .calls[0]?.[0] as FormData;
         expect(undoFormData.get('id')).toBe('42');
         expect(refresh).toHaveBeenCalledTimes(2);
+    });
+
+    it('saves reversal transactions when the checkbox is selected', async () => {
+        createCaptureTransactionAction.mockResolvedValue(savedTransaction());
+
+        render(
+            <QuickCaptureForm
+                categories={categories}
+                currencies={currencies}
+                defaultCurrency="USD"
+                timezone="UTC"
+                transactionCurrencies={['USD']}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('Amount'), {
+            target: { value: '8.00' }
+        });
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Reversal' }));
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Save transaction' })
+        );
+
+        await waitFor(() =>
+            expect(createCaptureTransactionAction).toHaveBeenCalledOnce()
+        );
+
+        const formData = createCaptureTransactionAction.mock
+            .calls[0]?.[0] as FormData;
+        expect(formData.get('effect')).toBe('reversal');
+    });
+
+    it('wraps categories and reveals more on demand', () => {
+        const manyCategories = Array.from({ length: 6 }, (_, index) =>
+            category(index + 1, `Category ${index + 1}`)
+        );
+
+        render(
+            <QuickCaptureForm
+                categories={manyCategories}
+                currencies={currencies}
+                defaultCurrency="USD"
+                timezone="UTC"
+                transactionCurrencies={['USD']}
+            />
+        );
+
+        expect(screen.getByRole('button', { name: 'Category 1' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Category 4' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Category 5' })).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+
+        expect(screen.getByRole('button', { name: 'Category 5' })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
     });
 
     it('validates amount before saving', async () => {

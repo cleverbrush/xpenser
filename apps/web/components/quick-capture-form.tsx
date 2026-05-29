@@ -9,6 +9,7 @@ import {
     Button,
     Card,
     CardContent,
+    cn,
     Field,
     FieldError,
     FieldGroup,
@@ -32,6 +33,9 @@ import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 
 type TransactionType = Category['type'];
+type TransactionEffect = Transaction['effect'];
+
+const CATEGORY_BATCH_SIZE = 4;
 
 function initialType(categories: readonly Category[]): TransactionType {
     return categories.some(category => category.type === 'expense')
@@ -104,9 +108,12 @@ export function QuickCaptureForm({
     const [currency, setCurrency] = useState(() =>
         firstCurrency(currencyOptions, defaultCurrency)
     );
+    const [effect, setEffect] = useState<TransactionEffect>('normal');
     const [occurredAtText, setOccurredAtText] = useState(() =>
         dateToLocalDateTimeInput(new Date(), timezone)
     );
+    const [visibleCategoryCount, setVisibleCategoryCount] =
+        useState(CATEGORY_BATCH_SIZE);
     const [pending, setPending] = useState(false);
     const [undoPending, setUndoPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -118,9 +125,12 @@ export function QuickCaptureForm({
     const activeCategoryId =
         typedCategories.find(category => category.id === categoryId)?.id ??
         typedCategories[0]?.id;
+    const visibleCategories = typedCategories.slice(0, visibleCategoryCount);
+    const hasMoreCategories = visibleCategoryCount < typedCategories.length;
 
     function handleTypeChange(nextType: TransactionType) {
         setType(nextType);
+        setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
         const current = categories.find(category => category.id === categoryId);
         if (current?.type === nextType) {
             return;
@@ -130,6 +140,7 @@ export function QuickCaptureForm({
 
     function resetAfterSave() {
         setAmount('');
+        setEffect('normal');
         setOccurredAtText(dateToLocalDateTimeInput(new Date(), timezone));
     }
 
@@ -159,7 +170,7 @@ export function QuickCaptureForm({
         formData.set('categoryId', String(activeCategoryId));
         formData.set('amount', String(amountValue));
         formData.set('currency', currency);
-        formData.set('effect', 'normal');
+        formData.set('effect', effect);
         formData.set('occurredAt', occurredAt.toISOString());
 
         setPending(true);
@@ -254,7 +265,7 @@ export function QuickCaptureForm({
 
                             <Field>
                                 <FieldLabel>Type</FieldLabel>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
                                     {(['expense', 'income'] as const).map(
                                         value => (
                                             <Button
@@ -276,18 +287,41 @@ export function QuickCaptureForm({
                                             </Button>
                                         )
                                     )}
+                                    <label
+                                        className={cn(
+                                            'flex h-10 items-center justify-center gap-2 rounded-md border bg-background px-3 text-sm font-medium',
+                                            effect === 'reversal' &&
+                                                'border-primary bg-primary/10 text-primary'
+                                        )}
+                                    >
+                                        <input
+                                            checked={effect === 'reversal'}
+                                            className="size-4 rounded border-input"
+                                            name="effect"
+                                            onChange={event =>
+                                                setEffect(
+                                                    event.target.checked
+                                                        ? 'reversal'
+                                                        : 'normal'
+                                                )
+                                            }
+                                            type="checkbox"
+                                            value="reversal"
+                                        />
+                                        <span>Reversal</span>
+                                    </label>
                                 </div>
                             </Field>
 
                             <Field>
                                 <FieldLabel>Category</FieldLabel>
-                                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-                                    {typedCategories.map(category => (
+                                <div className="flex flex-wrap gap-2">
+                                    {visibleCategories.map(category => (
                                         <Button
                                             aria-pressed={
                                                 activeCategoryId === category.id
                                             }
-                                            className="shrink-0"
+                                            className="max-w-[9.5rem] truncate"
                                             key={category.id}
                                             onClick={() =>
                                                 setCategoryId(category.id)
@@ -299,10 +333,27 @@ export function QuickCaptureForm({
                                                     ? 'default'
                                                     : 'outline'
                                             }
+                                            title={category.name}
                                         >
                                             {category.name}
                                         </Button>
                                     ))}
+                                    {hasMoreCategories ? (
+                                        <Button
+                                            onClick={() =>
+                                                setVisibleCategoryCount(
+                                                    current =>
+                                                        current +
+                                                        CATEGORY_BATCH_SIZE
+                                                )
+                                            }
+                                            size="sm"
+                                            type="button"
+                                            variant="outline"
+                                        >
+                                            Load more
+                                        </Button>
+                                    ) : null}
                                 </div>
                             </Field>
 
