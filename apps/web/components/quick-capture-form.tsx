@@ -6,13 +6,9 @@ import {
     localDateTimeInputToDate
 } from '@xpenser/timezone';
 import {
-    Badge,
     Button,
     Card,
     CardContent,
-    CardHeader,
-    CardTitle,
-    cn,
     Field,
     FieldError,
     FieldGroup,
@@ -25,27 +21,17 @@ import {
     SelectTrigger,
     SelectValue
 } from '@xpenser/ui';
-import {
-    CheckCircle2Icon,
-    ChevronDownIcon,
-    RotateCcwIcon,
-    SaveIcon
-} from 'lucide-react';
+import { CheckCircle2Icon, RotateCcwIcon, SaveIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useMemo, useState } from 'react';
 import {
     createCaptureTransactionAction,
     deleteTransactionAction
 } from '@/lib/actions';
-import {
-    directionBadgeClassName,
-    formatDateTime,
-    formatTransactionMoney
-} from '@/lib/format';
+import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 
 type TransactionType = Category['type'];
-type TransactionEffect = Transaction['effect'];
 
 function initialType(categories: readonly Category[]): TransactionType {
     return categories.some(category => category.type === 'expense')
@@ -118,12 +104,9 @@ export function QuickCaptureForm({
     const [currency, setCurrency] = useState(() =>
         firstCurrency(currencyOptions, defaultCurrency)
     );
-    const [effect, setEffect] = useState<TransactionEffect>('normal');
-    const [note, setNote] = useState('');
     const [occurredAtText, setOccurredAtText] = useState(() =>
         dateToLocalDateTimeInput(new Date(), timezone)
     );
-    const [detailsOpen, setDetailsOpen] = useState(false);
     const [pending, setPending] = useState(false);
     const [undoPending, setUndoPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -132,8 +115,6 @@ export function QuickCaptureForm({
         () => categories.filter(category => category.type === type),
         [categories, type]
     );
-    const visibleCategories = typedCategories.slice(0, 8);
-    const visibleCurrencies = currencyOptions.slice(0, 4);
     const activeCategoryId =
         typedCategories.find(category => category.id === categoryId)?.id ??
         typedCategories[0]?.id;
@@ -149,8 +130,6 @@ export function QuickCaptureForm({
 
     function resetAfterSave() {
         setAmount('');
-        setNote('');
-        setEffect('normal');
         setOccurredAtText(dateToLocalDateTimeInput(new Date(), timezone));
     }
 
@@ -180,11 +159,8 @@ export function QuickCaptureForm({
         formData.set('categoryId', String(activeCategoryId));
         formData.set('amount', String(amountValue));
         formData.set('currency', currency);
-        formData.set('effect', effect);
+        formData.set('effect', 'normal');
         formData.set('occurredAt', occurredAt.toISOString());
-        if (note.trim()) {
-            formData.set('note', note.trim());
-        }
 
         setPending(true);
         setError(null);
@@ -221,33 +197,59 @@ export function QuickCaptureForm({
     }
 
     return (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <Card>
-                <CardHeader className="p-4 sm:p-6">
-                    <CardTitle>Transaction</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-                    <form noValidate onSubmit={handleSubmit}>
-                        <FieldGroup>
-                            <Field>
+        <div className="flex flex-col gap-3">
+            <Card className="overflow-visible">
+                <CardContent className="p-4 sm:p-6">
+                    <form
+                        className="pb-20 sm:pb-0"
+                        noValidate
+                        onSubmit={handleSubmit}
+                    >
+                        <FieldGroup className="gap-3 sm:gap-4">
+                            <Field className="gap-2">
                                 <FieldLabel htmlFor="capture-amount">
                                     Amount
                                 </FieldLabel>
-                                <Input
-                                    autoComplete="off"
-                                    className="h-14 text-2xl font-semibold"
-                                    id="capture-amount"
-                                    inputMode="decimal"
-                                    min="0.01"
-                                    name="amount"
-                                    onChange={event =>
-                                        setAmount(event.target.value)
-                                    }
-                                    placeholder="0.00"
-                                    step="0.01"
-                                    type="text"
-                                    value={amount}
-                                />
+                                <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-2">
+                                    <Input
+                                        autoComplete="off"
+                                        className="h-14 text-2xl font-semibold"
+                                        id="capture-amount"
+                                        inputMode="decimal"
+                                        min="0.01"
+                                        name="amount"
+                                        onChange={event =>
+                                            setAmount(event.target.value)
+                                        }
+                                        placeholder="0.00"
+                                        step="0.01"
+                                        type="text"
+                                        value={amount}
+                                    />
+                                    <Select
+                                        onValueChange={setCurrency}
+                                        value={currency}
+                                    >
+                                        <SelectTrigger
+                                            aria-label="Currency"
+                                            className="h-14 w-[5.25rem] px-2 text-base font-semibold [&>svg]:size-4"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="min-w-[5.25rem]">
+                                            <SelectGroup>
+                                                {currencyOptions.map(option => (
+                                                    <SelectItem
+                                                        key={option.code}
+                                                        value={option.code}
+                                                    >
+                                                        {option.code}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </Field>
 
                             <Field>
@@ -279,12 +281,13 @@ export function QuickCaptureForm({
 
                             <Field>
                                 <FieldLabel>Category</FieldLabel>
-                                <div className="flex flex-wrap gap-2">
-                                    {visibleCategories.map(category => (
+                                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                                    {typedCategories.map(category => (
                                         <Button
                                             aria-pressed={
                                                 activeCategoryId === category.id
                                             }
+                                            className="shrink-0"
                                             key={category.id}
                                             onClick={() =>
                                                 setCategoryId(category.id)
@@ -301,220 +304,70 @@ export function QuickCaptureForm({
                                         </Button>
                                     ))}
                                 </div>
-                                <Select
-                                    onValueChange={value =>
-                                        setCategoryId(Number(value))
-                                    }
-                                    value={
-                                        activeCategoryId === undefined
-                                            ? ''
-                                            : String(activeCategoryId)
-                                    }
-                                >
-                                    <SelectTrigger aria-label="All categories">
-                                        <SelectValue placeholder="All categories" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            {typedCategories.map(category => (
-                                                <SelectItem
-                                                    key={category.id}
-                                                    value={String(category.id)}
-                                                >
-                                                    {category.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
                             </Field>
 
                             <Field>
-                                <FieldLabel>Currency</FieldLabel>
-                                <div className="flex flex-wrap gap-2">
-                                    {visibleCurrencies.map(option => (
-                                        <Button
-                                            aria-pressed={
-                                                currency === option.code
-                                            }
-                                            key={option.code}
-                                            onClick={() =>
-                                                setCurrency(option.code)
-                                            }
-                                            size="sm"
-                                            type="button"
-                                            variant={
-                                                currency === option.code
-                                                    ? 'default'
-                                                    : 'outline'
-                                            }
-                                        >
-                                            {option.code}
-                                        </Button>
-                                    ))}
-                                </div>
-                                <Select
-                                    onValueChange={setCurrency}
-                                    value={currency}
-                                >
-                                    <SelectTrigger aria-label="All currencies">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            {currencyOptions.map(option => (
-                                                <SelectItem
-                                                    key={option.code}
-                                                    value={option.code}
-                                                >
-                                                    {option.code}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
-                            </Field>
-
-                            <Button
-                                className="justify-between"
-                                onClick={() =>
-                                    setDetailsOpen(current => !current)
-                                }
-                                type="button"
-                                variant="outline"
-                            >
-                                Details
-                                <ChevronDownIcon
-                                    aria-hidden
-                                    className={cn(
-                                        'size-4 transition-transform',
-                                        detailsOpen && 'rotate-180'
-                                    )}
+                                <FieldLabel htmlFor="capture-occurred-at">
+                                    Date and time
+                                </FieldLabel>
+                                <Input
+                                    id="capture-occurred-at"
+                                    name="occurredAt"
+                                    onChange={event =>
+                                        setOccurredAtText(event.target.value)
+                                    }
+                                    type="datetime-local"
+                                    value={occurredAtText}
                                 />
-                            </Button>
-
-                            {detailsOpen ? (
-                                <div className="grid gap-4">
-                                    <Field>
-                                        <FieldLabel htmlFor="capture-occurred-at">
-                                            Date and time
-                                        </FieldLabel>
-                                        <Input
-                                            id="capture-occurred-at"
-                                            name="occurredAt"
-                                            onChange={event =>
-                                                setOccurredAtText(
-                                                    event.target.value
-                                                )
-                                            }
-                                            type="datetime-local"
-                                            value={occurredAtText}
-                                        />
-                                    </Field>
-                                    <Field>
-                                        <label className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
-                                            <input
-                                                checked={effect === 'reversal'}
-                                                className="mt-0.5 size-4 rounded border-input"
-                                                name="effect"
-                                                onChange={event =>
-                                                    setEffect(
-                                                        event.target.checked
-                                                            ? 'reversal'
-                                                            : 'normal'
-                                                    )
-                                                }
-                                                type="checkbox"
-                                                value="reversal"
-                                            />
-                                            <span className="text-sm font-medium">
-                                                Refund or reversal
-                                            </span>
-                                        </label>
-                                    </Field>
-                                    <Field>
-                                        <FieldLabel htmlFor="capture-note">
-                                            Note
-                                        </FieldLabel>
-                                        <Input
-                                            id="capture-note"
-                                            maxLength={500}
-                                            name="note"
-                                            onChange={event =>
-                                                setNote(event.target.value)
-                                            }
-                                            value={note}
-                                        />
-                                    </Field>
-                                </div>
-                            ) : null}
+                            </Field>
 
                             {error ? (
                                 <FieldError role="alert">{error}</FieldError>
                             ) : null}
 
-                            <Button
-                                className="h-12 w-full"
-                                disabled={pending}
-                                type="submit"
-                            >
-                                <SaveIcon aria-hidden className="size-4" />
-                                {pending ? 'Saving...' : 'Save transaction'}
-                            </Button>
+                            <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-30 border-t bg-background/95 px-3 py-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+                                <Button
+                                    className="h-12 w-full"
+                                    disabled={pending}
+                                    type="submit"
+                                >
+                                    <SaveIcon aria-hidden className="size-4" />
+                                    {pending ? 'Saving...' : 'Save transaction'}
+                                </Button>
+                            </div>
                         </FieldGroup>
                     </form>
                 </CardContent>
             </Card>
 
-            <div className="flex flex-col gap-4">
-                {lastSaved ? (
-                    <Card>
-                        <CardHeader className="p-4">
-                            <div className="flex items-start gap-3">
-                                <CheckCircle2Icon
-                                    aria-hidden
-                                    className="mt-0.5 size-5 text-emerald-600"
-                                />
-                                <div className="min-w-0">
-                                    <CardTitle className="text-base">
-                                        Saved
-                                    </CardTitle>
-                                    <p className="mt-1 break-words text-sm text-muted-foreground">
-                                        {savedSummary(lastSaved, timezone)}
-                                    </p>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-0">
+            {lastSaved ? (
+                <Card>
+                    <CardContent className="flex items-center gap-3 p-3">
+                        <CheckCircle2Icon
+                            aria-hidden
+                            className="size-5 shrink-0 text-emerald-600"
+                        />
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">Saved</p>
+                            <p className="truncate text-sm text-muted-foreground">
+                                {savedSummary(lastSaved, timezone)}
+                            </p>
+                        </div>
+                        <div className="shrink-0">
                             <Button
-                                className="w-full"
                                 disabled={undoPending}
                                 onClick={handleUndo}
+                                size="sm"
                                 type="button"
                                 variant="outline"
                             >
                                 <RotateCcwIcon aria-hidden className="size-4" />
                                 {undoPending ? 'Undoing...' : 'Undo'}
                             </Button>
-                        </CardContent>
-                    </Card>
-                ) : null}
-
-                <Card>
-                    <CardHeader className="p-4">
-                        <CardTitle className="text-base">Defaults</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-wrap gap-2 p-4 pt-0">
-                        <Badge className={directionBadgeClassName(type)}>
-                            {type}
-                        </Badge>
-                        <Badge variant="outline">{currency}</Badge>
-                        {effect === 'reversal' ? (
-                            <Badge variant="outline">reversal</Badge>
-                        ) : null}
+                        </div>
                     </CardContent>
                 </Card>
-            </div>
+            ) : null}
         </div>
     );
 }

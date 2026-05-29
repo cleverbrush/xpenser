@@ -90,6 +90,14 @@ describe('QuickCaptureForm', () => {
             />
         );
 
+        expect(screen.getByRole('combobox', { name: 'Currency' })).toBeTruthy();
+        expect(screen.getByLabelText('Date and time')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Details' })).toBeNull();
+        expect(
+            screen.queryByRole('combobox', { name: 'All categories' })
+        ).toBeNull();
+        expect(screen.queryByText('Defaults')).toBeNull();
+
         fireEvent.change(screen.getByLabelText('Amount'), {
             target: { value: '12.34' }
         });

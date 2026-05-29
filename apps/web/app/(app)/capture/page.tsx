@@ -21,10 +21,7 @@ export default async function CapturePage() {
     }
 
     return (
-        <div className="mx-auto flex max-w-5xl flex-col gap-5 sm:gap-6">
-            <div>
-                <h1 className="text-2xl font-semibold">Capture</h1>
-            </div>
+        <div className="mx-auto flex max-w-xl flex-col">
             <QuickCaptureForm
                 categories={categoriesByRecentUse(
                     categories,
