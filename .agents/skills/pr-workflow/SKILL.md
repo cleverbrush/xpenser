@@ -1,11 +1,11 @@
 ---
 name: pr-workflow
-description: Use for PR-backed implementation work in the Xpenser repository, including creating or updating pull requests, waiting for GitHub checks and preview deployments, manually validating preview functionality with Playwright, checking SigNoz telemetry for PR environments, and adding applicable unit or e2e tests before completion.
+description: Use for PR-backed implementation work in the repository, including creating or updating pull requests, waiting for GitHub checks and preview deployments, manually validating preview functionality with Playwright, checking SigNoz telemetry for PR environments, and adding applicable unit or e2e tests before completion.
 ---
 
-# Xpenser PR Workflow
+# PR Workflow
 
-Follow this workflow whenever Xpenser work is expected to ship through a pull request.
+Follow this workflow whenever PR work is expected to ship through a pull request.
 
 ## Worktree Setup
 

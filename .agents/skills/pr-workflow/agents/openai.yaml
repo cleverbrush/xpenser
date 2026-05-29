@@ -1,4 +1,4 @@
 interface:
-  display_name: "Xpenser PR Workflow"
-  short_description: "Ship Xpenser PRs with preview QA"
-  default_prompt: "Use $xpenser-pr-workflow to implement this Xpenser change through a PR with preview QA."
+  display_name: "PR Workflow"
+  short_description: "Ship PRs with preview QA"
+  default_prompt: "Use $pr-workflow to implement this change through a PR with preview QA."
