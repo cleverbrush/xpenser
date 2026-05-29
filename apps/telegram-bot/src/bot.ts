@@ -397,7 +397,7 @@ export class XpenserTelegramBot {
             const [me, categories, currencies, recentTransactions] =
                 await Promise.all([
                     client.auth.me(),
-                    client.categories.list(),
+                    client.categories.list({ query: {} }),
                     client.currencies.list(),
                     client.transactions.list({
                         query: { direction: 'desc', limit: 100, page: 1 }

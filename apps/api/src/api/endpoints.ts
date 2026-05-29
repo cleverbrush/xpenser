@@ -140,7 +140,9 @@ export const ListCategoriesEndpoint = api.categories.list
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
     .summary('List categories')
-    .description('Lists categories owned by the authenticated user.')
+    .description(
+        'Lists categories owned by the authenticated user, optionally ordered by recent transaction count.'
+    )
     .tags('categories')
     .operationId('listCategories');
 

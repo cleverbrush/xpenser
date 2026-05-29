@@ -511,6 +511,13 @@ export const CategorySchema = object({
     updatedAt: date().coerce().describe('Last update timestamp.')
 }).schemaName('Category');
 
+export const CategoryListQuerySchema = object({
+    /** Optional category ordering mode. */
+    sort: enumOf('recent-transaction-count')
+        .optional()
+        .describe('Optional category ordering mode.')
+}).schemaName('CategoryListQuery');
+
 export const CreateCategoryBodySchema = object({
     /** Category name shown in transaction forms and reports. */
     name: string()
@@ -982,6 +989,7 @@ export type CurrencyConversionQuery = InferType<
 >;
 export type CurrencyConversion = InferType<typeof CurrencyConversionSchema>;
 export type Category = InferType<typeof CategorySchema>;
+export type CategoryListQuery = InferType<typeof CategoryListQuerySchema>;
 export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;
 export type TransactionEffect = InferType<typeof TransactionEffectSchema>;
 export type Transaction = InferType<typeof TransactionSchema>;

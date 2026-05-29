@@ -2,6 +2,7 @@ import { array, number } from '@cleverbrush/schema';
 import { defineApi, endpoint, route } from '@cleverbrush/server/contract';
 import {
     ApiKeySchema,
+    CategoryListQuerySchema,
     CategorySchema,
     CreateApiKeyBodySchema,
     CreateApiKeyResponseSchema,
@@ -185,6 +186,7 @@ export const api = defineApi({
     categories: {
         list: categories
             .get()
+            .query(CategoryListQuerySchema)
             .cacheTag('categories')
             .responses({ 200: array(CategorySchema) }),
         create: categories
@@ -221,6 +223,7 @@ export const api = defineApi({
         create: transactions
             .post()
             .body(CreateTransactionBodySchema)
+            .clearsCacheTag('categories')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -229,6 +232,7 @@ export const api = defineApi({
         update: transactions
             .patch(ById)
             .body(UpdateTransactionBodySchema)
+            .clearsCacheTag('categories')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -240,6 +244,7 @@ export const api = defineApi({
             }),
         delete: transactions
             .delete(ById)
+            .clearsCacheTag('categories')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')

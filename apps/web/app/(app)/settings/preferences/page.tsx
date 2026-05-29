@@ -24,7 +24,7 @@ export default async function PreferencesPage() {
     const [me, currencies, categories, telegram, apiKeys] = await Promise.all([
         client.auth.me(),
         client.currencies.list(),
-        client.categories.list(),
+        client.categories.list({ query: {} }),
         client.users.telegramStatus(),
         client.users.listApiKeys()
     ]);

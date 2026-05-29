@@ -26,6 +26,32 @@ async function createCategory(
     });
 }
 
+async function createTransaction(
+    page: import('@playwright/test').Page,
+    category: string,
+    note: string
+): Promise<void> {
+    await page.goto('/dashboard');
+    await page
+        .getByRole('button', { name: /^(Add|Add transaction)$/ })
+        .click();
+
+    const addDialog = page.getByRole('dialog', {
+        name: 'Add transaction'
+    });
+    await expect(addDialog).toBeVisible();
+    await selectOption(
+        page,
+        addDialog.getByLabel('Transaction category'),
+        category
+    );
+    await addDialog.getByLabel('Amount').fill('12.34');
+    await addDialog.getByLabel('Date and time').fill(dateTimeLocalValue());
+    await addDialog.getByLabel('Note').fill(note);
+    await addDialog.getByRole('button', { name: 'Save' }).click();
+    await expect(addDialog).toBeHidden({ timeout: 15_000 });
+}
+
 test.describe('authenticated app workflows', () => {
     test('opens the main authenticated sections', async ({ page }) => {
         await page.goto('/dashboard');
@@ -109,5 +135,51 @@ test.describe('authenticated app workflows', () => {
         await deleteDialog.getByRole('button', { name: 'Delete' }).click();
         await expect(deleteDialog).toBeHidden({ timeout: 15_000 });
         await expect(row).toHaveCount(0, { timeout: 15_000 });
+    });
+
+    test('orders add transaction categories by recent popularity', async ({
+        page
+    }) => {
+        const mostPopular = uniqueName('E2E popular most');
+        const used = uniqueName('E2E popular used');
+        const unused = uniqueName('E2E popular unused');
+
+        await createCategory(page, mostPopular, 'expense');
+        await createCategory(page, used, 'expense');
+        await createCategory(page, unused, 'expense');
+
+        await createTransaction(page, mostPopular, uniqueName('E2E note'));
+        await createTransaction(page, mostPopular, uniqueName('E2E note'));
+        await createTransaction(page, used, uniqueName('E2E note'));
+
+        await page.goto('/dashboard');
+        await page
+            .getByRole('button', { name: /^(Add|Add transaction)$/ })
+            .click();
+
+        const addDialog = page.getByRole('dialog', {
+            name: 'Add transaction'
+        });
+        await expect(addDialog).toBeVisible();
+        await addDialog.getByLabel('Transaction category').click();
+        await expect(
+            page.getByRole('option', { exact: true, name: mostPopular })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('option', { exact: true, name: used })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('option', { exact: true, name: unused })
+        ).toBeVisible();
+
+        const optionNames = (await page.getByRole('option').allTextContents())
+            .map(option => option.trim())
+            .filter(Boolean);
+        expect(optionNames.indexOf(mostPopular)).toBeLessThan(
+            optionNames.indexOf(used)
+        );
+        expect(optionNames.indexOf(used)).toBeLessThan(
+            optionNames.indexOf(unused)
+        );
     });
 });

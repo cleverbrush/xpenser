@@ -19,7 +19,7 @@ export default async function TransactionsPage({
     const client = await getApiClient();
     const me = await client.auth.me();
     const [categories, currencies, transactions] = await Promise.all([
-        client.categories.list(),
+        client.categories.list({ query: {} }),
         client.currencies.list(),
         client.transactions.list({
             query: buildTransactionListQuery(

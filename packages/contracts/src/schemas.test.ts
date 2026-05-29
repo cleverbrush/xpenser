@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    CategoryListQuerySchema,
     CreateApiKeyBodySchema,
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
@@ -58,6 +59,18 @@ describe('shared schemas', () => {
         });
 
         expect(result.valid).toBe(true);
+    });
+
+    it('validates category list sorting controls', () => {
+        expect(
+            CategoryListQuerySchema.validate({
+                sort: 'recent-transaction-count'
+            }).valid
+        ).toBe(true);
+        expect(CategoryListQuerySchema.validate({}).valid).toBe(true);
+        expect(
+            CategoryListQuerySchema.validate({ sort: 'name' } as never).valid
+        ).toBe(false);
     });
 
     it('returns required messages before format messages for empty login fields', () => {
