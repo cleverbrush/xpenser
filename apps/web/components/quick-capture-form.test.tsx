@@ -139,8 +139,37 @@ describe('QuickCaptureForm', () => {
         );
 
         expect((await screen.findByRole('alert')).textContent).toBe(
-            'Enter a positive amount.'
+            'Enter a positive amount with up to two decimals.'
         );
         expect(createCaptureTransactionAction).not.toHaveBeenCalled();
+    });
+
+    it('accepts comma decimal input without browser number coercion', async () => {
+        createCaptureTransactionAction.mockResolvedValue(savedTransaction());
+
+        render(
+            <QuickCaptureForm
+                categories={categories}
+                currencies={currencies}
+                defaultCurrency="USD"
+                timezone="UTC"
+                transactionCurrencies={['USD']}
+            />
+        );
+
+        fireEvent.change(screen.getByLabelText('Amount'), {
+            target: { value: '4,56' }
+        });
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Save transaction' })
+        );
+
+        await waitFor(() =>
+            expect(createCaptureTransactionAction).toHaveBeenCalledOnce()
+        );
+
+        const formData = createCaptureTransactionAction.mock
+            .calls[0]?.[0] as FormData;
+        expect(formData.get('amount')).toBe('4.56');
     });
 });

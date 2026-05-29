@@ -67,6 +67,16 @@ function firstCurrency(
     return currencies[0]?.code ?? defaultCurrency;
 }
 
+function parseCaptureAmount(value: string): number | undefined {
+    const normalized = value.trim().replace(',', '.');
+    if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+        return undefined;
+    }
+
+    const amount = Number(normalized);
+    return Number.isFinite(amount) && amount > 0 ? amount : undefined;
+}
+
 function savedSummary(transaction: Transaction, timezone: string) {
     return `${transaction.categoryName} - ${formatTransactionMoney(
         transaction.amount,
@@ -146,11 +156,11 @@ export function QuickCaptureForm({
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        const amountValue = Number(amount);
+        const amountValue = parseCaptureAmount(amount);
         const occurredAt = localDateTimeInputToDate(occurredAtText, timezone);
 
-        if (!Number.isFinite(amountValue) || amountValue <= 0) {
-            setError('Enter a positive amount.');
+        if (amountValue === undefined) {
+            setError('Enter a positive amount with up to two decimals.');
             return;
         }
         if (activeCategoryId === undefined) {
@@ -235,7 +245,7 @@ export function QuickCaptureForm({
                                     }
                                     placeholder="0.00"
                                     step="0.01"
-                                    type="number"
+                                    type="text"
                                     value={amount}
                                 />
                             </Field>
