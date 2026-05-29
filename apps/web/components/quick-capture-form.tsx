@@ -321,7 +321,7 @@ export function QuickCaptureForm({
                                             aria-pressed={
                                                 activeCategoryId === category.id
                                             }
-                                            className="max-w-[9.5rem] truncate"
+                                            className="max-w-[9.5rem] justify-start overflow-hidden"
                                             key={category.id}
                                             onClick={() =>
                                                 setCategoryId(category.id)
@@ -335,7 +335,9 @@ export function QuickCaptureForm({
                                             }
                                             title={category.name}
                                         >
-                                            {category.name}
+                                            <span className="truncate">
+                                                {category.name}
+                                            </span>
                                         </Button>
                                     ))}
                                     {hasMoreCategories ? (
