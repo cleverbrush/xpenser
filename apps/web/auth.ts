@@ -1,4 +1,5 @@
 import { createXpenserClient } from '@xpenser/client';
+import { UserSessionMaxAgeSeconds } from '@xpenser/contracts/session';
 import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth';
 import type {} from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
@@ -60,7 +61,8 @@ function authErrorType(error: Error): string {
 }
 
 const nextAuth: NextAuthResult = NextAuth(() => ({
-    session: { strategy: 'jwt' },
+    session: { strategy: 'jwt', maxAge: UserSessionMaxAgeSeconds },
+    jwt: { maxAge: UserSessionMaxAgeSeconds },
     secret: getNextAuthSecret(),
     trustHost: true,
     logger: {

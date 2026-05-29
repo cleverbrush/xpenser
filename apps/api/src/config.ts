@@ -1,5 +1,6 @@
 import { env, parseEnv } from '@cleverbrush/env';
 import { number, string } from '@cleverbrush/schema';
+import { UserSessionMaxAgeSeconds } from '@xpenser/contracts/session';
 
 export const config = parseEnv(
     {
@@ -26,7 +27,7 @@ export const config = parseEnv(
             secret: env('JWT_SECRET', string().minLength(32)),
             expiresInSeconds: env(
                 'JWT_EXPIRES_IN',
-                number().coerce().default(86_400)
+                number().coerce().default(UserSessionMaxAgeSeconds)
             )
         },
         passport: {

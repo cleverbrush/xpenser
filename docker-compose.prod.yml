@@ -34,7 +34,7 @@ services:
       DB_USER: ${POSTGRES_USER:-xpenser}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-xpenser_secret}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-86400}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1209600}
       PASSPORT_BASE_URL: ${PASSPORT_BASE_URL:-https://auth.cleverbrush.com}
       PASSPORT_PROJECT: ${PASSPORT_PROJECT:-xpenser}
       PASSPORT_ENVIRONMENT: ${PASSPORT_ENVIRONMENT:-production}

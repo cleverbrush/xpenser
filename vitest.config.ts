@@ -4,6 +4,10 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': new URL('./apps/web', import.meta.url).pathname,
+            '@xpenser/contracts/session': new URL(
+                './packages/contracts/src/session.ts',
+                import.meta.url
+            ).pathname,
             '@xpenser/contracts': new URL(
                 './packages/contracts/src/index.ts',
                 import.meta.url
