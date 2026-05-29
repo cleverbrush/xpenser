@@ -29,7 +29,7 @@ export async function signIn(page: Page): Promise<void> {
     await page.goto('/login');
     await page.getByLabel('Email').fill(testUser.email);
     await page.getByLabel('Password').fill(testUser.password);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { exact: true, name: 'Sign in' }).click();
     await page.waitForURL(/\/(?:dashboard|setup\/categories)(?:[?#].*)?$/, {
         timeout: 30_000
     });
@@ -56,4 +56,3 @@ export async function ensureDashboardReady(page: Page): Promise<void> {
         page.getByRole('heading', { level: 1, name: 'Dashboard' })
     ).toBeVisible({ timeout: 30_000 });
 }
-

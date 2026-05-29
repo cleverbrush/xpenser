@@ -19,7 +19,9 @@ async function createCategory(
     }
 
     await form.getByRole('button', { name: 'Create category' }).click();
-    await expect(page.getByText(name).first()).toBeVisible({
+    await expect(
+        page.getByText(name).filter({ visible: true }).first()
+    ).toBeVisible({
         timeout: 15_000
     });
 }
@@ -93,7 +95,9 @@ test.describe('authenticated app workflows', () => {
             .getByRole('button', { name: 'Save changes' })
             .click();
         await expect(editDialog).toBeHidden({ timeout: 15_000 });
-        await expect(page.getByText('-$23.45').first()).toBeVisible({
+        await expect(
+            page.getByText('-$23.45').filter({ visible: true }).first()
+        ).toBeVisible({
             timeout: 15_000
         });
 
@@ -107,4 +111,3 @@ test.describe('authenticated app workflows', () => {
         await expect(row).toHaveCount(0, { timeout: 15_000 });
     });
 });
-
