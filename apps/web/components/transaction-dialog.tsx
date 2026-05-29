@@ -283,7 +283,7 @@ export function TransactionDialog({
                                 }
                                 value={selectedType}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger aria-label="Transaction type">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -318,7 +318,10 @@ export function TransactionDialog({
                                         : String(activeCategoryId)
                                 }
                             >
-                                <SelectTrigger aria-invalid={categoryInvalid}>
+                                <SelectTrigger
+                                    aria-invalid={categoryInvalid}
+                                    aria-label="Transaction category"
+                                >
                                     <SelectValue placeholder="Select category" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -365,6 +368,7 @@ export function TransactionDialog({
                                 >
                                     <SelectTrigger
                                         aria-invalid={currencyInvalid}
+                                        aria-label="Transaction currency"
                                     >
                                         <SelectValue />
                                     </SelectTrigger>

@@ -70,7 +70,7 @@ export function CategoryForm({
     }
 
     return (
-        <form noValidate onSubmit={handleSubmit}>
+        <form data-testid="category-form" noValidate onSubmit={handleSubmit}>
             <FieldGroup>
                 <SchemaField
                     fieldProps={{ placeholder: namePlaceholder }}
@@ -90,7 +90,10 @@ export function CategoryForm({
                         onValueChange={type.onChange}
                         value={type.value ?? 'expense'}
                     >
-                        <SelectTrigger aria-invalid={typeInvalid}>
+                        <SelectTrigger
+                            aria-invalid={typeInvalid}
+                            aria-label="Category type"
+                        >
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

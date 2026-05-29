@@ -14,11 +14,14 @@
         "lint:fix": "biome check --write .",
         "build": "turbo run build",
         "test": "vitest --run",
+        "test:coverage": "vitest --run --coverage",
+        "test:e2e": "playwright test",
         "typecheck": "turbo run typecheck",
         "clean": "turbo run clean"
     },
     "devDependencies": {
         "@biomejs/biome": "2.4.9",
+        "@playwright/test": "^1.60.0",
         "@testing-library/react": "16.3.2",
         "@types/node": "22.15.3",
         "@types/react": "19.0.12",

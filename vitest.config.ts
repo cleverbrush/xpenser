@@ -1,6 +1,24 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+    resolve: {
+        alias: {
+            '@': new URL('./apps/web', import.meta.url).pathname,
+            '@xpenser/contracts': new URL(
+                './packages/contracts/src/index.ts',
+                import.meta.url
+            ).pathname,
+            '@xpenser/timezone': new URL(
+                './packages/timezone/src/index.ts',
+                import.meta.url
+            ).pathname,
+            '@xpenser/ui': new URL(
+                './packages/ui/src/index.ts',
+                import.meta.url
+            ).pathname
+        },
+        dedupe: ['react', 'react-dom']
+    },
     oxc: {
         jsx: {
             importSource: 'react',
