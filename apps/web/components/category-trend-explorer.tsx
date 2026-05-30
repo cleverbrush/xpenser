@@ -18,9 +18,9 @@ import {
     FieldLabel,
     Input
 } from '@xpenser/ui';
-import { CalendarRangeIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
     Bar,
     BarChart,
@@ -174,14 +174,91 @@ function SegmentLink({
     return (
         <Button
             asChild
-            className={cn('min-w-0 px-2', active && 'pointer-events-none')}
+            className={cn(
+                'min-w-0 justify-center px-2',
+                !active && 'text-muted-foreground'
+            )}
+            data-state={active ? 'on' : 'off'}
             size="sm"
-            variant={active ? 'secondary' : 'ghost'}
+            variant={active ? 'default' : 'ghost'}
         >
             <Link aria-current={active ? 'page' : undefined} href={href}>
                 {children}
             </Link>
         </Button>
+    );
+}
+
+function CustomDateRangeFields({
+    currentQuery,
+    timezone,
+    trend
+}: {
+    readonly currentQuery: QueryState;
+    readonly timezone: string;
+    readonly trend: CategoryTrendResponse;
+}) {
+    const router = useRouter();
+    const customFrom =
+        currentQuery.from ?? categoryTrendParamValue(trend.from, timezone);
+    const customTo =
+        currentQuery.to ?? categoryTrendParamValue(trend.to, timezone);
+    const [from, setFrom] = useState(customFrom ?? '');
+    const [to, setTo] = useState(customTo ?? '');
+
+    useEffect(() => {
+        setFrom(customFrom ?? '');
+        setTo(customTo ?? '');
+    }, [customFrom, customTo]);
+
+    function replaceRange(nextFrom: string, nextTo: string) {
+        if (!nextFrom || !nextTo) {
+            return;
+        }
+
+        router.replace(
+            categoryTrendHref(trend.categoryId, {
+                ...currentQuery,
+                range: 'custom',
+                groupBy: trend.groupBy,
+                from: nextFrom,
+                to: nextTo
+            }),
+            { scroll: false }
+        );
+    }
+
+    return (
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3 sm:max-w-md">
+            <Field className="min-w-0">
+                <FieldLabel htmlFor="category-trend-from">From</FieldLabel>
+                <Input
+                    className="min-w-0"
+                    id="category-trend-from"
+                    onChange={event => {
+                        const nextFrom = event.target.value;
+                        setFrom(nextFrom);
+                        replaceRange(nextFrom, to);
+                    }}
+                    type="date"
+                    value={from}
+                />
+            </Field>
+            <Field className="min-w-0">
+                <FieldLabel htmlFor="category-trend-to">To</FieldLabel>
+                <Input
+                    className="min-w-0"
+                    id="category-trend-to"
+                    onChange={event => {
+                        const nextTo = event.target.value;
+                        setTo(nextTo);
+                        replaceRange(from, nextTo);
+                    }}
+                    type="date"
+                    value={to}
+                />
+            </Field>
+        </div>
     );
 }
 
@@ -196,14 +273,43 @@ function TrendControls({
     readonly timezone: string;
     readonly trend: CategoryTrendResponse;
 }) {
-    const customFrom =
-        currentQuery.from ?? categoryTrendParamValue(trend.from, timezone);
-    const customTo =
-        currentQuery.to ?? categoryTrendParamValue(trend.to, timezone);
-
     return (
         <section className="rounded-md border bg-card p-3">
-            <div className="grid gap-3 lg:grid-cols-[minmax(180px,260px)_1fr]">
+            <div className="grid gap-3 xl:grid-cols-[minmax(240px,320px)_minmax(0,1fr)_minmax(180px,260px)]">
+                <Field>
+                    <FieldLabel>Bucket</FieldLabel>
+                    <div className="grid grid-cols-4 gap-1 rounded-md border bg-muted p-1">
+                        {categoryTrendGroupByOptions.map(option => (
+                            <SegmentLink
+                                active={trend.groupBy === option.value}
+                                href={categoryTrendHref(trend.categoryId, {
+                                    ...currentQuery,
+                                    groupBy: option.value
+                                })}
+                                key={option.value}
+                            >
+                                {option.label}
+                            </SegmentLink>
+                        ))}
+                    </div>
+                </Field>
+                <Field>
+                    <FieldLabel>Timeframe</FieldLabel>
+                    <div className="grid grid-cols-3 gap-1 rounded-md border bg-muted p-1 sm:grid-cols-6">
+                        {categoryTrendRangeOptions.map(option => (
+                            <SegmentLink
+                                active={trend.range === option.value}
+                                href={categoryTrendHref(trend.categoryId, {
+                                    ...currentQuery,
+                                    range: option.value
+                                })}
+                                key={option.value}
+                            >
+                                {option.label}
+                            </SegmentLink>
+                        ))}
+                    </div>
+                </Field>
                 <Field>
                     <FieldLabel htmlFor="category-trend-category">
                         Category
@@ -214,75 +320,13 @@ function TrendControls({
                         selectedCategoryId={trend.categoryId}
                     />
                 </Field>
-                <div className="grid gap-3 md:grid-cols-2">
-                    <Field>
-                        <FieldLabel>Timeframe</FieldLabel>
-                        <div className="grid grid-cols-3 gap-1 rounded-md border bg-muted p-1 sm:grid-cols-6">
-                            {categoryTrendRangeOptions.map(option => (
-                                <SegmentLink
-                                    active={trend.range === option.value}
-                                    href={categoryTrendHref(trend.categoryId, {
-                                        ...currentQuery,
-                                        range: option.value
-                                    })}
-                                    key={option.value}
-                                >
-                                    {option.label}
-                                </SegmentLink>
-                            ))}
-                        </div>
-                    </Field>
-                    <Field>
-                        <FieldLabel>Bucket</FieldLabel>
-                        <div className="grid grid-cols-4 gap-1 rounded-md border bg-muted p-1">
-                            {categoryTrendGroupByOptions.map(option => (
-                                <SegmentLink
-                                    active={trend.groupBy === option.value}
-                                    href={categoryTrendHref(trend.categoryId, {
-                                        ...currentQuery,
-                                        groupBy: option.value
-                                    })}
-                                    key={option.value}
-                                >
-                                    {option.label}
-                                </SegmentLink>
-                            ))}
-                        </div>
-                    </Field>
-                </div>
             </div>
             {trend.range === 'custom' ? (
-                <form
-                    action={`/stats/categories/${trend.categoryId}`}
-                    className="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
-                >
-                    <input name="range" type="hidden" value="custom" />
-                    <input name="groupBy" type="hidden" value={trend.groupBy} />
-                    <Field>
-                        <FieldLabel htmlFor="category-trend-from">
-                            From
-                        </FieldLabel>
-                        <Input
-                            defaultValue={customFrom}
-                            id="category-trend-from"
-                            name="from"
-                            type="date"
-                        />
-                    </Field>
-                    <Field>
-                        <FieldLabel htmlFor="category-trend-to">To</FieldLabel>
-                        <Input
-                            defaultValue={customTo}
-                            id="category-trend-to"
-                            name="to"
-                            type="date"
-                        />
-                    </Field>
-                    <Button className="w-full sm:w-auto" type="submit">
-                        <CalendarRangeIcon aria-hidden className="size-4" />
-                        Apply
-                    </Button>
-                </form>
+                <CustomDateRangeFields
+                    currentQuery={currentQuery}
+                    timezone={timezone}
+                    trend={trend}
+                />
             ) : null}
         </section>
     );

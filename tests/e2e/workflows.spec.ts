@@ -301,16 +301,49 @@ test.describe('authenticated app workflows', () => {
             page.getByRole('heading', { level: 1, name: 'Category trend' })
         ).toBeVisible();
         await expect(page.getByLabel('Category')).toHaveValue(/^\d+$/);
+        const controlLabels = await page
+            .locator('section label')
+            .evaluateAll(labels =>
+                labels.map(label => label.textContent?.trim())
+            );
+        expect(controlLabels).toEqual(['Bucket', 'Timeframe', 'Category']);
         await expect(page.getByRole('link', { name: 'Monthly' })).toHaveAttribute(
             'aria-current',
             'page'
         );
+        await expect(
+            page.getByRole('link', { name: '12 months' })
+        ).toHaveAttribute('aria-current', 'page');
 
         await page.getByRole('link', { name: 'Weekly' }).click();
         await expect(page).toHaveURL(url => {
             return (
                 url.pathname.startsWith('/stats/categories/') &&
                 url.searchParams.get('groupBy') === 'week'
+            );
+        });
+        await expect(page.getByRole('link', { name: 'Weekly' })).toHaveAttribute(
+            'aria-current',
+            'page'
+        );
+
+        await page.getByRole('link', { name: 'Custom' }).click();
+        const fromInput = page.locator('#category-trend-from');
+        const toInput = page.locator('#category-trend-to');
+        await expect(fromInput).toBeVisible();
+        await expect(toInput).toBeVisible();
+        await expect(
+            page.getByRole('button', { name: 'Apply' })
+        ).toHaveCount(0);
+        const currentMonthFrom = `${new Date().toISOString().slice(0, 7)}-01`;
+        await fromInput.fill(currentMonthFrom);
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname.startsWith('/stats/categories/') &&
+                url.searchParams.get('groupBy') === 'week' &&
+                url.searchParams.get('range') === 'custom' &&
+                url.searchParams.get('from') === currentMonthFrom &&
+                Boolean(url.searchParams.get('to'))
             );
         });
 
