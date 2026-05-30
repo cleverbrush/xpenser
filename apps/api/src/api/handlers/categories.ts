@@ -17,8 +17,8 @@ import type {
 
 export const listCategoriesHandler: Handler<
     typeof ListCategoriesEndpoint
-> = async ({ principal }, { db }) => {
-    return listCategories(db, principal.userId);
+> = async ({ principal, query }, { db }) => {
+    return listCategories(db, principal.userId, query);
 };
 
 export const createCategoryHandler: Handler<

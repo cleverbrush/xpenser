@@ -229,7 +229,9 @@ export default async function DashboardPage({
     const anchorDate = selectedDate ?? new Date();
     const anchorDateParam = dateParam(anchorDate, me.timezone);
     const [categories, currencies, summary] = await Promise.all([
-        client.categories.list(),
+        client.categories.list({
+            query: { sort: 'recent-transaction-count' }
+        }),
         client.currencies.list(),
         client.dashboard.summary({
             query: {

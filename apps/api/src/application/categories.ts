@@ -1,16 +1,20 @@
 import type { InferType } from '@cleverbrush/schema';
 import type {
     Category,
+    CategoryListQuery,
     CreateCategoryBody,
     UpdateCategoryBodySchema
 } from '@xpenser/contracts';
-import type { AppDb, CategoryDb } from '../db/schemas.js';
+import type { AppDb, CategoryDb, TransactionDb } from '../db/schemas.js';
 
 export class CategoryInUseError extends Error {}
 export class CategoryNotFoundError extends Error {}
 export class LastCategoryError extends Error {}
 
 type UpdateCategoryBody = InferType<typeof UpdateCategoryBodySchema>;
+type CategoryUsageTransaction = Pick<TransactionDb, 'categoryId'>;
+
+const recentCategoryWindowMs = 30 * 24 * 60 * 60 * 1000;
 
 function mapCategory(row: CategoryDb, inUse: boolean): Category {
     return {
@@ -35,19 +39,78 @@ async function usedCategoryIds(
     return new Set(transactions.map(transaction => transaction.categoryId));
 }
 
-export async function listCategories(
+async function recentCategoryTransactions(
     db: AppDb,
     userId: number
+): Promise<TransactionDb[]> {
+    const now = new Date();
+    const from = new Date(now.getTime() - recentCategoryWindowMs);
+
+    return (await db.transactions
+        .where(transaction => transaction.userId, userId)
+        .where(transaction => transaction.occurredAt, '>=', from)
+        .where(
+            transaction => transaction.occurredAt,
+            '<=',
+            now
+        )) as TransactionDb[];
+}
+
+export function categoriesByRecentTransactionCount<T extends { id: number }>(
+    categories: readonly T[],
+    transactions: readonly CategoryUsageTransaction[]
+): T[] {
+    const originalIndex = new Map(
+        categories.map((category, index) => [category.id, index] as const)
+    );
+    const counts = new Map<number, number>();
+
+    for (const transaction of transactions) {
+        counts.set(
+            transaction.categoryId,
+            (counts.get(transaction.categoryId) ?? 0) + 1
+        );
+    }
+
+    return [...categories].sort((left, right) => {
+        const countDelta =
+            (counts.get(right.id) ?? 0) - (counts.get(left.id) ?? 0);
+
+        if (countDelta !== 0) {
+            return countDelta;
+        }
+
+        return (
+            (originalIndex.get(left.id) ?? 0) -
+            (originalIndex.get(right.id) ?? 0)
+        );
+    });
+}
+
+export async function listCategories(
+    db: AppDb,
+    userId: number,
+    query: CategoryListQuery = {}
 ): Promise<Category[]> {
-    const [categories, inUse] = await Promise.all([
+    const [categories, inUse, recentTransactions] = await Promise.all([
         db.categories
             .where(category => category.userId, userId)
             .orderBy(category => category.type, 'asc')
             .orderBy(category => category.name, 'asc'),
-        usedCategoryIds(db, userId)
+        usedCategoryIds(db, userId),
+        query.sort === 'recent-transaction-count'
+            ? recentCategoryTransactions(db, userId)
+            : Promise.resolve([])
     ]);
+    const orderedCategories =
+        query.sort === 'recent-transaction-count'
+            ? categoriesByRecentTransactionCount(
+                  categories as CategoryDb[],
+                  recentTransactions
+              )
+            : (categories as CategoryDb[]);
 
-    return (categories as CategoryDb[]).map(category =>
+    return orderedCategories.map(category =>
         mapCategory(category, inUse.has(category.id))
     );
 }

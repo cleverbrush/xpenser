@@ -144,6 +144,70 @@ test.describe('authenticated app workflows', () => {
         await expect(row).toHaveCount(0, { timeout: 15_000 });
     });
 
+    test('orders add transaction categories by recent popularity', async ({
+        page
+    }) => {
+        const mostPopular = uniqueName('E2E popular most');
+        const used = uniqueName('E2E popular used');
+        const unused = uniqueName('E2E popular unused');
+
+        await createCategory(page, mostPopular, 'expense');
+        await createCategory(page, used, 'expense');
+        await createCategory(page, unused, 'expense');
+
+        await createTransaction(
+            page,
+            mostPopular,
+            'expense',
+            '12.34',
+            uniqueName('E2E note')
+        );
+        await createTransaction(
+            page,
+            mostPopular,
+            'expense',
+            '12.34',
+            uniqueName('E2E note')
+        );
+        await createTransaction(
+            page,
+            used,
+            'expense',
+            '12.34',
+            uniqueName('E2E note')
+        );
+
+        await page.goto('/dashboard');
+        await page
+            .getByRole('button', { name: /^(Add|Add transaction)$/ })
+            .click();
+
+        const addDialog = page.getByRole('dialog', {
+            name: 'Add transaction'
+        });
+        await expect(addDialog).toBeVisible();
+        await addDialog.getByLabel('Transaction category').click();
+        await expect(
+            page.getByRole('option', { exact: true, name: mostPopular })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('option', { exact: true, name: used })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('option', { exact: true, name: unused })
+        ).toBeVisible();
+
+        const optionNames = (await page.getByRole('option').allTextContents())
+            .map(option => option.trim())
+            .filter(Boolean);
+        expect(optionNames.indexOf(mostPopular)).toBeLessThan(
+            optionNames.indexOf(used)
+        );
+        expect(optionNames.indexOf(used)).toBeLessThan(
+            optionNames.indexOf(unused)
+        );
+    });
+
     test('opens aggregate transaction filters from dashboard cards', async ({
         page
     }) => {

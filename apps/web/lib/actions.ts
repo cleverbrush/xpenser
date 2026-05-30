@@ -193,6 +193,7 @@ export async function createTransactionAction(formData: FormData) {
     await client.transactions.create({
         body: transactionBody(formData)
     });
+    revalidateTag('categories', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -210,6 +211,7 @@ export async function createCaptureTransactionAction(
     const transaction = await client.transactions.create({
         body: transactionBody(formData)
     });
+    revalidateTag('categories', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -227,6 +229,7 @@ export async function updateTransactionAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'id')) },
         body: transactionBody(formData, true)
     });
+    revalidateTag('categories', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -242,6 +245,7 @@ export async function deleteTransactionAction(formData: FormData) {
     await client.transactions.delete({
         params: { id: Number(requiredString(formData, 'id')) }
     });
+    revalidateTag('categories', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
