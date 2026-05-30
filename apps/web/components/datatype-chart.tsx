@@ -23,6 +23,13 @@ export function datatypeExpression(
         .join(',')}}`;
 }
 
+export function datatypePieExpression(value: number): string {
+    const normalized = Number.isFinite(value) ? value : 0;
+    const percent = Math.round(Math.max(0, Math.min(100, normalized)));
+
+    return `{p:${percent}}`;
+}
+
 export function DatatypeChart({
     expression,
     className
