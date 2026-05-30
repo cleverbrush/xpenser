@@ -3,6 +3,7 @@
 import { cn } from '@xpenser/ui';
 import {
     ChartSplineIcon,
+    CirclePlusIcon,
     CreditCardIcon,
     LayoutDashboardIcon,
     SettingsIcon
@@ -20,6 +21,11 @@ const items = [
         href: '/transactions',
         label: 'Transactions',
         icon: CreditCardIcon
+    },
+    {
+        href: '/capture',
+        label: 'Add',
+        icon: CirclePlusIcon
     },
     {
         href: '/stats',
@@ -42,7 +48,7 @@ export function MobileTabBar() {
 
     return (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 shadow-lg backdrop-blur sm:hidden">
-            <div className="grid grid-cols-4 px-1 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1">
+            <div className="grid grid-cols-5 px-1 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1">
                 {items.map(item => {
                     const active = isActive(pathname, item.href);
                     const Icon = item.icon;
