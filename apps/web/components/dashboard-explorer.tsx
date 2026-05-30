@@ -93,6 +93,7 @@ function CategoryRow({
                     : 'grid-cols-[minmax(0,1fr)_auto]'
             }`}
             href={categoryHref(summary, category, timezone)}
+            prefetch={false}
         >
             <span className="min-w-0">
                 <span className="block truncate font-medium">
@@ -168,6 +169,7 @@ function AggregateCard({
             aria-label={`View ${title.toLowerCase()} transactions for this period`}
             className="block min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             href={aggregateHref(summary, type, timezone)}
+            prefetch={false}
         >
             <Card className="h-full min-w-0 transition-colors hover:bg-muted/40">
                 <CardHeader className="min-w-0 p-3 sm:p-4">

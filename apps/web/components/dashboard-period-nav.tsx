@@ -90,6 +90,7 @@ export function DashboardPeriodNav({
                             period
                         })
                     }
+                    prefetch={false}
                 >
                     <ChevronLeftIcon aria-hidden className="size-4" />
                 </Link>
@@ -126,6 +127,7 @@ export function DashboardPeriodNav({
                                     period: option.value
                                 })
                             }
+                            prefetch={false}
                             scroll={false}
                         >
                             <span className="sm:hidden">{option.label[0]}</span>
@@ -153,6 +155,7 @@ export function DashboardPeriodNav({
                                 period
                             })
                         }
+                        prefetch={false}
                     >
                         <ChevronRightIcon aria-hidden className="size-4" />
                     </Link>
@@ -204,6 +207,7 @@ export function DashboardPeriodNav({
                                     period
                                 })
                             }
+                            prefetch={false}
                             scroll={false}
                         >
                             <ChevronsRightIcon
