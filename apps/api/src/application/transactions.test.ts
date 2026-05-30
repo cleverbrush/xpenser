@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
     compareTransactionsByOccurrenceAsc,
     compareTransactionsByOccurrenceDesc,
+    dashboardStatsGroupBy,
     percentChange,
     resolveDashboardComparisonRange,
+    resolveDashboardPeriodWindow,
     resolveDashboardRange,
     resolveStatsRanges,
     TransactionCategoryError,
@@ -237,6 +239,54 @@ describe('dashboard range resolution', () => {
             from: new Date(2026, 3, 1, 0, 0, 0, 0),
             to: new Date(2026, 3, 30, 23, 59, 59, 999)
         });
+    });
+
+    it('resolves balanced dashboard period windows without future periods', () => {
+        const dates = resolveDashboardPeriodWindow(
+            'month',
+            new Date('2026-03-15T12:00:00.000Z'),
+            new Date('2026-05-10T12:00:00.000Z'),
+            'UTC'
+        );
+
+        expect(dates.map(date => date.toISOString().slice(0, 10))).toEqual([
+            '2026-01-01',
+            '2026-02-01',
+            '2026-03-01',
+            '2026-04-01',
+            '2026-05-01'
+        ]);
+    });
+
+    it('clamps dashboard period window side sizes', () => {
+        const dates = resolveDashboardPeriodWindow(
+            'day',
+            new Date('2026-05-06T12:00:00.000Z'),
+            new Date('2026-05-10T12:00:00.000Z'),
+            'UTC',
+            99,
+            99
+        );
+
+        expect(dates.map(date => date.toISOString().slice(0, 10))).toEqual([
+            '2026-05-02',
+            '2026-05-03',
+            '2026-05-04',
+            '2026-05-05',
+            '2026-05-06',
+            '2026-05-07',
+            '2026-05-08',
+            '2026-05-09',
+            '2026-05-10'
+        ]);
+    });
+
+    it('uses dashboard period groupings for stats windows', () => {
+        expect(dashboardStatsGroupBy('day')).toBe('hour');
+        expect(dashboardStatsGroupBy('week')).toBe('day');
+        expect(dashboardStatsGroupBy('month')).toBe('week');
+        expect(dashboardStatsGroupBy('quarter')).toBe('week');
+        expect(dashboardStatsGroupBy('year')).toBe('month');
     });
 });
 

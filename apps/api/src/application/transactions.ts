@@ -1,8 +1,10 @@
 import type {
     CreateTransactionBody,
     DashboardSummary,
+    DashboardWindowResponse,
     StatsOverview,
     StatsQuery,
+    StatsWindowResponse,
     Transaction,
     TransactionEffect,
     TransactionListQuery
@@ -12,6 +14,7 @@ import {
     addLocalMonths,
     addLocalYears,
     addStatsBucketStepInTimeZone,
+    dateToLocalDateParam,
     defaultTimeZone,
     localDayDifference,
     localEndOfDay,
@@ -57,6 +60,19 @@ type StatsTimeframe = NonNullable<StatsQuery['timeframe']>;
 type StatsRange = {
     readonly from: Date;
     readonly to: Date;
+};
+
+type StatsRanges = {
+    readonly selected: StatsRange;
+    readonly previousPeriod: StatsRange;
+    readonly previousYear: StatsRange;
+};
+
+type PeriodWindowQuery = {
+    readonly period?: DashboardPeriod;
+    readonly date?: Date;
+    readonly before?: number;
+    readonly after?: number;
 };
 
 type CategoryComparison = {
@@ -421,6 +437,113 @@ export function resolveDashboardComparisonRange(
     return resolveDashboardComparisonRangeInTimeZone(period, range, timeZone);
 }
 
+const defaultPeriodWindowSide = 2;
+const maxPeriodWindowSide = 4;
+
+function clampPeriodWindowSide(value: number | undefined): number {
+    if (!Number.isFinite(value)) {
+        return defaultPeriodWindowSide;
+    }
+    return Math.min(
+        maxPeriodWindowSide,
+        Math.max(0, Math.trunc(value ?? defaultPeriodWindowSide))
+    );
+}
+
+function addDashboardPeriods(
+    period: DashboardPeriod,
+    value: Date,
+    offset: number,
+    timeZone: string
+): Date {
+    let current = value;
+    const direction = offset < 0 ? -1 : 1;
+
+    for (let index = 0; index < Math.abs(offset); index += 1) {
+        current =
+            period === 'day'
+                ? addLocalDays(current, direction, timeZone)
+                : period === 'week'
+                  ? addLocalDays(current, direction * 7, timeZone)
+                  : period === 'month'
+                    ? addLocalMonths(current, direction, timeZone)
+                    : period === 'quarter'
+                      ? addLocalMonths(current, direction * 3, timeZone)
+                      : addLocalYears(current, direction, timeZone);
+    }
+
+    return current;
+}
+
+export function resolveDashboardPeriodWindow(
+    period: DashboardPeriod,
+    date = new Date(),
+    now = new Date(),
+    timeZone = defaultTimeZone,
+    before?: number,
+    after?: number
+): Date[] {
+    const beforeCount = clampPeriodWindowSide(before);
+    const afterCount = clampPeriodWindowSide(after);
+    const latestStart = resolveDashboardRange(
+        period,
+        now,
+        now,
+        timeZone
+    ).from.getTime();
+    const dates: Date[] = [];
+    const seen = new Set<string>();
+
+    for (let offset = -beforeCount; offset <= afterCount; offset += 1) {
+        const candidate = addDashboardPeriods(period, date, offset, timeZone);
+        const range = resolveDashboardRange(period, candidate, now, timeZone);
+        if (offset > 0 && range.from.getTime() > latestStart) {
+            continue;
+        }
+
+        const key = dateToLocalDateParam(range.from, timeZone);
+        if (!seen.has(key)) {
+            dates.push(range.from);
+            seen.add(key);
+        }
+    }
+
+    return dates;
+}
+
+function rangeKey(range: StatsRange, timeZone: string): string {
+    return dateToLocalDateParam(range.from, timeZone);
+}
+
+function encompassingRange(ranges: readonly StatsRange[]): StatsRange {
+    return {
+        from: new Date(Math.min(...ranges.map(range => range.from.getTime()))),
+        to: new Date(Math.max(...ranges.map(range => range.to.getTime())))
+    };
+}
+
+function rowsInRange(
+    rows: readonly TransactionDb[],
+    range: StatsRange
+): TransactionDb[] {
+    return rows.filter(
+        row => row.occurredAt >= range.from && row.occurredAt <= range.to
+    );
+}
+
+export function dashboardStatsGroupBy(period: DashboardPeriod): StatsGroupBy {
+    if (period === 'day') {
+        return 'hour';
+    }
+    if (period === 'week') {
+        return 'day';
+    }
+    if (period === 'year') {
+        return 'month';
+    }
+    return 'week';
+}
+
 function dashboardTrendBucketCount(
     period: DashboardPeriod,
     range: StatsRange,
@@ -763,29 +886,13 @@ async function transactionsForRange(
         )) as TransactionDb[];
 }
 
-export async function dashboardSummary(
-    db: AppDb,
-    userId: number,
+function summarizeDashboardRows(
+    user: Pick<UserDb, 'defaultCurrency' | 'timezone'>,
     period: DashboardPeriod,
-    date?: Date
-): Promise<DashboardSummary> {
-    const user = await getUser(db, userId);
-    const range = resolveDashboardRange(
-        period,
-        date,
-        new Date(),
-        user.timezone
-    );
-    const comparisonRange = resolveDashboardComparisonRange(
-        period,
-        range,
-        user.timezone
-    );
-    const [rows, previousRows] = await Promise.all([
-        transactionsForRange(db, userId, range),
-        transactionsForRange(db, userId, comparisonRange)
-    ]);
-
+    range: StatsRange,
+    rows: readonly TransactionDb[],
+    previousRows: readonly TransactionDb[]
+): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
     const previousTotalsByCategory = new Map<string, number>();
@@ -856,28 +963,92 @@ export async function dashboardSummary(
     };
 }
 
-export async function statsOverview(
+export async function dashboardSummary(
     db: AppDb,
     userId: number,
-    query: StatsQuery
-): Promise<StatsOverview> {
+    period: DashboardPeriod,
+    date?: Date
+): Promise<DashboardSummary> {
     const user = await getUser(db, userId);
-    const groupBy = (query.groupBy ?? 'day') as StatsGroupBy;
-    const timeframe = (
-        query.period ? 'custom' : (query.timeframe ?? 'this-month')
-    ) as StatsTimeframe;
-    const ranges = resolveStatsRanges(
-        { ...query, groupBy, timeframe },
+    const range = resolveDashboardRange(
+        period,
+        date,
         new Date(),
         user.timezone
     );
+    const comparisonRange = resolveDashboardComparisonRange(
+        period,
+        range,
+        user.timezone
+    );
+    const [rows, previousRows] = await Promise.all([
+        transactionsForRange(db, userId, range),
+        transactionsForRange(db, userId, comparisonRange)
+    ]);
+
+    return summarizeDashboardRows(user, period, range, rows, previousRows);
+}
+
+export async function dashboardWindow(
+    db: AppDb,
+    userId: number,
+    query: PeriodWindowQuery
+): Promise<DashboardWindowResponse> {
+    const user = await getUser(db, userId);
+    const now = new Date();
+    const period = query.period ?? 'day';
+    const dates = resolveDashboardPeriodWindow(
+        period,
+        query.date ?? now,
+        now,
+        user.timezone,
+        query.before,
+        query.after
+    );
+    const plans = dates.map(date => {
+        const range = resolveDashboardRange(period, date, now, user.timezone);
+        return {
+            date: rangeKey(range, user.timezone),
+            range,
+            previousRange: resolveDashboardComparisonRange(
+                period,
+                range,
+                user.timezone
+            )
+        };
+    });
+    const allRows = await transactionsForRange(
+        db,
+        userId,
+        encompassingRange(
+            plans.flatMap(plan => [plan.range, plan.previousRange])
+        )
+    );
+
+    return {
+        items: plans.map(plan => ({
+            date: plan.date,
+            summary: summarizeDashboardRows(
+                user,
+                period,
+                plan.range,
+                rowsInRange(allRows, plan.range),
+                rowsInRange(allRows, plan.previousRange)
+            )
+        }))
+    };
+}
+
+function summarizeStatsRows(
+    user: Pick<UserDb, 'defaultCurrency' | 'timezone'>,
+    groupBy: StatsGroupBy,
+    timeframe: StatsTimeframe,
+    ranges: StatsRanges,
+    selectedRows: readonly TransactionDb[],
+    previousPeriodRows: readonly TransactionDb[],
+    previousYearRows: readonly TransactionDb[]
+): StatsOverview {
     const buckets = statsTrendBuckets(groupBy, ranges.selected, user.timezone);
-    const [selectedRows, previousPeriodRows, previousYearRows] =
-        await Promise.all([
-            transactionsForRange(db, userId, ranges.selected),
-            transactionsForRange(db, userId, ranges.previousPeriod),
-            transactionsForRange(db, userId, ranges.previousYear)
-        ]);
     const selected = summarizeSelectedRows(
         selectedRows,
         groupBy,
@@ -963,5 +1134,100 @@ export async function statsOverview(
             previousPeriod: previousPeriod.summary,
             previousYear: previousYear.summary
         }
+    };
+}
+
+export async function statsOverview(
+    db: AppDb,
+    userId: number,
+    query: StatsQuery
+): Promise<StatsOverview> {
+    const user = await getUser(db, userId);
+    const groupBy = (query.groupBy ?? 'day') as StatsGroupBy;
+    const timeframe = (
+        query.period ? 'custom' : (query.timeframe ?? 'this-month')
+    ) as StatsTimeframe;
+    const ranges = resolveStatsRanges(
+        { ...query, groupBy, timeframe },
+        new Date(),
+        user.timezone
+    );
+    const [selectedRows, previousPeriodRows, previousYearRows] =
+        await Promise.all([
+            transactionsForRange(db, userId, ranges.selected),
+            transactionsForRange(db, userId, ranges.previousPeriod),
+            transactionsForRange(db, userId, ranges.previousYear)
+        ]);
+
+    return summarizeStatsRows(
+        user,
+        groupBy,
+        timeframe,
+        ranges,
+        selectedRows,
+        previousPeriodRows,
+        previousYearRows
+    );
+}
+
+export async function statsWindow(
+    db: AppDb,
+    userId: number,
+    query: PeriodWindowQuery
+): Promise<StatsWindowResponse> {
+    const user = await getUser(db, userId);
+    const now = new Date();
+    const period = query.period ?? 'day';
+    const groupBy = dashboardStatsGroupBy(period);
+    const timeframe = 'custom';
+    const dates = resolveDashboardPeriodWindow(
+        period,
+        query.date ?? now,
+        now,
+        user.timezone,
+        query.before,
+        query.after
+    );
+    const plans = dates.map(date => {
+        const ranges = resolveStatsRanges(
+            { date, groupBy, period, timeframe },
+            now,
+            user.timezone
+        );
+        return {
+            date: rangeKey(ranges.selected, user.timezone),
+            ranges
+        };
+    });
+    const selectedRowsRange = encompassingRange(
+        plans.flatMap(plan => [
+            plan.ranges.selected,
+            plan.ranges.previousPeriod
+        ])
+    );
+    const previousYearRowsRange = encompassingRange(
+        plans.map(plan => plan.ranges.previousYear)
+    );
+    const [selectedAndPreviousRows, previousYearRows] = await Promise.all([
+        transactionsForRange(db, userId, selectedRowsRange),
+        transactionsForRange(db, userId, previousYearRowsRange)
+    ]);
+
+    return {
+        items: plans.map(plan => ({
+            date: plan.date,
+            overview: summarizeStatsRows(
+                user,
+                groupBy,
+                timeframe,
+                plan.ranges,
+                rowsInRange(selectedAndPreviousRows, plan.ranges.selected),
+                rowsInRange(
+                    selectedAndPreviousRows,
+                    plan.ranges.previousPeriod
+                ),
+                rowsInRange(previousYearRows, plan.ranges.previousYear)
+            )
+        }))
     };
 }

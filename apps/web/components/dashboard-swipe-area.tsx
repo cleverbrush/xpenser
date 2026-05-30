@@ -117,6 +117,9 @@ export function DashboardSwipeArea({
     basePath = '/dashboard',
     children,
     date,
+    onNavigate,
+    onPreview,
+    panelForDate,
     period,
     skeleton,
     timezone
@@ -124,12 +127,20 @@ export function DashboardSwipeArea({
     readonly basePath?: string;
     readonly children: ReactNode;
     readonly date: string;
+    readonly onNavigate?: (selection: {
+        readonly date: string;
+        readonly direction: -1 | 1;
+        readonly href: string;
+    }) => void;
+    readonly onPreview?: (date: string) => void;
+    readonly panelForDate?: (date: string) => ReactNode | undefined;
     readonly period: DashboardPeriod;
     readonly skeleton?: ReactNode;
     readonly timezone: string;
 }) {
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
+    const capturedPointerId = useRef<number | null>(null);
     const pointerStart = useRef<PointerPoint | null>(null);
     const didSwipe = useRef(false);
     const committedSwipe = useRef(false);
@@ -163,14 +174,22 @@ export function DashboardSwipeArea({
     const nextHref = latest
         ? undefined
         : periodHref(basePath, period, nextDate, { timeZone: timezone });
-    const previousKey = `${basePath}:${period}:${dateParam(
-        previousDate,
-        timezone
-    )}`;
-    const nextKey = `${basePath}:${period}:${dateParam(nextDate, timezone)}`;
+    const previousDateParam = dateParam(previousDate, timezone);
+    const nextDateParam = dateParam(nextDate, timezone);
+    const previousKey = `${basePath}:${period}:${previousDateParam}`;
+    const nextKey = `${basePath}:${period}:${nextDateParam}`;
     const targetKey =
         dragDirection === -1 ? nextKey : dragDirection === 1 ? previousKey : '';
+    const targetDate =
+        dragDirection === -1
+            ? nextDateParam
+            : dragDirection === 1
+              ? previousDateParam
+              : '';
     const targetPanel = targetKey ? panelCache.get(targetKey) : undefined;
+    const controlledTargetPanel = targetDate
+        ? panelForDate?.(targetDate)
+        : undefined;
     const canShowTarget = dragDirection === 1 || Boolean(nextHref);
 
     const viewportWidth = useCallback((): number => {
@@ -202,14 +221,16 @@ export function DashboardSwipeArea({
             setIsDragging(false);
             setSwipeOffset(0);
         }
-        router.prefetch(previousHref);
-        if (nextHref) {
-            router.prefetch(nextHref);
+        if (!onNavigate) {
+            router.prefetch(previousHref);
+            if (nextHref) {
+                router.prefetch(nextHref);
+            }
         }
-    }, [children, nextHref, previousHref, resetKey, router]);
+    }, [children, nextHref, onNavigate, previousHref, resetKey, router]);
 
     function prefetch(href?: string) {
-        if (!href || prefetchedHref.current === href) {
+        if (onNavigate || !href || prefetchedHref.current === href) {
             return;
         }
 
@@ -234,12 +255,12 @@ export function DashboardSwipeArea({
             committedSwipe.current = false;
         }
 
+        capturedPointerId.current = null;
         pointerStart.current = { x: event.clientX, y: event.clientY };
         didSwipe.current = false;
         setDragDirection(null);
         setIsDragging(true);
         setSwipeOffset(0);
-        event.currentTarget.setPointerCapture(event.pointerId);
     }
 
     function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -255,15 +276,28 @@ export function DashboardSwipeArea({
             return;
         }
 
+        if (capturedPointerId.current !== event.pointerId) {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            capturedPointerId.current = event.pointerId;
+        }
+
         setDragDirection(deltaX < 0 ? -1 : 1);
         setSwipeOffset(offsetForSwipe(deltaX));
         if (Math.abs(deltaX) >= 18) {
+            onPreview?.(deltaX < 0 ? nextDateParam : previousDateParam);
             prefetch(deltaX < 0 ? nextHref : previousHref);
         }
     }
 
     function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
         const start = pointerStart.current;
+        if (
+            capturedPointerId.current === event.pointerId &&
+            event.currentTarget.hasPointerCapture(event.pointerId)
+        ) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        capturedPointerId.current = null;
         pointerStart.current = null;
         setIsDragging(false);
 
@@ -293,14 +327,30 @@ export function DashboardSwipeArea({
             setDragDirection(-1);
             setSwipeOffset(-width);
             pushTimer.current = setTimeout(() => {
-                router.push(nextHref, { scroll: false });
+                if (onNavigate) {
+                    onNavigate({
+                        date: nextDateParam,
+                        direction: -1,
+                        href: nextHref
+                    });
+                } else {
+                    router.push(nextHref, { scroll: false });
+                }
             }, transitionMs);
         } else if (deltaX > 0) {
             committedSwipe.current = true;
             setDragDirection(1);
             setSwipeOffset(width);
             pushTimer.current = setTimeout(() => {
-                router.push(previousHref, { scroll: false });
+                if (onNavigate) {
+                    onNavigate({
+                        date: previousDateParam,
+                        direction: 1,
+                        href: previousHref
+                    });
+                } else {
+                    router.push(previousHref, { scroll: false });
+                }
             }, transitionMs);
         } else {
             setDragDirection(null);
@@ -309,6 +359,7 @@ export function DashboardSwipeArea({
     }
 
     function handlePointerCancel() {
+        capturedPointerId.current = null;
         pointerStart.current = null;
         setDragDirection(null);
         setIsDragging(false);
@@ -360,7 +411,9 @@ export function DashboardSwipeArea({
                                 : `translateX(calc(${swipeOffset}px - 100%))`
                     }}
                 >
-                    {targetPanel ?? skeleton ?? <DashboardPanelSkeleton />}
+                    {controlledTargetPanel ?? targetPanel ?? skeleton ?? (
+                        <DashboardPanelSkeleton />
+                    )}
                 </div>
             ) : null}
         </div>

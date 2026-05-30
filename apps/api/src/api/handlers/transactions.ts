@@ -2,9 +2,11 @@ import { ActionResult, type Handler } from '@cleverbrush/server';
 import {
     createTransaction,
     dashboardSummary,
+    dashboardWindow,
     deleteTransaction,
     listTransactions,
     statsOverview,
+    statsWindow,
     TransactionCategoryError,
     TransactionNotFoundError,
     updateTransaction
@@ -13,9 +15,11 @@ import { TransactionCreated } from '../../log-templates.js';
 import type {
     CreateTransactionEndpoint,
     DashboardSummaryEndpoint,
+    DashboardWindowEndpoint,
     DeleteTransactionEndpoint,
     ListTransactionsEndpoint,
     StatsOverviewEndpoint,
+    StatsWindowEndpoint,
     UpdateTransactionEndpoint
 } from '../endpoints.js';
 
@@ -98,8 +102,31 @@ export const dashboardSummaryHandler: Handler<
     );
 };
 
+export const dashboardWindowHandler: Handler<
+    typeof DashboardWindowEndpoint
+> = async ({ query, principal }, { db }) => {
+    return dashboardWindow(db, principal.userId, {
+        after: query.after,
+        before: query.before,
+        date: query.date,
+        period: query.period ?? 'day'
+    });
+};
+
 export const statsOverviewHandler: Handler<
     typeof StatsOverviewEndpoint
 > = async ({ query, principal }, { db }) => {
     return statsOverview(db, principal.userId, query);
+};
+
+export const statsWindowHandler: Handler<typeof StatsWindowEndpoint> = async (
+    { query, principal },
+    { db }
+) => {
+    return statsWindow(db, principal.userId, {
+        after: query.after,
+        before: query.before,
+        date: query.date,
+        period: query.period ?? 'day'
+    });
 };
