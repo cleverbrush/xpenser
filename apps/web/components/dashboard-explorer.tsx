@@ -23,7 +23,12 @@ import {
     type DashboardPeriodSelection
 } from '@/components/dashboard-period-nav';
 import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
-import { DatatypeChart, datatypeExpression } from '@/components/datatype-chart';
+import {
+    DatatypeChart,
+    datatypeExpression,
+    datatypePieExpression
+} from '@/components/datatype-chart';
+import { dashboardCategoryShare } from '@/lib/dashboard-category-share';
 import {
     dateParam,
     formatDashboardRangeLabel,
@@ -32,7 +37,9 @@ import {
 } from '@/lib/dashboard-periods';
 import {
     amountClassNameForCategoryTotal,
+    amountClassNameForType,
     amountClassNameForValue,
+    formatPercent,
     formatSignedPercent,
     percentChangeClassNameForCategory,
     signedCategoryTotal
@@ -84,6 +91,10 @@ function CategoryRow({
 }) {
     const showPeriodDetails = summary.period !== 'day';
     const percentChange = formatSignedPercent(category.percentChange);
+    const share = dashboardCategoryShare(summary, category);
+    const shareLabel = formatPercent(share);
+    const shareTitle =
+        category.type === 'income' ? 'Share of income' : 'Share of expenses';
 
     return (
         <Link
@@ -96,15 +107,32 @@ function CategoryRow({
             href={categoryHref(summary, category, timezone)}
             prefetch={false}
         >
-            <span className="min-w-0">
-                <span className="block truncate font-medium">
-                    {category.categoryName}
+            <span className="flex min-w-0 items-center gap-3">
+                <span
+                    className={`flex w-10 shrink-0 flex-col items-center justify-center ${amountClassNameForType(
+                        category.type
+                    )}`}
+                    title={`${shareTitle}: ${shareLabel}`}
+                >
+                    <DatatypeChart
+                        className="text-2xl"
+                        expression={datatypePieExpression(share)}
+                    />
+                    <span className="mt-0.5 text-[0.65rem] font-medium leading-none tabular-nums">
+                        <span className="sr-only">{shareTitle}: </span>
+                        {shareLabel}
+                    </span>
                 </span>
-                <span className="text-xs text-muted-foreground">
-                    {category.transactionCount}{' '}
-                    {category.transactionCount === 1
-                        ? 'transaction'
-                        : 'transactions'}
+                <span className="min-w-0">
+                    <span className="block truncate font-medium">
+                        {category.categoryName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                        {category.transactionCount}{' '}
+                        {category.transactionCount === 1
+                            ? 'transaction'
+                            : 'transactions'}
+                    </span>
                 </span>
             </span>
             <span className="min-w-0 text-right">

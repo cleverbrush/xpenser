@@ -1,0 +1,72 @@
+import type { DashboardSummary } from '@xpenser/contracts';
+import { describe, expect, it } from 'vitest';
+import { dashboardCategoryShare } from './dashboard-category-share';
+
+type DashboardCategory = DashboardSummary['byCategory'][number];
+
+const baseSummary: DashboardSummary = {
+    byCategory: [],
+    currency: 'USD',
+    expenseTotal: 400,
+    from: new Date('2026-05-01T00:00:00.000Z'),
+    incomeTotal: 800,
+    period: 'month',
+    to: new Date('2026-05-31T23:59:59.999Z')
+};
+
+function category(
+    overrides: Partial<DashboardCategory> = {}
+): DashboardCategory {
+    return {
+        categoryId: 1,
+        categoryName: 'Category',
+        percentChange: 0,
+        previousPeriodTotal: 0,
+        total: 0,
+        transactionCount: 0,
+        trend: [],
+        type: 'expense',
+        ...overrides
+    };
+}
+
+describe('dashboard category share', () => {
+    it('uses the income total as the basis for income categories', () => {
+        expect(
+            dashboardCategoryShare(
+                baseSummary,
+                category({ total: 200, type: 'income' })
+            )
+        ).toBe(25);
+    });
+
+    it('uses the expense total as the basis for expense categories', () => {
+        expect(
+            dashboardCategoryShare(baseSummary, category({ total: 100 }))
+        ).toBe(25);
+    });
+
+    it('returns zero when the matching total is not positive', () => {
+        expect(
+            dashboardCategoryShare(
+                { ...baseSummary, expenseTotal: 0 },
+                category({ total: 100 })
+            )
+        ).toBe(0);
+        expect(
+            dashboardCategoryShare(
+                { ...baseSummary, incomeTotal: -100 },
+                category({ total: 100, type: 'income' })
+            )
+        ).toBe(0);
+    });
+
+    it('bounds display shares to the pie chart percentage range', () => {
+        expect(
+            dashboardCategoryShare(baseSummary, category({ total: -100 }))
+        ).toBe(0);
+        expect(
+            dashboardCategoryShare(baseSummary, category({ total: 500 }))
+        ).toBe(100);
+    });
+});
