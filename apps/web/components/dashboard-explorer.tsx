@@ -92,6 +92,7 @@ function CategoryRow({
                     ? 'grid-cols-[minmax(0,1fr)_auto_74px] sm:grid-cols-[minmax(0,1fr)_auto_104px]'
                     : 'grid-cols-[minmax(0,1fr)_auto]'
             }`}
+            draggable={false}
             href={categoryHref(summary, category, timezone)}
             prefetch={false}
         >
@@ -168,6 +169,7 @@ function AggregateCard({
         <Link
             aria-label={`View ${title.toLowerCase()} transactions for this period`}
             className="block min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            draggable={false}
             href={aggregateHref(summary, type, timezone)}
             prefetch={false}
         >
@@ -187,6 +189,48 @@ function AggregateCard({
                 </CardHeader>
             </Card>
         </Link>
+    );
+}
+
+function SummaryCards({
+    summary,
+    timezone
+}: {
+    readonly summary: DashboardSummary;
+    readonly timezone: string;
+}) {
+    return (
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <AggregateCard
+                summary={summary}
+                timezone={timezone}
+                title="Income"
+                type="income"
+                value={summary.incomeTotal}
+            />
+            <AggregateCard
+                summary={summary}
+                timezone={timezone}
+                title="Expenses"
+                type="expense"
+                value={summary.expenseTotal}
+            />
+            <Card className="min-w-0">
+                <CardHeader className="min-w-0 p-3 sm:p-4">
+                    <CardDescription className="text-xs">Net</CardDescription>
+                    <CardTitle
+                        className={`truncate text-sm sm:text-lg ${amountClassNameForValue(
+                            summary.incomeTotal - summary.expenseTotal
+                        )}`}
+                    >
+                        <AmountDisplay
+                            currency={summary.currency}
+                            value={summary.incomeTotal - summary.expenseTotal}
+                        />
+                    </CardTitle>
+                </CardHeader>
+            </Card>
+        </div>
     );
 }
 
@@ -262,6 +306,78 @@ function CategoryPanel({
                 </div>
             </CardContent>
         </Card>
+    );
+}
+
+function DashboardPeriodPanel({
+    summary,
+    timezone
+}: {
+    readonly summary: DashboardSummary;
+    readonly timezone: string;
+}) {
+    return (
+        <div className="flex flex-col gap-5 sm:gap-6">
+            <SummaryCards summary={summary} timezone={timezone} />
+            <CategoryPanel summary={summary} timezone={timezone} />
+        </div>
+    );
+}
+
+function DashboardPeriodPanelSkeleton() {
+    const cards = ['Income', 'Expenses', 'Net'];
+
+    return (
+        <div className="flex flex-col gap-5 sm:gap-6" aria-hidden>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                {cards.map(label => (
+                    <Card className="min-w-0" key={label}>
+                        <CardHeader className="min-w-0 p-3 sm:p-4">
+                            <div className="h-3 w-14 rounded-md bg-muted" />
+                            <div className="h-5 w-20 rounded-md bg-muted" />
+                        </CardHeader>
+                    </Card>
+                ))}
+            </div>
+            <Card>
+                <CardHeader>
+                    <div className="h-6 w-24 rounded-md bg-muted" />
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col gap-4">
+                        {['Income', 'Expenses'].map(group => (
+                            <div key={group}>
+                                <div className="mb-2 h-3 w-16 rounded-md bg-muted" />
+                                <div className="flex flex-col divide-y">
+                                    <div className="grid grid-cols-[minmax(0,1fr)_auto_74px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_104px]">
+                                        <div className="space-y-2">
+                                            <div className="h-4 w-28 rounded-md bg-muted" />
+                                            <div className="h-3 w-20 rounded-md bg-muted" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="ml-auto h-4 w-16 rounded-md bg-muted" />
+                                            <div className="ml-auto h-3 w-10 rounded-md bg-muted" />
+                                        </div>
+                                        <div className="h-5 w-full rounded-md bg-muted" />
+                                    </div>
+                                    <div className="grid grid-cols-[minmax(0,1fr)_auto_74px] items-center gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_104px]">
+                                        <div className="space-y-2">
+                                            <div className="h-4 w-24 rounded-md bg-muted" />
+                                            <div className="h-3 w-16 rounded-md bg-muted" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="ml-auto h-4 w-14 rounded-md bg-muted" />
+                                            <div className="ml-auto h-3 w-9 rounded-md bg-muted" />
+                                        </div>
+                                        <div className="h-5 w-full rounded-md bg-muted" />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
 
@@ -553,16 +669,19 @@ export function DashboardExplorer({
                 timezone
             );
             return item ? (
-                <CategoryPanel summary={item.summary} timezone={timezone} />
+                <DashboardPeriodPanel
+                    summary={item.summary}
+                    timezone={timezone}
+                />
             ) : undefined;
         },
         [cache, selection.period, timezone]
     );
 
-    const categoryPanel = useMemo(
+    const dashboardPanel = useMemo(
         () =>
             currentItem ? (
-                <CategoryPanel
+                <DashboardPeriodPanel
                     summary={currentItem.summary}
                     timezone={timezone}
                 />
@@ -570,7 +689,7 @@ export function DashboardExplorer({
         [currentItem, timezone]
     );
 
-    if (!currentItem || !categoryPanel) {
+    if (!currentItem || !dashboardPanel) {
         return null;
     }
 
@@ -609,50 +728,16 @@ export function DashboardExplorer({
                 period={selection.period}
                 timezone={timezone}
             />
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                <AggregateCard
-                    summary={summary}
-                    timezone={timezone}
-                    title="Income"
-                    type="income"
-                    value={summary.incomeTotal}
-                />
-                <AggregateCard
-                    summary={summary}
-                    timezone={timezone}
-                    title="Expenses"
-                    type="expense"
-                    value={summary.expenseTotal}
-                />
-                <Card className="min-w-0">
-                    <CardHeader className="min-w-0 p-3 sm:p-4">
-                        <CardDescription className="text-xs">
-                            Net
-                        </CardDescription>
-                        <CardTitle
-                            className={`truncate text-sm sm:text-lg ${amountClassNameForValue(
-                                summary.incomeTotal - summary.expenseTotal
-                            )}`}
-                        >
-                            <AmountDisplay
-                                currency={summary.currency}
-                                value={
-                                    summary.incomeTotal - summary.expenseTotal
-                                }
-                            />
-                        </CardTitle>
-                    </CardHeader>
-                </Card>
-            </div>
             <DashboardSwipeArea
                 date={currentDate}
                 onNavigate={navigateSwipe}
                 onPreview={previewDate}
                 panelForDate={panelForDate}
                 period={selection.period}
+                skeleton={<DashboardPeriodPanelSkeleton />}
                 timezone={timezone}
             >
-                {categoryPanel}
+                {dashboardPanel}
             </DashboardSwipeArea>
         </div>
     );
