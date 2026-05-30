@@ -26,6 +26,39 @@ async function createCategory(
     });
 }
 
+async function createTransaction(
+    page: import('@playwright/test').Page,
+    category: string,
+    type: 'expense' | 'income',
+    amount: string,
+    note: string
+): Promise<void> {
+    await page.goto('/dashboard');
+    await page
+        .getByRole('button', { name: /^(Add|Add transaction)$/ })
+        .click();
+
+    const addDialog = page.getByRole('dialog', {
+        name: 'Add transaction'
+    });
+    await expect(addDialog).toBeVisible();
+    await selectOption(
+        page,
+        addDialog.getByLabel('Transaction type'),
+        type === 'income' ? 'Income' : 'Expense'
+    );
+    await selectOption(
+        page,
+        addDialog.getByLabel('Transaction category'),
+        category
+    );
+    await addDialog.getByLabel('Amount').fill(amount);
+    await addDialog.getByLabel('Date and time').fill(dateTimeLocalValue());
+    await addDialog.getByLabel('Note').fill(note);
+    await addDialog.getByRole('button', { name: 'Save' }).click();
+    await expect(addDialog).toBeHidden({ timeout: 15_000 });
+}
+
 test.describe('authenticated app workflows', () => {
     test('opens the main authenticated sections', async ({ page }) => {
         await page.goto('/dashboard');
@@ -109,5 +142,75 @@ test.describe('authenticated app workflows', () => {
         await deleteDialog.getByRole('button', { name: 'Delete' }).click();
         await expect(deleteDialog).toBeHidden({ timeout: 15_000 });
         await expect(row).toHaveCount(0, { timeout: 15_000 });
+    });
+
+    test('opens aggregate transaction filters from dashboard cards', async ({
+        page
+    }) => {
+        const expenseCategory = uniqueName('E2E aggregate expense');
+        const incomeCategory = uniqueName('E2E aggregate income');
+        const expenseNote = uniqueName('E2E aggregate expense note');
+        const incomeNote = uniqueName('E2E aggregate income note');
+
+        await createCategory(page, expenseCategory, 'expense');
+        await createCategory(page, incomeCategory, 'income');
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '12.34',
+            expenseNote
+        );
+        await createTransaction(
+            page,
+            incomeCategory,
+            'income',
+            '56.78',
+            incomeNote
+        );
+
+        await page.goto('/dashboard');
+        await page
+            .getByRole('link', {
+                name: 'View expenses transactions for this period'
+            })
+            .click();
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/transactions' &&
+                url.searchParams.get('type') === 'expense' &&
+                Boolean(url.searchParams.get('from')) &&
+                Boolean(url.searchParams.get('to'))
+            );
+        });
+        await expect(page.getByLabel('Type')).toHaveValue('expense');
+        await expect(
+            page.getByRole('row').filter({ hasText: expenseCategory })
+        ).toHaveCount(1, { timeout: 15_000 });
+        await expect(
+            page.getByRole('row').filter({ hasText: incomeCategory })
+        ).toHaveCount(0);
+
+        await page.goto('/dashboard');
+        await page
+            .getByRole('link', {
+                name: 'View income transactions for this period'
+            })
+            .click();
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/transactions' &&
+                url.searchParams.get('type') === 'income' &&
+                Boolean(url.searchParams.get('from')) &&
+                Boolean(url.searchParams.get('to'))
+            );
+        });
+        await expect(page.getByLabel('Type')).toHaveValue('income');
+        await expect(
+            page.getByRole('row').filter({ hasText: incomeCategory })
+        ).toHaveCount(1, { timeout: 15_000 });
+        await expect(
+            page.getByRole('row').filter({ hasText: expenseCategory })
+        ).toHaveCount(0);
     });
 });
