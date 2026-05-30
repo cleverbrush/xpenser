@@ -26,6 +26,7 @@ import {
     telegramTokenHandler
 } from './telegram.js';
 import {
+    categoryTrendHandler,
     createTransactionHandler,
     dashboardSummaryHandler,
     dashboardWindowHandler,
@@ -79,6 +80,7 @@ export const handlers = {
     },
     stats: {
         overview: statsOverviewHandler,
-        window: statsWindowHandler
+        window: statsWindowHandler,
+        categoryTrend: categoryTrendHandler
     }
 };

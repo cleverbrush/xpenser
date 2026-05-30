@@ -4,6 +4,8 @@ import {
     ApiKeySchema,
     CategoryListQuerySchema,
     CategorySchema,
+    CategoryTrendQuerySchema,
+    CategoryTrendResponseSchema,
     CreateApiKeyBodySchema,
     CreateApiKeyResponseSchema,
     CreateCategoryBodySchema,
@@ -41,12 +43,15 @@ import {
 } from './schemas.js';
 
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
+const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
+    t.id}/trend`;
 const categories = endpoint
     .resource('/api/categories')
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
     .authorize(PrincipalSchema);
+const stats = endpoint.resource('/api/stats').authorize(PrincipalSchema);
 const apiKeys = endpoint
     .resource('/api/users/me/api-keys')
     .authorize(PrincipalSchema);
@@ -300,7 +305,21 @@ export const api = defineApi({
                 date: request.query.date,
                 period: request.query.period
             }))
-            .responses({ 200: StatsWindowResponseSchema })
+            .responses({ 200: StatsWindowResponseSchema }),
+        categoryTrend: stats
+            .get(StatsCategoryTrend)
+            .query(CategoryTrendQuerySchema)
+            .cacheTag('stats', request => ({
+                categoryId: request.params.id,
+                from: request.query.from,
+                groupBy: request.query.groupBy,
+                range: request.query.range,
+                to: request.query.to
+            }))
+            .responses({
+                200: CategoryTrendResponseSchema,
+                400: ErrorResponseSchema
+            })
     }
 });
 

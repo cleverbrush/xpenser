@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     CategoryListQuerySchema,
+    CategoryTrendQuerySchema,
     CreateApiKeyBodySchema,
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
@@ -222,6 +223,41 @@ describe('shared schemas', () => {
             StatsQuerySchema.validate({
                 groupBy: 'quarter',
                 timeframe: 'this-month'
+            } as never).valid
+        ).toBe(false);
+    });
+
+    it('validates category trend controls', () => {
+        expect(
+            CategoryTrendQuerySchema.validate({
+                groupBy: 'month',
+                range: 'last-12-months'
+            }).valid
+        ).toBe(true);
+        expect(
+            CategoryTrendQuerySchema.validate({
+                groupBy: 'year',
+                range: 'all-time'
+            }).valid
+        ).toBe(true);
+        expect(
+            CategoryTrendQuerySchema.validate({
+                groupBy: 'week',
+                range: 'custom',
+                from: new Date('2026-01-01T00:00:00.000Z'),
+                to: new Date('2026-03-01T00:00:00.000Z')
+            }).valid
+        ).toBe(true);
+        expect(
+            CategoryTrendQuerySchema.validate({
+                groupBy: 'hour',
+                range: 'last-12-months'
+            } as never).valid
+        ).toBe(false);
+        expect(
+            CategoryTrendQuerySchema.validate({
+                groupBy: 'day',
+                range: 'custom'
             } as never).valid
         ).toBe(false);
     });

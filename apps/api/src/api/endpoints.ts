@@ -236,6 +236,14 @@ export const StatsWindowEndpoint = api.stats.window
     .tags('stats')
     .operationId('statsWindow');
 
+export const CategoryTrendEndpoint = api.stats.categoryTrend
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Category trend')
+    .description('Returns one category total across configurable time buckets.')
+    .tags('stats')
+    .operationId('categoryTrend');
+
 export const endpoints = {
     auth: {
         register: RegisterEndpoint,
@@ -279,6 +287,7 @@ export const endpoints = {
     },
     stats: {
         overview: StatsOverviewEndpoint,
-        window: StatsWindowEndpoint
+        window: StatsWindowEndpoint,
+        categoryTrend: CategoryTrendEndpoint
     }
 };

@@ -1,4 +1,8 @@
 import type {
+    CategoryTrendGroupBy,
+    CategoryTrendQuery,
+    CategoryTrendRange,
+    CategoryTrendResponse,
     CreateTransactionBody,
     DashboardSummary,
     DashboardWindowResponse,
@@ -24,6 +28,7 @@ import {
     localStartOfHour,
     localStartOfMonth,
     localStartOfWeek,
+    localStartOfYear,
     resolveDashboardComparisonRangeInTimeZone,
     resolveDashboardRangeInTimeZone,
     statsBucketKeyInTimeZone,
@@ -62,6 +67,8 @@ type StatsRange = {
     readonly to: Date;
 };
 
+type CategoryTrendBucket = CategoryTrendResponse['trend'][number];
+
 type StatsRanges = {
     readonly selected: StatsRange;
     readonly previousPeriod: StatsRange;
@@ -75,12 +82,21 @@ type PeriodWindowQuery = {
     readonly after?: number;
 };
 
+type CategoryTrendRangeOptions = {
+    readonly categoryCreatedAt: Date;
+    readonly now?: Date;
+    readonly rows?: readonly TransactionDb[];
+    readonly timeZone?: string;
+};
+
 type CategoryComparison = {
     readonly categoryId: number;
     readonly categoryName: string;
     readonly type: 'expense' | 'income';
     readonly total: number;
 };
+
+export const categoryTrendMaxBuckets = 500;
 
 function normalizeTransactionEffect(
     effect?: TransactionEffect | null
@@ -418,6 +434,222 @@ function normalizeRange(from: Date, to: Date, timeZone: string): StatsRange {
               from: localStartOfDay(to, timeZone),
               to: localEndOfDay(from, timeZone)
           };
+}
+
+function categoryTrendGroupBy(value?: CategoryTrendGroupBy) {
+    return value ?? 'month';
+}
+
+function categoryTrendRange(value?: CategoryTrendRange) {
+    return value ?? 'last-12-months';
+}
+
+function categoryTrendStart(
+    groupBy: CategoryTrendGroupBy,
+    value: Date,
+    timeZone: string
+): Date {
+    if (groupBy === 'week') {
+        return localStartOfWeek(value, timeZone);
+    }
+    if (groupBy === 'month') {
+        return localStartOfMonth(value, timeZone);
+    }
+    if (groupBy === 'year') {
+        return localStartOfYear(value, timeZone);
+    }
+    return localStartOfDay(value, timeZone);
+}
+
+function categoryTrendBucketStarts(
+    groupBy: CategoryTrendGroupBy,
+    range: StatsRange,
+    timeZone: string,
+    limit = Number.POSITIVE_INFINITY
+): Date[] {
+    const starts: Date[] = [];
+    let current = categoryTrendStart(groupBy, range.from, timeZone);
+
+    while (current <= range.to && starts.length <= limit) {
+        starts.push(current);
+        current = addStatsBucketStepInTimeZone(current, groupBy, timeZone);
+    }
+
+    return starts;
+}
+
+function categoryTrendBucketEnd(
+    groupBy: CategoryTrendGroupBy,
+    start: Date,
+    range: StatsRange,
+    timeZone: string
+): Date {
+    const nextStart = addStatsBucketStepInTimeZone(start, groupBy, timeZone);
+    const end = new Date(nextStart.getTime() - 1);
+    return end < range.to ? end : range.to;
+}
+
+function clippedBucketStart(start: Date, range: StatsRange): Date {
+    return start > range.from ? start : range.from;
+}
+
+export function categoryTrendBucketCount(
+    groupBy: CategoryTrendGroupBy,
+    range: StatsRange,
+    timeZone = defaultTimeZone
+): number {
+    let count = 0;
+    let current = categoryTrendStart(groupBy, range.from, timeZone);
+
+    while (current <= range.to) {
+        count += 1;
+        current = addStatsBucketStepInTimeZone(current, groupBy, timeZone);
+    }
+
+    return count;
+}
+
+export function resolveCategoryTrendRange(
+    query: Partial<CategoryTrendQuery>,
+    options: CategoryTrendRangeOptions
+): StatsRange {
+    const now = options.now ?? new Date();
+    const timeZone = options.timeZone ?? defaultTimeZone;
+    const today = localStartOfDay(now, timeZone);
+    const range = categoryTrendRange(query.range);
+
+    if (range === 'last-30-days') {
+        return { from: addLocalDays(today, -29, timeZone), to: now };
+    }
+    if (range === 'last-90-days') {
+        return { from: addLocalDays(today, -89, timeZone), to: now };
+    }
+    if (range === 'this-year') {
+        return { from: localStartOfYear(now, timeZone), to: now };
+    }
+    if (range === 'all-time') {
+        const firstTransaction = [...(options.rows ?? [])].sort(
+            compareTransactionsByOccurrenceAsc
+        )[0];
+        return {
+            from: localStartOfDay(
+                firstTransaction?.occurredAt ?? options.categoryCreatedAt,
+                timeZone
+            ),
+            to: now
+        };
+    }
+    if (
+        range === 'custom' &&
+        isValidDate(query.from) &&
+        isValidDate(query.to)
+    ) {
+        return normalizeRange(
+            localStartOfDay(query.from, timeZone),
+            localEndOfDay(query.to, timeZone),
+            timeZone
+        );
+    }
+
+    return {
+        from: localStartOfMonth(
+            addLocalMonths(localStartOfMonth(now, timeZone), -11, timeZone),
+            timeZone
+        ),
+        to: now
+    };
+}
+
+function emptyCategoryTrendBucket(
+    groupBy: CategoryTrendGroupBy,
+    range: StatsRange,
+    start: Date,
+    timeZone: string
+): CategoryTrendBucket {
+    const key = statsBucketKeyInTimeZone(start, groupBy, timeZone);
+    return {
+        bucket: key,
+        label: statsBucketLabelInTimeZone(start, groupBy, timeZone),
+        from: clippedBucketStart(start, range),
+        to: categoryTrendBucketEnd(groupBy, start, range, timeZone),
+        total: 0,
+        transactionCount: 0
+    };
+}
+
+export function summarizeCategoryTrendRows({
+    category,
+    currency,
+    groupBy,
+    range,
+    rows,
+    timeFrame,
+    timeZone = defaultTimeZone
+}: {
+    readonly category: CategoryDb;
+    readonly currency: string;
+    readonly groupBy: CategoryTrendGroupBy;
+    readonly range: StatsRange;
+    readonly rows: readonly TransactionDb[];
+    readonly timeFrame: CategoryTrendRange;
+    readonly timeZone?: string;
+}): CategoryTrendResponse {
+    const selectedRows = rowsInRange(rows, range);
+    const total = selectedRows.reduce(
+        (sum, row) => sum + transactionSignedDefaultAmount(row),
+        0
+    );
+    const bucketCount = categoryTrendBucketCount(groupBy, range, timeZone);
+    const base = {
+        categoryId: category.id,
+        categoryName: category.name,
+        type: category.type,
+        range: timeFrame,
+        groupBy,
+        from: range.from,
+        to: range.to,
+        currency,
+        total,
+        transactionCount: selectedRows.length,
+        bucketCount,
+        maxBuckets: categoryTrendMaxBuckets
+    } as const;
+
+    if (bucketCount > categoryTrendMaxBuckets) {
+        return {
+            ...base,
+            densityExceeded: true,
+            trend: []
+        };
+    }
+
+    const buckets = new Map(
+        categoryTrendBucketStarts(groupBy, range, timeZone).map(
+            start =>
+                [
+                    statsBucketKeyInTimeZone(start, groupBy, timeZone),
+                    emptyCategoryTrendBucket(groupBy, range, start, timeZone)
+                ] as const
+        )
+    );
+
+    for (const row of selectedRows) {
+        const bucket = buckets.get(
+            statsBucketKeyInTimeZone(row.occurredAt, groupBy, timeZone)
+        );
+        if (!bucket) {
+            continue;
+        }
+
+        bucket.total += transactionSignedDefaultAmount(row);
+        bucket.transactionCount += 1;
+    }
+
+    return {
+        ...base,
+        densityExceeded: false,
+        trend: Array.from(buckets.values())
+    };
 }
 
 export function resolveDashboardRange(
@@ -884,6 +1116,46 @@ async function transactionsForRange(
             transaction => transaction.occurredAt,
             [range.from, range.to]
         )) as TransactionDb[];
+}
+
+async function transactionsForCategory(
+    db: AppDb,
+    userId: number,
+    categoryId: number
+) {
+    return (await db.transactions
+        .where(transaction => transaction.userId, userId)
+        .where(transaction => transaction.categoryId, categoryId)
+        .orderBy(transaction => transaction.occurredAt, 'asc')
+        .orderBy(transaction => transaction.id, 'asc')) as TransactionDb[];
+}
+
+export async function categoryTrend(
+    db: AppDb,
+    userId: number,
+    categoryId: number,
+    query: CategoryTrendQuery
+): Promise<CategoryTrendResponse> {
+    const [user, category] = await Promise.all([
+        getUser(db, userId),
+        getCategory(db, userId, categoryId)
+    ]);
+    const rows = await transactionsForCategory(db, userId, category.id);
+    const range = resolveCategoryTrendRange(query, {
+        categoryCreatedAt: category.createdAt,
+        rows,
+        timeZone: user.timezone
+    });
+
+    return summarizeCategoryTrendRows({
+        category,
+        currency: user.defaultCurrency,
+        groupBy: categoryTrendGroupBy(query.groupBy),
+        range,
+        rows,
+        timeFrame: categoryTrendRange(query.range),
+        timeZone: user.timezone
+    });
 }
 
 function summarizeDashboardRows(

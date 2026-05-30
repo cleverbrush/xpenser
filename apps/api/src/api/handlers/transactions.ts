@@ -1,5 +1,6 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
 import {
+    categoryTrend,
     createTransaction,
     dashboardSummary,
     dashboardWindow,
@@ -13,6 +14,7 @@ import {
 } from '../../application/transactions.js';
 import { TransactionCreated } from '../../log-templates.js';
 import type {
+    CategoryTrendEndpoint,
     CreateTransactionEndpoint,
     DashboardSummaryEndpoint,
     DashboardWindowEndpoint,
@@ -129,4 +131,17 @@ export const statsWindowHandler: Handler<typeof StatsWindowEndpoint> = async (
         date: query.date,
         period: query.period ?? 'day'
     });
+};
+
+export const categoryTrendHandler: Handler<
+    typeof CategoryTrendEndpoint
+> = async ({ params, query, principal }, { db }) => {
+    try {
+        return await categoryTrend(db, principal.userId, params.id, query);
+    } catch (err) {
+        if (err instanceof TransactionCategoryError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        throw err;
+    }
 };
