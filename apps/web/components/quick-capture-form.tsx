@@ -1,0 +1,426 @@
+'use client';
+
+import type { Category, Currency, Transaction } from '@xpenser/contracts';
+import {
+    dateToLocalDateTimeInput,
+    localDateTimeInputToDate
+} from '@xpenser/timezone';
+import {
+    Button,
+    Card,
+    CardContent,
+    cn,
+    Field,
+    FieldError,
+    FieldGroup,
+    FieldLabel,
+    Input,
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from '@xpenser/ui';
+import { CheckCircle2Icon, RotateCcwIcon, SaveIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { type FormEvent, useMemo, useState } from 'react';
+import {
+    createCaptureTransactionAction,
+    deleteTransactionAction
+} from '@/lib/actions';
+import { formatDateTime, formatTransactionMoney } from '@/lib/format';
+import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
+
+type TransactionType = Category['type'];
+type TransactionEffect = Transaction['effect'];
+
+const CATEGORY_BATCH_SIZE = 4;
+
+function initialType(categories: readonly Category[]): TransactionType {
+    return categories.some(category => category.type === 'expense')
+        ? 'expense'
+        : (categories[0]?.type ?? 'expense');
+}
+
+function firstCategoryId(
+    categories: readonly Category[],
+    type: TransactionType
+): number | undefined {
+    return categories.find(category => category.type === type)?.id;
+}
+
+function firstCurrency(
+    currencies: readonly Currency[],
+    defaultCurrency: string
+): string {
+    return currencies[0]?.code ?? defaultCurrency;
+}
+
+function parseCaptureAmount(value: string): number | undefined {
+    const normalized = value.trim().replace(',', '.');
+    if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+        return undefined;
+    }
+
+    const amount = Number(normalized);
+    return Number.isFinite(amount) && amount > 0 ? amount : undefined;
+}
+
+function savedSummary(transaction: Transaction, timezone: string) {
+    return `${transaction.categoryName} - ${formatTransactionMoney(
+        transaction.amount,
+        transaction.currency,
+        transaction.type,
+        transaction.effect
+    )} - ${formatDateTime(transaction.occurredAt, timezone)}`;
+}
+
+export function QuickCaptureForm({
+    categories,
+    currencies,
+    defaultCurrency,
+    timezone,
+    transactionCurrencies
+}: {
+    readonly categories: readonly Category[];
+    readonly currencies: readonly Currency[];
+    readonly defaultCurrency: string;
+    readonly timezone: string;
+    readonly transactionCurrencies: readonly string[];
+}) {
+    const router = useRouter();
+    const currencyOptions = useMemo(
+        () =>
+            transactionCurrencyOptions(
+                currencies,
+                defaultCurrency,
+                transactionCurrencies
+            ),
+        [currencies, defaultCurrency, transactionCurrencies]
+    );
+    const startingType = useMemo(() => initialType(categories), [categories]);
+    const [type, setType] = useState<TransactionType>(startingType);
+    const [categoryId, setCategoryId] = useState<number | undefined>(() =>
+        firstCategoryId(categories, startingType)
+    );
+    const [amount, setAmount] = useState('');
+    const [currency, setCurrency] = useState(() =>
+        firstCurrency(currencyOptions, defaultCurrency)
+    );
+    const [effect, setEffect] = useState<TransactionEffect>('normal');
+    const [occurredAtText, setOccurredAtText] = useState(() =>
+        dateToLocalDateTimeInput(new Date(), timezone)
+    );
+    const [visibleCategoryCount, setVisibleCategoryCount] =
+        useState(CATEGORY_BATCH_SIZE);
+    const [pending, setPending] = useState(false);
+    const [undoPending, setUndoPending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [lastSaved, setLastSaved] = useState<Transaction | null>(null);
+    const typedCategories = useMemo(
+        () => categories.filter(category => category.type === type),
+        [categories, type]
+    );
+    const activeCategoryId =
+        typedCategories.find(category => category.id === categoryId)?.id ??
+        typedCategories[0]?.id;
+    const visibleCategories = typedCategories.slice(0, visibleCategoryCount);
+    const hasMoreCategories = visibleCategoryCount < typedCategories.length;
+
+    function handleTypeChange(nextType: TransactionType) {
+        setType(nextType);
+        setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
+        const current = categories.find(category => category.id === categoryId);
+        if (current?.type === nextType) {
+            return;
+        }
+        setCategoryId(firstCategoryId(categories, nextType));
+    }
+
+    function resetAfterSave() {
+        setAmount('');
+        setEffect('normal');
+        setOccurredAtText(dateToLocalDateTimeInput(new Date(), timezone));
+    }
+
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const amountValue = parseCaptureAmount(amount);
+        const occurredAt = localDateTimeInputToDate(occurredAtText, timezone);
+
+        if (amountValue === undefined) {
+            setError('Enter a positive amount with up to two decimals.');
+            return;
+        }
+        if (activeCategoryId === undefined) {
+            setError('Choose a category.');
+            return;
+        }
+        if (!currency) {
+            setError('Choose a currency.');
+            return;
+        }
+        if (!occurredAt) {
+            setError('Choose a valid date and time.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('categoryId', String(activeCategoryId));
+        formData.set('amount', String(amountValue));
+        formData.set('currency', currency);
+        formData.set('effect', effect);
+        formData.set('occurredAt', occurredAt.toISOString());
+
+        setPending(true);
+        setError(null);
+        try {
+            const transaction = await createCaptureTransactionAction(formData);
+            setLastSaved(transaction);
+            resetAfterSave();
+            router.refresh();
+        } catch {
+            setError('Could not save the transaction.');
+        } finally {
+            setPending(false);
+        }
+    }
+
+    async function handleUndo() {
+        if (!lastSaved) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('id', String(lastSaved.id));
+        setUndoPending(true);
+        setError(null);
+        try {
+            await deleteTransactionAction(formData);
+            setLastSaved(null);
+            router.refresh();
+        } catch {
+            setError('Could not undo the saved transaction.');
+        } finally {
+            setUndoPending(false);
+        }
+    }
+
+    return (
+        <div className="flex flex-col gap-3">
+            <Card className="overflow-visible">
+                <CardContent className="p-4 sm:p-6">
+                    <form
+                        className="pb-20 sm:pb-0"
+                        noValidate
+                        onSubmit={handleSubmit}
+                    >
+                        <FieldGroup className="gap-3 sm:gap-4">
+                            <Field className="gap-2">
+                                <FieldLabel htmlFor="capture-amount">
+                                    Amount
+                                </FieldLabel>
+                                <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-2">
+                                    <Input
+                                        autoComplete="off"
+                                        className="h-14 text-2xl font-semibold"
+                                        id="capture-amount"
+                                        inputMode="decimal"
+                                        min="0.01"
+                                        name="amount"
+                                        onChange={event =>
+                                            setAmount(event.target.value)
+                                        }
+                                        placeholder="0.00"
+                                        step="0.01"
+                                        type="text"
+                                        value={amount}
+                                    />
+                                    <Select
+                                        onValueChange={setCurrency}
+                                        value={currency}
+                                    >
+                                        <SelectTrigger
+                                            aria-label="Currency"
+                                            className="h-14 w-[5.25rem] px-2 text-base font-semibold [&>svg]:size-4"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="min-w-[5.25rem]">
+                                            <SelectGroup>
+                                                {currencyOptions.map(option => (
+                                                    <SelectItem
+                                                        key={option.code}
+                                                        value={option.code}
+                                                    >
+                                                        {option.code}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </Field>
+
+                            <Field>
+                                <FieldLabel>Type</FieldLabel>
+                                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                    {(['expense', 'income'] as const).map(
+                                        value => (
+                                            <Button
+                                                aria-pressed={type === value}
+                                                key={value}
+                                                onClick={() =>
+                                                    handleTypeChange(value)
+                                                }
+                                                type="button"
+                                                variant={
+                                                    type === value
+                                                        ? 'default'
+                                                        : 'outline'
+                                                }
+                                            >
+                                                {value === 'expense'
+                                                    ? 'Expense'
+                                                    : 'Income'}
+                                            </Button>
+                                        )
+                                    )}
+                                    <label
+                                        className={cn(
+                                            'flex h-10 items-center justify-center gap-2 rounded-md border bg-background px-3 text-sm font-medium',
+                                            effect === 'reversal' &&
+                                                'border-primary bg-primary/10 text-primary'
+                                        )}
+                                    >
+                                        <input
+                                            checked={effect === 'reversal'}
+                                            className="size-4 rounded border-input"
+                                            name="effect"
+                                            onChange={event =>
+                                                setEffect(
+                                                    event.target.checked
+                                                        ? 'reversal'
+                                                        : 'normal'
+                                                )
+                                            }
+                                            type="checkbox"
+                                            value="reversal"
+                                        />
+                                        <span>Reversal</span>
+                                    </label>
+                                </div>
+                            </Field>
+
+                            <Field>
+                                <FieldLabel>Category</FieldLabel>
+                                <div className="flex flex-wrap gap-2">
+                                    {visibleCategories.map(category => (
+                                        <Button
+                                            aria-pressed={
+                                                activeCategoryId === category.id
+                                            }
+                                            className="max-w-[9.5rem] justify-start overflow-hidden"
+                                            key={category.id}
+                                            onClick={() =>
+                                                setCategoryId(category.id)
+                                            }
+                                            size="sm"
+                                            type="button"
+                                            variant={
+                                                activeCategoryId === category.id
+                                                    ? 'default'
+                                                    : 'outline'
+                                            }
+                                            title={category.name}
+                                        >
+                                            <span className="truncate">
+                                                {category.name}
+                                            </span>
+                                        </Button>
+                                    ))}
+                                    {hasMoreCategories ? (
+                                        <Button
+                                            onClick={() =>
+                                                setVisibleCategoryCount(
+                                                    current =>
+                                                        current +
+                                                        CATEGORY_BATCH_SIZE
+                                                )
+                                            }
+                                            size="sm"
+                                            type="button"
+                                            variant="outline"
+                                        >
+                                            Load more
+                                        </Button>
+                                    ) : null}
+                                </div>
+                            </Field>
+
+                            <Field>
+                                <FieldLabel htmlFor="capture-occurred-at">
+                                    Date and time
+                                </FieldLabel>
+                                <Input
+                                    id="capture-occurred-at"
+                                    name="occurredAt"
+                                    onChange={event =>
+                                        setOccurredAtText(event.target.value)
+                                    }
+                                    type="datetime-local"
+                                    value={occurredAtText}
+                                />
+                            </Field>
+
+                            {error ? (
+                                <FieldError role="alert">{error}</FieldError>
+                            ) : null}
+
+                            <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-30 border-t bg-background/95 px-3 py-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+                                <Button
+                                    className="h-12 w-full"
+                                    disabled={pending}
+                                    type="submit"
+                                >
+                                    <SaveIcon aria-hidden className="size-4" />
+                                    {pending ? 'Saving...' : 'Save transaction'}
+                                </Button>
+                            </div>
+                        </FieldGroup>
+                    </form>
+                </CardContent>
+            </Card>
+
+            {lastSaved ? (
+                <Card>
+                    <CardContent className="flex items-center gap-3 p-3">
+                        <CheckCircle2Icon
+                            aria-hidden
+                            className="size-5 shrink-0 text-emerald-600"
+                        />
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">Saved</p>
+                            <p className="truncate text-sm text-muted-foreground">
+                                {savedSummary(lastSaved, timezone)}
+                            </p>
+                        </div>
+                        <div className="shrink-0">
+                            <Button
+                                disabled={undoPending}
+                                onClick={handleUndo}
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                            >
+                                <RotateCcwIcon aria-hidden className="size-4" />
+                                {undoPending ? 'Undoing...' : 'Undo'}
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : null}
+        </div>
+    );
+}

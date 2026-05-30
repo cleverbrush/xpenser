@@ -1,6 +1,7 @@
 'use server';
 
 import { createHash, randomBytes } from 'node:crypto';
+import type { Transaction } from '@xpenser/contracts';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -196,9 +197,28 @@ export async function createTransactionAction(formData: FormData) {
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
+    revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
     revalidatePath('/stats');
+}
+
+export async function createCaptureTransactionAction(
+    formData: FormData
+): Promise<Transaction> {
+    const client = await getApiClient();
+    const transaction = await client.transactions.create({
+        body: transactionBody(formData)
+    });
+    revalidateTag('transactions', 'max');
+    revalidateTag('user-profile', 'max');
+    revalidateTag('dashboard', 'max');
+    revalidateTag('stats', 'max');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+    return transaction;
 }
 
 export async function updateTransactionAction(formData: FormData) {
@@ -211,6 +231,7 @@ export async function updateTransactionAction(formData: FormData) {
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
+    revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
     revalidatePath('/stats');
