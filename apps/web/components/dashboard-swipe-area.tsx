@@ -140,6 +140,7 @@ export function DashboardSwipeArea({
 }) {
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
+    const capturedPointerId = useRef<number | null>(null);
     const pointerStart = useRef<PointerPoint | null>(null);
     const didSwipe = useRef(false);
     const committedSwipe = useRef(false);
@@ -254,12 +255,12 @@ export function DashboardSwipeArea({
             committedSwipe.current = false;
         }
 
+        capturedPointerId.current = null;
         pointerStart.current = { x: event.clientX, y: event.clientY };
         didSwipe.current = false;
         setDragDirection(null);
         setIsDragging(true);
         setSwipeOffset(0);
-        event.currentTarget.setPointerCapture(event.pointerId);
     }
 
     function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -275,6 +276,11 @@ export function DashboardSwipeArea({
             return;
         }
 
+        if (capturedPointerId.current !== event.pointerId) {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            capturedPointerId.current = event.pointerId;
+        }
+
         setDragDirection(deltaX < 0 ? -1 : 1);
         setSwipeOffset(offsetForSwipe(deltaX));
         if (Math.abs(deltaX) >= 18) {
@@ -285,6 +291,13 @@ export function DashboardSwipeArea({
 
     function handlePointerUp(event: PointerEvent<HTMLDivElement>) {
         const start = pointerStart.current;
+        if (
+            capturedPointerId.current === event.pointerId &&
+            event.currentTarget.hasPointerCapture(event.pointerId)
+        ) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        capturedPointerId.current = null;
         pointerStart.current = null;
         setIsDragging(false);
 
@@ -346,6 +359,7 @@ export function DashboardSwipeArea({
     }
 
     function handlePointerCancel() {
+        capturedPointerId.current = null;
         pointerStart.current = null;
         setDragDirection(null);
         setIsDragging(false);
