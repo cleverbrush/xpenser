@@ -47,6 +47,13 @@ npm test
 
 - Push the branch to `origin` and create a PR against `main` in `cleverbrush/xpenser`.
 - Prefer the GitHub MCP tools for PR creation and status checks; this environment may not have the `gh` CLI installed.
+- Before creating or updating the PR, write a complete PR body that gives reviewers enough context to understand the request, the implementation, and the verification without reconstructing the work from the diff:
+  - Include an **Original request** section. Quote or accurately summarize the user's request that triggered the work. Do not include secrets, credentials, or unrelated private context.
+  - Include a **What changed** section with concrete details about the files, behavior, configuration, tests, or workflows changed. Avoid vague summaries such as "updated auth" when the exact change was "set Auth.js session and API JWT max age to 1,209,600 seconds."
+  - Include a **Reasoning** section explaining why this approach was chosen, what alternatives or tradeoffs mattered, and how the change fits the existing codebase conventions.
+  - Include a **Screenshots / preview evidence** section. Add screenshots to the PR description whenever the work affects UI, preview-visible behavior, or manual QA can demonstrate the requested outcome. Capture the relevant before/after or preview state with Playwright or agent-browser. If the work is non-visual, explicitly say screenshots are not applicable and explain why.
+  - Include a **Validation** section listing local commands, GitHub checks, preview QA, and SigNoz checks. Mark anything skipped or blocked with the reason.
+  - Keep the PR body current after every meaningful push, especially after fixing CI, e2e, preview QA, or telemetry issues.
 - After every push, wait for all required GitHub jobs to finish. The PR workflow runs:
   - `Lint and test`
   - `Deploy PR environment`
@@ -63,6 +70,7 @@ For example, PR `7` deploys to `https://xpenser-pr-007.cleverbrush.com`.
 ## Preview QA
 
 - After checks pass and the PR environment exists, exercise the implemented functionality in the preview with Playwright.
+- Capture screenshots of the relevant preview state during manual QA when they help prove the requested behavior or illustrate the changed UI. Add those screenshots or stable artifact links to the PR description rather than leaving them only in local files.
 - Sign in with the seeded account:
 
 ```text
