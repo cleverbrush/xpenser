@@ -14,6 +14,7 @@ import {
     CurrencySchema,
     DashboardQuerySchema,
     DashboardSummarySchema,
+    DashboardWindowResponseSchema,
     ErrorResponseSchema,
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
@@ -21,10 +22,12 @@ import {
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
     PassportResolveUserResponseSchema,
+    PeriodWindowQuerySchema,
     PrincipalSchema,
     RegisterBodySchema,
     StatsOverviewSchema,
     StatsQuerySchema,
+    StatsWindowResponseSchema,
     TelegramConnectionStatusSchema,
     TelegramTokenBodySchema,
     TokenResponseSchema,
@@ -260,7 +263,18 @@ export const api = defineApi({
                 date: request.query.date,
                 period: request.query.period
             }))
-            .responses({ 200: DashboardSummarySchema })
+            .responses({ 200: DashboardSummarySchema }),
+        window: endpoint
+            .get('/api/dashboard/window')
+            .authorize(PrincipalSchema)
+            .query(PeriodWindowQuerySchema)
+            .cacheTag('dashboard', request => ({
+                after: request.query.after,
+                before: request.query.before,
+                date: request.query.date,
+                period: request.query.period
+            }))
+            .responses({ 200: DashboardWindowResponseSchema })
     },
     stats: {
         overview: endpoint
@@ -275,7 +289,18 @@ export const api = defineApi({
                 timeframe: request.query.timeframe,
                 to: request.query.to
             }))
-            .responses({ 200: StatsOverviewSchema })
+            .responses({ 200: StatsOverviewSchema }),
+        window: endpoint
+            .get('/api/stats/window')
+            .authorize(PrincipalSchema)
+            .query(PeriodWindowQuerySchema)
+            .cacheTag('stats', request => ({
+                after: request.query.after,
+                before: request.query.before,
+                date: request.query.date,
+                period: request.query.period
+            }))
+            .responses({ 200: StatsWindowResponseSchema })
     }
 });
 

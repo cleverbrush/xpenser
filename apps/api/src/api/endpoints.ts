@@ -212,6 +212,14 @@ export const DashboardSummaryEndpoint = api.dashboard.summary
     .tags('dashboard')
     .operationId('dashboardSummary');
 
+export const DashboardWindowEndpoint = api.dashboard.window
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Dashboard summary window')
+    .description('Returns adjacent dashboard summaries for smooth navigation.')
+    .tags('dashboard')
+    .operationId('dashboardWindow');
+
 export const StatsOverviewEndpoint = api.stats.overview
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -219,6 +227,14 @@ export const StatsOverviewEndpoint = api.stats.overview
     .description('Returns expense and income stats for charts.')
     .tags('stats')
     .operationId('statsOverview');
+
+export const StatsWindowEndpoint = api.stats.window
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Stats overview window')
+    .description('Returns adjacent stats overviews for smooth navigation.')
+    .tags('stats')
+    .operationId('statsWindow');
 
 export const endpoints = {
     auth: {
@@ -258,9 +274,11 @@ export const endpoints = {
         delete: DeleteTransactionEndpoint
     },
     dashboard: {
-        summary: DashboardSummaryEndpoint
+        summary: DashboardSummaryEndpoint,
+        window: DashboardWindowEndpoint
     },
     stats: {
-        overview: StatsOverviewEndpoint
+        overview: StatsOverviewEndpoint,
+        window: StatsWindowEndpoint
     }
 };

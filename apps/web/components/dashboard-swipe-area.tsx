@@ -117,6 +117,9 @@ export function DashboardSwipeArea({
     basePath = '/dashboard',
     children,
     date,
+    onNavigate,
+    onPreview,
+    panelForDate,
     period,
     skeleton,
     timezone
@@ -124,6 +127,13 @@ export function DashboardSwipeArea({
     readonly basePath?: string;
     readonly children: ReactNode;
     readonly date: string;
+    readonly onNavigate?: (selection: {
+        readonly date: string;
+        readonly direction: -1 | 1;
+        readonly href: string;
+    }) => void;
+    readonly onPreview?: (date: string) => void;
+    readonly panelForDate?: (date: string) => ReactNode | undefined;
     readonly period: DashboardPeriod;
     readonly skeleton?: ReactNode;
     readonly timezone: string;
@@ -163,14 +173,22 @@ export function DashboardSwipeArea({
     const nextHref = latest
         ? undefined
         : periodHref(basePath, period, nextDate, { timeZone: timezone });
-    const previousKey = `${basePath}:${period}:${dateParam(
-        previousDate,
-        timezone
-    )}`;
-    const nextKey = `${basePath}:${period}:${dateParam(nextDate, timezone)}`;
+    const previousDateParam = dateParam(previousDate, timezone);
+    const nextDateParam = dateParam(nextDate, timezone);
+    const previousKey = `${basePath}:${period}:${previousDateParam}`;
+    const nextKey = `${basePath}:${period}:${nextDateParam}`;
     const targetKey =
         dragDirection === -1 ? nextKey : dragDirection === 1 ? previousKey : '';
+    const targetDate =
+        dragDirection === -1
+            ? nextDateParam
+            : dragDirection === 1
+              ? previousDateParam
+              : '';
     const targetPanel = targetKey ? panelCache.get(targetKey) : undefined;
+    const controlledTargetPanel = targetDate
+        ? panelForDate?.(targetDate)
+        : undefined;
     const canShowTarget = dragDirection === 1 || Boolean(nextHref);
 
     const viewportWidth = useCallback((): number => {
@@ -202,14 +220,16 @@ export function DashboardSwipeArea({
             setIsDragging(false);
             setSwipeOffset(0);
         }
-        router.prefetch(previousHref);
-        if (nextHref) {
-            router.prefetch(nextHref);
+        if (!onNavigate) {
+            router.prefetch(previousHref);
+            if (nextHref) {
+                router.prefetch(nextHref);
+            }
         }
-    }, [children, nextHref, previousHref, resetKey, router]);
+    }, [children, nextHref, onNavigate, previousHref, resetKey, router]);
 
     function prefetch(href?: string) {
-        if (!href || prefetchedHref.current === href) {
+        if (onNavigate || !href || prefetchedHref.current === href) {
             return;
         }
 
@@ -258,6 +278,7 @@ export function DashboardSwipeArea({
         setDragDirection(deltaX < 0 ? -1 : 1);
         setSwipeOffset(offsetForSwipe(deltaX));
         if (Math.abs(deltaX) >= 18) {
+            onPreview?.(deltaX < 0 ? nextDateParam : previousDateParam);
             prefetch(deltaX < 0 ? nextHref : previousHref);
         }
     }
@@ -293,14 +314,30 @@ export function DashboardSwipeArea({
             setDragDirection(-1);
             setSwipeOffset(-width);
             pushTimer.current = setTimeout(() => {
-                router.push(nextHref, { scroll: false });
+                if (onNavigate) {
+                    onNavigate({
+                        date: nextDateParam,
+                        direction: -1,
+                        href: nextHref
+                    });
+                } else {
+                    router.push(nextHref, { scroll: false });
+                }
             }, transitionMs);
         } else if (deltaX > 0) {
             committedSwipe.current = true;
             setDragDirection(1);
             setSwipeOffset(width);
             pushTimer.current = setTimeout(() => {
-                router.push(previousHref, { scroll: false });
+                if (onNavigate) {
+                    onNavigate({
+                        date: previousDateParam,
+                        direction: 1,
+                        href: previousHref
+                    });
+                } else {
+                    router.push(previousHref, { scroll: false });
+                }
             }, transitionMs);
         } else {
             setDragDirection(null);
@@ -360,7 +397,9 @@ export function DashboardSwipeArea({
                                 : `translateX(calc(${swipeOffset}px - 100%))`
                     }}
                 >
-                    {targetPanel ?? skeleton ?? <DashboardPanelSkeleton />}
+                    {controlledTargetPanel ?? targetPanel ?? skeleton ?? (
+                        <DashboardPanelSkeleton />
+                    )}
                 </div>
             ) : null}
         </div>

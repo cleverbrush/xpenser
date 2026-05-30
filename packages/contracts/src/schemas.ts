@@ -723,6 +723,26 @@ export const DashboardQuerySchema = object({
         .describe('Date used to choose the reporting period.')
 }).schemaName('DashboardQuery');
 
+export const PeriodWindowQuerySchema = object({
+    /** Reporting period. */
+    period: PeriodSchema.default('day').describe('Reporting period.'),
+    /** Date used to choose the center reporting period. */
+    date: date()
+        .coerce()
+        .optional()
+        .describe('Date used to choose the center reporting period.'),
+    /** Number of previous periods to include. */
+    before: number()
+        .coerce()
+        .default(2)
+        .describe('Number of previous periods to include.'),
+    /** Number of following periods to include. */
+    after: number()
+        .coerce()
+        .default(2)
+        .describe('Number of following periods to include.')
+}).schemaName('PeriodWindowQuery');
+
 export const StatsQuerySchema = object({
     /** Stats trend grouping. */
     groupBy: StatsGroupBySchema.default('day').describe(
@@ -958,6 +978,38 @@ export const DashboardSummarySchema = object({
     )
 }).schemaName('DashboardSummary');
 
+export const DashboardWindowItemSchema = object({
+    /** Stable local date key for the period start. */
+    date: string().describe('Stable local date key for the period start.'),
+    /** Summary for the matching dashboard period. */
+    summary: DashboardSummarySchema.describe(
+        'Summary for the matching dashboard period.'
+    )
+}).schemaName('DashboardWindowItem');
+
+export const DashboardWindowResponseSchema = object({
+    /** Ordered dashboard summaries for the requested period window. */
+    items: array(DashboardWindowItemSchema).describe(
+        'Ordered dashboard summaries for the requested period window.'
+    )
+}).schemaName('DashboardWindowResponse');
+
+export const StatsWindowItemSchema = object({
+    /** Stable local date key for the period start. */
+    date: string().describe('Stable local date key for the period start.'),
+    /** Stats overview for the matching dashboard period. */
+    overview: StatsOverviewSchema.describe(
+        'Stats overview for the matching dashboard period.'
+    )
+}).schemaName('StatsWindowItem');
+
+export const StatsWindowResponseSchema = object({
+    /** Ordered stats overviews for the requested period window. */
+    items: array(StatsWindowItemSchema).describe(
+        'Ordered stats overviews for the requested period window.'
+    )
+}).schemaName('StatsWindowResponse');
+
 export type Principal = InferType<typeof PrincipalSchema>;
 export type RegisterBody = InferType<typeof RegisterBodySchema>;
 export type LoginBody = InferType<typeof LoginBodySchema>;
@@ -998,5 +1050,9 @@ export type CreateTransactionBody = InferType<
 >;
 export type TransactionListQuery = InferType<typeof TransactionListQuerySchema>;
 export type DashboardSummary = InferType<typeof DashboardSummarySchema>;
+export type DashboardWindowResponse = InferType<
+    typeof DashboardWindowResponseSchema
+>;
+export type StatsWindowResponse = InferType<typeof StatsWindowResponseSchema>;
 export type StatsOverview = InferType<typeof StatsOverviewSchema>;
 export type StatsQuery = InferType<typeof StatsQuerySchema>;
