@@ -40,7 +40,8 @@ describe('api contract authorization metadata', () => {
             api.dashboard.summary,
             api.dashboard.window,
             api.stats.overview,
-            api.stats.window
+            api.stats.window,
+            api.stats.categoryTrend
         ];
 
         for (const endpoint of protectedEndpoints) {

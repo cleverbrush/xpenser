@@ -5,7 +5,14 @@ import type {
     StatsOverview,
     StatsWindowResponse
 } from '@xpenser/contracts';
-import { Card, CardDescription, CardHeader, CardTitle } from '@xpenser/ui';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle
+} from '@xpenser/ui';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AmountDisplay } from '@/components/amount-display';
@@ -15,6 +22,7 @@ import {
 } from '@/components/dashboard-period-nav';
 import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
 import { StatsCharts, StatsChartsSkeleton } from '@/components/stats-charts';
+import { categoryTrendHref } from '@/lib/category-trend-query';
 import {
     dateParam,
     formatDashboardRangeLabel,
@@ -30,6 +38,7 @@ import {
 
 type DashboardPeriod = DashboardSummary['period'];
 type StatsWindowItem = StatsWindowResponse['items'][number];
+type StatsCategory = StatsOverview['byCategory'][number];
 type StatsCache = Partial<
     Record<DashboardPeriod, Record<string, StatsWindowItem>>
 >;
@@ -239,6 +248,109 @@ function StatsCards({ stats }: { readonly stats: StatsOverview }) {
                 </Card>
             ))}
         </div>
+    );
+}
+
+function CategoryTrendRow({
+    category,
+    currency
+}: {
+    readonly category: StatsCategory;
+    readonly currency: string;
+}) {
+    return (
+        <Link
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2"
+            href={categoryTrendHref(category.categoryId, {
+                groupBy: 'month',
+                range: 'last-12-months'
+            })}
+            prefetch={false}
+        >
+            <span className="min-w-0">
+                <span className="block truncate font-medium">
+                    {category.categoryName}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                    {category.transactionCount}{' '}
+                    {category.transactionCount === 1
+                        ? 'transaction'
+                        : 'transactions'}
+                </span>
+            </span>
+            <span
+                className={`font-semibold ${amountClassNameForCategoryTotal(
+                    category.total,
+                    category.type
+                )}`}
+            >
+                <AmountDisplay
+                    currency={currency}
+                    value={signedCategoryTotal(category.total, category.type)}
+                />
+            </span>
+        </Link>
+    );
+}
+
+function CategoryTrendPanel({ stats }: { readonly stats: StatsOverview }) {
+    const incomeCategories = stats.byCategory.filter(
+        category => category.type === 'income'
+    );
+    const expenseCategories = stats.byCategory.filter(
+        category => category.type === 'expense'
+    );
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Category trends</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                            Income
+                        </h3>
+                        <div className="flex flex-col divide-y">
+                            {incomeCategories.length === 0 ? (
+                                <p className="py-3 text-sm text-muted-foreground">
+                                    No income activity for this period.
+                                </p>
+                            ) : (
+                                incomeCategories.map(category => (
+                                    <CategoryTrendRow
+                                        category={category}
+                                        currency={stats.currency}
+                                        key={`${category.type}-${category.categoryId}`}
+                                    />
+                                ))
+                            )}
+                        </div>
+                    </div>
+                    <div>
+                        <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                            Expenses
+                        </h3>
+                        <div className="flex flex-col divide-y">
+                            {expenseCategories.length === 0 ? (
+                                <p className="py-3 text-sm text-muted-foreground">
+                                    No expense activity for this period.
+                                </p>
+                            ) : (
+                                expenseCategories.map(category => (
+                                    <CategoryTrendRow
+                                        category={category}
+                                        currency={stats.currency}
+                                        key={`${category.type}-${category.categoryId}`}
+                                    />
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 
@@ -501,6 +613,8 @@ export function StatsExplorer({
             />
 
             <StatsCards stats={stats} />
+
+            <CategoryTrendPanel stats={stats} />
 
             <DashboardSwipeArea
                 basePath="/stats"

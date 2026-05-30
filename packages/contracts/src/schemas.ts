@@ -52,6 +52,21 @@ export const StatsGroupBySchema = enumOf('hour', 'day', 'week', 'month')
     .describe('Stats trend grouping.')
     .schemaName('StatsGroupBy');
 
+export const CategoryTrendGroupBySchema = enumOf('day', 'week', 'month', 'year')
+    .describe('Category trend grouping.')
+    .schemaName('CategoryTrendGroupBy');
+
+export const CategoryTrendRangeSchema = enumOf(
+    'last-30-days',
+    'last-90-days',
+    'this-year',
+    'last-12-months',
+    'all-time',
+    'custom'
+)
+    .describe('Category trend timeframe.')
+    .schemaName('CategoryTrendRange');
+
 export const StatsTimeframeSchema = enumOf(
     'this-week',
     'last-7-days',
@@ -767,6 +782,36 @@ export const StatsQuerySchema = object({
         .describe('Date used to choose the dashboard-style reporting period.')
 }).schemaName('StatsQuery');
 
+export const CategoryTrendQuerySchema = object({
+    /** Category trend timeframe. */
+    range: CategoryTrendRangeSchema.default('last-12-months').describe(
+        'Category trend timeframe.'
+    ),
+    /** Category trend grouping. */
+    groupBy: CategoryTrendGroupBySchema.default('month').describe(
+        'Category trend grouping.'
+    ),
+    /** Inclusive custom start date. */
+    from: date().coerce().optional().describe('Inclusive custom start date.'),
+    /** Inclusive custom end date. */
+    to: date().coerce().optional().describe('Inclusive custom end date.')
+})
+    .addValidator(value => {
+        if (value.range !== 'custom' || (value.from && value.to)) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'custom range requires from and to dates'
+                }
+            ]
+        };
+    })
+    .schemaName('CategoryTrendQuery');
+
 export const DashboardCategoryTotalSchema = object({
     /** Category identifier. */
     categoryId: number().describe('Category identifier.'),
@@ -1010,6 +1055,70 @@ export const StatsWindowResponseSchema = object({
     )
 }).schemaName('StatsWindowResponse');
 
+export const CategoryTrendPointSchema = object({
+    /** Stable bucket key. */
+    bucket: string().describe('Stable bucket key.'),
+    /** Short label shown on charts. */
+    label: string().describe('Short label shown on charts.'),
+    /** Bucket start timestamp, clipped to the selected range. */
+    from: date()
+        .coerce()
+        .describe('Bucket start timestamp, clipped to the selected range.'),
+    /** Bucket end timestamp, clipped to the selected range. */
+    to: date()
+        .coerce()
+        .describe('Bucket end timestamp, clipped to the selected range.'),
+    /** Net category total in the user's default currency after reversals. */
+    total: decimalNumber().describe(
+        "Net category total in the user's default currency after reversals."
+    ),
+    /** Number of transactions in the bucket. */
+    transactionCount: number().describe('Number of transactions in the bucket.')
+}).schemaName('CategoryTrendPoint');
+
+export const CategoryTrendResponseSchema = object({
+    /** Category identifier. */
+    categoryId: number().describe('Category identifier.'),
+    /** Category name shown in reports. */
+    categoryName: string().describe('Category name shown in reports.'),
+    /** Whether this category is for expenses or income. */
+    type: CategoryTypeSchema.describe(
+        'Whether this category is for expenses or income.'
+    ),
+    /** Category trend timeframe. */
+    range: CategoryTrendRangeSchema.describe('Category trend timeframe.'),
+    /** Category trend grouping. */
+    groupBy: CategoryTrendGroupBySchema.describe('Category trend grouping.'),
+    /** Selected range start timestamp. */
+    from: date().coerce().describe('Selected range start timestamp.'),
+    /** Selected range end timestamp. */
+    to: date().coerce().describe('Selected range end timestamp.'),
+    /** Currency used for totals. */
+    currency: CurrencyCodeSchema.describe('Currency used for totals.'),
+    /** Net category total in the user's default currency after reversals. */
+    total: decimalNumber().describe(
+        "Net category total in the user's default currency after reversals."
+    ),
+    /** Number of selected-range transactions in the category. */
+    transactionCount: number().describe(
+        'Number of selected-range transactions in the category.'
+    ),
+    /** Number of buckets in the selected range. */
+    bucketCount: number().describe('Number of buckets in the selected range.'),
+    /** Maximum bucket count returned with chart points. */
+    maxBuckets: number().describe(
+        'Maximum bucket count returned with chart points.'
+    ),
+    /** True when the selected range is too dense for chart points. */
+    densityExceeded: boolean().describe(
+        'True when the selected range is too dense for chart points.'
+    ),
+    /** Bucket totals for the selected category trend. */
+    trend: array(CategoryTrendPointSchema).describe(
+        'Bucket totals for the selected category trend.'
+    )
+}).schemaName('CategoryTrendResponse');
+
 export type Principal = InferType<typeof PrincipalSchema>;
 export type RegisterBody = InferType<typeof RegisterBodySchema>;
 export type LoginBody = InferType<typeof LoginBodySchema>;
@@ -1056,3 +1165,9 @@ export type DashboardWindowResponse = InferType<
 export type StatsWindowResponse = InferType<typeof StatsWindowResponseSchema>;
 export type StatsOverview = InferType<typeof StatsOverviewSchema>;
 export type StatsQuery = InferType<typeof StatsQuerySchema>;
+export type CategoryTrendGroupBy = InferType<typeof CategoryTrendGroupBySchema>;
+export type CategoryTrendRange = InferType<typeof CategoryTrendRangeSchema>;
+export type CategoryTrendQuery = InferType<typeof CategoryTrendQuerySchema>;
+export type CategoryTrendResponse = InferType<
+    typeof CategoryTrendResponseSchema
+>;

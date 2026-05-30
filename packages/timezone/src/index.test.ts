@@ -162,11 +162,20 @@ describe('timezone helpers', () => {
             statsBucketKeyInTimeZone(instant, 'month', 'America/New_York')
         ).toBe('2026-05');
         expect(
+            statsBucketKeyInTimeZone(instant, 'year', 'America/New_York')
+        ).toBe('2026');
+        expect(
             statsBucketLabelInTimeZone(instant, 'week', 'America/New_York')
         ).toBe('Week of May 10');
         expect(
+            statsBucketLabelInTimeZone(instant, 'year', 'America/New_York')
+        ).toBe('2026');
+        expect(
             addStatsBucketStepInTimeZone(instant, 'week', 'America/New_York')
         ).toEqual(new Date('2026-05-17T04:00:00.000Z'));
+        expect(
+            addStatsBucketStepInTimeZone(instant, 'year', 'America/New_York')
+        ).toEqual(new Date('2027-01-01T05:00:00.000Z'));
         expect(
             localDayDifference(
                 '2026-05-10T13:30:00.000Z',

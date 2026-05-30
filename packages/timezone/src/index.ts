@@ -2,7 +2,7 @@ import { Temporal } from '@js-temporal/polyfill';
 
 export type DateInput = Date | string | number;
 export type DashboardPeriod = 'day' | 'week' | 'month' | 'quarter' | 'year';
-export type StatsGroupBy = 'day' | 'hour' | 'month' | 'week';
+export type StatsGroupBy = 'day' | 'hour' | 'month' | 'week' | 'year';
 export type Range = {
     readonly from: Date;
     readonly to: Date;
@@ -498,7 +498,9 @@ export function statsBucketKeyInTimeZone(
     const zoned =
         groupBy === 'week'
             ? startOfLocalWeekZoned(value, timeZone)
-            : dateInputToZoned(value, timeZone);
+            : groupBy === 'year'
+              ? startOfLocalYearZoned(value, timeZone)
+              : dateInputToZoned(value, timeZone);
     const year = pad(zoned.year, 4);
     const month = pad(zoned.month);
     const day = pad(zoned.day);
@@ -508,6 +510,9 @@ export function statsBucketKeyInTimeZone(
     }
     if (groupBy === 'month') {
         return `${year}-${month}`;
+    }
+    if (groupBy === 'year') {
+        return year;
     }
     return `${year}-${month}-${day}`;
 }
@@ -525,6 +530,9 @@ export function statsBucketLabelInTimeZone(
             month: 'short',
             year: '2-digit'
         });
+    }
+    if (groupBy === 'year') {
+        return formatDateInTimeZone(value, timeZone, { year: 'numeric' });
     }
     if (groupBy === 'week') {
         return `Week of ${formatDateInTimeZone(value, timeZone, {
@@ -551,6 +559,11 @@ export function addStatsBucketStepInTimeZone(
     if (groupBy === 'month') {
         return dateFromZoned(
             startOfLocalMonthZoned(value, timeZone).add({ months: 1 })
+        );
+    }
+    if (groupBy === 'year') {
+        return dateFromZoned(
+            startOfLocalYearZoned(value, timeZone).add({ years: 1 })
         );
     }
     return dateFromZoned(

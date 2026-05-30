@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+    categoryTrendMaxBuckets,
     compareTransactionsByOccurrenceAsc,
     compareTransactionsByOccurrenceDesc,
     dashboardStatsGroupBy,
     percentChange,
+    resolveCategoryTrendRange,
     resolveDashboardComparisonRange,
     resolveDashboardPeriodWindow,
     resolveDashboardRange,
     resolveStatsRanges,
+    summarizeCategoryTrendRows,
     TransactionCategoryError,
     TransactionNotFoundError,
     transactionSignedDefaultAmount
@@ -146,6 +149,152 @@ describe('stats range resolution', () => {
         expect(ranges.previousPeriod.to).toEqual(
             new Date(2026, 3, 30, 23, 59, 59, 999)
         );
+    });
+});
+
+describe('category trend ranges and summaries', () => {
+    const category = {
+        id: 7,
+        userId: 1,
+        name: 'Groceries',
+        type: 'expense',
+        createdAt: new Date('2024-01-15T12:00:00.000Z'),
+        updatedAt: new Date('2024-01-15T12:00:00.000Z')
+    } as const;
+
+    function transaction(overrides: {
+        readonly id: number;
+        readonly amount: string;
+        readonly effect?: 'normal' | 'reversal';
+        readonly occurredAt: Date;
+    }) {
+        return {
+            id: overrides.id,
+            userId: 1,
+            categoryId: category.id,
+            type: 'expense',
+            effect: overrides.effect ?? 'normal',
+            amount: overrides.amount,
+            currency: 'USD',
+            defaultCurrencyAmount: overrides.amount,
+            defaultCurrency: 'USD',
+            exchangeRate: '1',
+            exchangeRateDate: '2026-05-01',
+            occurredAt: overrides.occurredAt,
+            createdAt: overrides.occurredAt,
+            updatedAt: overrides.occurredAt
+        } as const;
+    }
+
+    it('defaults category trends to the last twelve calendar months', () => {
+        const now = new Date('2026-05-30T12:00:00.000Z');
+
+        expect(
+            resolveCategoryTrendRange(
+                { range: 'last-12-months' },
+                { categoryCreatedAt: category.createdAt, now }
+            )
+        ).toEqual({
+            from: new Date('2025-06-01T00:00:00.000Z'),
+            to: now
+        });
+    });
+
+    it('normalizes reversed custom category trend ranges', () => {
+        expect(
+            resolveCategoryTrendRange(
+                {
+                    range: 'custom',
+                    from: new Date('2026-05-20T12:00:00.000Z'),
+                    to: new Date('2026-05-10T12:00:00.000Z')
+                },
+                {
+                    categoryCreatedAt: category.createdAt,
+                    now: new Date('2026-05-30T12:00:00.000Z')
+                }
+            )
+        ).toEqual({
+            from: new Date('2026-05-10T00:00:00.000Z'),
+            to: new Date('2026-05-20T23:59:59.999Z')
+        });
+    });
+
+    it('uses the first category transaction for all-time trends', () => {
+        const rows = [
+            transaction({
+                id: 2,
+                amount: '12',
+                occurredAt: new Date('2026-03-10T12:00:00.000Z')
+            }),
+            transaction({
+                id: 1,
+                amount: '12',
+                occurredAt: new Date('2025-02-10T12:00:00.000Z')
+            })
+        ];
+        const now = new Date('2026-05-30T12:00:00.000Z');
+
+        expect(
+            resolveCategoryTrendRange(
+                { range: 'all-time' },
+                { categoryCreatedAt: category.createdAt, now, rows }
+            )
+        ).toEqual({
+            from: new Date('2025-02-10T00:00:00.000Z'),
+            to: now
+        });
+    });
+
+    it('summarizes category trend buckets with reversal offsets', () => {
+        const range = {
+            from: new Date('2026-05-01T00:00:00.000Z'),
+            to: new Date('2026-05-31T23:59:59.999Z')
+        };
+        const response = summarizeCategoryTrendRows({
+            category,
+            currency: 'USD',
+            groupBy: 'month',
+            range,
+            rows: [
+                transaction({
+                    id: 1,
+                    amount: '12.34',
+                    occurredAt: new Date('2026-05-10T12:00:00.000Z')
+                }),
+                transaction({
+                    id: 2,
+                    amount: '2.34',
+                    effect: 'reversal',
+                    occurredAt: new Date('2026-05-11T12:00:00.000Z')
+                })
+            ],
+            timeFrame: 'custom'
+        });
+
+        expect(response.total).toBe(10);
+        expect(response.transactionCount).toBe(2);
+        expect(response.densityExceeded).toBe(false);
+        expect(response.trend).toHaveLength(1);
+        expect(response.trend[0]?.total).toBe(10);
+        expect(response.trend[0]?.transactionCount).toBe(2);
+    });
+
+    it('omits chart points when category trend buckets exceed the cap', () => {
+        const response = summarizeCategoryTrendRows({
+            category,
+            currency: 'USD',
+            groupBy: 'day',
+            range: {
+                from: new Date('2025-01-01T00:00:00.000Z'),
+                to: new Date('2026-06-01T00:00:00.000Z')
+            },
+            rows: [],
+            timeFrame: 'custom'
+        });
+
+        expect(response.bucketCount).toBeGreaterThan(categoryTrendMaxBuckets);
+        expect(response.densityExceeded).toBe(true);
+        expect(response.trend).toEqual([]);
     });
 });
 

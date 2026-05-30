@@ -277,4 +277,58 @@ test.describe('authenticated app workflows', () => {
             page.getByRole('row').filter({ hasText: expenseCategory })
         ).toHaveCount(0);
     });
+
+    test('opens category trend reports and drills into a bucket', async ({
+        page
+    }) => {
+        const expenseCategory = uniqueName('E2E trend expense');
+        const expenseNote = uniqueName('E2E trend note');
+
+        await createCategory(page, expenseCategory, 'expense');
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '12.34',
+            expenseNote
+        );
+
+        await page.goto('/stats');
+        await page
+            .getByRole('link', { name: new RegExp(expenseCategory) })
+            .click();
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Category trend' })
+        ).toBeVisible();
+        await expect(page.getByLabel('Category')).toHaveValue(/^\d+$/);
+        await expect(page.getByRole('link', { name: 'Monthly' })).toHaveAttribute(
+            'aria-current',
+            'page'
+        );
+
+        await page.getByRole('link', { name: 'Weekly' }).click();
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname.startsWith('/stats/categories/') &&
+                url.searchParams.get('groupBy') === 'week'
+            );
+        });
+
+        await page
+            .getByRole('link', { name: /View .* transactions/ })
+            .first()
+            .click();
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/transactions' &&
+                url.searchParams.get('type') === 'expense' &&
+                Boolean(url.searchParams.get('categoryId')) &&
+                Boolean(url.searchParams.get('from')) &&
+                Boolean(url.searchParams.get('to'))
+            );
+        });
+        await expect(
+            page.getByRole('row').filter({ hasText: expenseCategory })
+        ).toHaveCount(1, { timeout: 15_000 });
+    });
 });
