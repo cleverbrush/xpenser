@@ -27,6 +27,7 @@ import {
     PeriodWindowQuerySchema,
     PrincipalSchema,
     RegisterBodySchema,
+    SessionTokenBodySchema,
     StatsOverviewSchema,
     StatsQuerySchema,
     StatsWindowResponseSchema,
@@ -82,6 +83,10 @@ export const api = defineApi({
                 400: ErrorResponseSchema,
                 401: ErrorResponseSchema
             }),
+        sessionToken: endpoint
+            .post('/api/auth/session-token')
+            .body(SessionTokenBodySchema)
+            .responses({ 200: TokenResponseSchema, 401: ErrorResponseSchema }),
         me: endpoint
             .get('/api/auth/me')
             .authorize(PrincipalSchema)

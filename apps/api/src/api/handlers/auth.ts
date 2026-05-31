@@ -5,11 +5,13 @@ import {
     InvalidCredentialsError,
     InvalidPassportIdentityError,
     issuePassportUserToken,
+    issueUserToken,
     loginUser,
     PasswordMismatchError,
     registerUser,
     resolvePassportGoogleUser,
-    updateUserPreference
+    updateUserPreference,
+    verifyWebApiServiceSecret
 } from '../../application/users.js';
 import {
     authenticatePassportAccessToken,
@@ -23,8 +25,11 @@ import type {
     PassportExchangeEndpoint,
     PassportResolveUserEndpoint,
     RegisterEndpoint,
+    SessionTokenEndpoint,
     UpdatePreferencesEndpoint
 } from '../endpoints.js';
+
+const webServiceSecretHeader = 'x-xpenser-web-secret';
 
 export const registerHandler: Handler<typeof RegisterEndpoint> = async (
     { body },
@@ -106,6 +111,29 @@ export const passportExchangeHandler: Handler<
         }
         throw err;
     }
+};
+
+export const sessionTokenHandler: Handler<typeof SessionTokenEndpoint> = async (
+    { body, context },
+    { db, config }
+) => {
+    if (
+        !verifyWebApiServiceSecret(
+            config,
+            context.headers[webServiceSecretHeader]
+        )
+    ) {
+        return ActionResult.unauthorized({
+            message: 'Invalid web service credentials.'
+        });
+    }
+
+    const response = await issueUserToken(db, config, body.userId);
+    if (!response) {
+        return ActionResult.unauthorized({ message: 'User was not found.' });
+    }
+
+    return response;
 };
 
 export const getMeHandler: Handler<typeof GetMeEndpoint> = async (

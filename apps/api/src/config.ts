@@ -30,6 +30,12 @@ export const config = parseEnv(
                 number().coerce().default(UserSessionMaxAgeSeconds)
             )
         },
+        web: {
+            apiServiceSecret: env(
+                'WEB_API_SERVICE_SECRET',
+                string().minLength(32)
+            )
+        },
         passport: {
             baseUrl: env(
                 'PASSPORT_BASE_URL',
@@ -90,6 +96,9 @@ if (config.nodeEnv === 'production') {
     const placeholders: string[] = [];
     if (config.jwt.secret === PLACEHOLDER_SECRET) {
         placeholders.push('JWT_SECRET');
+    }
+    if (config.web.apiServiceSecret === PLACEHOLDER_SECRET) {
+        placeholders.push('WEB_API_SERVICE_SECRET');
     }
     if (config.telegram.serviceSecret === PLACEHOLDER_SECRET) {
         placeholders.push('TELEGRAM_BOT_SERVICE_SECRET');

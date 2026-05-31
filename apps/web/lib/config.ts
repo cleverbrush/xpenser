@@ -46,3 +46,23 @@ export function getNextAuthSecret(): string {
 
     return nextAuthSecret;
 }
+
+export function getWebApiServiceSecret(): string {
+    const { webApiServiceSecret } = parseEnv({
+        webApiServiceSecret: env(
+            'WEB_API_SERVICE_SECRET',
+            string().minLength(32)
+        )
+    });
+
+    if (
+        webConfig.nodeEnv === 'production' &&
+        webApiServiceSecret === PLACEHOLDER_SECRET
+    ) {
+        throw new Error(
+            'Refusing to start with placeholder production secret: WEB_API_SERVICE_SECRET'
+        );
+    }
+
+    return webApiServiceSecret;
+}

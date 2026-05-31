@@ -12,6 +12,7 @@ describe('API config', () => {
         delete process.env.JWT_EXPIRES_IN;
         vi.stubEnv('NODE_ENV', 'development');
         vi.stubEnv('JWT_SECRET', 'x'.repeat(32));
+        vi.stubEnv('WEB_API_SERVICE_SECRET', 'x'.repeat(32));
         vi.stubEnv('TELEGRAM_BOT_SERVICE_SECRET', 'x'.repeat(32));
 
         try {

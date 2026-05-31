@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import type {
     PassportResolveUserBody,
     PassportResolveUserResponse,
@@ -9,7 +10,7 @@ import { defaultTimeZone, normalizeTimeZone } from '@xpenser/timezone';
 import type { Config } from '../config.js';
 import type { AppDb, TransactionDb, UserDb } from '../db/schemas.js';
 import { hashPassword, verifyPassword } from '../security/password.js';
-import { issueToken } from '../security/token.js';
+import { issueToken, tokenExpiresAt } from '../security/token.js';
 
 export class DuplicateEmailError extends Error {}
 export class InvalidCredentialsError extends Error {}
@@ -144,12 +145,16 @@ function toTokenResponse(
     categories: boolean,
     expiresInSeconds?: number
 ): TokenResponse {
+    const tokenTtlSeconds = expiresInSeconds ?? config.jwt.expiresInSeconds;
+    const issuedAt = new Date();
     return {
         token: issueToken(
             config,
             { id: user.id, role: user.role },
-            expiresInSeconds
+            tokenTtlSeconds,
+            issuedAt
         ),
+        expiresAt: tokenExpiresAt(tokenTtlSeconds, issuedAt),
         user: {
             id: user.id,
             email: user.email,
@@ -159,6 +164,21 @@ function toTokenResponse(
             hasCategories: categories
         }
     };
+}
+
+export function verifyWebApiServiceSecret(
+    config: Config,
+    provided: string | undefined
+): boolean {
+    if (!provided) {
+        return false;
+    }
+
+    const expected = Buffer.from(config.web.apiServiceSecret);
+    const actual = Buffer.from(provided);
+    return (
+        expected.length === actual.length && timingSafeEqual(expected, actual)
+    );
 }
 
 export async function issueUserToken(
