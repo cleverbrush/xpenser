@@ -31,7 +31,8 @@ async function createTransaction(
     category: string,
     type: 'expense' | 'income',
     amount: string,
-    note: string
+    note: string,
+    occurredAt = dateTimeLocalValue()
 ): Promise<void> {
     await page.goto('/dashboard');
     await page
@@ -53,7 +54,7 @@ async function createTransaction(
         category
     );
     await addDialog.getByLabel('Amount').fill(amount);
-    await addDialog.getByLabel('Date and time').fill(dateTimeLocalValue());
+    await addDialog.getByLabel('Date and time').fill(occurredAt);
     await addDialog.getByLabel('Note').fill(note);
     await addDialog.getByRole('button', { name: 'Save' }).click();
     await expect(addDialog).toBeHidden({ timeout: 15_000 });
@@ -218,19 +219,36 @@ test.describe('authenticated app workflows', () => {
 
         await createCategory(page, expenseCategory, 'expense');
         await createCategory(page, incomeCategory, 'income');
+
+        await page.goto('/dashboard');
+        const expensesUrl = new URL(
+            (await page
+                .getByRole('link', {
+                    name: 'View expenses transactions for this period'
+                })
+                .getAttribute('href')) ?? '/transactions',
+            page.url()
+        );
+        const periodDate =
+            expensesUrl.searchParams.get('from') ??
+            dateTimeLocalValue().slice(0, 10);
+        const periodOccurredAt = `${periodDate}T12:00`;
+
         await createTransaction(
             page,
             expenseCategory,
             'expense',
             '12.34',
-            expenseNote
+            expenseNote,
+            periodOccurredAt
         );
         await createTransaction(
             page,
             incomeCategory,
             'income',
             '56.78',
-            incomeNote
+            incomeNote,
+            periodOccurredAt
         );
 
         await page.goto('/dashboard');
