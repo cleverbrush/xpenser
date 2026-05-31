@@ -238,11 +238,22 @@ export const PassportExchangeBodySchema = object({
         )
 }).schemaName('PassportExchangeBody');
 
+export const SessionTokenBodySchema = object({
+    /** Authenticated user identifier stored in the trusted web session. */
+    userId: number().describe(
+        'Authenticated user identifier stored in the trusted web session.'
+    )
+}).schemaName('SessionTokenBody');
+
 export const TokenResponseSchema = object({
     /** Signed API JWT used as the Bearer token for protected API calls. */
     token: string().describe(
         'Signed API JWT used as the Bearer token for protected API calls.'
     ),
+    /** Date and time when the API JWT expires. */
+    expiresAt: date()
+        .coerce()
+        .describe('Date and time when the API JWT expires.'),
     /** Authenticated user profile. */
     user: object({
         /** Unique user identifier. */

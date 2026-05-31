@@ -9,6 +9,7 @@ import {
     passportExchangeHandler,
     passportResolveUserHandler,
     registerHandler,
+    sessionTokenHandler,
     updatePreferencesHandler
 } from './auth.js';
 import {
@@ -43,6 +44,7 @@ export const handlers = {
         login: loginHandler,
         passportResolveUser: passportResolveUserHandler,
         passportExchange: passportExchangeHandler,
+        sessionToken: sessionTokenHandler,
         me: getMeHandler
     },
     users: {

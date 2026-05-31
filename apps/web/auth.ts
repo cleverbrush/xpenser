@@ -1,10 +1,19 @@
 import { createXpenserClient } from '@xpenser/client';
 import { UserSessionMaxAgeSeconds } from '@xpenser/contracts/session';
 import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth';
-import type {} from 'next-auth/jwt';
+import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
+import {
+    apiTokenExpiresAt,
+    applyTokenResponse,
+    shouldRefreshApiToken
+} from './lib/api-session-token';
 import { expiredSessionPath } from './lib/auth-routes';
-import { getNextAuthSecret, webConfig } from './lib/config';
+import {
+    getNextAuthSecret,
+    getWebApiServiceSecret,
+    webConfig
+} from './lib/config';
 import {
     AuthDebugLogged,
     AuthErrorLogged,
@@ -30,6 +39,7 @@ declare module 'next-auth' {
 
     interface User {
         apiToken?: string;
+        apiTokenExpiresAt?: string;
         role?: string;
         defaultCurrency?: string;
         timezone?: string;
@@ -40,6 +50,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
     interface JWT {
         apiToken?: string;
+        apiTokenExpiresAt?: string;
         role?: string;
         defaultCurrency?: string;
         timezone?: string;
@@ -51,6 +62,15 @@ function apiClient() {
     return createXpenserClient({ baseUrl: webConfig.apiBaseUrl });
 }
 
+function internalApiClient() {
+    return createXpenserClient({
+        baseUrl: webConfig.apiBaseUrl,
+        headers: {
+            'X-Xpenser-Web-Secret': getWebApiServiceSecret()
+        }
+    });
+}
+
 configureAuthPublicUrl();
 
 const authLogger = loggerFor('Auth.js');
@@ -58,6 +78,29 @@ const authLogger = loggerFor('Auth.js');
 function authErrorType(error: Error): string {
     const typedError = error as Error & { readonly type?: unknown };
     return typeof typedError.type === 'string' ? typedError.type : error.name;
+}
+
+function apiErrorStatus(err: unknown): number | undefined {
+    return typeof err === 'object' &&
+        err !== null &&
+        'status' in err &&
+        typeof err.status === 'number'
+        ? err.status
+        : undefined;
+}
+
+async function refreshApiToken(token: JWT): Promise<JWT> {
+    const userId = Number(token.sub);
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+        token.apiToken = undefined;
+        token.apiTokenExpiresAt = undefined;
+        return token;
+    }
+
+    const response = await internalApiClient().auth.sessionToken({
+        body: { userId }
+    });
+    return applyTokenResponse(token, response);
 }
 
 const nextAuth: NextAuthResult = NextAuth(() => ({
@@ -101,6 +144,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     id: String(response.user.id),
                     email: response.user.email,
                     apiToken: response.token,
+                    apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
                     role: response.user.role,
                     defaultCurrency: response.user.defaultCurrency,
                     timezone: response.user.timezone,
@@ -126,6 +170,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     id: String(response.user.id),
                     email: response.user.email,
                     apiToken: response.token,
+                    apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
                     role: response.user.role,
                     defaultCurrency: response.user.defaultCurrency,
                     timezone: response.user.timezone,
@@ -142,12 +187,30 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
         async jwt({ token, user }) {
             if (user?.apiToken) {
                 token.apiToken = user.apiToken;
+                token.apiTokenExpiresAt = user.apiTokenExpiresAt;
                 token.sub = user.id;
                 token.email = user.email;
                 token.role = user.role;
                 token.defaultCurrency = user.defaultCurrency;
                 token.timezone = user.timezone;
                 token.hasCategories = user.hasCategories;
+            }
+
+            if (shouldRefreshApiToken(token)) {
+                try {
+                    return await refreshApiToken(token);
+                } catch (err) {
+                    authLogger.warn(AuthWarningLogged, {
+                        AuthWarningCode:
+                            apiErrorStatus(err) === 401
+                                ? 'ApiTokenRefreshUnauthorized'
+                                : 'ApiTokenRefreshFailed'
+                    });
+                    if (apiErrorStatus(err) === 401) {
+                        token.apiToken = undefined;
+                        token.apiTokenExpiresAt = undefined;
+                    }
+                }
             }
 
             return token;

@@ -31,6 +31,15 @@ export const PassportExchangeEndpoint = api.auth.passportExchange
     .tags('auth')
     .operationId('passportExchange');
 
+export const SessionTokenEndpoint = api.auth.sessionToken
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Web session token')
+    .description(
+        'Issues a fresh xpenser API JWT for a trusted authenticated web session.'
+    )
+    .tags('auth')
+    .operationId('sessionToken');
+
 export const GetMeEndpoint = api.auth.me
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -250,6 +259,7 @@ export const endpoints = {
         login: LoginEndpoint,
         passportResolveUser: PassportResolveUserEndpoint,
         passportExchange: PassportExchangeEndpoint,
+        sessionToken: SessionTokenEndpoint,
         me: GetMeEndpoint
     },
     users: {

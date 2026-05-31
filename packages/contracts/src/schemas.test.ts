@@ -11,8 +11,10 @@ import {
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
     RegisterBodySchema,
+    SessionTokenBodySchema,
     StatsQuerySchema,
     TimeZoneSchema,
+    TokenResponseSchema,
     UpdateUserPreferenceBodySchema,
     UserPreferenceSchema
 } from './schemas.js';
@@ -87,6 +89,30 @@ describe('shared schemas', () => {
         expect(result.getErrorsFor(field => field.password).errors[0]).toBe(
             'password is required'
         );
+    });
+
+    it('validates session token refresh bodies and token responses', () => {
+        expect(SessionTokenBodySchema.validate({ userId: 12 }).valid).toBe(
+            true
+        );
+        expect(
+            SessionTokenBodySchema.validate({ userId: 'abc' } as never).valid
+        ).toBe(false);
+
+        expect(
+            TokenResponseSchema.validate({
+                token: 'api-token',
+                expiresAt: new Date('2026-06-01T00:00:00.000Z'),
+                user: {
+                    id: 12,
+                    email: 'jane@example.com',
+                    role: 'user',
+                    defaultCurrency: 'USD',
+                    timezone: 'UTC',
+                    hasCategories: false
+                }
+            }).valid
+        ).toBe(true);
     });
 
     it('validates Passport auth payloads', () => {
