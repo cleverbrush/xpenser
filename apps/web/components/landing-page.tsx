@@ -61,9 +61,9 @@ const appFeatures: readonly Feature[] = [
     },
     {
         description:
-            'Reports compare current activity with previous periods and previous-year baselines.',
+            'Reports compare periods on demand, and configurable weekly and monthly email summaries surface OpenAI-generated spending and income insights.',
         icon: LineChartIcon,
-        title: 'Period reports'
+        title: 'Reports and email summaries'
     },
     {
         description:
@@ -111,6 +111,10 @@ const capabilityRows = [
     ['Transactions', 'Filtering, editing, reversals, multi-currency input'],
     ['Conversion', 'Automatic default-currency conversion via Frankfurter'],
     ['Reports', 'Period comparison with charted historical context'],
+    [
+        'Email summaries',
+        'Configurable weekly and monthly spending and income insights'
+    ],
     ['External API', 'Typed client, API keys, and read-only MCP server']
 ] as const;
 
