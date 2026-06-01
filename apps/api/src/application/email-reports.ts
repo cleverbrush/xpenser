@@ -72,10 +72,14 @@ type CategorySummary = {
 };
 
 type NotableTransaction = {
+    readonly amount: number;
+    readonly categoryImpact: number;
     readonly categoryName: string;
     readonly date: string;
+    readonly effect: 'normal' | 'reversal';
+    readonly interpretation: string;
+    readonly netImpact: number;
     readonly type: 'expense' | 'income';
-    readonly amount: number;
 };
 
 type ReportAnalytics = {
@@ -216,6 +220,54 @@ function categorySummary(
     };
 }
 
+function transactionEffect(
+    transaction: Pick<TransactionDb, 'effect'>
+): 'normal' | 'reversal' {
+    return transaction.effect === 'reversal' ? 'reversal' : 'normal';
+}
+
+function transactionNetImpact(
+    transaction: Pick<
+        TransactionDb,
+        'defaultCurrencyAmount' | 'effect' | 'type'
+    >
+): number {
+    const categoryImpact = transactionSignedDefaultAmount(transaction);
+    return transaction.type === 'income' ? categoryImpact : -categoryImpact;
+}
+
+function transactionInterpretation(
+    transaction: Pick<TransactionDb, 'effect' | 'type'>
+): string {
+    const effect = transactionEffect(transaction);
+    if (effect === 'normal' && transaction.type === 'expense') {
+        return 'Expense spending. It increases expenses and reduces net position.';
+    }
+    if (effect === 'normal' && transaction.type === 'income') {
+        return 'Income received. It increases income and improves net position.';
+    }
+    if (transaction.type === 'expense') {
+        return 'Expense reversal/refund. It reduces expenses and improves net position; do not describe it as spending.';
+    }
+    return 'Income reversal/correction. It reduces income and lowers net position; do not describe it as spending.';
+}
+
+function notableTransaction(
+    transaction: TransactionDb,
+    timeZone: string
+): NotableTransaction {
+    return {
+        amount: Math.abs(Number(transaction.defaultCurrencyAmount)),
+        categoryImpact: transactionSignedDefaultAmount(transaction),
+        categoryName: transaction.category?.name ?? '',
+        date: dateToLocalDateParam(transaction.occurredAt, timeZone),
+        effect: transactionEffect(transaction),
+        interpretation: transactionInterpretation(transaction),
+        netImpact: transactionNetImpact(transaction),
+        type: transaction.type
+    };
+}
+
 async function transactionsForPeriod(
     db: AppDb,
     userId: number,
@@ -268,12 +320,7 @@ async function buildReportAnalytics(
                 right.occurredAt.getTime() - left.occurredAt.getTime()
         )
         .slice(0, 5)
-        .map(transaction => ({
-            amount: transactionSignedDefaultAmount(transaction),
-            categoryName: transaction.category?.name ?? '',
-            date: dateToLocalDateParam(transaction.occurredAt, user.timezone),
-            type: transaction.type
-        }));
+        .map(transaction => notableTransaction(transaction, user.timezone));
 
     return {
         type,
@@ -313,12 +360,22 @@ function requireReportConfig(config: Config): void {
     }
 }
 
-function openaiPayload(analytics: ReportAnalytics) {
+export function emailReportOpenAiPayload(analytics: ReportAnalytics) {
     return {
         report: {
             type: analytics.type,
             period: analytics.periodLabel,
             currency: analytics.currency,
+            dataSemantics: {
+                totals: 'Income, expenses, category totals, trends, and averages are net of reversal transactions.',
+                transactionEffects: {
+                    normal: 'A normal expense is spending; a normal income is received income.',
+                    reversal:
+                        'A reversal cancels or offsets a prior transaction. Expense reversals are refunds/credits that reduce expenses and improve net position. Income reversals reduce income. Do not describe reversals as new spending.'
+                },
+                notableTransactionFields:
+                    'amount is the positive magnitude; categoryImpact is the signed contribution to its income or expense category; netImpact is the signed impact on net position.'
+            },
             totals: {
                 income: analytics.incomeTotal,
                 expenses: analytics.expenseTotal,
@@ -377,7 +434,7 @@ async function generateInsights(
     const parsed = await generateStructuredJson<Partial<ReportInsights>>(
         config,
         {
-            input: openaiPayload(analytics),
+            input: emailReportOpenAiPayload(analytics),
             model: config.openai.reportModel,
             schema: {
                 additionalProperties: false,
@@ -409,7 +466,12 @@ async function generateInsights(
                 type: 'object'
             },
             schemaName: 'email_report_insights',
-            system: 'You write concise personal finance report insights. Be specific, balanced, and practical. Use only the provided aggregate data. Do not invent numbers, merchants, or facts.'
+            system: [
+                'You write concise personal finance report insights. Be specific, balanced, and practical.',
+                'Use only the provided aggregate data. Do not invent numbers, merchants, or facts.',
+                'Treat reversal transactions carefully: an expense reversal is a refund or credit that reduces spending, not a negative purchase. An income reversal is a correction that reduces income, not spending.',
+                'When notableTransactions include effect=reversal or interpretation text, describe them using that interpretation and never call them new spending.'
+            ].join(' ')
         }
     );
     return parseInsights(JSON.stringify(parsed));
