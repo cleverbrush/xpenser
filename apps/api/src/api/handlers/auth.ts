@@ -155,7 +155,9 @@ export const updatePreferencesHandler: Handler<
         principal.userId,
         body.defaultCurrency,
         body.favoriteCurrencies,
-        body.timezone
+        body.timezone,
+        body.weeklyEmailReportEnabled,
+        body.monthlyEmailReportEnabled
     );
     if (!preference) {
         return ActionResult.unauthorized({ message: 'User was not found.' });

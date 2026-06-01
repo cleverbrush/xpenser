@@ -6,6 +6,7 @@ import {
 } from '@cleverbrush/log';
 import { otelLogSink, traceEnricher } from '@cleverbrush/otel';
 import knex from 'knex';
+import { startEmailReportScheduler } from './application/email-report-scheduler.js';
 import { config } from './config.js';
 import { runMigrations } from './db/migrate.js';
 import { createDbResources } from './di/setup.js';
@@ -36,6 +37,12 @@ async function main() {
     }
 
     const dbResources = createDbResources(config, logger);
+    const emailReportScheduler = startEmailReportScheduler({
+        config,
+        db: dbResources.db,
+        knex: dbResources.knex,
+        logger
+    });
     const server = buildServer(config, logger, dbResources);
     const httpServer = await server.listen(config.api.port, config.api.host);
     logger.info(ApiListening, {
@@ -48,6 +55,7 @@ async function main() {
         try {
             await httpServer.close();
         } finally {
+            emailReportScheduler.stop();
             await dbResources.knex.destroy();
             await logger.dispose();
             await otel.shutdown();

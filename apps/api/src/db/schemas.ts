@@ -1,4 +1,5 @@
 import {
+    boolean,
     type DbContext,
     date,
     defineEntity,
@@ -15,6 +16,12 @@ export const UserDbSchema = object({
     authProvider: string().hasColumnName('auth_provider'),
     defaultCurrency: string().hasColumnName('default_currency'),
     timezone: string().defaultTo('UTC'),
+    weeklyEmailReportEnabled: boolean()
+        .hasColumnName('weekly_email_report_enabled')
+        .defaultTo(true),
+    monthlyEmailReportEnabled: boolean()
+        .hasColumnName('monthly_email_report_enabled')
+        .defaultTo(true),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 })
@@ -27,6 +34,8 @@ export const UserDbSchema = object({
         'authProvider',
         'defaultCurrency',
         'timezone',
+        'weeklyEmailReportEnabled',
+        'monthlyEmailReportEnabled',
         'createdAt',
         'updatedAt'
     )
@@ -38,7 +47,9 @@ export const UserDbSchema = object({
         'role',
         'authProvider',
         'defaultCurrency',
-        'timezone'
+        'timezone',
+        'weeklyEmailReportEnabled',
+        'monthlyEmailReportEnabled'
     );
 
 export const FavoriteCurrencyDbSchema = object({
@@ -194,6 +205,8 @@ export type UserDb = {
     readonly authProvider: string;
     readonly defaultCurrency: string;
     readonly timezone: string;
+    readonly weeklyEmailReportEnabled: boolean;
+    readonly monthlyEmailReportEnabled: boolean;
     readonly createdAt: Date;
     readonly updatedAt: Date;
 };

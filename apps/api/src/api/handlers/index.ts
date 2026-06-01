@@ -19,6 +19,7 @@ import {
     updateCategoryHandler
 } from './categories.js';
 import { convertCurrencyHandler, listCurrenciesHandler } from './currencies.js';
+import { emailReportTestSendHandler } from './email-reports.js';
 import {
     createTelegramLinkTokenHandler,
     disconnectTelegramHandler,
@@ -84,5 +85,8 @@ export const handlers = {
         overview: statsOverviewHandler,
         window: statsWindowHandler,
         categoryTrend: categoryTrendHandler
+    },
+    emailReports: {
+        testSend: emailReportTestSendHandler
     }
 };

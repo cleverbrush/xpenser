@@ -27,6 +27,18 @@ function optionalString(formData: FormData, key: string): string | undefined {
     return value.trim();
 }
 
+function booleanString(
+    formData: FormData,
+    key: string,
+    defaultValue: boolean
+): boolean {
+    const value = formData.get(key);
+    if (typeof value !== 'string') {
+        return defaultValue;
+    }
+    return value === 'true';
+}
+
 function editableString(formData: FormData, key: string): string | undefined {
     const value = formData.get(key);
     return typeof value === 'string' ? value.trim() : undefined;
@@ -262,7 +274,17 @@ export async function updatePreferencesAction(formData: FormData) {
         body: {
             defaultCurrency,
             favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency),
-            timezone: optionalString(formData, 'timezone') ?? 'UTC'
+            timezone: optionalString(formData, 'timezone') ?? 'UTC',
+            weeklyEmailReportEnabled: booleanString(
+                formData,
+                'weeklyEmailReportEnabled',
+                true
+            ),
+            monthlyEmailReportEnabled: booleanString(
+                formData,
+                'monthlyEmailReportEnabled',
+                true
+            )
         }
     });
     revalidateTag('user-profile', 'max');

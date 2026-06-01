@@ -23,7 +23,7 @@ function corsMiddleware(config: Config): Middleware {
         );
         ctx.response.setHeader(
             'Access-Control-Allow-Headers',
-            'Content-Type, Authorization, X-API-Key, Mcp-Protocol-Version, Mcp-Session-Id, traceparent, tracestate, baggage'
+            'Content-Type, Authorization, X-API-Key, X-Email-Reports-Test-Secret, Mcp-Protocol-Version, Mcp-Session-Id, traceparent, tracestate, baggage'
         );
         ctx.response.setHeader(
             'Access-Control-Expose-Headers',

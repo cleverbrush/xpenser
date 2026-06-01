@@ -9,6 +9,7 @@ import {
 import {
     Button,
     Field,
+    FieldDescription,
     FieldError,
     FieldGroup,
     FieldLabel,
@@ -39,6 +40,14 @@ export function PreferencesForm({
     const defaultCurrency = form.useField(field => field.defaultCurrency);
     const favoriteCurrencies = form.useField(field => field.favoriteCurrencies);
     const timezone = form.useField(field => field.timezone);
+    const [
+        selectedWeeklyEmailReportEnabled,
+        setSelectedWeeklyEmailReportEnabled
+    ] = useState(me.weeklyEmailReportEnabled);
+    const [
+        selectedMonthlyEmailReportEnabled,
+        setSelectedMonthlyEmailReportEnabled
+    ] = useState(me.monthlyEmailReportEnabled);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
     const sortedCurrencies = useMemo(
@@ -61,9 +70,20 @@ export function PreferencesForm({
             favoriteCurrencies: me.favoriteCurrencies.filter(
                 currency => currency !== me.defaultCurrency
             ),
-            timezone: me.timezone
+            timezone: me.timezone,
+            weeklyEmailReportEnabled: me.weeklyEmailReportEnabled,
+            monthlyEmailReportEnabled: me.monthlyEmailReportEnabled
         });
-    }, [form, me.defaultCurrency, me.favoriteCurrencies, me.timezone]);
+        setSelectedWeeklyEmailReportEnabled(me.weeklyEmailReportEnabled);
+        setSelectedMonthlyEmailReportEnabled(me.monthlyEmailReportEnabled);
+    }, [
+        form,
+        me.defaultCurrency,
+        me.favoriteCurrencies,
+        me.monthlyEmailReportEnabled,
+        me.timezone,
+        me.weeklyEmailReportEnabled
+    ]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -71,7 +91,12 @@ export function PreferencesForm({
         const favoriteCurrencies = selectedFavoriteCurrencies.filter(
             currency => currency !== selectedDefaultCurrency
         );
-        form.setValue({ favoriteCurrencies, timezone: selectedTimezone });
+        form.setValue({
+            favoriteCurrencies,
+            timezone: selectedTimezone,
+            weeklyEmailReportEnabled: selectedWeeklyEmailReportEnabled,
+            monthlyEmailReportEnabled: selectedMonthlyEmailReportEnabled
+        });
         const result = await form.submit();
         if (!result.valid || !result.object) {
             return;
@@ -174,6 +199,70 @@ export function PreferencesForm({
                     {timezone.touched && timezone.error ? (
                         <FieldError>{timezone.error}</FieldError>
                     ) : null}
+                </Field>
+                <Field>
+                    <div className="space-y-1">
+                        <FieldLabel>Email reports</FieldLabel>
+                        <FieldDescription>
+                            Receive spending and income analytics by email.
+                        </FieldDescription>
+                    </div>
+                    <div className="grid gap-3 rounded-md border border-input p-3">
+                        <label
+                            className="flex items-start gap-3 text-sm"
+                            htmlFor="weekly-email-report"
+                        >
+                            <Input
+                                checked={selectedWeeklyEmailReportEnabled}
+                                className="mt-0.5 size-4"
+                                id="weekly-email-report"
+                                name="weeklyEmailReportEnabled"
+                                onChange={event =>
+                                    setSelectedWeeklyEmailReportEnabled(
+                                        event.target.checked
+                                    )
+                                }
+                                type="checkbox"
+                                value={String(selectedWeeklyEmailReportEnabled)}
+                            />
+                            <span>
+                                <span className="block font-medium">
+                                    Weekly report
+                                </span>
+                                <span className="text-muted-foreground">
+                                    Sent Monday morning for the previous week.
+                                </span>
+                            </span>
+                        </label>
+                        <label
+                            className="flex items-start gap-3 text-sm"
+                            htmlFor="monthly-email-report"
+                        >
+                            <Input
+                                checked={selectedMonthlyEmailReportEnabled}
+                                className="mt-0.5 size-4"
+                                id="monthly-email-report"
+                                name="monthlyEmailReportEnabled"
+                                onChange={event =>
+                                    setSelectedMonthlyEmailReportEnabled(
+                                        event.target.checked
+                                    )
+                                }
+                                type="checkbox"
+                                value={String(
+                                    selectedMonthlyEmailReportEnabled
+                                )}
+                            />
+                            <span>
+                                <span className="block font-medium">
+                                    Monthly report
+                                </span>
+                                <span className="text-muted-foreground">
+                                    Sent on the first morning of each month.
+                                </span>
+                            </span>
+                        </label>
+                    </div>
                 </Field>
                 {error ? <FieldError role="alert">{error}</FieldError> : null}
                 <Button

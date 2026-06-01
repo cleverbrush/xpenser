@@ -301,6 +301,14 @@ export const UserPreferenceSchema = object({
     /** True when the user has at least one category. */
     hasCategories: boolean().describe(
         'True when the user has at least one category.'
+    ),
+    /** True when weekly email reports are enabled. */
+    weeklyEmailReportEnabled: boolean().describe(
+        'True when weekly email reports are enabled.'
+    ),
+    /** True when monthly email reports are enabled. */
+    monthlyEmailReportEnabled: boolean().describe(
+        'True when monthly email reports are enabled.'
     )
 }).schemaName('UserPreference');
 
@@ -366,8 +374,42 @@ export const UpdateUserPreferenceBodySchema = object({
     /** Time zone used for transaction display and reporting periods. */
     timezone: TimeZoneSchema.optional().describe(
         'Time zone used for transaction display and reporting periods.'
-    )
+    ),
+    /** True when weekly email reports are enabled. */
+    weeklyEmailReportEnabled: boolean()
+        .default(true)
+        .describe('True when weekly email reports are enabled.'),
+    /** True when monthly email reports are enabled. */
+    monthlyEmailReportEnabled: boolean()
+        .default(true)
+        .describe('True when monthly email reports are enabled.')
 }).schemaName('UpdateUserPreferenceBody');
+
+export const EmailReportTestSendResponseSchema = object({
+    /** User email address selected for the test send. */
+    email: string().describe('User email address selected for the test send.'),
+    /** Number of reports sent. */
+    sent: number().describe('Number of reports sent.'),
+    /** Number of reports skipped. */
+    skipped: number().describe('Number of reports skipped.'),
+    /** Per-report test send outcomes. */
+    reports: array(
+        object({
+            /** Report cadence. */
+            type: enumOf('weekly', 'monthly').describe('Report cadence.'),
+            /** Send status. */
+            status: enumOf('sent', 'skipped').describe('Send status.'),
+            /** Period start timestamp. */
+            from: date().coerce().describe('Period start timestamp.'),
+            /** Period end timestamp. */
+            to: date().coerce().describe('Period end timestamp.'),
+            /** Reason when the report was skipped. */
+            reason: string()
+                .optional()
+                .describe('Reason when the report was skipped.')
+        })
+    ).describe('Per-report test send outcomes.')
+}).schemaName('EmailReportTestSendResponse');
 
 export const TelegramConnectionStatusSchema = object({
     /** True when the current xpenser account is connected to Telegram. */
@@ -1145,6 +1187,9 @@ export type UserPreference = InferType<typeof UserPreferenceSchema>;
 export type ApiKey = InferType<typeof ApiKeySchema>;
 export type CreateApiKeyBody = InferType<typeof CreateApiKeyBodySchema>;
 export type CreateApiKeyResponse = InferType<typeof CreateApiKeyResponseSchema>;
+export type EmailReportTestSendResponse = InferType<
+    typeof EmailReportTestSendResponseSchema
+>;
 export type TelegramConnectionStatus = InferType<
     typeof TelegramConnectionStatusSchema
 >;

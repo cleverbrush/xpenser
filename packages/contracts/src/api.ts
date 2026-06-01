@@ -17,6 +17,7 @@ import {
     DashboardQuerySchema,
     DashboardSummarySchema,
     DashboardWindowResponseSchema,
+    EmailReportTestSendResponseSchema,
     ErrorResponseSchema,
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
@@ -324,6 +325,15 @@ export const api = defineApi({
             .responses({
                 200: CategoryTrendResponseSchema,
                 400: ErrorResponseSchema
+            })
+    },
+    emailReports: {
+        testSend: endpoint
+            .post('/api/internal/email-reports/test-send')
+            .responses({
+                200: EmailReportTestSendResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
             })
     }
 });
