@@ -89,7 +89,6 @@ export const config = parseEnv(
                 'EMAIL_REPORTS_SCHEDULER_ENABLED',
                 string().default('0')
             ),
-            testSecret: env('EMAIL_REPORTS_TEST_SECRET', string().optional()),
             deliveryHourLocal: env(
                 'EMAIL_REPORTS_DELIVERY_HOUR_LOCAL',
                 number().coerce().default(8)
@@ -128,7 +127,6 @@ export const config = parseEnv(
             emailReports: {
                 enabled,
                 schedulerEnabled,
-                testSecret: base.emailReportsEnv.testSecret,
                 deliveryHourLocal: base.emailReportsEnv.deliveryHourLocal,
                 maxAttempts: base.emailReportsEnv.maxAttempts
             }

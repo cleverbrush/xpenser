@@ -1,9 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import type { Logger } from '@cleverbrush/log';
-import type {
-    EmailReportTestSendResponse,
-    StatsOverview
-} from '@xpenser/contracts';
+import type { StatsOverview } from '@xpenser/contracts';
 import {
     addLocalDays,
     addLocalMonths,
@@ -23,7 +19,7 @@ import {
 
 export type EmailReportType = 'monthly' | 'weekly';
 
-type ReportTrigger = 'scheduled' | 'test';
+type ReportTrigger = 'scheduled';
 
 type ReportPeriod = {
     readonly from: Date;
@@ -113,8 +109,6 @@ type ReportAnalytics = {
 };
 
 export class EmailReportConfigError extends Error {}
-
-const testRecipientEmail = 'andrew_zol@cleverbrush.com';
 
 function localParts(value: Date, timeZone: string) {
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -633,14 +627,6 @@ function scheduledDeliveryKey(
     return `${userId}:${type}:${period.from.toISOString()}`;
 }
 
-function testDeliveryKey(
-    userId: number,
-    type: EmailReportType,
-    period: ReportPeriod
-): string {
-    return `test:${userId}:${type}:${period.from.toISOString()}:${randomUUID()}`;
-}
-
 async function claimDelivery(
     knex: Knex,
     config: Config,
@@ -649,10 +635,7 @@ async function claimDelivery(
     trigger: ReportTrigger,
     period: ReportPeriod
 ): Promise<number | undefined> {
-    const deliveryKey =
-        trigger === 'scheduled'
-            ? scheduledDeliveryKey(user.id, type, period)
-            : testDeliveryKey(user.id, type, period);
+    const deliveryKey = scheduledDeliveryKey(user.id, type, period);
     const result = await knex.raw<{ rows: { id: number }[] }>(
         `
         insert into email_report_deliveries (
@@ -786,25 +769,6 @@ async function sendEmailReport(
     }
 }
 
-async function findReportUserByEmail(
-    knex: Knex,
-    email: string
-): Promise<ReportUser | undefined> {
-    const user = await knex('users')
-        .select(
-            'id',
-            'email',
-            'default_currency as defaultCurrency',
-            'timezone',
-            'weekly_email_report_enabled as weeklyEmailReportEnabled',
-            'monthly_email_report_enabled as monthlyEmailReportEnabled'
-        )
-        .whereRaw('lower(email) = lower(?)', [email])
-        .first();
-
-    return user as ReportUser | undefined;
-}
-
 async function listReportUsers(knex: Knex): Promise<ReportUser[]> {
     const rows = await knex('users')
         .select(
@@ -822,32 +786,6 @@ async function listReportUsers(knex: Knex): Promise<ReportUser[]> {
         });
 
     return rows as ReportUser[];
-}
-
-export async function sendTestEmailReportsForAndrew(
-    db: AppDb,
-    knex: Knex,
-    config: Config
-): Promise<EmailReportTestSendResponse> {
-    const user = await findReportUserByEmail(knex, testRecipientEmail);
-    if (!user) {
-        throw new EmailReportConfigError(
-            `User ${testRecipientEmail} was not found.`
-        );
-    }
-
-    const now = new Date();
-    const reports = await Promise.all([
-        sendEmailReport(db, knex, config, user, 'weekly', 'test', now),
-        sendEmailReport(db, knex, config, user, 'monthly', 'test', now)
-    ]);
-
-    return {
-        email: user.email,
-        reports,
-        sent: reports.filter(report => report.status === 'sent').length,
-        skipped: reports.filter(report => report.status === 'skipped').length
-    };
 }
 
 export async function sendDueEmailReports(

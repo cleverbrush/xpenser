@@ -1,5 +1,5 @@
 import { api, PrincipalSchema } from '@xpenser/contracts';
-import { ConfigToken, DbToken, KnexToken, LoggerToken } from '../di/tokens.js';
+import { ConfigToken, DbToken, LoggerToken } from '../di/tokens.js';
 
 export const RegisterEndpoint = api.auth.register
     .inject({ db: DbToken, config: ConfigToken })
@@ -253,15 +253,6 @@ export const CategoryTrendEndpoint = api.stats.categoryTrend
     .tags('stats')
     .operationId('categoryTrend');
 
-export const EmailReportTestSendEndpoint = api.emailReports.testSend
-    .inject({ db: DbToken, knex: KnexToken, config: ConfigToken })
-    .summary('Test email reports')
-    .description(
-        'Temporarily sends weekly and monthly report emails for the allowlisted test account.'
-    )
-    .tags('email-reports')
-    .operationId('testSendEmailReports');
-
 export const endpoints = {
     auth: {
         register: RegisterEndpoint,
@@ -308,8 +299,5 @@ export const endpoints = {
         overview: StatsOverviewEndpoint,
         window: StatsWindowEndpoint,
         categoryTrend: CategoryTrendEndpoint
-    },
-    emailReports: {
-        testSend: EmailReportTestSendEndpoint
     }
 };

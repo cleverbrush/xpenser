@@ -385,32 +385,6 @@ export const UpdateUserPreferenceBodySchema = object({
         .describe('True when monthly email reports are enabled.')
 }).schemaName('UpdateUserPreferenceBody');
 
-export const EmailReportTestSendResponseSchema = object({
-    /** User email address selected for the test send. */
-    email: string().describe('User email address selected for the test send.'),
-    /** Number of reports sent. */
-    sent: number().describe('Number of reports sent.'),
-    /** Number of reports skipped. */
-    skipped: number().describe('Number of reports skipped.'),
-    /** Per-report test send outcomes. */
-    reports: array(
-        object({
-            /** Report cadence. */
-            type: enumOf('weekly', 'monthly').describe('Report cadence.'),
-            /** Send status. */
-            status: enumOf('sent', 'skipped').describe('Send status.'),
-            /** Period start timestamp. */
-            from: date().coerce().describe('Period start timestamp.'),
-            /** Period end timestamp. */
-            to: date().coerce().describe('Period end timestamp.'),
-            /** Reason when the report was skipped. */
-            reason: string()
-                .optional()
-                .describe('Reason when the report was skipped.')
-        })
-    ).describe('Per-report test send outcomes.')
-}).schemaName('EmailReportTestSendResponse');
-
 export const TelegramConnectionStatusSchema = object({
     /** True when the current xpenser account is connected to Telegram. */
     linked: boolean().describe(
@@ -1187,9 +1161,6 @@ export type UserPreference = InferType<typeof UserPreferenceSchema>;
 export type ApiKey = InferType<typeof ApiKeySchema>;
 export type CreateApiKeyBody = InferType<typeof CreateApiKeyBodySchema>;
 export type CreateApiKeyResponse = InferType<typeof CreateApiKeyResponseSchema>;
-export type EmailReportTestSendResponse = InferType<
-    typeof EmailReportTestSendResponseSchema
->;
 export type TelegramConnectionStatus = InferType<
     typeof TelegramConnectionStatusSchema
 >;
