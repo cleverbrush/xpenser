@@ -58,10 +58,24 @@ describe('shared schemas', () => {
             favoriteCurrencies: ['EUR'],
             transactionCurrencies: ['EUR', 'USD'],
             timezone: 'UTC',
-            hasCategories: true
+            hasCategories: true,
+            weeklyEmailReportEnabled: true,
+            monthlyEmailReportEnabled: true
         });
 
         expect(result.valid).toBe(true);
+    });
+
+    it('defaults email report preferences to enabled when updating preferences', () => {
+        const result = UpdateUserPreferenceBodySchema.validate({
+            defaultCurrency: 'USD',
+            favoriteCurrencies: ['EUR'],
+            timezone: 'UTC'
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.object?.weeklyEmailReportEnabled).toBe(true);
+        expect(result.object?.monthlyEmailReportEnabled).toBe(true);
     });
 
     it('validates category list sorting controls', () => {

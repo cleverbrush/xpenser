@@ -31,6 +31,9 @@ describe('LandingPage', () => {
             screen.getAllByText(/multiple currencies/i).length
         ).toBeGreaterThan(0);
         expect(screen.getAllByText(/Frankfurter/i).length).toBeGreaterThan(0);
+        expect(
+            screen.getAllByText(/weekly and monthly email summaries/i).length
+        ).toBeGreaterThan(0);
 
         const signInLinks = screen.getAllByRole('link', { name: /sign in/i });
         expect(

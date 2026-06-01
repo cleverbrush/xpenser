@@ -140,7 +140,13 @@ function toTokenResponse(
     config: Config,
     user: Pick<
         UserDb,
-        'defaultCurrency' | 'email' | 'id' | 'role' | 'timezone'
+        | 'defaultCurrency'
+        | 'email'
+        | 'id'
+        | 'role'
+        | 'timezone'
+        | 'weeklyEmailReportEnabled'
+        | 'monthlyEmailReportEnabled'
     >,
     categories: boolean,
     expiresInSeconds?: number
@@ -373,7 +379,9 @@ export async function getUserPreference(
         favoriteCurrencies: favorites,
         transactionCurrencies,
         timezone: normalizeTimeZone(user.timezone),
-        hasCategories: categories
+        hasCategories: categories,
+        weeklyEmailReportEnabled: user.weeklyEmailReportEnabled,
+        monthlyEmailReportEnabled: user.monthlyEmailReportEnabled
     };
 }
 
@@ -382,7 +390,9 @@ export async function updateUserPreference(
     userId: number,
     defaultCurrency: string,
     currencies: readonly string[],
-    timezone?: string
+    timezone?: string,
+    weeklyEmailReportEnabled = true,
+    monthlyEmailReportEnabled = true
 ): Promise<UserPreference | undefined> {
     const user = await db.users.find(userId);
     if (!user) {
@@ -395,6 +405,8 @@ export async function updateUserPreference(
             .update({
                 defaultCurrency,
                 timezone: normalizeTimeZone(timezone ?? user.timezone),
+                weeklyEmailReportEnabled,
+                monthlyEmailReportEnabled,
                 updatedAt: new Date()
             });
         await setFavoriteCurrencies(trx, userId, currencies, defaultCurrency);

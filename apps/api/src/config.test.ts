@@ -28,4 +28,21 @@ describe('API config', () => {
             }
         }
     });
+
+    it('normalizes email report feature flags', async () => {
+        vi.stubEnv('NODE_ENV', 'development');
+        vi.stubEnv('JWT_SECRET', 'x'.repeat(32));
+        vi.stubEnv('WEB_API_SERVICE_SECRET', 'x'.repeat(32));
+        vi.stubEnv('TELEGRAM_BOT_SERVICE_SECRET', 'x'.repeat(32));
+        vi.stubEnv('EMAIL_REPORTS_ENABLED', '1');
+        vi.stubEnv('EMAIL_REPORTS_SCHEDULER_ENABLED', 'true');
+        vi.resetModules();
+
+        const { config } = await import('./config.js');
+
+        expect(config.emailReports.enabled).toBe(true);
+        expect(config.emailReports.schedulerEnabled).toBe(true);
+        expect(config.emailReports.deliveryHourLocal).toBe(8);
+        expect(config.openai.reportModel).toBe('gpt-5-mini');
+    });
 });

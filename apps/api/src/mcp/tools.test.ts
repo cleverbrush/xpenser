@@ -94,7 +94,9 @@ describe('MCP tool helpers', () => {
                 favoriteCurrencies: ['EUR'],
                 transactionCurrencies: ['USD', 'EUR'],
                 timezone: 'UTC',
-                hasCategories: true
+                hasCategories: true,
+                weeklyEmailReportEnabled: true,
+                monthlyEmailReportEnabled: true
             })),
             listCategories: vi.fn(async () => [
                 {

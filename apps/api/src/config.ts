@@ -69,6 +69,35 @@ export const config = parseEnv(
                 string().default('https://api.frankfurter.dev/v2')
             )
         },
+        openai: {
+            apiKey: env('OPENAI_API_KEY', string().optional()),
+            reportModel: env(
+                'OPENAI_REPORT_MODEL',
+                string().default('gpt-5-mini')
+            )
+        },
+        resend: {
+            apiKey: env('RESEND_API_KEY', string().optional()),
+            emailFrom: env(
+                'EMAIL_FROM',
+                string().default('Xpenser <reports@xpenser.app>')
+            )
+        },
+        emailReportsEnv: {
+            enabled: env('EMAIL_REPORTS_ENABLED', string().default('0')),
+            schedulerEnabled: env(
+                'EMAIL_REPORTS_SCHEDULER_ENABLED',
+                string().default('0')
+            ),
+            deliveryHourLocal: env(
+                'EMAIL_REPORTS_DELIVERY_HOUR_LOCAL',
+                number().coerce().default(8)
+            ),
+            maxAttempts: env(
+                'EMAIL_REPORTS_MAX_ATTEMPTS',
+                number().coerce().default(3)
+            )
+        },
         logLevel: env(
             'LOG_LEVEL',
             string()
@@ -83,11 +112,26 @@ export const config = parseEnv(
                 .default('information')
         )
     },
-    base => ({
-        db: {
-            connectionString: `postgresql://${base.db.user}:${base.db.password}@${base.db.host}:${base.db.port}/${base.db.name}`
-        }
-    })
+    base => {
+        const enabled = ['1', 'true', 'yes'].includes(
+            base.emailReportsEnv.enabled.toLowerCase()
+        );
+        const schedulerEnabled = ['1', 'true', 'yes'].includes(
+            base.emailReportsEnv.schedulerEnabled.toLowerCase()
+        );
+
+        return {
+            db: {
+                connectionString: `postgresql://${base.db.user}:${base.db.password}@${base.db.host}:${base.db.port}/${base.db.name}`
+            },
+            emailReports: {
+                enabled,
+                schedulerEnabled,
+                deliveryHourLocal: base.emailReportsEnv.deliveryHourLocal,
+                maxAttempts: base.emailReportsEnv.maxAttempts
+            }
+        };
+    }
 );
 
 const PLACEHOLDER_SECRET = 'change-me-in-production-min32chars';
