@@ -240,7 +240,11 @@ export const api = defineApi({
             .clearsCacheTag('categories')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
-            .responses({ 200: CategorySchema, 404: ErrorResponseSchema }),
+            .responses({
+                200: CategorySchema,
+                400: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         delete: categories
             .delete(ById)
             .clearsCacheTag('categories')

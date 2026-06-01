@@ -1,5 +1,6 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
 import {
+    CategoryHierarchyError,
     CategoryInUseError,
     CategoryNotFoundError,
     createCategory,
@@ -24,9 +25,16 @@ export const listCategoriesHandler: Handler<
 export const createCategoryHandler: Handler<
     typeof CreateCategoryEndpoint
 > = async ({ body, principal }, { db }) => {
-    return ActionResult.created(
-        await createCategory(db, principal.userId, body)
-    );
+    try {
+        return ActionResult.created(
+            await createCategory(db, principal.userId, body)
+        );
+    } catch (err) {
+        if (err instanceof CategoryHierarchyError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        throw err;
+    }
 };
 
 export const updateCategoryHandler: Handler<
@@ -37,6 +45,12 @@ export const updateCategoryHandler: Handler<
     } catch (err) {
         if (err instanceof CategoryNotFoundError) {
             return ActionResult.notFound({ message: err.message });
+        }
+        if (
+            err instanceof CategoryHierarchyError ||
+            err instanceof CategoryInUseError
+        ) {
+            return ActionResult.badRequest({ message: err.message });
         }
         throw err;
     }
@@ -53,6 +67,9 @@ export const deleteCategoryHandler: Handler<
             return ActionResult.notFound({ message: err.message });
         }
         if (err instanceof CategoryInUseError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        if (err instanceof CategoryHierarchyError) {
             return ActionResult.badRequest({ message: err.message });
         }
         if (err instanceof LastCategoryError) {

@@ -123,8 +123,15 @@ export const CategoryDbSchema = object({
         .references('users', 'id')
         .onDelete('CASCADE')
         .index('idx_categories_user_id'),
+    parentId: number()
+        .hasColumnName('parent_id')
+        .references('categories', 'id')
+        .onDelete('RESTRICT')
+        .index('idx_categories_parent_id')
+        .optional(),
     name: string(),
     type: string(),
+    kind: string().defaultTo('normal'),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 }).hasTableName('categories');
@@ -142,7 +149,6 @@ export const TransactionDbSchema = object({
         .onDelete('RESTRICT')
         .index('idx_transactions_category_id'),
     type: string(),
-    effect: string().defaultTo('normal'),
     amount: number(),
     currency: string(),
     defaultCurrencyAmount: number().hasColumnName('default_currency_amount'),
@@ -236,8 +242,10 @@ export type ExternalIdentityDb = {
 export type CategoryDb = {
     readonly id: number;
     readonly userId: number;
+    readonly parentId?: number | null;
     readonly name: string;
     readonly type: 'expense' | 'income';
+    readonly kind: 'normal' | 'offset';
     readonly createdAt: Date;
     readonly updatedAt: Date;
 };
@@ -279,7 +287,6 @@ export type TransactionDb = {
     readonly categoryId: number;
     readonly category?: CategoryDb | null;
     readonly type: 'expense' | 'income';
-    readonly effect: 'normal' | 'reversal';
     readonly amount: string | number;
     readonly currency: string;
     readonly defaultCurrencyAmount: string | number;

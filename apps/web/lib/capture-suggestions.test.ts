@@ -13,7 +13,11 @@ function category(
         id,
         name,
         type,
+        parentId: null,
+        kind: 'normal',
+        displayName: name,
         inUse: true,
+        hasChildren: false,
         createdAt: timestamp,
         updatedAt: timestamp
     };

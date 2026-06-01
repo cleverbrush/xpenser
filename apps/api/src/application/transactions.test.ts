@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CategoryDb } from '../db/schemas.js';
 import {
     categoryTrendMaxBuckets,
     compareTransactionsByOccurrenceAsc,
@@ -11,6 +12,7 @@ import {
     resolveDashboardRange,
     resolveStatsRanges,
     summarizeCategoryTrendRows,
+    summarizeDashboardRows,
     TransactionCategoryError,
     TransactionNotFoundError,
     transactionSignedDefaultAmount
@@ -53,23 +55,99 @@ describe('transaction sorting', () => {
     });
 });
 
-describe('transaction effects', () => {
+describe('transaction category signs', () => {
     it('keeps normal transactions positive for category totals', () => {
         expect(
             transactionSignedDefaultAmount({
                 defaultCurrencyAmount: '12.34',
-                effect: 'normal'
+                category: { kind: 'normal' } as never
             })
         ).toBe(12.34);
     });
 
-    it('subtracts reversal transactions from category totals', () => {
+    it('keeps offset category amounts positive for their reporting side', () => {
         expect(
             transactionSignedDefaultAmount({
                 defaultCurrencyAmount: '12.34',
-                effect: 'reversal'
+                category: { kind: 'offset' } as never
             })
-        ).toBe(-12.34);
+        ).toBe(12.34);
+    });
+
+    it('reports offset child categories on the opposite dashboard side', () => {
+        const timestamp = new Date('2026-05-10T12:00:00.000Z');
+        const car = {
+            id: 1,
+            userId: 1,
+            name: 'Car',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        } as const;
+        const returns = {
+            ...car,
+            id: 2,
+            name: 'Returns',
+            parentId: car.id,
+            kind: 'offset'
+        } as const;
+        const row = (id: number, categoryId: number, amount: string) =>
+            ({
+                id,
+                userId: 1,
+                categoryId,
+                type: 'expense',
+                amount,
+                currency: 'USD',
+                defaultCurrencyAmount: amount,
+                defaultCurrency: 'USD',
+                exchangeRate: '1',
+                exchangeRateDate: '2026-05-10',
+                occurredAt: timestamp,
+                createdAt: timestamp,
+                updatedAt: timestamp
+            }) as const;
+        const summary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            {
+                from: new Date('2026-05-01T00:00:00.000Z'),
+                to: new Date('2026-05-31T23:59:59.999Z')
+            },
+            [row(1, car.id, '100'), row(2, returns.id, '25')],
+            [],
+            new Map<number, CategoryDb>([
+                [car.id, car],
+                [returns.id, returns]
+            ])
+        );
+
+        expect(summary.expenseTotal).toBe(100);
+        expect(summary.incomeTotal).toBe(25);
+        expect(
+            summary.byCategory.map(category => ({
+                id: category.categoryId,
+                parentId: category.categoryParentId,
+                type: category.type,
+                total: category.total
+            }))
+        ).toEqual([
+            { id: car.id, parentId: null, type: 'expense', total: 100 },
+            { id: returns.id, parentId: car.id, type: 'income', total: 25 }
+        ]);
+        expect(
+            summary.byParentCategory.map(category => ({
+                id: category.categoryId,
+                name: category.categoryName,
+                type: category.type,
+                total: category.total
+            }))
+        ).toEqual([
+            { id: car.id, name: 'Car', type: 'expense', total: 100 },
+            { id: car.id, name: 'Car', type: 'income', total: 25 }
+        ]);
     });
 });
 
@@ -158,6 +236,8 @@ describe('category trend ranges and summaries', () => {
         userId: 1,
         name: 'Groceries',
         type: 'expense',
+        parentId: null,
+        kind: 'normal',
         createdAt: new Date('2024-01-15T12:00:00.000Z'),
         updatedAt: new Date('2024-01-15T12:00:00.000Z')
     } as const;
@@ -165,15 +245,14 @@ describe('category trend ranges and summaries', () => {
     function transaction(overrides: {
         readonly id: number;
         readonly amount: string;
-        readonly effect?: 'normal' | 'reversal';
+        readonly categoryId?: number;
         readonly occurredAt: Date;
     }) {
         return {
             id: overrides.id,
             userId: 1,
-            categoryId: category.id,
+            categoryId: overrides.categoryId ?? category.id,
             type: 'expense',
-            effect: overrides.effect ?? 'normal',
             amount: overrides.amount,
             currency: 'USD',
             defaultCurrencyAmount: overrides.amount,
@@ -245,13 +324,24 @@ describe('category trend ranges and summaries', () => {
         });
     });
 
-    it('summarizes category trend buckets with reversal offsets', () => {
+    it('summarizes category trend buckets for offset categories', () => {
+        const offsetCategory = {
+            ...category,
+            id: 8,
+            name: 'Returns',
+            parentId: category.id,
+            kind: 'offset'
+        } as const;
         const range = {
             from: new Date('2026-05-01T00:00:00.000Z'),
             to: new Date('2026-05-31T23:59:59.999Z')
         };
         const response = summarizeCategoryTrendRows({
-            category,
+            category: offsetCategory,
+            categoriesById: new Map<number, CategoryDb>([
+                [category.id, category],
+                [offsetCategory.id, offsetCategory]
+            ]),
             currency: 'USD',
             groupBy: 'month',
             range,
@@ -259,23 +349,27 @@ describe('category trend ranges and summaries', () => {
                 transaction({
                     id: 1,
                     amount: '12.34',
+                    categoryId: offsetCategory.id,
                     occurredAt: new Date('2026-05-10T12:00:00.000Z')
                 }),
                 transaction({
                     id: 2,
                     amount: '2.34',
-                    effect: 'reversal',
+                    categoryId: offsetCategory.id,
                     occurredAt: new Date('2026-05-11T12:00:00.000Z')
                 })
             ],
             timeFrame: 'custom'
         });
 
-        expect(response.total).toBe(10);
+        expect(response.categoryDisplayName).toBe('Groceries -> Returns');
+        expect(response.categoryKind).toBe('offset');
+        expect(response.type).toBe('income');
+        expect(response.total).toBe(14.68);
         expect(response.transactionCount).toBe(2);
         expect(response.densityExceeded).toBe(false);
         expect(response.trend).toHaveLength(1);
-        expect(response.trend[0]?.total).toBe(10);
+        expect(response.trend[0]?.total).toBe(14.68);
         expect(response.trend[0]?.transactionCount).toBe(2);
     });
 

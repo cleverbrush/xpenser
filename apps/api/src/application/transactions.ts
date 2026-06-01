@@ -10,7 +10,6 @@ import type {
     StatsQuery,
     StatsWindowResponse,
     Transaction,
-    TransactionEffect,
     TransactionListQuery
 } from '@xpenser/contracts';
 import {
@@ -41,6 +40,11 @@ import type {
     TransactionDb,
     UserDb
 } from '../db/schemas.js';
+import {
+    categoryDisplayName,
+    categoryParent,
+    categoryReportingType
+} from './categories.js';
 import {
     convertAmount,
     getExchangeRate,
@@ -92,36 +96,106 @@ type CategoryTrendRangeOptions = {
 type CategoryComparison = {
     readonly categoryId: number;
     readonly categoryName: string;
+    readonly categoryDisplayName: string;
+    readonly categoryParentId: number | null;
+    readonly categoryParentName?: string;
+    readonly categoryKind: 'normal' | 'offset';
     readonly type: 'expense' | 'income';
     readonly total: number;
 };
 
 export const categoryTrendMaxBuckets = 500;
 
-function normalizeTransactionEffect(
-    effect?: TransactionEffect | null
-): TransactionEffect {
-    return effect === 'reversal' ? 'reversal' : 'normal';
-}
-
 export function transactionSignedDefaultAmount(
     transaction: Pick<TransactionDb, 'defaultCurrencyAmount'> & {
-        readonly effect?: TransactionEffect | null;
-    }
+        readonly category?: CategoryDb | null;
+    },
+    categoryOverride?: CategoryDb
 ): number {
-    const amount = Number(transaction.defaultCurrencyAmount);
-    return normalizeTransactionEffect(transaction.effect) === 'reversal'
-        ? -amount
-        : amount;
+    void categoryOverride;
+    return Math.abs(Number(transaction.defaultCurrencyAmount));
 }
 
-function mapTransaction(row: TransactionDb): Transaction {
+async function loadCategoriesById(
+    db: AppDb,
+    userId: number
+): Promise<Map<number, CategoryDb>> {
+    const categories = (await db.categories.where(
+        category => category.userId,
+        userId
+    )) as CategoryDb[];
+
+    return new Map(
+        categories.map(category => [category.id, category] as const)
+    );
+}
+
+function categoryFields(
+    category: CategoryDb | null | undefined,
+    fallback: Pick<TransactionDb, 'categoryId' | 'type'>,
+    categoriesById: ReadonlyMap<number, CategoryDb>
+) {
+    const parent = category
+        ? categoryParent(category, categoriesById)
+        : undefined;
+
+    return {
+        categoryId: category?.id ?? fallback.categoryId,
+        categoryName: category?.name ?? '',
+        categoryDisplayName: category
+            ? categoryDisplayName(category, categoriesById)
+            : '',
+        categoryParentId: category?.parentId ?? null,
+        categoryParentName: parent?.name,
+        categoryKind: category?.kind === 'offset' ? 'offset' : 'normal',
+        type: categoryReportingType(category, fallback.type)
+    } as const;
+}
+
+function parentCategoryFields(
+    category: Pick<
+        StatsCategory,
+        | 'categoryId'
+        | 'categoryName'
+        | 'categoryDisplayName'
+        | 'categoryParentId'
+        | 'categoryParentName'
+        | 'type'
+    >,
+    categoriesById: ReadonlyMap<number, CategoryDb>
+) {
+    const parent =
+        category.categoryParentId !== null
+            ? categoriesById.get(category.categoryParentId)
+            : categoriesById.get(category.categoryId);
+
+    return {
+        categoryId: parent?.id ?? category.categoryId,
+        categoryName: parent?.name ?? category.categoryName,
+        categoryDisplayName: parent?.name ?? category.categoryDisplayName,
+        categoryParentId: null,
+        categoryParentName: undefined,
+        categoryKind: 'normal' as const,
+        type: category.type
+    };
+}
+
+function mapTransaction(
+    row: TransactionDb,
+    categoriesById: ReadonlyMap<number, CategoryDb>
+): Transaction {
+    const category = row.category ?? categoriesById.get(row.categoryId);
+    const fields = categoryFields(category, row, categoriesById);
+
     return {
         id: row.id,
-        categoryId: row.categoryId,
-        categoryName: row.category?.name ?? '',
-        type: row.type,
-        effect: normalizeTransactionEffect(row.effect),
+        categoryId: fields.categoryId,
+        categoryName: fields.categoryName,
+        categoryDisplayName: fields.categoryDisplayName,
+        categoryParentId: fields.categoryParentId,
+        categoryParentName: fields.categoryParentName,
+        categoryKind: fields.categoryKind,
+        type: fields.type,
         amount: Number(row.amount),
         currency: row.currency,
         defaultCurrencyAmount: Number(row.defaultCurrencyAmount),
@@ -189,9 +263,6 @@ export async function listTransactions(
         .include(transaction => transaction.category)
         .where(transaction => transaction.userId, userId);
 
-    if (query.type) {
-        builder = builder.where(transaction => transaction.type, query.type);
-    }
     if (query.categoryId) {
         builder = builder.where(
             transaction => transaction.categoryId,
@@ -214,28 +285,71 @@ export async function listTransactions(
     }
 
     const direction = query.direction ?? 'desc';
-    const rows = ((await builder
-        .orderBy(transaction => transaction.occurredAt, direction)
-        .orderBy(transaction => transaction.id, direction)) ??
-        []) as TransactionDb[];
+    const [rows, categoriesById] = await Promise.all([
+        builder
+            .orderBy(transaction => transaction.occurredAt, direction)
+            .orderBy(transaction => transaction.id, direction),
+        loadCategoriesById(db, userId)
+    ]);
     const sortedRows = [...rows].sort(
         direction === 'asc'
             ? compareTransactionsByOccurrenceAsc
             : compareTransactionsByOccurrenceDesc
-    );
+    ) as TransactionDb[];
 
     const search = query.search?.trim().toLowerCase();
-    const filtered = search
-        ? sortedRows.filter(
-              transaction =>
-                  transaction.category?.name.toLowerCase().includes(search) ||
-                  transaction.note?.toLowerCase().includes(search)
-          )
-        : sortedRows;
+    const filtered = sortedRows
+        .filter(transaction => {
+            if (!query.type) {
+                return true;
+            }
+
+            const category =
+                transaction.category ??
+                categoriesById.get(transaction.categoryId);
+            return (
+                categoryReportingType(category, transaction.type) === query.type
+            );
+        })
+        .filter(transaction => {
+            if (!query.parentCategoryId) {
+                return true;
+            }
+
+            const category =
+                transaction.category ??
+                categoriesById.get(transaction.categoryId);
+            return (
+                transaction.categoryId === query.parentCategoryId ||
+                category?.parentId === query.parentCategoryId
+            );
+        })
+        .filter(transaction => {
+            if (!search) {
+                return true;
+            }
+
+            const category =
+                transaction.category ??
+                categoriesById.get(transaction.categoryId);
+            return (
+                category?.name.toLowerCase().includes(search) ||
+                (category
+                    ? categoryDisplayName(
+                          category,
+                          categoriesById
+                      ).toLowerCase()
+                    : ''
+                ).includes(search) ||
+                transaction.note?.toLowerCase().includes(search)
+            );
+        });
     const offset = (page - 1) * limit;
 
     return {
-        items: filtered.slice(offset, offset + limit).map(mapTransaction),
+        items: filtered
+            .slice(offset, offset + limit)
+            .map(transaction => mapTransaction(transaction, categoriesById)),
         total: filtered.length,
         page,
         limit
@@ -263,7 +377,6 @@ export async function createTransaction(
         userId,
         categoryId: body.categoryId,
         type: category.type,
-        effect: body.effect ?? 'normal',
         amount: body.amount,
         currency: body.currency,
         defaultCurrencyAmount: convertAmount(body.amount, exchange.rate),
@@ -282,15 +395,18 @@ export async function getTransaction(
     userId: number,
     transactionId: number
 ): Promise<Transaction> {
-    const row = await db.transactions
-        .include(transaction => transaction.category)
-        .where(transaction => transaction.id, transactionId)
-        .where(transaction => transaction.userId, userId)
-        .first();
+    const [row, categoriesById] = await Promise.all([
+        db.transactions
+            .include(transaction => transaction.category)
+            .where(transaction => transaction.id, transactionId)
+            .where(transaction => transaction.userId, userId)
+            .first(),
+        loadCategoriesById(db, userId)
+    ]);
     if (!row) {
         throw new TransactionNotFoundError('Transaction was not found.');
     }
-    return mapTransaction(row as TransactionDb);
+    return mapTransaction(row as TransactionDb, categoriesById);
 }
 
 export async function updateTransaction(
@@ -303,7 +419,6 @@ export async function updateTransaction(
     const current = await getTransaction(db, userId, transactionId);
     const next = {
         categoryId: body.categoryId ?? current.categoryId,
-        effect: body.effect ?? current.effect,
         amount: body.amount ?? current.amount,
         currency: body.currency ?? current.currency,
         occurredAt: body.occurredAt ?? current.occurredAt,
@@ -326,7 +441,6 @@ export async function updateTransaction(
         .update({
             categoryId: next.categoryId,
             type: category.type,
-            effect: next.effect,
             amount: next.amount,
             currency: next.currency,
             defaultCurrencyAmount: convertAmount(next.amount, exchange.rate),
@@ -579,6 +693,7 @@ function emptyCategoryTrendBucket(
 
 export function summarizeCategoryTrendRows({
     category,
+    categoriesById = new Map([[category.id, category]]),
     currency,
     groupBy,
     range,
@@ -587,6 +702,7 @@ export function summarizeCategoryTrendRows({
     timeZone = defaultTimeZone
 }: {
     readonly category: CategoryDb;
+    readonly categoriesById?: ReadonlyMap<number, CategoryDb>;
     readonly currency: string;
     readonly groupBy: CategoryTrendGroupBy;
     readonly range: StatsRange;
@@ -596,14 +712,23 @@ export function summarizeCategoryTrendRows({
 }): CategoryTrendResponse {
     const selectedRows = rowsInRange(rows, range);
     const total = selectedRows.reduce(
-        (sum, row) => sum + transactionSignedDefaultAmount(row),
+        (sum, row) => sum + transactionSignedDefaultAmount(row, category),
         0
+    );
+    const fields = categoryFields(
+        category,
+        { categoryId: category.id, type: category.type },
+        categoriesById
     );
     const bucketCount = categoryTrendBucketCount(groupBy, range, timeZone);
     const base = {
         categoryId: category.id,
         categoryName: category.name,
-        type: category.type,
+        categoryDisplayName: fields.categoryDisplayName,
+        categoryParentId: fields.categoryParentId,
+        categoryParentName: fields.categoryParentName,
+        categoryKind: fields.categoryKind,
+        type: fields.type,
         range: timeFrame,
         groupBy,
         from: range.from,
@@ -641,7 +766,7 @@ export function summarizeCategoryTrendRows({
             continue;
         }
 
-        bucket.total += transactionSignedDefaultAmount(row);
+        bucket.total += transactionSignedDefaultAmount(row, category);
         bucket.transactionCount += 1;
     }
 
@@ -939,16 +1064,29 @@ function topCategory(
     const category = categories
         .filter(candidate => candidate.type === type)
         .sort((left, right) => right.total - left.total)[0];
-    return category && category.total > 0 ? category.categoryName : '';
+    return category && category.total > 0 ? category.categoryDisplayName : '';
 }
 
 function emptyStatsCategory(
-    category: Pick<StatsCategory, 'categoryId' | 'categoryName' | 'type'>,
+    category: Pick<
+        StatsCategory,
+        | 'categoryDisplayName'
+        | 'categoryId'
+        | 'categoryKind'
+        | 'categoryName'
+        | 'categoryParentId'
+        | 'categoryParentName'
+        | 'type'
+    >,
     bucketCount: number
 ): StatsCategory {
     return {
         categoryId: category.categoryId,
         categoryName: category.categoryName,
+        categoryDisplayName: category.categoryDisplayName,
+        categoryParentId: category.categoryParentId,
+        categoryParentName: category.categoryParentName,
+        categoryKind: category.categoryKind,
         type: category.type,
         total: 0,
         share: 0,
@@ -963,7 +1101,8 @@ function summarizeSelectedRows(
     rows: readonly TransactionDb[],
     groupBy: StatsGroupBy,
     buckets: Map<string, StatsBucket>,
-    timeZone: string
+    timeZone: string,
+    categoriesById: ReadonlyMap<number, CategoryDb>
 ) {
     const bucketKeys = Array.from(buckets.keys());
     const bucketIndexes = new Map(
@@ -976,8 +1115,10 @@ function summarizeSelectedRows(
     let expenseCount = 0;
 
     for (const row of rows) {
-        const total = transactionSignedDefaultAmount(row);
-        const type = row.type;
+        const rowCategory = row.category ?? categoriesById.get(row.categoryId);
+        const total = transactionSignedDefaultAmount(row, rowCategory);
+        const fields = categoryFields(rowCategory, row, categoriesById);
+        const type = fields.type;
         const date = new Date(row.occurredAt);
         const bucket = buckets.get(
             statsBucketKeyInTimeZone(date, groupBy, timeZone)
@@ -1002,26 +1143,19 @@ function summarizeSelectedRows(
         }
 
         const categoryKey = `${type}:${row.categoryId}`;
-        const category =
+        const summaryCategory =
             categories.get(categoryKey) ??
-            emptyStatsCategory(
-                {
-                    categoryId: row.categoryId,
-                    categoryName: row.category?.name ?? '',
-                    type
-                },
-                bucketKeys.length
-            );
+            emptyStatsCategory(fields, bucketKeys.length);
         const bucketIndex = bucketIndexes.get(
             statsBucketKeyInTimeZone(date, groupBy, timeZone)
         );
-        category.total += total;
-        category.transactionCount += 1;
+        summaryCategory.total += total;
+        summaryCategory.transactionCount += 1;
         if (bucketIndex !== undefined) {
-            category.trend[bucketIndex] =
-                (category.trend[bucketIndex] ?? 0) + total;
+            summaryCategory.trend[bucketIndex] =
+                (summaryCategory.trend[bucketIndex] ?? 0) + total;
         }
-        categories.set(categoryKey, category);
+        categories.set(categoryKey, summaryCategory);
     }
 
     for (const bucket of buckets.values()) {
@@ -1041,7 +1175,8 @@ function summarizeSelectedRows(
 
 function summarizeComparisonRows(
     rows: readonly TransactionDb[],
-    range: StatsRange
+    range: StatsRange,
+    categoriesById: ReadonlyMap<number, CategoryDb>
 ) {
     const categories = new Map<string, CategoryComparison>();
     let incomeTotal = 0;
@@ -1050,8 +1185,10 @@ function summarizeComparisonRows(
     let expenseCount = 0;
 
     for (const row of rows) {
-        const total = transactionSignedDefaultAmount(row);
-        const type = row.type;
+        const category = row.category ?? categoriesById.get(row.categoryId);
+        const total = transactionSignedDefaultAmount(row, category);
+        const fields = categoryFields(category, row, categoriesById);
+        const type = fields.type;
 
         if (type === 'income') {
             incomeTotal += total;
@@ -1062,15 +1199,13 @@ function summarizeComparisonRows(
         }
 
         const categoryKey = `${type}:${row.categoryId}`;
-        const category = categories.get(categoryKey) ?? {
-            categoryId: row.categoryId,
-            categoryName: row.category?.name ?? '',
-            type,
+        const summaryCategory = categories.get(categoryKey) ?? {
+            ...fields,
             total: 0
         };
         categories.set(categoryKey, {
-            ...category,
-            total: category.total + total
+            ...summaryCategory,
+            total: summaryCategory.total + total
         });
     }
 
@@ -1102,6 +1237,121 @@ function mergeComparisonCategoryTotals(
         category[field] = comparison.total;
         selectedCategories.set(key, category);
     }
+}
+
+function rollUpParentStatsCategories(
+    categories: readonly StatsCategory[],
+    bucketCount: number,
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    incomeTotal: number,
+    expenseTotal: number
+): StatsCategory[] {
+    const rollups = new Map<string, StatsCategory>();
+
+    for (const category of categories) {
+        const parentFields = parentCategoryFields(category, categoriesById);
+        const key = `${parentFields.type}:${parentFields.categoryId}`;
+        const current =
+            rollups.get(key) ?? emptyStatsCategory(parentFields, bucketCount);
+
+        current.total += category.total;
+        current.transactionCount += category.transactionCount;
+        current.previousPeriodTotal += category.previousPeriodTotal;
+        current.previousYearTotal += category.previousYearTotal;
+        category.trend.forEach((value, index) => {
+            current.trend[index] = (current.trend[index] ?? 0) + value;
+        });
+        rollups.set(key, current);
+    }
+
+    return Array.from(rollups.values())
+        .map(category => ({
+            ...category,
+            share: computeShare(
+                category.total,
+                category.type === 'income' ? incomeTotal : expenseTotal
+            )
+        }))
+        .sort(
+            (left, right) =>
+                Math.max(
+                    right.total,
+                    right.previousPeriodTotal,
+                    right.previousYearTotal
+                ) -
+                    Math.max(
+                        left.total,
+                        left.previousPeriodTotal,
+                        left.previousYearTotal
+                    ) || left.categoryName.localeCompare(right.categoryName)
+        );
+}
+
+function emptyDashboardCategory(
+    category: Pick<
+        DashboardCategory,
+        | 'categoryDisplayName'
+        | 'categoryId'
+        | 'categoryKind'
+        | 'categoryName'
+        | 'categoryParentId'
+        | 'categoryParentName'
+        | 'type'
+    >,
+    bucketCount: number
+): DashboardCategory {
+    return {
+        categoryId: category.categoryId,
+        categoryName: category.categoryName,
+        categoryDisplayName: category.categoryDisplayName,
+        categoryParentId: category.categoryParentId,
+        categoryParentName: category.categoryParentName,
+        categoryKind: category.categoryKind,
+        type: category.type,
+        total: 0,
+        transactionCount: 0,
+        previousPeriodTotal: 0,
+        percentChange: 0,
+        trend: Array.from({ length: bucketCount }, () => 0)
+    };
+}
+
+function rollUpParentDashboardCategories(
+    categories: readonly DashboardCategory[],
+    bucketCount: number,
+    categoriesById: ReadonlyMap<number, CategoryDb>
+): DashboardCategory[] {
+    const rollups = new Map<string, DashboardCategory>();
+
+    for (const category of categories) {
+        const parentFields = parentCategoryFields(category, categoriesById);
+        const key = `${parentFields.type}:${parentFields.categoryId}`;
+        const current =
+            rollups.get(key) ??
+            emptyDashboardCategory(parentFields, bucketCount);
+
+        current.total += category.total;
+        current.transactionCount += category.transactionCount;
+        current.previousPeriodTotal += category.previousPeriodTotal;
+        category.trend.forEach((value, index) => {
+            current.trend[index] = (current.trend[index] ?? 0) + value;
+        });
+        rollups.set(key, current);
+    }
+
+    for (const category of rollups.values()) {
+        category.percentChange = percentChange(
+            category.total,
+            category.previousPeriodTotal
+        );
+    }
+
+    return Array.from(rollups.values()).sort(
+        (left, right) =>
+            right.total - left.total ||
+            left.type.localeCompare(right.type) ||
+            left.categoryName.localeCompare(right.categoryName)
+    );
 }
 
 async function transactionsForRange(
@@ -1140,7 +1390,10 @@ export async function categoryTrend(
         getUser(db, userId),
         getCategory(db, userId, categoryId)
     ]);
-    const rows = await transactionsForCategory(db, userId, category.id);
+    const [rows, categoriesById] = await Promise.all([
+        transactionsForCategory(db, userId, category.id),
+        loadCategoriesById(db, userId)
+    ]);
     const range = resolveCategoryTrendRange(query, {
         categoryCreatedAt: category.createdAt,
         rows,
@@ -1149,6 +1402,7 @@ export async function categoryTrend(
 
     return summarizeCategoryTrendRows({
         category,
+        categoriesById,
         currency: user.defaultCurrency,
         groupBy: categoryTrendGroupBy(query.groupBy),
         range,
@@ -1158,39 +1412,42 @@ export async function categoryTrend(
     });
 }
 
-function summarizeDashboardRows(
+export function summarizeDashboardRows(
     user: Pick<UserDb, 'defaultCurrency' | 'timezone'>,
     period: DashboardPeriod,
     range: StatsRange,
     rows: readonly TransactionDb[],
-    previousRows: readonly TransactionDb[]
+    previousRows: readonly TransactionDb[],
+    categoriesById: ReadonlyMap<number, CategoryDb>
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
     const previousTotalsByCategory = new Map<string, number>();
 
     for (const row of previousRows) {
-        const key = `${row.type}:${row.categoryId}`;
+        const category = row.category ?? categoriesById.get(row.categoryId);
+        const fields = categoryFields(category, row, categoriesById);
+        const key = `${fields.type}:${fields.categoryId}`;
         previousTotalsByCategory.set(
             key,
             (previousTotalsByCategory.get(key) ?? 0) +
-                transactionSignedDefaultAmount(row)
+                transactionSignedDefaultAmount(row, category)
         );
     }
 
     for (const row of rows) {
-        const key = `${row.type}:${row.categoryId}`;
+        const category = row.category ?? categoriesById.get(row.categoryId);
+        const fields = categoryFields(category, row, categoriesById);
+        const key = `${fields.type}:${fields.categoryId}`;
         const current = totalsByCategory.get(key) ?? {
-            categoryId: row.categoryId,
-            categoryName: row.category?.name ?? '',
-            type: row.type,
+            ...fields,
             total: 0,
             transactionCount: 0,
             previousPeriodTotal: 0,
             percentChange: 0,
             trend: Array.from({ length: bucketCount }, () => 0)
         };
-        const total = transactionSignedDefaultAmount(row);
+        const total = transactionSignedDefaultAmount(row, category);
         const bucketIndex = dashboardTrendBucketIndex(
             period,
             row.occurredAt,
@@ -1219,6 +1476,11 @@ function summarizeDashboardRows(
             left.type.localeCompare(right.type) ||
             left.categoryName.localeCompare(right.categoryName)
     );
+    const byParentCategory = rollUpParentDashboardCategories(
+        byCategory,
+        bucketCount,
+        categoriesById
+    );
 
     return {
         period,
@@ -1231,7 +1493,8 @@ function summarizeDashboardRows(
         incomeTotal: byCategory
             .filter(item => item.type === 'income')
             .reduce((sum, item) => sum + item.total, 0),
-        byCategory
+        byCategory,
+        byParentCategory
     };
 }
 
@@ -1253,12 +1516,20 @@ export async function dashboardSummary(
         range,
         user.timezone
     );
-    const [rows, previousRows] = await Promise.all([
+    const [rows, previousRows, categoriesById] = await Promise.all([
         transactionsForRange(db, userId, range),
-        transactionsForRange(db, userId, comparisonRange)
+        transactionsForRange(db, userId, comparisonRange),
+        loadCategoriesById(db, userId)
     ]);
 
-    return summarizeDashboardRows(user, period, range, rows, previousRows);
+    return summarizeDashboardRows(
+        user,
+        period,
+        range,
+        rows,
+        previousRows,
+        categoriesById
+    );
 }
 
 export async function dashboardWindow(
@@ -1289,13 +1560,16 @@ export async function dashboardWindow(
             )
         };
     });
-    const allRows = await transactionsForRange(
-        db,
-        userId,
-        encompassingRange(
-            plans.flatMap(plan => [plan.range, plan.previousRange])
-        )
-    );
+    const [allRows, categoriesById] = await Promise.all([
+        transactionsForRange(
+            db,
+            userId,
+            encompassingRange(
+                plans.flatMap(plan => [plan.range, plan.previousRange])
+            )
+        ),
+        loadCategoriesById(db, userId)
+    ]);
 
     return {
         items: plans.map(plan => ({
@@ -1305,7 +1579,8 @@ export async function dashboardWindow(
                 period,
                 plan.range,
                 rowsInRange(allRows, plan.range),
-                rowsInRange(allRows, plan.previousRange)
+                rowsInRange(allRows, plan.previousRange),
+                categoriesById
             )
         }))
     };
@@ -1318,22 +1593,26 @@ function summarizeStatsRows(
     ranges: StatsRanges,
     selectedRows: readonly TransactionDb[],
     previousPeriodRows: readonly TransactionDb[],
-    previousYearRows: readonly TransactionDb[]
+    previousYearRows: readonly TransactionDb[],
+    categoriesById: ReadonlyMap<number, CategoryDb>
 ): StatsOverview {
     const buckets = statsTrendBuckets(groupBy, ranges.selected, user.timezone);
     const selected = summarizeSelectedRows(
         selectedRows,
         groupBy,
         buckets,
-        user.timezone
+        user.timezone,
+        categoriesById
     );
     const previousPeriod = summarizeComparisonRows(
         previousPeriodRows,
-        ranges.previousPeriod
+        ranges.previousPeriod,
+        categoriesById
     );
     const previousYear = summarizeComparisonRows(
         previousYearRows,
-        ranges.previousYear
+        ranges.previousYear,
+        categoriesById
     );
 
     mergeComparisonCategoryTotals(
@@ -1372,6 +1651,13 @@ function summarizeStatsRows(
                     left.previousYearTotal
                 )
         );
+    const byParentCategory = rollUpParentStatsCategories(
+        byCategory,
+        buckets.size,
+        categoriesById,
+        selected.incomeTotal,
+        selected.expenseTotal
+    );
     const netTotal = selected.incomeTotal - selected.expenseTotal;
 
     return {
@@ -1402,6 +1688,7 @@ function summarizeStatsRows(
         largestExpenseCategory: topCategory(byCategory, 'expense'),
         trend: selected.trend,
         byCategory,
+        byParentCategory,
         comparison: {
             previousPeriod: previousPeriod.summary,
             previousYear: previousYear.summary
@@ -1424,11 +1711,12 @@ export async function statsOverview(
         new Date(),
         user.timezone
     );
-    const [selectedRows, previousPeriodRows, previousYearRows] =
+    const [selectedRows, previousPeriodRows, previousYearRows, categoriesById] =
         await Promise.all([
             transactionsForRange(db, userId, ranges.selected),
             transactionsForRange(db, userId, ranges.previousPeriod),
-            transactionsForRange(db, userId, ranges.previousYear)
+            transactionsForRange(db, userId, ranges.previousYear),
+            loadCategoriesById(db, userId)
         ]);
 
     return summarizeStatsRows(
@@ -1438,7 +1726,8 @@ export async function statsOverview(
         ranges,
         selectedRows,
         previousPeriodRows,
-        previousYearRows
+        previousYearRows,
+        categoriesById
     );
 }
 
@@ -1480,10 +1769,12 @@ export async function statsWindow(
     const previousYearRowsRange = encompassingRange(
         plans.map(plan => plan.ranges.previousYear)
     );
-    const [selectedAndPreviousRows, previousYearRows] = await Promise.all([
-        transactionsForRange(db, userId, selectedRowsRange),
-        transactionsForRange(db, userId, previousYearRowsRange)
-    ]);
+    const [selectedAndPreviousRows, previousYearRows, categoriesById] =
+        await Promise.all([
+            transactionsForRange(db, userId, selectedRowsRange),
+            transactionsForRange(db, userId, previousYearRowsRange),
+            loadCategoriesById(db, userId)
+        ]);
 
     return {
         items: plans.map(plan => ({
@@ -1498,7 +1789,8 @@ export async function statsWindow(
                     selectedAndPreviousRows,
                     plan.ranges.previousPeriod
                 ),
-                rowsInRange(previousYearRows, plan.ranges.previousYear)
+                rowsInRange(previousYearRows, plan.ranges.previousYear),
+                categoriesById
             )
         }))
     };

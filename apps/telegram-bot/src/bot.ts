@@ -14,10 +14,7 @@ import {
     parseAmount,
     parseStartToken,
     preferredCurrencies,
-    quickAddReplyKeyboard,
-    reversalKeyboard,
-    reversalNoCallback,
-    reversalYesCallback
+    quickAddReplyKeyboard
 } from './flow.js';
 import { TelegramPollingError } from './log-templates.js';
 import {
@@ -57,24 +54,16 @@ type Draft =
           readonly page: number;
       }
     | {
-          readonly step: 'reversal';
-          readonly category: Category;
-          readonly currency: string;
-          readonly amount: number;
-      }
-    | {
           readonly step: 'note-choice';
           readonly category: Category;
           readonly currency: string;
           readonly amount: number;
-          readonly effect: 'normal' | 'reversal';
       }
     | {
           readonly step: 'note-text';
           readonly category: Category;
           readonly currency: string;
           readonly amount: number;
-          readonly effect: 'normal' | 'reversal';
       };
 
 const categoryPageSize = 8;
@@ -100,7 +89,7 @@ function sessionKey(chatId: number, userId: string): string {
 }
 
 function displayCategory(category: Category): string {
-    return `${category.type === 'income' ? '💰' : '💸'} ${category.name}`;
+    return `${category.type === 'income' ? '💰' : '💸'} ${category.displayName}`;
 }
 
 function categoryKeyboard(categories: readonly Category[], page: number) {
@@ -514,12 +503,12 @@ export class XpenserTelegramBot {
             }
 
             this.#sessions.set(key, {
-                step: 'reversal',
+                step: 'note-choice',
                 amount: draft.amount,
                 currency: draft.currency,
                 category
             });
-            await this.askForReversal(chatId);
+            await this.askForDescription(chatId);
             return;
         }
 
@@ -531,28 +520,6 @@ export class XpenserTelegramBot {
                 draft,
                 data.slice('cur:'.length)
             );
-            return;
-        }
-
-        if (draft.step === 'reversal' && data === reversalNoCallback) {
-            const next: Draft = {
-                ...draft,
-                step: 'note-choice',
-                effect: 'normal'
-            };
-            this.#sessions.set(key, next);
-            await this.askForDescription(chatId);
-            return;
-        }
-
-        if (draft.step === 'reversal' && data === reversalYesCallback) {
-            const next: Draft = {
-                ...draft,
-                step: 'note-choice',
-                effect: 'reversal'
-            };
-            this.#sessions.set(key, next);
-            await this.askForDescription(chatId);
             return;
         }
 
@@ -590,11 +557,6 @@ export class XpenserTelegramBot {
 
         if (draft.step === 'category') {
             await this.sendCategoryPrompt(chatId, draft);
-            return;
-        }
-
-        if (draft.step === 'reversal') {
-            await this.askForReversal(chatId);
             return;
         }
 
@@ -669,11 +631,6 @@ export class XpenserTelegramBot {
                     reply_markup: categoryKeyboard(draft.categories, draft.page)
                 }
             );
-            return;
-        }
-
-        if (draft.step === 'reversal') {
-            await this.askForReversal(msg.chat.id);
             return;
         }
 
@@ -780,7 +737,6 @@ export class XpenserTelegramBot {
                     categoryId: draft.category.id,
                     amount: draft.amount,
                     currency: draft.currency,
-                    effect: draft.effect,
                     occurredAt: new Date(),
                     note
                 }
@@ -788,7 +744,7 @@ export class XpenserTelegramBot {
             this.#sessions.delete(key);
             await this.#bot.sendMessage(
                 chatId,
-                `✅ Saved ${transaction.effect === 'reversal' ? 'reversal ' : ''}${transaction.type}: ${transaction.categoryName}, ${formatTelegramAmount(transaction.amount, transaction.currency)} (${formatTelegramAmount(transaction.defaultCurrencyAmount, transaction.defaultCurrency)}).`,
+                `✅ Saved ${transaction.type}: ${transaction.categoryDisplayName}, ${formatTelegramAmount(transaction.amount, transaction.currency)} (${formatTelegramAmount(transaction.defaultCurrencyAmount, transaction.defaultCurrency)}).`,
                 {
                     reply_markup: quickAddReplyKeyboard()
                 }
@@ -824,16 +780,6 @@ export class XpenserTelegramBot {
         } catch (err) {
             this.#logger.error(toError(err), 'Could not set bot commands', {});
         }
-    }
-
-    async askForReversal(chatId: number): Promise<void> {
-        await this.#bot.sendMessage(
-            chatId,
-            '↩️ Is this a refund or reversal? Choose Yes if it cancels or reduces an earlier transaction.',
-            {
-                reply_markup: reversalKeyboard()
-            }
-        );
     }
 
     async askForDescription(chatId: number): Promise<void> {

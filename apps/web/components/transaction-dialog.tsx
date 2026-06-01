@@ -37,12 +37,14 @@ import {
     useMemo,
     useState
 } from 'react';
+import { categoryEffectiveType } from '@/lib/category-display';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 
 type TransactionDialogValues = Pick<
     Transaction,
-    'amount' | 'categoryId' | 'currency' | 'effect' | 'note' | 'type'
+    'amount' | 'categoryId' | 'currency' | 'note' | 'type'
 > & {
+    readonly categoryKind?: Transaction['categoryKind'];
     readonly occurredAt: Date | string | number;
 };
 
@@ -87,7 +89,6 @@ export function TransactionDialog({
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
-    const [effect, setEffect] = useState<'normal' | 'reversal'>('normal');
     const [selectedType, setSelectedType] =
         useState<TransactionType>('expense');
     const [selectedCategoryId, setSelectedCategoryId] = useState<
@@ -97,40 +98,51 @@ export function TransactionDialog({
     const categoryInvalid = categoryId.touched && Boolean(categoryId.error);
     const currencyInvalid = currency.touched && Boolean(currency.error);
     const occurredAtInvalid = occurredAt.touched && Boolean(occurredAt.error);
+    const initialCategoryId = initialValues?.categoryId;
+    const initialValueType = initialValues?.type;
     const initialType = useMemo<TransactionType>(() => {
-        if (initialValues?.type) {
-            return initialValues.type;
+        if (initialValueType) {
+            return initialValueType;
         }
 
-        return categories.some(category => category.type === 'expense')
+        return categories.some(
+            category => categoryEffectiveType(category) === 'expense'
+        )
             ? 'expense'
-            : (categories[0]?.type ?? 'expense');
-    }, [categories, initialValues?.type]);
+            : categoryEffectiveType(
+                  categories[0] ?? { kind: 'normal', type: 'expense' }
+              );
+    }, [categories, initialValueType]);
     const filteredCategories = useMemo(
-        () => categories.filter(category => category.type === selectedType),
+        () =>
+            categories.filter(
+                category => categoryEffectiveType(category) === selectedType
+            ),
         [categories, selectedType]
     );
     const activeCategory = useMemo(() => {
         const selectedCategory = categories.find(
             category =>
                 category.id === selectedCategoryId &&
-                category.type === selectedType
+                categoryEffectiveType(category) === selectedType
         );
         if (selectedCategory) {
             return selectedCategory;
         }
 
-        if (initialValues?.type !== selectedType) {
+        if (!initialCategoryId || !initialValueType) {
             return undefined;
         }
 
-        return categories.find(
-            category => category.id === initialValues.categoryId
-        );
+        if (initialValueType !== selectedType) {
+            return undefined;
+        }
+
+        return categories.find(category => category.id === initialCategoryId);
     }, [
         categories,
-        initialValues?.categoryId,
-        initialValues?.type,
+        initialCategoryId,
+        initialValueType,
         selectedCategoryId,
         selectedType
     ]);
@@ -175,7 +187,6 @@ export function TransactionDialog({
             ? new Date(initialValues.occurredAt)
             : new Date();
 
-        setEffect(initialValues?.effect ?? 'normal');
         setSelectedType(initialType);
         setSelectedCategoryId(initialValues?.categoryId);
         setOccurredAtText(
@@ -185,7 +196,6 @@ export function TransactionDialog({
             amount: initialValues?.amount,
             categoryId: initialValues?.categoryId,
             currency: initialCurrency,
-            effect: initialValues?.effect ?? 'normal',
             occurredAt: initialOccurredAt,
             note: initialValues?.note ?? undefined
         });
@@ -208,12 +218,15 @@ export function TransactionDialog({
         const currentCategory = categories.find(
             category => category.id === activeCategoryId
         );
-        if (currentCategory?.type === value) {
+        if (
+            currentCategory &&
+            categoryEffectiveType(currentCategory) === value
+        ) {
             return;
         }
 
         const nextCategory = categories.find(
-            category => category.type === value
+            category => categoryEffectiveType(category) === value
         );
         if (nextCategory) {
             setSelectedCategoryId(nextCategory.id);
@@ -243,7 +256,7 @@ export function TransactionDialog({
             return;
         }
 
-        const formData = valuesToFormData({ ...result.object, effect });
+        const formData = valuesToFormData(result.object);
         if (transactionId !== undefined) {
             formData.append('id', String(transactionId));
         }
@@ -331,7 +344,7 @@ export function TransactionDialog({
                                                 key={category.id}
                                                 value={String(category.id)}
                                             >
-                                                {category.name}
+                                                {category.displayName}
                                             </SelectItem>
                                         ))}
                                     </SelectGroup>
@@ -417,35 +430,6 @@ export function TransactionDialog({
                             {occurredAt.touched && occurredAt.error ? (
                                 <FieldError>{occurredAt.error}</FieldError>
                             ) : null}
-                        </Field>
-                        <Field>
-                            <label className="flex items-start gap-3 rounded-md border bg-muted/30 p-3">
-                                <input
-                                    checked={effect === 'reversal'}
-                                    className="mt-0.5 size-4 rounded border-input"
-                                    name="effect"
-                                    onChange={event =>
-                                        setEffect(
-                                            event.target.checked
-                                                ? 'reversal'
-                                                : 'normal'
-                                        )
-                                    }
-                                    type="checkbox"
-                                    value="reversal"
-                                />
-                                <span className="flex min-w-0 flex-col gap-1">
-                                    <span className="text-sm font-medium">
-                                        Refund or reversal
-                                    </span>
-                                    <span className="text-sm text-muted-foreground">
-                                        Use this when the entry cancels or
-                                        refunds an earlier transaction. It
-                                        reduces this category's total instead of
-                                        increasing it.
-                                    </span>
-                                </span>
-                            </label>
                         </Field>
                         <SchemaField
                             forProperty={field => field.note}

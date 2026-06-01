@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
     CategoryListQuerySchema,
+    CategorySchema,
     CategoryTrendQuerySchema,
     ConfirmEmailBodySchema,
     CreateApiKeyBodySchema,
+    CreateCategoryBodySchema,
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
     CurrencyConversionQuerySchema,
@@ -114,6 +116,33 @@ describe('shared schemas', () => {
         ).toBe(false);
     });
 
+    it('validates category hierarchy and kind fields', () => {
+        expect(
+            CreateCategoryBodySchema.validate({
+                name: 'Returns',
+                type: 'expense',
+                parentId: 1,
+                kind: 'offset'
+            }).valid
+        ).toBe(true);
+
+        const result = CategorySchema.validate({
+            id: 2,
+            name: 'Returns',
+            type: 'expense',
+            kind: 'offset',
+            parentId: 1,
+            parentName: 'Car',
+            displayName: 'Car -> Returns',
+            inUse: true,
+            hasChildren: false,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        });
+
+        expect(result.valid).toBe(true);
+    });
+
     it('returns required messages before format messages for empty login fields', () => {
         const result = LoginBodySchema.validate(
             { email: '', password: '' },
@@ -222,19 +251,6 @@ describe('shared schemas', () => {
         });
 
         expect(result.valid).toBe(true);
-    });
-
-    it('accepts reversal transaction effects', () => {
-        const result = CreateTransactionBodySchema.validate({
-            categoryId: 1,
-            amount: 1234.56,
-            currency: 'USD',
-            effect: 'reversal',
-            occurredAt: new Date()
-        });
-
-        expect(result.valid).toBe(true);
-        expect(result.object?.effect).toBe('reversal');
     });
 
     it('rejects transaction amounts below cent precision', () => {

@@ -8,11 +8,12 @@ export function dashboardCategoryShare(
 ): number {
     const basis =
         category.type === 'income' ? summary.incomeTotal : summary.expenseTotal;
+    const magnitudeBasis = Math.abs(basis);
 
-    if (basis <= 0) {
+    if (magnitudeBasis <= 0) {
         return 0;
     }
 
-    const share = (category.total / basis) * 100;
+    const share = (Math.abs(category.total) / magnitudeBasis) * 100;
     return Math.max(0, Math.min(100, share));
 }

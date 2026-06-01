@@ -24,9 +24,13 @@ describe('TransactionDialog', () => {
                     categories={[
                         {
                             createdAt: new Date('2026-05-01T00:00:00.000Z'),
+                            displayName: 'Groceries',
+                            hasChildren: false,
                             id: 7,
                             inUse: true,
+                            kind: 'normal',
                             name: 'Groceries',
+                            parentId: null,
                             type: 'expense',
                             updatedAt: new Date('2026-05-01T00:00:00.000Z')
                         }
@@ -39,7 +43,6 @@ describe('TransactionDialog', () => {
                         amount: 12.34,
                         categoryId: 7,
                         currency: 'USD',
-                        effect: 'normal',
                         note: 'Original',
                         occurredAt: new Date('2026-05-10T12:30:00.000Z'),
                         type: 'expense'

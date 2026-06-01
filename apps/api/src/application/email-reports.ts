@@ -9,7 +9,13 @@ import {
 } from '@xpenser/timezone';
 import type { Knex } from 'knex';
 import type { Config } from '../config.js';
-import type { AppDb, TransactionDb, UserDb } from '../db/schemas.js';
+import type {
+    AppDb,
+    CategoryDb,
+    TransactionDb,
+    UserDb
+} from '../db/schemas.js';
+import { categoryDisplayName, categoryReportingType } from './categories.js';
 import { sendEmail as sendProviderEmail } from './email.js';
 import { generateStructuredJson } from './openai.js';
 import {
@@ -59,6 +65,7 @@ type ReportInsights = {
 
 type CategorySummary = {
     readonly name: string;
+    readonly kind: 'normal' | 'offset';
     readonly type: 'expense' | 'income';
     readonly total: number;
     readonly share: number;
@@ -70,9 +77,9 @@ type CategorySummary = {
 type NotableTransaction = {
     readonly amount: number;
     readonly categoryImpact: number;
+    readonly categoryKind: 'normal' | 'offset';
     readonly categoryName: string;
     readonly date: string;
-    readonly effect: 'normal' | 'reversal';
     readonly interpretation: string;
     readonly netImpact: number;
     readonly type: 'expense' | 'income';
@@ -204,7 +211,8 @@ function categorySummary(
     category: StatsOverview['byCategory'][number]
 ): CategorySummary {
     return {
-        name: category.categoryName,
+        name: category.categoryDisplayName,
+        kind: category.categoryKind,
         type: category.type,
         total: category.total,
         share: category.share,
@@ -214,51 +222,65 @@ function categorySummary(
     };
 }
 
-function transactionEffect(
-    transaction: Pick<TransactionDb, 'effect'>
-): 'normal' | 'reversal' {
-    return transaction.effect === 'reversal' ? 'reversal' : 'normal';
-}
-
 function transactionNetImpact(
     transaction: Pick<
         TransactionDb,
-        'defaultCurrencyAmount' | 'effect' | 'type'
-    >
+        'category' | 'defaultCurrencyAmount' | 'type'
+    >,
+    category?: CategoryDb
 ): number {
     const categoryImpact = transactionSignedDefaultAmount(transaction);
-    return transaction.type === 'income' ? categoryImpact : -categoryImpact;
+    return categoryReportingType(
+        category ?? transaction.category,
+        transaction.type
+    ) === 'income'
+        ? categoryImpact
+        : -categoryImpact;
 }
 
 function transactionInterpretation(
-    transaction: Pick<TransactionDb, 'effect' | 'type'>
+    transaction: Pick<TransactionDb, 'category' | 'type'>,
+    category?: CategoryDb
 ): string {
-    const effect = transactionEffect(transaction);
-    if (effect === 'normal' && transaction.type === 'expense') {
+    const kind =
+        (category ?? transaction.category)?.kind === 'offset'
+            ? 'offset'
+            : 'normal';
+    const type = categoryReportingType(
+        category ?? transaction.category,
+        transaction.type
+    );
+    if (kind === 'normal' && type === 'expense') {
         return 'Expense spending. It increases expenses and reduces net position.';
     }
-    if (effect === 'normal' && transaction.type === 'income') {
+    if (kind === 'normal' && type === 'income') {
         return 'Income received. It increases income and improves net position.';
     }
-    if (transaction.type === 'expense') {
-        return 'Expense reversal/refund. It reduces expenses and improves net position; do not describe it as spending.';
+    if (type === 'income') {
+        return 'Return or refund category. It counts as income and improves net position; do not describe it as new spending.';
     }
-    return 'Income reversal/correction. It reduces income and lowers net position; do not describe it as spending.';
+    return 'Income offset category. It counts as an expense and reduces net position; treat it like an income correction.';
 }
 
 function notableTransaction(
     transaction: TransactionDb,
-    timeZone: string
+    timeZone: string,
+    categoriesById: ReadonlyMap<number, CategoryDb>
 ): NotableTransaction {
+    const category =
+        transaction.category ?? categoriesById.get(transaction.categoryId);
+
     return {
         amount: Math.abs(Number(transaction.defaultCurrencyAmount)),
         categoryImpact: transactionSignedDefaultAmount(transaction),
-        categoryName: transaction.category?.name ?? '',
+        categoryKind: category?.kind === 'offset' ? 'offset' : 'normal',
+        categoryName: category
+            ? categoryDisplayName(category, categoriesById)
+            : '',
         date: dateToLocalDateParam(transaction.occurredAt, timeZone),
-        effect: transactionEffect(transaction),
-        interpretation: transactionInterpretation(transaction),
-        netImpact: transactionNetImpact(transaction),
-        type: transaction.type
+        interpretation: transactionInterpretation(transaction, category),
+        netImpact: transactionNetImpact(transaction, category),
+        type: categoryReportingType(category, transaction.type)
     };
 }
 
@@ -276,20 +298,35 @@ async function transactionsForPeriod(
         )) as TransactionDb[];
 }
 
+async function categoriesForUser(
+    db: AppDb,
+    userId: number
+): Promise<Map<number, CategoryDb>> {
+    const categories = (await db.categories.where(
+        category => category.userId,
+        userId
+    )) as CategoryDb[];
+
+    return new Map(
+        categories.map(category => [category.id, category] as const)
+    );
+}
+
 async function buildReportAnalytics(
     db: AppDb,
     user: ReportUser,
     type: EmailReportType,
     period: ReportPeriod
 ): Promise<ReportAnalytics | undefined> {
-    const [overview, transactions] = await Promise.all([
+    const [overview, transactions, categoriesById] = await Promise.all([
         statsOverview(db, user.id, {
             date: period.from,
             groupBy: type === 'weekly' ? 'day' : 'week',
             period: type === 'weekly' ? 'week' : 'month',
             timeframe: 'custom'
         }),
-        transactionsForPeriod(db, user.id, period)
+        transactionsForPeriod(db, user.id, period),
+        categoriesForUser(db, user.id)
     ]);
 
     if (overview.transactionCount === 0) {
@@ -314,7 +351,9 @@ async function buildReportAnalytics(
                 right.occurredAt.getTime() - left.occurredAt.getTime()
         )
         .slice(0, 5)
-        .map(transaction => notableTransaction(transaction, user.timezone));
+        .map(transaction =>
+            notableTransaction(transaction, user.timezone, categoriesById)
+        );
 
     return {
         type,
@@ -361,14 +400,13 @@ export function emailReportOpenAiPayload(analytics: ReportAnalytics) {
             period: analytics.periodLabel,
             currency: analytics.currency,
             dataSemantics: {
-                totals: 'Income, expenses, category totals, trends, and averages are net of reversal transactions.',
-                transactionEffects: {
+                totals: 'Income, expenses, category totals, trends, and averages use each category reporting side.',
+                categoryKinds: {
                     normal: 'A normal expense is spending; a normal income is received income.',
-                    reversal:
-                        'A reversal cancels or offsets a prior transaction. Expense reversals are refunds/credits that reduce expenses and improve net position. Income reversals reduce income. Do not describe reversals as new spending.'
+                    offset: 'An offset child category reports on the opposite side of its parent. Expense-parent offsets are income returns, refunds, or credits. Income-parent offsets are expense corrections.'
                 },
                 notableTransactionFields:
-                    'amount is the positive magnitude; categoryImpact is the signed contribution to its income or expense category; netImpact is the signed impact on net position.'
+                    'amount is the positive magnitude; categoryImpact is the positive contribution to the reported income or expense category; netImpact is the signed impact on net position.'
             },
             totals: {
                 income: analytics.incomeTotal,
@@ -463,8 +501,8 @@ async function generateInsights(
             system: [
                 'You write concise personal finance report insights. Be specific, balanced, and practical.',
                 'Use only the provided aggregate data. Do not invent numbers, merchants, or facts.',
-                'Treat reversal transactions carefully: an expense reversal is a refund or credit that reduces spending, not a negative purchase. An income reversal is a correction that reduces income, not spending.',
-                'When notableTransactions include effect=reversal or interpretation text, describe them using that interpretation and never call them new spending.'
+                'Treat offset categories carefully: an expense-parent offset is a return, refund, or credit counted as income. An income-parent offset is a correction counted as expense.',
+                'When notableTransactions include categoryKind=offset or interpretation text, describe them using that interpretation and do not call income-side returns new spending.'
             ].join(' ')
         }
     );

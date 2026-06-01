@@ -155,7 +155,7 @@ function CategorySelector({
         >
             {categories.map(category => (
                 <option key={category.id} value={category.id}>
-                    {category.name} ({category.type})
+                    {category.displayName} ({category.type})
                 </option>
             ))}
         </select>
@@ -344,7 +344,7 @@ function TrendChart({
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{trend.categoryName} amount trend</CardTitle>
+                <CardTitle>{trend.categoryDisplayName} amount trend</CardTitle>
                 <CardDescription>
                     {trend.bucketCount.toLocaleString('en-US')} buckets in{' '}
                     {trend.currency}.
@@ -352,7 +352,7 @@ function TrendChart({
             </CardHeader>
             <CardContent>
                 <div
-                    aria-label={`${trend.categoryName} amount trend`}
+                    aria-label={`${trend.categoryDisplayName} amount trend`}
                     className="h-80"
                     role="img"
                 >
@@ -480,7 +480,7 @@ export function CategoryTrendExplorer({
             <div>
                 <h1 className="text-2xl font-semibold">Category trend</h1>
                 <p className="text-sm text-muted-foreground">
-                    {trend.categoryName} in {trend.currency}.
+                    {trend.categoryDisplayName} in {trend.currency}.
                 </p>
             </div>
 

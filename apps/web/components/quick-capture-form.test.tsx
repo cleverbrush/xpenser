@@ -33,7 +33,11 @@ function category(
         id,
         name,
         type,
+        parentId: null,
+        kind: 'normal',
+        displayName: name,
         inUse: true,
+        hasChildren: false,
         createdAt: timestamp,
         updatedAt: timestamp
     };
@@ -55,8 +59,10 @@ function savedTransaction(): Transaction {
         id: 42,
         categoryId: 7,
         categoryName: 'Groceries',
+        categoryDisplayName: 'Groceries',
+        categoryParentId: null,
+        categoryKind: 'normal',
         type: 'expense',
-        effect: 'normal',
         amount: 12.34,
         currency: 'USD',
         defaultCurrencyAmount: 12.34,
@@ -92,7 +98,6 @@ describe('QuickCaptureForm', () => {
 
         expect(screen.getByRole('combobox', { name: 'Currency' })).toBeTruthy();
         expect(screen.getByLabelText('Date and time')).toBeTruthy();
-        expect(screen.getByRole('checkbox', { name: 'Reversal' })).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Details' })).toBeNull();
         expect(
             screen.queryByRole('combobox', { name: 'All categories' })
@@ -115,7 +120,7 @@ describe('QuickCaptureForm', () => {
         expect(formData.get('categoryId')).toBe('7');
         expect(formData.get('amount')).toBe('12.34');
         expect(formData.get('currency')).toBe('USD');
-        expect(formData.get('effect')).toBe('normal');
+        expect(formData.get('effect')).toBeNull();
         expect(formData.get('occurredAt')).toBeTruthy();
         expect(refresh).toHaveBeenCalledOnce();
 
@@ -130,36 +135,6 @@ describe('QuickCaptureForm', () => {
             .calls[0]?.[0] as FormData;
         expect(undoFormData.get('id')).toBe('42');
         expect(refresh).toHaveBeenCalledTimes(2);
-    });
-
-    it('saves reversal transactions when the checkbox is selected', async () => {
-        createCaptureTransactionAction.mockResolvedValue(savedTransaction());
-
-        render(
-            <QuickCaptureForm
-                categories={categories}
-                currencies={currencies}
-                defaultCurrency="USD"
-                timezone="UTC"
-                transactionCurrencies={['USD']}
-            />
-        );
-
-        fireEvent.change(screen.getByLabelText('Amount'), {
-            target: { value: '8.00' }
-        });
-        fireEvent.click(screen.getByRole('checkbox', { name: 'Reversal' }));
-        fireEvent.click(
-            screen.getByRole('button', { name: 'Save transaction' })
-        );
-
-        await waitFor(() =>
-            expect(createCaptureTransactionAction).toHaveBeenCalledOnce()
-        );
-
-        const formData = createCaptureTransactionAction.mock
-            .calls[0]?.[0] as FormData;
-        expect(formData.get('effect')).toBe('reversal');
     });
 
     it('wraps categories and reveals more on demand', () => {

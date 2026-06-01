@@ -44,20 +44,29 @@ function editableString(formData: FormData, key: string): string | undefined {
     return typeof value === 'string' ? value.trim() : undefined;
 }
 
-function transactionEffect(formData: FormData): 'normal' | 'reversal' {
-    return formData.get('effect') === 'reversal' ? 'reversal' : 'normal';
-}
-
 function transactionBody(formData: FormData, editableNote = false) {
     return {
         categoryId: Number(requiredString(formData, 'categoryId')),
         amount: Number(requiredString(formData, 'amount')),
         currency: requiredString(formData, 'currency'),
-        effect: transactionEffect(formData),
         occurredAt: new Date(requiredString(formData, 'occurredAt')),
         note: editableNote
             ? editableString(formData, 'note')
             : optionalString(formData, 'note')
+    };
+}
+
+function categoryBody(formData: FormData) {
+    const parentId = optionalString(formData, 'parentId');
+
+    return {
+        name: requiredString(formData, 'name'),
+        type: requiredString(formData, 'type') as 'expense' | 'income',
+        parentId: parentId ? Number(parentId) : null,
+        kind:
+            formData.get('kind') === 'offset'
+                ? ('offset' as const)
+                : ('normal' as const)
     };
 }
 
@@ -202,10 +211,7 @@ export async function logoutAction() {
 export async function createCategoryAction(formData: FormData) {
     const client = await getApiClient();
     await client.categories.create({
-        body: {
-            name: requiredString(formData, 'name'),
-            type: requiredString(formData, 'type') as 'expense' | 'income'
-        }
+        body: categoryBody(formData)
     });
     revalidateTag('categories', 'max');
     revalidateTag('user-profile', 'max');
@@ -218,6 +224,25 @@ export async function createCategoryAction(formData: FormData) {
 export async function createFirstCategoryAction(formData: FormData) {
     await createCategoryAction(formData);
     redirect('/dashboard');
+}
+
+export async function updateCategoryAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.categories.update({
+        params: { id: Number(requiredString(formData, 'id')) },
+        body: categoryBody(formData)
+    });
+    revalidateTag('categories', 'max');
+    revalidateTag('user-profile', 'max');
+    revalidateTag('dashboard', 'max');
+    revalidateTag('stats', 'max');
+    revalidatePath('/settings/categories');
+    revalidatePath('/settings/preferences');
+    revalidatePath('/setup/categories');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
 }
 
 export async function deleteCategoryAction(formData: FormData) {

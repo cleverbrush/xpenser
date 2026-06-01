@@ -2,7 +2,7 @@ import { defaultTimeZone, formatDateInTimeZone } from '@xpenser/timezone';
 
 type DateInput = Date | string | number;
 type TransactionType = 'expense' | 'income';
-type TransactionEffect = 'normal' | 'reversal';
+type CategoryKind = 'normal' | 'offset';
 type MoneyFormatOptions = {
     readonly compact?: boolean;
     readonly compactThreshold?: number;
@@ -103,22 +103,19 @@ export function formatDirectionalMoney(
 export function signedAmountForTransaction(
     value: number,
     type: TransactionType,
-    effect: TransactionEffect = 'normal'
+    kind: CategoryKind = 'normal'
 ): number {
-    const signedAmount = signedAmountForType(value, type);
-    return effect === 'reversal' ? -signedAmount : signedAmount;
+    void kind;
+    return signedAmountForType(value, type);
 }
 
 export function formatTransactionMoney(
     value: number,
     currency: string,
     type: TransactionType,
-    effect: TransactionEffect = 'normal'
+    kind: CategoryKind = 'normal'
 ): string {
-    return formatMoney(
-        signedAmountForTransaction(value, type, effect),
-        currency
-    );
+    return formatMoney(signedAmountForTransaction(value, type, kind), currency);
 }
 
 export function signedCategoryTotal(
@@ -145,10 +142,10 @@ export function amountClassNameForType(type: TransactionType): string {
 export function amountClassNameForTransaction(
     value: number,
     type: TransactionType,
-    effect: TransactionEffect = 'normal'
+    kind: CategoryKind = 'normal'
 ): string {
     return amountClassNameForValue(
-        signedAmountForTransaction(value, type, effect)
+        signedAmountForTransaction(value, type, kind)
     );
 }
 
@@ -173,12 +170,6 @@ export function directionBadgeClassName(type: TransactionType): string {
     return type === 'expense'
         ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300'
         : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300';
-}
-
-export function effectBadgeClassName(effect: TransactionEffect): string {
-    return effect === 'reversal'
-        ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
-        : 'border-border text-muted-foreground';
 }
 
 export function formatPercent(value: number): string {

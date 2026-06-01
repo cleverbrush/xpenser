@@ -38,11 +38,12 @@ export const CategoryTypeSchema = enumOf('expense', 'income')
     .describe('Whether a category is used for expenses or income.')
     .schemaName('CategoryType');
 
-export const TransactionEffectSchema = enumOf('normal', 'reversal')
+export const CategoryKindSchema = enumOf('normal', 'offset')
+    .default('normal')
     .describe(
-        'Whether the transaction increases its category total or reverses it.'
+        'Whether transactions in this category report on the same or opposite side.'
     )
-    .schemaName('TransactionEffect');
+    .schemaName('CategoryKind');
 
 export const PeriodSchema = enumOf('day', 'week', 'month', 'quarter', 'year')
     .describe('Dashboard reporting period.')
@@ -580,9 +581,29 @@ export const CategorySchema = object({
     type: CategoryTypeSchema.describe(
         'Whether this category is for expenses or income.'
     ),
+    /** Whether this category reports on its own side or the opposite side. */
+    kind: CategoryKindSchema.describe(
+        'Whether this category reports on its own side or the opposite side.'
+    ),
+    /** Optional parent category identifier for one-level nesting. */
+    parentId: number()
+        .nullable()
+        .describe('Optional parent category identifier for one-level nesting.'),
+    /** Parent category name, when this is a child category. */
+    parentName: string()
+        .optional()
+        .describe('Parent category name, when this is a child category.'),
+    /** Category path shown in transaction forms and reports. */
+    displayName: string().describe(
+        'Category path shown in transaction forms and reports.'
+    ),
     /** True when one or more transactions reference this category. */
     inUse: boolean().describe(
         'True when one or more transactions reference this category.'
+    ),
+    /** True when this category has child categories. */
+    hasChildren: boolean().describe(
+        'True when this category has child categories.'
     ),
     /** Creation timestamp. */
     createdAt: date().coerce().describe('Creation timestamp.'),
@@ -607,6 +628,15 @@ export const CreateCategoryBodySchema = object({
     /** Whether this category is for expenses or income. */
     type: CategoryTypeSchema.describe(
         'Whether this category is for expenses or income.'
+    ),
+    /** Optional parent category identifier for one-level nesting. */
+    parentId: number()
+        .nullable()
+        .optional()
+        .describe('Optional parent category identifier for one-level nesting.'),
+    /** Whether transactions in this category report on the same or opposite side. */
+    kind: CategoryKindSchema.optional().describe(
+        'Whether transactions in this category report on the same or opposite side.'
     )
 }).schemaName('CreateCategoryBody');
 
@@ -620,6 +650,15 @@ export const UpdateCategoryBodySchema = object({
     /** Whether this category is for expenses or income. */
     type: CategoryTypeSchema.optional().describe(
         'Whether this category is for expenses or income.'
+    ),
+    /** Optional parent category identifier for one-level nesting. */
+    parentId: number()
+        .nullable()
+        .optional()
+        .describe('Optional parent category identifier for one-level nesting.'),
+    /** Whether transactions in this category report on the same or opposite side. */
+    kind: CategoryKindSchema.optional().describe(
+        'Whether transactions in this category report on the same or opposite side.'
     )
 }).schemaName('UpdateCategoryBody');
 
@@ -632,12 +671,22 @@ export const TransactionSchema = object({
     ),
     /** Category name at read time. */
     categoryName: string().describe('Category name at read time.'),
+    /** Category path at read time. */
+    categoryDisplayName: string().describe('Category path at read time.'),
+    /** Optional parent category identifier at read time. */
+    categoryParentId: number()
+        .nullable()
+        .describe('Optional parent category identifier at read time.'),
+    /** Optional parent category name at read time. */
+    categoryParentName: string()
+        .optional()
+        .describe('Optional parent category name at read time.'),
+    /** Whether the selected category reports on the same or opposite side. */
+    categoryKind: CategoryKindSchema.describe(
+        'Whether the selected category reports on the same or opposite side.'
+    ),
     /** Transaction direction. */
     type: CategoryTypeSchema.describe('Transaction direction.'),
-    /** Whether the transaction increases or reverses its category total. */
-    effect: TransactionEffectSchema.describe(
-        'Whether the transaction increases or reverses its category total.'
-    ),
     /** Amount entered by the user in the original currency. */
     amount: decimalNumber().describe(
         'Amount entered by the user in the original currency.'
@@ -687,10 +736,6 @@ export const CreateTransactionBodySchema = object({
     /** Currency used for the entered amount. */
     currency: CurrencyCodeSchema.describe(
         'Currency used for the entered amount.'
-    ),
-    /** Whether the transaction increases or reverses its category total. */
-    effect: TransactionEffectSchema.optional().describe(
-        'Whether the transaction increases or reverses its category total.'
     ),
     /** Date and time when the transaction happened. */
     occurredAt: date()
@@ -758,6 +803,11 @@ export const TransactionListQuerySchema = object({
         .coerce()
         .optional()
         .describe('Filter by category identifier.'),
+    /** Filter by a parent category and its direct children. */
+    parentCategoryId: number()
+        .coerce()
+        .optional()
+        .describe('Filter by a parent category and its direct children.'),
     /** Inclusive start date for transaction occurrence. */
     from: date()
         .coerce()
@@ -881,11 +931,25 @@ export const DashboardCategoryTotalSchema = object({
     categoryId: number().describe('Category identifier.'),
     /** Category name. */
     categoryName: string().describe('Category name.'),
+    /** Category path. */
+    categoryDisplayName: string().describe('Category path.'),
+    /** Optional parent category identifier. */
+    categoryParentId: number()
+        .nullable()
+        .describe('Optional parent category identifier.'),
+    /** Optional parent category name. */
+    categoryParentName: string()
+        .optional()
+        .describe('Optional parent category name.'),
+    /** Whether this category reports on its own side or the opposite side. */
+    categoryKind: CategoryKindSchema.describe(
+        'Whether this category reports on its own side or the opposite side.'
+    ),
     /** Transaction direction. */
     type: CategoryTypeSchema.describe('Transaction direction.'),
-    /** Net category total in the user's default currency after reversals. */
+    /** Category total in the user's default currency on the reported side. */
     total: decimalNumber().describe(
-        "Net category total in the user's default currency after reversals."
+        "Category total in the user's default currency on the reported side."
     ),
     /** Number of selected-period transactions in the category. */
     transactionCount: number().describe(
@@ -910,13 +974,13 @@ export const StatsTrendPointSchema = object({
     bucket: string().describe('Stable date or month bucket key.'),
     /** Short label shown on charts. */
     label: string().describe('Short label shown on charts.'),
-    /** Net income total in the user's default currency after reversals. */
+    /** Income total in the user's default currency. */
     incomeTotal: decimalNumber().describe(
-        "Net income total in the user's default currency after reversals."
+        "Income total in the user's default currency."
     ),
-    /** Net expense total in the user's default currency after reversals. */
+    /** Expense total in the user's default currency. */
     expenseTotal: decimalNumber().describe(
-        "Net expense total in the user's default currency after reversals."
+        "Expense total in the user's default currency."
     ),
     /** Income minus expense total for the bucket. */
     netTotal: decimalNumber().describe(
@@ -931,15 +995,29 @@ export const StatsCategoryTotalSchema = object({
     categoryId: number().describe('Category identifier.'),
     /** Category name. */
     categoryName: string().describe('Category name.'),
+    /** Category path. */
+    categoryDisplayName: string().describe('Category path.'),
+    /** Optional parent category identifier. */
+    categoryParentId: number()
+        .nullable()
+        .describe('Optional parent category identifier.'),
+    /** Optional parent category name. */
+    categoryParentName: string()
+        .optional()
+        .describe('Optional parent category name.'),
+    /** Whether this category reports on its own side or the opposite side. */
+    categoryKind: CategoryKindSchema.describe(
+        'Whether this category reports on its own side or the opposite side.'
+    ),
     /** Transaction direction. */
     type: CategoryTypeSchema.describe('Transaction direction.'),
-    /** Net category total in the user's default currency after reversals. */
+    /** Category total in the user's default currency on the reported side. */
     total: decimalNumber().describe(
-        "Net category total in the user's default currency after reversals."
+        "Category total in the user's default currency on the reported side."
     ),
-    /** Share of the matching net income or expense total, as a percentage. */
+    /** Share of the matching income or expense total, as a percentage. */
     share: decimalNumber().describe(
-        'Share of the matching net income or expense total, as a percentage.'
+        'Share of the matching income or expense total, as a percentage.'
     ),
     /** Number of selected-period transactions in the category. */
     transactionCount: number().describe(
@@ -964,14 +1042,10 @@ export const StatsComparisonSchema = object({
     from: date().coerce().describe('Comparison period start timestamp.'),
     /** Comparison period end timestamp. */
     to: date().coerce().describe('Comparison period end timestamp.'),
-    /** Net expenses in the default currency after reversals. */
-    expenseTotal: decimalNumber().describe(
-        'Net expenses in the default currency after reversals.'
-    ),
-    /** Net income in the default currency after reversals. */
-    incomeTotal: decimalNumber().describe(
-        'Net income in the default currency after reversals.'
-    ),
+    /** Expenses in the default currency. */
+    expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
+    /** Income in the default currency. */
+    incomeTotal: decimalNumber().describe('Income in the default currency.'),
     /** Income minus expenses in the default currency. */
     netTotal: decimalNumber().describe(
         'Income minus expenses in the default currency.'
@@ -1001,14 +1075,10 @@ export const StatsOverviewSchema = object({
     to: date().coerce().describe('Period end timestamp.'),
     /** Currency used for totals. */
     currency: CurrencyCodeSchema.describe('Currency used for totals.'),
-    /** Net expenses in the default currency after reversals. */
-    expenseTotal: decimalNumber().describe(
-        'Net expenses in the default currency after reversals.'
-    ),
-    /** Net income in the default currency after reversals. */
-    incomeTotal: decimalNumber().describe(
-        'Net income in the default currency after reversals.'
-    ),
+    /** Expenses in the default currency. */
+    expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
+    /** Income in the default currency. */
+    incomeTotal: decimalNumber().describe('Income in the default currency.'),
     /** Income minus expenses in the default currency. */
     netTotal: decimalNumber().describe(
         'Income minus expenses in the default currency.'
@@ -1051,6 +1121,10 @@ export const StatsOverviewSchema = object({
     byCategory: array(StatsCategoryTotalSchema).describe(
         'Category totals and shares for the selected period.'
     ),
+    /** Parent category totals and shares for the selected period. */
+    byParentCategory: array(StatsCategoryTotalSchema).describe(
+        'Parent category totals and shares for the selected period.'
+    ),
     /** Comparison totals for matching prior periods. */
     comparison: object({
         /** Matching previous period totals. */
@@ -1073,17 +1147,17 @@ export const DashboardSummarySchema = object({
     to: date().coerce().describe('Period end timestamp.'),
     /** Currency used for totals. */
     currency: CurrencyCodeSchema.describe('Currency used for totals.'),
-    /** Net expenses in the default currency after reversals. */
-    expenseTotal: decimalNumber().describe(
-        'Net expenses in the default currency after reversals.'
-    ),
-    /** Net income in the default currency after reversals. */
-    incomeTotal: decimalNumber().describe(
-        'Net income in the default currency after reversals.'
-    ),
+    /** Expenses in the default currency. */
+    expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
+    /** Income in the default currency. */
+    incomeTotal: decimalNumber().describe('Income in the default currency.'),
     /** Category totals for the selected period. */
     byCategory: array(DashboardCategoryTotalSchema).describe(
         'Category totals for the selected period.'
+    ),
+    /** Parent category totals for the selected period. */
+    byParentCategory: array(DashboardCategoryTotalSchema).describe(
+        'Parent category totals for the selected period.'
     )
 }).schemaName('DashboardSummary');
 
@@ -1132,9 +1206,9 @@ export const CategoryTrendPointSchema = object({
     to: date()
         .coerce()
         .describe('Bucket end timestamp, clipped to the selected range.'),
-    /** Net category total in the user's default currency after reversals. */
+    /** Category total in the user's default currency on the reported side. */
     total: decimalNumber().describe(
-        "Net category total in the user's default currency after reversals."
+        "Category total in the user's default currency on the reported side."
     ),
     /** Number of transactions in the bucket. */
     transactionCount: number().describe('Number of transactions in the bucket.')
@@ -1145,6 +1219,20 @@ export const CategoryTrendResponseSchema = object({
     categoryId: number().describe('Category identifier.'),
     /** Category name shown in reports. */
     categoryName: string().describe('Category name shown in reports.'),
+    /** Category path shown in reports. */
+    categoryDisplayName: string().describe('Category path shown in reports.'),
+    /** Optional parent category identifier. */
+    categoryParentId: number()
+        .nullable()
+        .describe('Optional parent category identifier.'),
+    /** Optional parent category name. */
+    categoryParentName: string()
+        .optional()
+        .describe('Optional parent category name.'),
+    /** Whether this category reports on its own side or the opposite side. */
+    categoryKind: CategoryKindSchema.describe(
+        'Whether this category reports on its own side or the opposite side.'
+    ),
     /** Whether this category is for expenses or income. */
     type: CategoryTypeSchema.describe(
         'Whether this category is for expenses or income.'
@@ -1159,9 +1247,9 @@ export const CategoryTrendResponseSchema = object({
     to: date().coerce().describe('Selected range end timestamp.'),
     /** Currency used for totals. */
     currency: CurrencyCodeSchema.describe('Currency used for totals.'),
-    /** Net category total in the user's default currency after reversals. */
+    /** Category total in the user's default currency on the reported side. */
     total: decimalNumber().describe(
-        "Net category total in the user's default currency after reversals."
+        "Category total in the user's default currency on the reported side."
     ),
     /** Number of selected-range transactions in the category. */
     transactionCount: number().describe(
@@ -1223,10 +1311,10 @@ export type CurrencyConversionQuery = InferType<
     typeof CurrencyConversionQuerySchema
 >;
 export type CurrencyConversion = InferType<typeof CurrencyConversionSchema>;
+export type CategoryKind = InferType<typeof CategoryKindSchema>;
 export type Category = InferType<typeof CategorySchema>;
 export type CategoryListQuery = InferType<typeof CategoryListQuerySchema>;
 export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;
-export type TransactionEffect = InferType<typeof TransactionEffectSchema>;
 export type Transaction = InferType<typeof TransactionSchema>;
 export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema
