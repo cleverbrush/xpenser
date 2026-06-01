@@ -1,9 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
 import type { AppDb } from '../db/schemas.js';
+import { hashPassword } from '../security/password.js';
 import {
+    confirmEmail,
+    createEmailConfirmationToken,
+    EmailNotVerifiedError,
+    hashEmailConfirmationToken,
     InvalidPassportIdentityError,
     issueUserToken,
+    loginUser,
     PasswordMismatchError,
     transactionCurrenciesByRecentPopularity,
     verifyWebApiServiceSecret
@@ -16,6 +22,9 @@ const config = {
     },
     web: {
         apiServiceSecret: 'web-service-secret-minimum-32-chars'
+    },
+    emailConfirmation: {
+        tokenTtlSeconds: 86_400
     }
 } as Config;
 
@@ -25,6 +34,8 @@ function mockDbWithUser(): AppDb {
             find: vi.fn(async () => ({
                 id: 12,
                 email: 'jane@example.com',
+                emailVerified: true,
+                authProvider: 'local',
                 role: 'user',
                 defaultCurrency: 'USD',
                 timezone: 'UTC'
@@ -65,6 +76,28 @@ describe('user token issuance', () => {
         expect(response?.token).toEqual(expect.any(String));
     });
 
+    it('does not issue API tokens for unverified local users', async () => {
+        const response = await issueUserToken(
+            {
+                users: {
+                    find: vi.fn(async () => ({
+                        id: 12,
+                        email: 'jane@example.com',
+                        emailVerified: false,
+                        authProvider: 'local',
+                        role: 'user',
+                        defaultCurrency: 'USD',
+                        timezone: 'UTC'
+                    }))
+                }
+            } as unknown as AppDb,
+            config,
+            12
+        );
+
+        expect(response).toBeUndefined();
+    });
+
     it('compares web service secrets without accepting partial values', () => {
         expect(
             verifyWebApiServiceSecret(
@@ -82,6 +115,108 @@ describe('user token issuance', () => {
                 'web-service-secret-minimum-32-charx'
             )
         ).toBe(false);
+    });
+});
+
+describe('email confirmation', () => {
+    it('creates opaque confirmation tokens with hashed storage values', () => {
+        const issuedAt = new Date('2026-06-01T00:00:00.000Z');
+        const confirmation = createEmailConfirmationToken(config, issuedAt);
+
+        expect(confirmation.token).toEqual(expect.any(String));
+        expect(confirmation.tokenHash).toBe(
+            hashEmailConfirmationToken(confirmation.token)
+        );
+        expect(confirmation.tokenHash).not.toBe(confirmation.token);
+        expect(confirmation.expiresAt).toEqual(
+            new Date('2026-06-02T00:00:00.000Z')
+        );
+    });
+
+    it('rejects password login for unverified local users', async () => {
+        const passwordHash = await hashPassword('correct horse battery staple');
+        const db = {
+            users: {
+                projected: vi.fn(() => ({
+                    where: vi.fn(() => ({
+                        first: vi.fn(async () => ({
+                            id: 12,
+                            email: 'jane@example.com',
+                            passwordHash,
+                            emailVerified: false,
+                            authProvider: 'local',
+                            role: 'user',
+                            defaultCurrency: 'USD',
+                            timezone: 'UTC'
+                        }))
+                    }))
+                }))
+            }
+        } as unknown as AppDb;
+
+        await expect(
+            loginUser(
+                db,
+                config,
+                'jane@example.com',
+                'correct horse battery staple'
+            )
+        ).rejects.toBeInstanceOf(EmailNotVerifiedError);
+    });
+
+    it('confirms a valid email token and clears it before issuing a token', async () => {
+        const token = 'confirmation-token';
+        const user = {
+            id: 12,
+            email: 'jane@example.com',
+            passwordHash: 'hash',
+            emailVerified: false,
+            emailVerificationTokenHash: hashEmailConfirmationToken(token),
+            emailVerificationExpiresAt: new Date('2026-06-02T00:00:00.000Z'),
+            authProvider: 'local',
+            role: 'user',
+            defaultCurrency: 'USD',
+            timezone: 'UTC'
+        };
+        let updateValues: object | undefined;
+
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-06-01T00:00:00.000Z'));
+
+        const db = {
+            users: {
+                projected: vi.fn(() => ({
+                    where: vi.fn(() => ({
+                        first: vi.fn(async () => user)
+                    }))
+                })),
+                where: vi.fn(() => ({
+                    update: vi.fn(async values => {
+                        updateValues = values;
+                    })
+                })),
+                find: vi.fn(async () => ({
+                    ...user,
+                    emailVerified: true,
+                    emailVerificationTokenHash: null,
+                    emailVerificationExpiresAt: null
+                }))
+            },
+            categories: {
+                where: vi.fn(() => ({
+                    limit: vi.fn(async () => [])
+                }))
+            }
+        } as unknown as AppDb;
+
+        const response = await confirmEmail(db, config, token);
+
+        expect(response.user.email).toBe('jane@example.com');
+        expect(updateValues).toMatchObject({
+            emailVerified: true,
+            emailVerificationTokenHash: null,
+            emailVerificationExpiresAt: null
+        });
     });
 });
 

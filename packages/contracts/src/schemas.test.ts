@@ -2,15 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
     CategoryListQuerySchema,
     CategoryTrendQuerySchema,
+    ConfirmEmailBodySchema,
     CreateApiKeyBodySchema,
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
     CurrencyConversionQuerySchema,
+    EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
     RegisterBodySchema,
+    ResendEmailConfirmationBodySchema,
     SessionTokenBodySchema,
     StatsQuerySchema,
     TimeZoneSchema,
@@ -36,6 +39,27 @@ describe('shared schemas', () => {
 
         expect(result.valid).toBe(true);
         expect(result.object?.timezone).toBe('UTC');
+    });
+
+    it('validates email confirmation payloads', () => {
+        expect(
+            EmailConfirmationPendingResponseSchema.validate({
+                email: 'jane@example.com',
+                verificationRequired: true,
+                message: 'Check your email.'
+            }).valid
+        ).toBe(true);
+        expect(ConfirmEmailBodySchema.validate({ token: 'abc123' }).valid).toBe(
+            true
+        );
+        expect(ConfirmEmailBodySchema.validate({ token: '' }).valid).toBe(
+            false
+        );
+        expect(
+            ResendEmailConfirmationBodySchema.validate({
+                email: 'jane@example.com'
+            }).valid
+        ).toBe(true);
     });
 
     it('validates IANA time zones in preferences', () => {

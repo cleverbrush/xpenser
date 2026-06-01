@@ -4,7 +4,9 @@ import { ConfigToken, DbToken, LoggerToken } from '../di/tokens.js';
 export const RegisterEndpoint = api.auth.register
     .inject({ db: DbToken, config: ConfigToken })
     .summary('Register')
-    .description('Creates a local account and returns an API JWT.')
+    .description(
+        'Creates a local account and sends an email confirmation magic link.'
+    )
     .tags('auth')
     .operationId('register');
 
@@ -14,6 +16,22 @@ export const LoginEndpoint = api.auth.login
     .description('Authenticates a local account and returns an API JWT.')
     .tags('auth')
     .operationId('login');
+
+export const ConfirmEmailEndpoint = api.auth.confirmEmail
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Confirm email')
+    .description(
+        'Consumes an email confirmation magic link and returns an API JWT.'
+    )
+    .tags('auth')
+    .operationId('confirmEmail');
+
+export const ResendEmailConfirmationEndpoint = api.auth.resendEmailConfirmation
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Resend email confirmation')
+    .description('Sends a fresh email confirmation magic link when needed.')
+    .tags('auth')
+    .operationId('resendEmailConfirmation');
 
 export const PassportResolveUserEndpoint = api.auth.passportResolveUser
     .inject({ db: DbToken, config: ConfigToken })
@@ -257,6 +275,8 @@ export const endpoints = {
     auth: {
         register: RegisterEndpoint,
         login: LoginEndpoint,
+        confirmEmail: ConfirmEmailEndpoint,
+        resendEmailConfirmation: ResendEmailConfirmationEndpoint,
         passportResolveUser: PassportResolveUserEndpoint,
         passportExchange: PassportExchangeEndpoint,
         sessionToken: SessionTokenEndpoint,

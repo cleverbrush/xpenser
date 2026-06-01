@@ -177,6 +177,30 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     hasCategories: response.user.hasCategories
                 };
             }
+        }),
+        Credentials({
+            id: 'email-confirmation-token',
+            name: 'Email confirmation',
+            credentials: {
+                token: { label: 'Token', type: 'text' }
+            },
+            authorize: async credentials => {
+                const token = String(credentials?.token ?? '');
+                const response = await apiClient().auth.confirmEmail({
+                    body: { token }
+                });
+
+                return {
+                    id: String(response.user.id),
+                    email: response.user.email,
+                    apiToken: response.token,
+                    apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
+                    role: response.user.role,
+                    defaultCurrency: response.user.defaultCurrency,
+                    timezone: response.user.timezone,
+                    hasCategories: response.user.hasCategories
+                };
+            }
         })
     ],
     pages: {

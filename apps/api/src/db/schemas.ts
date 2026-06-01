@@ -12,6 +12,13 @@ export const UserDbSchema = object({
     id: number().primaryKey(),
     email: string(),
     passwordHash: string().optional().hasColumnName('password_hash'),
+    emailVerified: boolean().hasColumnName('email_verified').defaultTo(false),
+    emailVerificationTokenHash: string()
+        .optional()
+        .hasColumnName('email_verification_token_hash'),
+    emailVerificationExpiresAt: date()
+        .optional()
+        .hasColumnName('email_verification_expires_at'),
     role: string(),
     authProvider: string().hasColumnName('auth_provider'),
     defaultCurrency: string().hasColumnName('default_currency'),
@@ -30,6 +37,7 @@ export const UserDbSchema = object({
         'public',
         'id',
         'email',
+        'emailVerified',
         'role',
         'authProvider',
         'defaultCurrency',
@@ -44,6 +52,9 @@ export const UserDbSchema = object({
         'id',
         'email',
         'passwordHash',
+        'emailVerified',
+        'emailVerificationTokenHash',
+        'emailVerificationExpiresAt',
         'role',
         'authProvider',
         'defaultCurrency',
@@ -201,6 +212,9 @@ export type UserDb = {
     readonly id: number;
     readonly email: string;
     readonly passwordHash?: string | null;
+    readonly emailVerified: boolean;
+    readonly emailVerificationTokenHash?: string | null;
+    readonly emailVerificationExpiresAt?: Date | null;
     readonly role: string;
     readonly authProvider: string;
     readonly defaultCurrency: string;

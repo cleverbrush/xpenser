@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Config } from '../../config.js';
 import type { AppDb } from '../../db/schemas.js';
-import { sessionTokenHandler } from './auth.js';
+import { hashPassword } from '../../security/password.js';
+import { loginHandler, sessionTokenHandler } from './auth.js';
 
 const secret = 'web-service-secret-minimum-32-chars';
 const config = {
@@ -11,6 +12,9 @@ const config = {
     },
     web: {
         apiServiceSecret: secret
+    },
+    emailConfirmation: {
+        tokenTtlSeconds: 86_400
     }
 } as Config;
 
@@ -87,6 +91,49 @@ describe('session token handler', () => {
                 id: 12,
                 email: 'jane@example.com',
                 role: 'user'
+            }
+        });
+    });
+});
+
+describe('login handler', () => {
+    it('rejects valid credentials until local email is confirmed', async () => {
+        const passwordHash = await hashPassword('correct horse battery staple');
+        const result = await loginHandler(
+            {
+                body: {
+                    email: 'jane@example.com',
+                    password: 'correct horse battery staple'
+                }
+            } as never,
+            {
+                db: {
+                    users: {
+                        projected: vi.fn(() => ({
+                            where: vi.fn(() => ({
+                                first: vi.fn(async () => ({
+                                    id: 12,
+                                    email: 'jane@example.com',
+                                    passwordHash,
+                                    emailVerified: false,
+                                    authProvider: 'local',
+                                    role: 'user',
+                                    defaultCurrency: 'USD',
+                                    timezone: 'UTC'
+                                }))
+                            }))
+                        }))
+                    }
+                } as unknown as AppDb,
+                config
+            } as never
+        );
+
+        expect(result).toMatchObject({
+            status: 403,
+            body: {
+                message:
+                    'Email is not verified. Check your inbox for the confirmation link.'
             }
         });
     });

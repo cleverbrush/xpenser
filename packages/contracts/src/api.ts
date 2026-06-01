@@ -6,6 +6,7 @@ import {
     CategorySchema,
     CategoryTrendQuerySchema,
     CategoryTrendResponseSchema,
+    ConfirmEmailBodySchema,
     CreateApiKeyBodySchema,
     CreateApiKeyResponseSchema,
     CreateCategoryBodySchema,
@@ -17,6 +18,8 @@ import {
     DashboardQuerySchema,
     DashboardSummarySchema,
     DashboardWindowResponseSchema,
+    EmailConfirmationMessageResponseSchema,
+    EmailConfirmationPendingResponseSchema,
     ErrorResponseSchema,
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
@@ -27,6 +30,7 @@ import {
     PeriodWindowQuerySchema,
     PrincipalSchema,
     RegisterBodySchema,
+    ResendEmailConfirmationBodySchema,
     SessionTokenBodySchema,
     StatsOverviewSchema,
     StatsQuerySchema,
@@ -62,11 +66,32 @@ export const api = defineApi({
         register: endpoint
             .post('/api/auth/register')
             .body(RegisterBodySchema)
-            .responses({ 201: TokenResponseSchema, 400: ErrorResponseSchema }),
+            .responses({
+                201: EmailConfirmationPendingResponseSchema,
+                400: ErrorResponseSchema
+            }),
         login: endpoint
             .post('/api/auth/login')
             .body(LoginBodySchema)
-            .responses({ 200: TokenResponseSchema, 401: ErrorResponseSchema }),
+            .responses({
+                200: TokenResponseSchema,
+                401: ErrorResponseSchema,
+                403: ErrorResponseSchema
+            }),
+        confirmEmail: endpoint
+            .post('/api/auth/email/confirm')
+            .body(ConfirmEmailBodySchema)
+            .responses({
+                200: TokenResponseSchema,
+                400: ErrorResponseSchema
+            }),
+        resendEmailConfirmation: endpoint
+            .post('/api/auth/email/resend')
+            .body(ResendEmailConfirmationBodySchema)
+            .responses({
+                200: EmailConfirmationMessageResponseSchema,
+                400: ErrorResponseSchema
+            }),
         passportResolveUser: endpoint
             .post('/api/auth/passport/resolve-user')
             .body(PassportResolveUserBodySchema)

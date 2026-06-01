@@ -6,6 +6,7 @@ import { RegisterBodySchema } from '@xpenser/contracts';
 import {
     Button,
     Field,
+    FieldDescription,
     FieldError,
     FieldGroup,
     FieldLabel,
@@ -24,6 +25,7 @@ import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
 import { CurrencyMultiSelect } from './currency-multi-select';
 import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
+import { ResendEmailConfirmationForm } from './resend-email-confirmation-form';
 
 export function RegisterForm({
     currencies
@@ -32,6 +34,9 @@ export function RegisterForm({
 }) {
     const form = useSchemaForm(RegisterBodySchema);
     const defaultCurrency = form.useField(field => field.defaultCurrency);
+    const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
+        null
+    );
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
     const [selectedTimezone, setSelectedTimezone] = useState('UTC');
@@ -87,8 +92,14 @@ export function RegisterForm({
             const response = await registerAction(
                 valuesToFormData({ ...result.object, favoriteCurrencies })
             );
-            if (response?.error) {
+            if (response && 'error' in response && response.error) {
                 setError(response.error);
+            } else if (
+                response &&
+                'verificationRequired' in response &&
+                response.verificationRequired
+            ) {
+                setConfirmationEmail(response.email);
             }
         } catch (caught) {
             if (isNextRedirectError(caught)) {
@@ -98,6 +109,27 @@ export function RegisterForm({
         } finally {
             setPending(false);
         }
+    }
+
+    if (confirmationEmail) {
+        return (
+            <FieldGroup>
+                <Field>
+                    <FieldLabel>Email confirmation sent</FieldLabel>
+                    <FieldDescription>
+                        Open the magic link sent to {confirmationEmail} to
+                        confirm your email and finish signing in.
+                    </FieldDescription>
+                </Field>
+                <ResendEmailConfirmationForm initialEmail={confirmationEmail} />
+                <p className="text-sm text-muted-foreground">
+                    Already confirmed?{' '}
+                    <Link className="font-medium text-primary" href="/login">
+                        Sign in
+                    </Link>
+                </p>
+            </FieldGroup>
+        );
     }
 
     return (

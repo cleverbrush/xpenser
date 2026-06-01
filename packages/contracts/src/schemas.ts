@@ -180,6 +180,43 @@ export const LoginBodySchema = object({
         .describe('Local account password.')
 }).schemaName('LoginBody');
 
+export const EmailConfirmationPendingResponseSchema = object({
+    /** Email address that must be confirmed before local sign-in. */
+    email: string().describe(
+        'Email address that must be confirmed before local sign-in.'
+    ),
+    /** True when the local account must confirm email before sign-in. */
+    verificationRequired: boolean().describe(
+        'True when the local account must confirm email before sign-in.'
+    ),
+    /** User-facing confirmation instructions. */
+    message: string().describe('User-facing confirmation instructions.')
+}).schemaName('EmailConfirmationPendingResponse');
+
+export const ConfirmEmailBodySchema = object({
+    /** One-time email confirmation token from the magic link. */
+    token: string()
+        .required('confirmation token is required')
+        .nonempty('confirmation token is required')
+        .describe('One-time email confirmation token from the magic link.')
+}).schemaName('ConfirmEmailBody');
+
+export const ResendEmailConfirmationBodySchema = object({
+    /** Email address that should receive a fresh confirmation link. */
+    email: string()
+        .required('email is required')
+        .nonempty('email is required')
+        .email('must be a valid email address')
+        .describe(
+            'Email address that should receive a fresh confirmation link.'
+        )
+}).schemaName('ResendEmailConfirmationBody');
+
+export const EmailConfirmationMessageResponseSchema = object({
+    /** User-facing confirmation message. */
+    message: string().describe('User-facing confirmation message.')
+}).schemaName('EmailConfirmationMessageResponse');
+
 export const PassportResolveUserBodySchema = object({
     /** Identity provider resolved by Passport. */
     provider: string()
@@ -1149,6 +1186,16 @@ export const CategoryTrendResponseSchema = object({
 export type Principal = InferType<typeof PrincipalSchema>;
 export type RegisterBody = InferType<typeof RegisterBodySchema>;
 export type LoginBody = InferType<typeof LoginBodySchema>;
+export type EmailConfirmationPendingResponse = InferType<
+    typeof EmailConfirmationPendingResponseSchema
+>;
+export type ConfirmEmailBody = InferType<typeof ConfirmEmailBodySchema>;
+export type ResendEmailConfirmationBody = InferType<
+    typeof ResendEmailConfirmationBodySchema
+>;
+export type EmailConfirmationMessageResponse = InferType<
+    typeof EmailConfirmationMessageResponseSchema
+>;
 export type PassportResolveUserBody = InferType<
     typeof PassportResolveUserBodySchema
 >;

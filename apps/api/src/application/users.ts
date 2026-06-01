@@ -1,5 +1,7 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type {
+    EmailConfirmationMessageResponse,
+    EmailConfirmationPendingResponse,
     PassportResolveUserBody,
     PassportResolveUserResponse,
     RegisterBody,
@@ -11,13 +13,97 @@ import type { Config } from '../config.js';
 import type { AppDb, TransactionDb, UserDb } from '../db/schemas.js';
 import { hashPassword, verifyPassword } from '../security/password.js';
 import { issueToken, tokenExpiresAt } from '../security/token.js';
+import { sendEmail } from './email.js';
 
 export class DuplicateEmailError extends Error {}
+export class EmailNotVerifiedError extends Error {}
+export class InvalidEmailConfirmationTokenError extends Error {}
 export class InvalidCredentialsError extends Error {}
 export class InvalidPassportIdentityError extends Error {}
 export class PasswordMismatchError extends Error {}
 
 type CurrencyTransaction = Pick<TransactionDb, 'currency'>;
+type EmailConfirmationToken = {
+    readonly expiresAt: Date;
+    readonly token: string;
+    readonly tokenHash: string;
+};
+
+const emailConfirmationPendingMessage =
+    'Check your email for a confirmation link before signing in.';
+const emailConfirmationResendMessage =
+    'If that email needs confirmation, a new link has been sent.';
+
+export function hashEmailConfirmationToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+}
+
+export function createEmailConfirmationToken(
+    config: Config,
+    issuedAt = new Date()
+): EmailConfirmationToken {
+    const token = randomBytes(32).toString('base64url');
+    return {
+        token,
+        tokenHash: hashEmailConfirmationToken(token),
+        expiresAt: new Date(
+            issuedAt.getTime() +
+                config.emailConfirmation.tokenTtlSeconds * 1_000
+        )
+    };
+}
+
+function emailConfirmationLink(config: Config, token: string): string {
+    const url = new URL('/auth/confirm-email', config.app.url);
+    url.searchParams.set('token', token);
+    return url.toString();
+}
+
+async function sendEmailConfirmation(
+    config: Config,
+    email: string,
+    token: string
+): Promise<void> {
+    const url = emailConfirmationLink(config, token);
+    await sendEmail(config, {
+        to: email,
+        subject: 'Confirm your xpenser email',
+        text: `Confirm your xpenser email by opening this link: ${url}`,
+        html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2>Confirm your xpenser email</h2>
+                <p>Open this magic link to confirm your email address and finish signing in.</p>
+                <p style="margin: 28px 0;">
+                    <a href="${url}" style="background: #111827; color: #ffffff; padding: 12px 18px; border-radius: 6px; text-decoration: none; display: inline-block;">
+                        Confirm email
+                    </a>
+                </p>
+                <p style="color: #4b5563; font-size: 14px;">If the button does not work, paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #4b5563; font-size: 14px;">${url}</p>
+            </div>
+        `
+    });
+}
+
+function emailConfirmationPendingResponse(
+    email: string
+): EmailConfirmationPendingResponse {
+    return {
+        email,
+        verificationRequired: true,
+        message: emailConfirmationPendingMessage
+    };
+}
+
+function emailConfirmationResendResponse(): EmailConfirmationMessageResponse {
+    return { message: emailConfirmationResendMessage };
+}
+
+function isUnverifiedLocalUser(
+    user: Pick<UserDb, 'authProvider' | 'emailVerified'>
+): boolean {
+    return user.authProvider === 'local' && user.emailVerified === false;
+}
 
 async function favoriteCurrencies(
     db: AppDb,
@@ -197,6 +283,9 @@ export async function issueUserToken(
     if (!user) {
         return undefined;
     }
+    if (isUnverifiedLocalUser(user)) {
+        return undefined;
+    }
 
     return toTokenResponse(
         config,
@@ -210,12 +299,13 @@ export async function registerUser(
     db: AppDb,
     config: Config,
     body: RegisterBody
-): Promise<TokenResponse> {
+): Promise<EmailConfirmationPendingResponse> {
     if (body.password !== body.confirmPassword) {
         throw new PasswordMismatchError('Passwords do not match.');
     }
 
-    return db.transaction(async trx => {
+    const confirmation = createEmailConfirmationToken(config);
+    const response = await db.transaction(async trx => {
         const existing = await trx.users
             .where(user => user.email, body.email)
             .first();
@@ -226,6 +316,9 @@ export async function registerUser(
         const user = await trx.users.insert({
             email: body.email,
             passwordHash: await hashPassword(body.password),
+            emailVerified: false,
+            emailVerificationTokenHash: confirmation.tokenHash,
+            emailVerificationExpiresAt: confirmation.expiresAt,
             role: 'user',
             authProvider: 'local',
             defaultCurrency: body.defaultCurrency,
@@ -239,8 +332,11 @@ export async function registerUser(
             body.defaultCurrency
         );
 
-        return toTokenResponse(config, user, false);
+        return emailConfirmationPendingResponse(user.email);
     });
+
+    await sendEmailConfirmation(config, body.email, confirmation.token);
+    return response;
 }
 
 export async function loginUser(
@@ -261,8 +357,79 @@ export async function loginUser(
     if (!valid) {
         throw new InvalidCredentialsError('Invalid email or password.');
     }
+    if (isUnverifiedLocalUser(user)) {
+        throw new EmailNotVerifiedError(
+            'Email is not verified. Check your inbox for the confirmation link.'
+        );
+    }
 
     return toTokenResponse(config, user, await hasCategories(db, user.id));
+}
+
+export async function confirmEmail(
+    db: AppDb,
+    config: Config,
+    token: string
+): Promise<TokenResponse> {
+    const tokenHash = hashEmailConfirmationToken(token);
+    const user = await db.users
+        .projected('auth')
+        .where(candidate => candidate.emailVerificationTokenHash, tokenHash)
+        .first();
+    if (
+        !user ||
+        user.authProvider !== 'local' ||
+        user.emailVerified ||
+        !user.emailVerificationExpiresAt ||
+        user.emailVerificationExpiresAt.getTime() <= Date.now()
+    ) {
+        throw new InvalidEmailConfirmationTokenError(
+            'Confirmation link is invalid or expired.'
+        );
+    }
+
+    await db.users
+        .where(candidate => candidate.id, user.id)
+        .update({
+            emailVerified: true,
+            emailVerificationTokenHash: null,
+            emailVerificationExpiresAt: null,
+            updatedAt: new Date()
+        });
+
+    const response = await issueUserToken(db, config, user.id);
+    if (!response) {
+        throw new InvalidEmailConfirmationTokenError(
+            'Confirmation link is invalid or expired.'
+        );
+    }
+    return response;
+}
+
+export async function resendEmailConfirmation(
+    db: AppDb,
+    config: Config,
+    email: string
+): Promise<EmailConfirmationMessageResponse> {
+    const user = await db.users
+        .projected('auth')
+        .where(candidate => candidate.email, email)
+        .first();
+    if (!user || user.authProvider !== 'local' || user.emailVerified) {
+        return emailConfirmationResendResponse();
+    }
+
+    const confirmation = createEmailConfirmationToken(config);
+    await db.users
+        .where(candidate => candidate.id, user.id)
+        .update({
+            emailVerificationTokenHash: confirmation.tokenHash,
+            emailVerificationExpiresAt: confirmation.expiresAt,
+            updatedAt: new Date()
+        });
+    await sendEmailConfirmation(config, user.email, confirmation.token);
+
+    return emailConfirmationResendResponse();
 }
 
 export async function resolvePassportGoogleUser(
@@ -310,6 +477,9 @@ export async function resolvePassportGoogleUser(
             (await trx.users.insert({
                 email: identity.email,
                 passwordHash: undefined,
+                emailVerified: true,
+                emailVerificationTokenHash: undefined,
+                emailVerificationExpiresAt: undefined,
                 role: 'user',
                 authProvider: 'google',
                 defaultCurrency: 'USD',
