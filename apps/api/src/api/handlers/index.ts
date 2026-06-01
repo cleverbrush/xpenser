@@ -4,11 +4,13 @@ import {
     revokeApiKeyHandler
 } from './api-keys.js';
 import {
+    confirmEmailHandler,
     getMeHandler,
     loginHandler,
     passportExchangeHandler,
     passportResolveUserHandler,
     registerHandler,
+    resendEmailConfirmationHandler,
     sessionTokenHandler,
     updatePreferencesHandler
 } from './auth.js';
@@ -42,6 +44,8 @@ export const handlers = {
     auth: {
         register: registerHandler,
         login: loginHandler,
+        confirmEmail: confirmEmailHandler,
+        resendEmailConfirmation: resendEmailConfirmationHandler,
         passportResolveUser: passportResolveUserHandler,
         passportExchange: passportExchangeHandler,
         sessionToken: sessionTokenHandler,

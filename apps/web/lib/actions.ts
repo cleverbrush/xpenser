@@ -107,9 +107,33 @@ function passportLoginUrl(codeChallenge: string): string {
 }
 
 export async function loginAction(formData: FormData) {
+    const email = requiredString(formData, 'email');
+    const password = requiredString(formData, 'password');
+    try {
+        await getAnonymousApiClient().auth.login({
+            body: { email, password }
+        });
+    } catch (err) {
+        const status = apiErrorStatus(err);
+        if (status === 403) {
+            return {
+                error:
+                    apiErrorMessage(err) ??
+                    'Confirm your email before signing in.',
+                unverifiedEmail: email
+            };
+        }
+        if (status === 401) {
+            return {
+                error: 'Could not sign in. Check your email and password.'
+            };
+        }
+        throw err;
+    }
+
     await signIn('credentials', {
-        email: requiredString(formData, 'email'),
-        password: requiredString(formData, 'password'),
+        email,
+        password,
         redirectTo: '/dashboard'
     });
 }
@@ -119,7 +143,7 @@ export async function registerAction(formData: FormData) {
     const password = requiredString(formData, 'password');
     const defaultCurrency = requiredString(formData, 'defaultCurrency');
     try {
-        await getAnonymousApiClient().auth.register({
+        return await getAnonymousApiClient().auth.register({
             body: {
                 email,
                 password,
@@ -142,12 +166,20 @@ export async function registerAction(formData: FormData) {
         }
         throw err;
     }
+}
 
-    await signIn('credentials', {
-        email,
-        password,
-        redirectTo: '/setup/categories'
-    });
+export async function resendEmailConfirmationAction(formData: FormData) {
+    try {
+        return await getAnonymousApiClient().auth.resendEmailConfirmation({
+            body: {
+                email: requiredString(formData, 'email')
+            }
+        });
+    } catch (err) {
+        return {
+            error: apiErrorMessage(err) ?? 'Could not send a confirmation link.'
+        };
+    }
 }
 
 export async function googleSignInAction() {

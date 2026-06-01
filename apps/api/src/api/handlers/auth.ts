@@ -1,14 +1,18 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
 import {
+    confirmEmail,
     DuplicateEmailError,
+    EmailNotVerifiedError,
     getUserPreference,
     InvalidCredentialsError,
+    InvalidEmailConfirmationTokenError,
     InvalidPassportIdentityError,
     issuePassportUserToken,
     issueUserToken,
     loginUser,
     PasswordMismatchError,
     registerUser,
+    resendEmailConfirmation,
     resolvePassportGoogleUser,
     updateUserPreference,
     verifyWebApiServiceSecret
@@ -20,11 +24,13 @@ import {
     PassportAuthError
 } from '../../security/passport.js';
 import type {
+    ConfirmEmailEndpoint,
     GetMeEndpoint,
     LoginEndpoint,
     PassportExchangeEndpoint,
     PassportResolveUserEndpoint,
     RegisterEndpoint,
+    ResendEmailConfirmationEndpoint,
     SessionTokenEndpoint,
     UpdatePreferencesEndpoint
 } from '../endpoints.js';
@@ -38,7 +44,7 @@ export const registerHandler: Handler<typeof RegisterEndpoint> = async (
     try {
         return ActionResult.created(
             await registerUser(db, config, body),
-            '/api/auth/me'
+            '/api/auth/email/confirm'
         );
     } catch (err) {
         if (
@@ -61,8 +67,31 @@ export const loginHandler: Handler<typeof LoginEndpoint> = async (
         if (err instanceof InvalidCredentialsError) {
             return ActionResult.unauthorized({ message: err.message });
         }
+        if (err instanceof EmailNotVerifiedError) {
+            return ActionResult.forbidden({ message: err.message });
+        }
         throw err;
     }
+};
+
+export const confirmEmailHandler: Handler<typeof ConfirmEmailEndpoint> = async (
+    { body },
+    { db, config }
+) => {
+    try {
+        return await confirmEmail(db, config, body.token);
+    } catch (err) {
+        if (err instanceof InvalidEmailConfirmationTokenError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        throw err;
+    }
+};
+
+export const resendEmailConfirmationHandler: Handler<
+    typeof ResendEmailConfirmationEndpoint
+> = async ({ body }, { db, config }) => {
+    return await resendEmailConfirmation(db, config, body.email);
 };
 
 export const passportResolveUserHandler: Handler<

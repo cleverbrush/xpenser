@@ -38,6 +38,12 @@ describe('sendEmail', () => {
                 })
             })
         );
+        const request = fetchSpy.mock.calls[0]?.[1] as RequestInit;
+        expect(JSON.parse(String(request.body))).toMatchObject({
+            from: 'reports@example.com',
+            to: 'user@example.com',
+            subject: 'Report'
+        });
     });
 
     it('throws when Resend is not configured', async () => {

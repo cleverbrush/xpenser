@@ -6,11 +6,13 @@ import { Button, FieldError, FieldGroup } from '@xpenser/ui';
 import { type FormEvent, useState } from 'react';
 import { loginAction } from '@/lib/actions';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
+import { ResendEmailConfirmationForm } from './resend-email-confirmation-form';
 
 export function LoginForm() {
     const form = useSchemaForm(LoginBodySchema);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
+    const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -22,8 +24,17 @@ export function LoginForm() {
 
         setPending(true);
         setError(null);
+        setUnverifiedEmail(null);
         try {
-            await loginAction(valuesToFormData(result.object));
+            const response = await loginAction(valuesToFormData(result.object));
+            if (response && 'error' in response && response.error) {
+                setError(response.error);
+                setUnverifiedEmail(
+                    'unverifiedEmail' in response
+                        ? (response.unverifiedEmail ?? null)
+                        : null
+                );
+            }
         } catch (caught) {
             if (isNextRedirectError(caught)) {
                 throw caught;
@@ -35,29 +46,36 @@ export function LoginForm() {
     }
 
     return (
-        <form noValidate onSubmit={handleSubmit}>
-            <FieldGroup>
-                <SchemaField
-                    fieldProps={{ autoComplete: 'email' }}
-                    forProperty={field => field.email}
-                    form={form}
-                    label="Email"
-                    name="email"
-                    variant="email"
-                />
-                <SchemaField
-                    fieldProps={{ autoComplete: 'current-password' }}
-                    forProperty={field => field.password}
-                    form={form}
-                    label="Password"
-                    name="password"
-                    variant="password"
-                />
-                {error ? <FieldError role="alert">{error}</FieldError> : null}
-                <Button className="w-full" disabled={pending} type="submit">
-                    {pending ? 'Signing in...' : 'Sign in'}
-                </Button>
-            </FieldGroup>
-        </form>
+        <div className="flex flex-col gap-4">
+            <form noValidate onSubmit={handleSubmit}>
+                <FieldGroup>
+                    <SchemaField
+                        fieldProps={{ autoComplete: 'email' }}
+                        forProperty={field => field.email}
+                        form={form}
+                        label="Email"
+                        name="email"
+                        variant="email"
+                    />
+                    <SchemaField
+                        fieldProps={{ autoComplete: 'current-password' }}
+                        forProperty={field => field.password}
+                        form={form}
+                        label="Password"
+                        name="password"
+                        variant="password"
+                    />
+                    {error ? (
+                        <FieldError role="alert">{error}</FieldError>
+                    ) : null}
+                    <Button className="w-full" disabled={pending} type="submit">
+                        {pending ? 'Signing in...' : 'Sign in'}
+                    </Button>
+                </FieldGroup>
+            </form>
+            {unverifiedEmail ? (
+                <ResendEmailConfirmationForm initialEmail={unverifiedEmail} />
+            ) : null}
+        </div>
     );
 }

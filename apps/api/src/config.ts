@@ -36,6 +36,14 @@ export const config = parseEnv(
                 string().minLength(32)
             )
         },
+        emailConfirmation: {
+            tokenTtlSeconds: env(
+                'EMAIL_VERIFICATION_TOKEN_TTL_SECONDS',
+                number()
+                    .coerce()
+                    .default(24 * 60 * 60)
+            )
+        },
         passport: {
             baseUrl: env(
                 'PASSPORT_BASE_URL',
