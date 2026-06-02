@@ -1,9 +1,55 @@
 import { describe, expect, it } from 'vitest';
+import type { CategoryDb, TransactionDb } from '../db/schemas.js';
 import {
     dueEmailReportTypes,
     emailReportOpenAiPayload,
-    emailReportPeriod
+    emailReportPeriod,
+    notedTransactionsForReport
 } from './email-reports.js';
+
+const timestamp = new Date('2026-05-01T00:00:00.000Z');
+const groceries = {
+    id: 1,
+    userId: 1,
+    parentId: null,
+    name: 'Groceries',
+    type: 'expense',
+    kind: 'normal',
+    createdAt: timestamp,
+    updatedAt: timestamp
+} satisfies CategoryDb;
+
+function transaction({
+    amount,
+    id,
+    note,
+    occurredAt = new Date(
+        `2026-05-${String(id).padStart(2, '0')}T12:00:00.000Z`
+    )
+}: {
+    readonly amount: number;
+    readonly id: number;
+    readonly note?: string | null;
+    readonly occurredAt?: Date;
+}): TransactionDb {
+    return {
+        id,
+        userId: 1,
+        categoryId: groceries.id,
+        category: groceries,
+        type: 'expense',
+        amount,
+        currency: 'USD',
+        defaultCurrencyAmount: amount,
+        defaultCurrency: 'USD',
+        exchangeRate: 1,
+        exchangeRateDate: '2026-05-01',
+        occurredAt,
+        ...(note === undefined ? {} : { note }),
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
+}
 
 describe('email report periods', () => {
     it('uses the previous complete local week for weekly reports', () => {
@@ -109,6 +155,21 @@ describe('email report OpenAI payload', () => {
                     interpretation:
                         'Return or refund category. It counts as income and improves net position; do not describe it as new spending.',
                     netImpact: 25,
+                    note: 'Refund from delayed baggage claim.',
+                    type: 'income'
+                }
+            ],
+            notedTransactions: [
+                {
+                    amount: 25,
+                    categoryImpact: 25,
+                    categoryKind: 'offset',
+                    categoryName: 'Travel',
+                    date: '2026-05-27',
+                    interpretation:
+                        'Return or refund category. It counts as income and improves net position; do not describe it as new spending.',
+                    netImpact: 25,
+                    note: 'Refund from delayed baggage claim.',
                     type: 'income'
                 }
             ]
@@ -120,13 +181,72 @@ describe('email report OpenAI payload', () => {
             categoryImpact: 25,
             categoryKind: 'offset',
             netImpact: 25,
+            note: 'Refund from delayed baggage claim.',
             type: 'income'
         });
+        expect(payload.report.notedTransactions).toHaveLength(1);
+        expect(payload.report.notedTransactions[0]?.note).toBe(
+            'Refund from delayed baggage claim.'
+        );
         expect(transaction?.interpretation).toContain(
             'do not describe it as new spending'
         );
         expect(payload.report.dataSemantics.categoryKinds.offset).toContain(
             'opposite side'
+        );
+        expect(payload.report.dataSemantics.notes).toContain(
+            'user-provided context'
+        );
+    });
+
+    it('caps and orders noted transactions by impact and recency', () => {
+        const notedTransactions = notedTransactionsForReport(
+            [
+                transaction({
+                    amount: 30,
+                    id: 1,
+                    note: 'Lower impact'
+                }),
+                transaction({
+                    amount: 50,
+                    id: 2,
+                    note: 'Older high impact',
+                    occurredAt: new Date('2026-05-05T12:00:00.000Z')
+                }),
+                transaction({
+                    amount: 50,
+                    id: 3,
+                    note: 'Newer high impact',
+                    occurredAt: new Date('2026-05-06T12:00:00.000Z')
+                }),
+                transaction({
+                    amount: 100,
+                    id: 4,
+                    note: '   '
+                }),
+                ...Array.from({ length: 12 }, (_, index) =>
+                    transaction({
+                        amount: 20 - index,
+                        id: index + 5,
+                        note: `Capped note ${index + 1}`
+                    })
+                )
+            ],
+            'UTC',
+            new Map([[groceries.id, groceries]])
+        );
+
+        expect(notedTransactions).toHaveLength(10);
+        expect(notedTransactions.slice(0, 3).map(item => item.note)).toEqual([
+            'Newer high impact',
+            'Older high impact',
+            'Lower impact'
+        ]);
+        expect(notedTransactions).not.toContainEqual(
+            expect.objectContaining({ note: '' })
+        );
+        expect(notedTransactions).not.toContainEqual(
+            expect.objectContaining({ note: '   ' })
         );
     });
 });

@@ -1,6 +1,12 @@
 'use client';
 
-import type { Category, Currency, Transaction } from '@xpenser/contracts';
+import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
+import {
+    type Category,
+    CreateTransactionBodySchema,
+    type Currency,
+    type Transaction
+} from '@xpenser/contracts';
 import {
     dateToLocalDateTimeInput,
     localDateTimeInputToDate
@@ -35,6 +41,7 @@ import {
 } from '@/lib/category-display';
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
+import { valuesToFormData } from './forms/form-utils';
 
 type TransactionType = Category['type'];
 
@@ -97,6 +104,7 @@ export function QuickCaptureForm({
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
+    const form = useSchemaForm(CreateTransactionBodySchema);
     const router = useRouter();
     const currencyOptions = useMemo(
         () =>
@@ -158,8 +166,16 @@ export function QuickCaptureForm({
     }
 
     function resetAfterSave() {
+        const nextOccurredAt = new Date();
         setAmount('');
-        setOccurredAtText(dateToLocalDateTimeInput(new Date(), timezone));
+        setOccurredAtText(dateToLocalDateTimeInput(nextOccurredAt, timezone));
+        form.reset({
+            amount: undefined,
+            categoryId: activeCategoryId,
+            currency,
+            occurredAt: nextOccurredAt,
+            note: undefined
+        });
     }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -184,11 +200,19 @@ export function QuickCaptureForm({
             return;
         }
 
-        const formData = new FormData();
-        formData.set('categoryId', String(activeCategoryId));
-        formData.set('amount', String(amountValue));
-        formData.set('currency', currency);
-        formData.set('occurredAt', occurredAt.toISOString());
+        form.setValue({
+            amount: amountValue,
+            categoryId: activeCategoryId,
+            currency,
+            occurredAt
+        });
+
+        const result = await form.submit();
+        if (!result.valid || !result.object) {
+            return;
+        }
+
+        const formData = valuesToFormData(result.object);
 
         setPending(true);
         setError(null);
@@ -390,6 +414,14 @@ export function QuickCaptureForm({
                                     value={occurredAtText}
                                 />
                             </Field>
+
+                            <SchemaField
+                                fieldProps={{ autoComplete: 'off' }}
+                                forProperty={field => field.note}
+                                form={form}
+                                label="Note"
+                                name="note"
+                            />
 
                             {error ? (
                                 <FieldError role="alert">{error}</FieldError>
