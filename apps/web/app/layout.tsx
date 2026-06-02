@@ -1,7 +1,7 @@
 import { GoogleTagManager } from '@next/third-parties/google';
-import { XpenserFormProvider } from '@xpenser/ui';
 import type { Metadata } from 'next';
 import './globals.css';
+import { XpenserWebFormProvider } from '@/components/forms/schema-fields';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
@@ -24,7 +24,7 @@ export default function RootLayout({
                     defaultTheme="system"
                     enableSystem
                 >
-                    <XpenserFormProvider>{children}</XpenserFormProvider>
+                    <XpenserWebFormProvider>{children}</XpenserWebFormProvider>
                 </ThemeProvider>
             </body>
         </html>

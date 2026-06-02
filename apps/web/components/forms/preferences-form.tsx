@@ -8,21 +8,22 @@ import {
 } from '@xpenser/contracts';
 import {
     Button,
+    type CheckboxRendererFieldProps,
     Field,
     FieldDescription,
     FieldError,
     FieldGroup,
     FieldLabel,
-    Input
+    Input,
+    type SelectRendererFieldProps
 } from '@xpenser/ui';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { updatePreferencesAction } from '@/lib/actions';
 import { sortCurrenciesForDisplay } from '@/lib/currency-display';
 import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
-import { CurrencyMultiSelect } from './currency-multi-select';
 import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
-import { SchemaCheckboxField, SchemaSelectField } from './schema-fields';
+import type { CurrencyMultiSelectRendererFieldProps } from './schema-fields';
 
 export function PreferencesForm({
     me,
@@ -127,60 +128,70 @@ export function PreferencesForm({
                     <FieldLabel htmlFor="email">Email</FieldLabel>
                     <Input id="email" readOnly value={me.email} />
                 </Field>
-                <SchemaSelectField
+                <SchemaField
+                    fieldProps={
+                        {
+                            onValueChange: (value, field) => {
+                                const nextFavoriteCurrencies =
+                                    selectedFavoriteCurrencies.filter(
+                                        currency => currency !== value
+                                    );
+
+                                field.onChange(value);
+                                setSelectedDefaultCurrency(value);
+                                setSelectedFavoriteCurrencies(
+                                    nextFavoriteCurrencies
+                                );
+                                form.setValue({
+                                    favoriteCurrencies: nextFavoriteCurrencies
+                                });
+                            },
+                            options: sortedCurrencies.map(currency => ({
+                                label: <CurrencyOption currency={currency} />,
+                                value: currency.code
+                            })),
+                            value: selectedDefaultCurrency
+                        } satisfies SelectRendererFieldProps
+                    }
                     forProperty={field => field.defaultCurrency}
                     form={form}
                     label="Default currency"
-                    onChange={(value, field) => {
-                        const nextFavoriteCurrencies =
-                            selectedFavoriteCurrencies.filter(
-                                currency => currency !== value
-                            );
-
-                        field.onChange(value);
-                        setSelectedDefaultCurrency(value);
-                        setSelectedFavoriteCurrencies(nextFavoriteCurrencies);
-                        form.setValue({
-                            favoriteCurrencies: nextFavoriteCurrencies
-                        });
-                    }}
-                    options={sortedCurrencies.map(currency => ({
-                        label: <CurrencyOption currency={currency} />,
-                        value: currency.code
-                    }))}
-                    value={selectedDefaultCurrency}
+                    variant="select"
                 />
                 <SchemaField
-                    forProperty={field => field.favoriteCurrencies}
-                    form={form}
-                    renderer={field => (
-                        <CurrencyMultiSelect
-                            currencies={sortedCurrencies}
-                            error={field.error}
-                            excludedCurrency={selectedDefaultCurrency}
-                            onBlur={field.onBlur}
-                            onChange={values => {
+                    fieldProps={
+                        {
+                            currencies: sortedCurrencies,
+                            excludedCurrency: selectedDefaultCurrency,
+                            onChange: (values, field) => {
                                 field.onChange(values);
                                 setSelectedFavoriteCurrencies(values);
-                            }}
-                            selectedCurrencies={selectedFavoriteCurrencies}
-                            touched={field.touched}
-                        />
-                    )}
+                            },
+                            selectedCurrencies: selectedFavoriteCurrencies
+                        } satisfies CurrencyMultiSelectRendererFieldProps
+                    }
+                    forProperty={field => field.favoriteCurrencies}
+                    form={form}
+                    variant="currency-multi-select"
                 />
-                <SchemaSelectField
+                <SchemaField
+                    fieldProps={
+                        {
+                            onValueChange: (value, field) => {
+                                field.onChange(value);
+                                setSelectedTimezone(value);
+                            },
+                            options: timeZones.map(timeZone => ({
+                                label: timeZoneLabel(timeZone),
+                                value: timeZone
+                            })),
+                            value: selectedTimezone
+                        } satisfies SelectRendererFieldProps
+                    }
                     forProperty={field => field.timezone}
                     form={form}
                     label="Time zone"
-                    onChange={(value, field) => {
-                        field.onChange(value);
-                        setSelectedTimezone(value);
-                    }}
-                    options={timeZones.map(timeZone => ({
-                        label: timeZoneLabel(timeZone),
-                        value: timeZone
-                    }))}
-                    value={selectedTimezone}
+                    variant="select"
                 />
                 <Field>
                     <div className="space-y-1">
@@ -190,31 +201,47 @@ export function PreferencesForm({
                         </FieldDescription>
                     </div>
                     <div className="grid gap-3 rounded-md border border-input p-3">
-                        <SchemaCheckboxField
-                            checked={selectedWeeklyEmailReportEnabled}
-                            description="Sent Monday morning for the previous week."
+                        <SchemaField
+                            fieldProps={
+                                {
+                                    checked: selectedWeeklyEmailReportEnabled,
+                                    description:
+                                        'Sent Monday morning for the previous week.',
+                                    onCheckedChange: (checked, field) => {
+                                        field.onChange(checked);
+                                        setSelectedWeeklyEmailReportEnabled(
+                                            checked
+                                        );
+                                    }
+                                } satisfies CheckboxRendererFieldProps
+                            }
                             forProperty={field =>
                                 field.weeklyEmailReportEnabled
                             }
                             form={form}
                             label="Weekly report"
-                            onChange={(checked, field) => {
-                                field.onChange(checked);
-                                setSelectedWeeklyEmailReportEnabled(checked);
-                            }}
+                            variant="checkbox"
                         />
-                        <SchemaCheckboxField
-                            checked={selectedMonthlyEmailReportEnabled}
-                            description="Sent on the first morning of each month."
+                        <SchemaField
+                            fieldProps={
+                                {
+                                    checked: selectedMonthlyEmailReportEnabled,
+                                    description:
+                                        'Sent on the first morning of each month.',
+                                    onCheckedChange: (checked, field) => {
+                                        field.onChange(checked);
+                                        setSelectedMonthlyEmailReportEnabled(
+                                            checked
+                                        );
+                                    }
+                                } satisfies CheckboxRendererFieldProps
+                            }
                             forProperty={field =>
                                 field.monthlyEmailReportEnabled
                             }
                             form={form}
                             label="Monthly report"
-                            onChange={(checked, field) => {
-                                field.onChange(checked);
-                                setSelectedMonthlyEmailReportEnabled(checked);
-                            }}
+                            variant="checkbox"
                         />
                     </div>
                 </Field>

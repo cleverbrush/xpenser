@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Currency, UserPreference } from '@xpenser/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PreferencesForm } from './preferences-form';
+import { XpenserWebFormProvider } from './schema-fields';
 
 const updatePreferencesAction = vi.fn();
 
@@ -39,7 +40,11 @@ describe('PreferencesForm', () => {
     it('submits email report preferences', async () => {
         updatePreferencesAction.mockResolvedValue(undefined);
 
-        render(<PreferencesForm currencies={currencies} me={me} />);
+        render(
+            <XpenserWebFormProvider>
+                <PreferencesForm currencies={currencies} me={me} />
+            </XpenserWebFormProvider>
+        );
 
         fireEvent.click(
             screen.getByRole('checkbox', { name: /weekly report/i })
@@ -54,6 +59,7 @@ describe('PreferencesForm', () => {
 
         const formData = updatePreferencesAction.mock.calls.at(0)?.[0];
         expect(formData).toBeInstanceOf(FormData);
+        expect(formData?.getAll('favoriteCurrencies')).toEqual(['EUR']);
         expect(formData?.get('weeklyEmailReportEnabled')).toBe('false');
         expect(formData?.get('monthlyEmailReportEnabled')).toBe('true');
     });

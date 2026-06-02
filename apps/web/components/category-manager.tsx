@@ -5,6 +5,7 @@ import { type Category, CreateCategoryBodySchema } from '@xpenser/contracts';
 import {
     Badge,
     Button,
+    type CheckboxRendererFieldProps,
     cn,
     Dialog,
     DialogClose,
@@ -53,7 +54,6 @@ import {
 import { directionBadgeClassName } from '@/lib/format';
 import { CategoryForm } from './forms/category-form';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
-import { SchemaCheckboxField } from './forms/schema-fields';
 
 type CategoryType = Category['type'];
 
@@ -497,19 +497,24 @@ function QuickCategoryForm({
                 name="name"
             />
             {parent ? (
-                <SchemaCheckboxField
-                    checked={reverseDirection}
-                    description={`Report as ${offsetKindLabel(
-                        type
-                    ).toLowerCase()}.`}
-                    disabled={pending}
+                <SchemaField
+                    fieldProps={
+                        {
+                            checked: reverseDirection,
+                            description: `Report as ${offsetKindLabel(
+                                type
+                            ).toLowerCase()}.`,
+                            disabled: pending,
+                            onCheckedChange: (checked, field) => {
+                                field.onChange(checked ? 'offset' : 'normal');
+                                setReverseDirection(checked);
+                            }
+                        } satisfies CheckboxRendererFieldProps
+                    }
                     forProperty={field => field.kind}
                     form={form}
                     label="Reverse direction"
-                    onChange={(checked, field) => {
-                        field.onChange(checked ? 'offset' : 'normal');
-                        setReverseDirection(checked);
-                    }}
+                    variant="checkbox"
                 />
             ) : null}
             <Button disabled={pending} size="sm" type="submit">
