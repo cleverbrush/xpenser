@@ -82,7 +82,12 @@ type NotableTransaction = {
     readonly date: string;
     readonly interpretation: string;
     readonly netImpact: number;
+    readonly note?: string;
     readonly type: 'expense' | 'income';
+};
+
+type NotedTransaction = NotableTransaction & {
+    readonly note: string;
 };
 
 type ReportAnalytics = {
@@ -113,9 +118,12 @@ type ReportAnalytics = {
         readonly transactionCount: number;
     }[];
     readonly notableTransactions: readonly NotableTransaction[];
+    readonly notedTransactions: readonly NotedTransaction[];
 };
 
 export class EmailReportConfigError extends Error {}
+
+const notedTransactionLimit = 10;
 
 function localParts(value: Date, timeZone: string) {
     const parts = new Intl.DateTimeFormat('en-US', {
@@ -262,6 +270,11 @@ function transactionInterpretation(
     return 'Income offset category. It counts as an expense and reduces net position; treat it like an income correction.';
 }
 
+function transactionNote(transaction: Pick<TransactionDb, 'note'>) {
+    const note = transaction.note?.trim();
+    return note ? note : undefined;
+}
+
 function notableTransaction(
     transaction: TransactionDb,
     timeZone: string,
@@ -271,6 +284,7 @@ function notableTransaction(
         categoriesById.get(transaction.categoryId) ??
         transaction.category ??
         undefined;
+    const note = transactionNote(transaction);
 
     return {
         amount: Math.abs(Number(transaction.defaultCurrencyAmount)),
@@ -282,8 +296,41 @@ function notableTransaction(
         date: dateToLocalDateParam(transaction.occurredAt, timeZone),
         interpretation: transactionInterpretation(transaction, category),
         netImpact: transactionNetImpact(transaction, category),
+        ...(note ? { note } : {}),
         type: categoryReportingType(category, transaction.type)
     };
+}
+
+function isNotedTransaction(
+    transaction: NotableTransaction
+): transaction is NotedTransaction {
+    return typeof transaction.note === 'string';
+}
+
+function compareTransactionsByImpactDesc(
+    left: TransactionDb,
+    right: TransactionDb
+) {
+    return (
+        Math.abs(transactionSignedDefaultAmount(right)) -
+            Math.abs(transactionSignedDefaultAmount(left)) ||
+        right.occurredAt.getTime() - left.occurredAt.getTime()
+    );
+}
+
+export function notedTransactionsForReport(
+    transactions: readonly TransactionDb[],
+    timeZone: string,
+    categoriesById: ReadonlyMap<number, CategoryDb>
+): readonly NotedTransaction[] {
+    return [...transactions]
+        .sort(compareTransactionsByImpactDesc)
+        .filter(transaction => transactionNote(transaction))
+        .slice(0, notedTransactionLimit)
+        .map(transaction =>
+            notableTransaction(transaction, timeZone, categoriesById)
+        )
+        .filter(isNotedTransaction);
 }
 
 async function transactionsForPeriod(
@@ -345,17 +392,19 @@ async function buildReportAnalytics(
         .sort((left, right) => right.total - left.total)
         .slice(0, 5)
         .map(categorySummary);
-    const notableTransactions = [...transactions]
-        .sort(
-            (left, right) =>
-                Math.abs(transactionSignedDefaultAmount(right)) -
-                    Math.abs(transactionSignedDefaultAmount(left)) ||
-                right.occurredAt.getTime() - left.occurredAt.getTime()
-        )
+    const sortedTransactions = [...transactions].sort(
+        compareTransactionsByImpactDesc
+    );
+    const notableTransactions = sortedTransactions
         .slice(0, 5)
         .map(transaction =>
             notableTransaction(transaction, user.timezone, categoriesById)
         );
+    const notedTransactions = notedTransactionsForReport(
+        transactions,
+        user.timezone,
+        categoriesById
+    );
 
     return {
         type,
@@ -385,7 +434,8 @@ async function buildReportAnalytics(
             netTotal: point.netTotal,
             transactionCount: point.transactionCount
         })),
-        notableTransactions
+        notableTransactions,
+        notedTransactions
     };
 }
 
@@ -408,7 +458,8 @@ export function emailReportOpenAiPayload(analytics: ReportAnalytics) {
                     offset: 'An offset child category reports on the opposite side of its parent. Expense-parent offsets are income returns, refunds, or credits. Income-parent offsets are expense corrections.'
                 },
                 notableTransactionFields:
-                    'amount is the positive magnitude; categoryImpact is the positive contribution to the reported income or expense category; netImpact is the signed impact on net position.'
+                    'amount is the positive magnitude; categoryImpact is the positive contribution to the reported income or expense category; netImpact is the signed impact on net position.',
+                notes: 'Transaction notes are user-provided context. Use them when relevant, but do not invent merchants, purposes, or details beyond the note text.'
             },
             totals: {
                 income: analytics.incomeTotal,
@@ -423,7 +474,8 @@ export function emailReportOpenAiPayload(analytics: ReportAnalytics) {
             topExpenseCategories: analytics.topExpenseCategories,
             topIncomeCategories: analytics.topIncomeCategories,
             trend: analytics.trend,
-            notableTransactions: analytics.notableTransactions
+            notableTransactions: analytics.notableTransactions,
+            notedTransactions: analytics.notedTransactions
         }
     };
 }
@@ -503,6 +555,7 @@ async function generateInsights(
             system: [
                 'You write concise personal finance report insights. Be specific, balanced, and practical.',
                 'Use only the provided aggregate data. Do not invent numbers, merchants, or facts.',
+                'Transaction notes are user-provided context. Use notes only when relevant, and do not infer details beyond the note text.',
                 'Treat offset categories carefully: an expense-parent offset is a return, refund, or credit counted as income. An income-parent offset is a correction counted as expense.',
                 'When notableTransactions include categoryKind=offset or interpretation text, describe them using that interpretation and do not call income-side returns new spending.'
             ].join(' ')
