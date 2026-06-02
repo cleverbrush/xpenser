@@ -4,6 +4,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Category, Currency, Transaction } from '@xpenser/contracts';
+import { XpenserFormProvider } from '@xpenser/ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QuickCaptureForm } from './quick-capture-form';
 
@@ -76,6 +77,26 @@ function savedTransaction(): Transaction {
     };
 }
 
+function renderQuickCaptureForm({
+    categories: nextCategories = categories,
+    transactionCurrencies = ['USD', 'EUR']
+}: {
+    readonly categories?: readonly Category[];
+    readonly transactionCurrencies?: readonly string[];
+} = {}) {
+    return render(
+        <XpenserFormProvider>
+            <QuickCaptureForm
+                categories={nextCategories}
+                currencies={currencies}
+                defaultCurrency="USD"
+                timezone="UTC"
+                transactionCurrencies={transactionCurrencies}
+            />
+        </XpenserFormProvider>
+    );
+}
+
 describe('QuickCaptureForm', () => {
     afterEach(() => {
         createCaptureTransactionAction.mockReset();
@@ -87,18 +108,11 @@ describe('QuickCaptureForm', () => {
         createCaptureTransactionAction.mockResolvedValue(savedTransaction());
         deleteTransactionAction.mockResolvedValue(undefined);
 
-        render(
-            <QuickCaptureForm
-                categories={categories}
-                currencies={currencies}
-                defaultCurrency="USD"
-                timezone="UTC"
-                transactionCurrencies={['USD', 'EUR']}
-            />
-        );
+        renderQuickCaptureForm();
 
         expect(screen.getByRole('combobox', { name: 'Currency' })).toBeTruthy();
         expect(screen.getByLabelText('Date and time')).toBeTruthy();
+        expect(screen.getByLabelText('Note')).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Details' })).toBeNull();
         expect(
             screen.queryByRole('combobox', { name: 'All categories' })
@@ -107,6 +121,9 @@ describe('QuickCaptureForm', () => {
 
         fireEvent.change(screen.getByLabelText('Amount'), {
             target: { value: '12.34' }
+        });
+        fireEvent.change(screen.getByLabelText('Note'), {
+            target: { value: 'Quick capture note' }
         });
         fireEvent.click(
             screen.getByRole('button', { name: 'Save transaction' })
@@ -122,8 +139,12 @@ describe('QuickCaptureForm', () => {
         expect(formData.get('amount')).toBe('12.34');
         expect(formData.get('currency')).toBe('USD');
         expect(formData.get('effect')).toBeNull();
+        expect(formData.get('note')).toBe('Quick capture note');
         expect(formData.get('occurredAt')).toBeTruthy();
         expect(refresh).toHaveBeenCalledOnce();
+        expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe(
+            ''
+        );
 
         expect(screen.getByText('Saved')).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
@@ -143,15 +164,10 @@ describe('QuickCaptureForm', () => {
             category(index + 1, `Category ${index + 1}`)
         );
 
-        render(
-            <QuickCaptureForm
-                categories={manyCategories}
-                currencies={currencies}
-                defaultCurrency="USD"
-                timezone="UTC"
-                transactionCurrencies={['USD']}
-            />
-        );
+        renderQuickCaptureForm({
+            categories: manyCategories,
+            transactionCurrencies: ['USD']
+        });
 
         expect(screen.getByRole('button', { name: 'Category 1' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Category 4' })).toBeTruthy();
@@ -164,15 +180,7 @@ describe('QuickCaptureForm', () => {
     });
 
     it('validates amount before saving', async () => {
-        render(
-            <QuickCaptureForm
-                categories={categories}
-                currencies={currencies}
-                defaultCurrency="USD"
-                timezone="UTC"
-                transactionCurrencies={['USD']}
-            />
-        );
+        renderQuickCaptureForm({ transactionCurrencies: ['USD'] });
 
         fireEvent.click(
             screen.getByRole('button', { name: 'Save transaction' })
@@ -185,20 +193,15 @@ describe('QuickCaptureForm', () => {
     });
 
     it('shows a management link when no active categories are available', () => {
-        render(
-            <QuickCaptureForm
-                categories={[
-                    {
-                        ...category(7, 'Old groceries'),
-                        archivedAt: new Date('2026-05-11T00:00:00.000Z')
-                    }
-                ]}
-                currencies={currencies}
-                defaultCurrency="USD"
-                timezone="UTC"
-                transactionCurrencies={['USD']}
-            />
-        );
+        renderQuickCaptureForm({
+            categories: [
+                {
+                    ...category(7, 'Old groceries'),
+                    archivedAt: new Date('2026-05-11T00:00:00.000Z')
+                }
+            ],
+            transactionCurrencies: ['USD']
+        });
 
         expect(screen.getByText('No active categories')).toBeTruthy();
         expect(
@@ -214,15 +217,7 @@ describe('QuickCaptureForm', () => {
     it('accepts comma decimal input without browser number coercion', async () => {
         createCaptureTransactionAction.mockResolvedValue(savedTransaction());
 
-        render(
-            <QuickCaptureForm
-                categories={categories}
-                currencies={currencies}
-                defaultCurrency="USD"
-                timezone="UTC"
-                transactionCurrencies={['USD']}
-            />
-        );
+        renderQuickCaptureForm({ transactionCurrencies: ['USD'] });
 
         fireEvent.change(screen.getByLabelText('Amount'), {
             target: { value: '4,56' }

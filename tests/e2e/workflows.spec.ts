@@ -83,6 +83,12 @@ test.describe('authenticated app workflows', () => {
             page.getByRole('heading', { level: 1, name: 'Transactions' })
         ).toBeVisible();
 
+        await page.getByRole('link', { name: 'Capture' }).first().click();
+        await expect(
+            page.getByRole('button', { name: 'Save transaction' })
+        ).toBeVisible();
+        await expect(page.getByLabel('Note')).toBeVisible();
+
         await page.getByRole('link', { name: 'Preferences' }).first().click();
         await expect(
             page.getByRole('heading', { name: 'User preferences' })
