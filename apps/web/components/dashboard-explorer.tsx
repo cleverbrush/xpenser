@@ -204,82 +204,87 @@ function CategoryRow({
     const isChild = depth > 0;
     const rowClassName = `grid items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2 ${
         showPeriodDetails
-            ? 'grid-cols-[2rem_minmax(0,1fr)_auto_74px] sm:grid-cols-[2rem_minmax(0,1fr)_auto_104px]'
-            : 'grid-cols-[2rem_minmax(0,1fr)_auto]'
+            ? 'grid-cols-[minmax(0,1fr)_auto_74px] sm:grid-cols-[minmax(0,1fr)_auto_104px]'
+            : 'grid-cols-[minmax(0,1fr)_auto]'
     }`;
 
     return (
         <div className={rowClassName}>
-            <span className="flex justify-center">
+            <div
+                className={`relative flex min-w-0 items-center ${
+                    isChild ? 'pl-3' : ''
+                }`}
+            >
                 {expandable ? (
                     <Button
                         aria-label={`${
                             expanded ? 'Collapse' : 'Expand'
                         } ${category.categoryDisplayName}`}
+                        className="-left-5 absolute top-1/2 size-4 -translate-y-1/2 rounded-sm"
                         onClick={onToggle}
                         size="icon-xs"
                         type="button"
                         variant="ghost"
                     >
                         {expanded ? (
-                            <ChevronDownIcon aria-hidden className="size-4" />
+                            <ChevronDownIcon aria-hidden className="size-3" />
                         ) : (
-                            <ChevronRightIcon aria-hidden className="size-4" />
+                            <ChevronRightIcon aria-hidden className="size-3" />
                         )}
                     </Button>
                 ) : null}
-            </span>
-            <Link
-                className={`flex min-w-0 items-center gap-3 ${
-                    isChild ? 'pl-4' : ''
-                }`}
-                draggable={false}
-                href={href}
-                prefetch={false}
-            >
-                <span
-                    className={`flex w-10 shrink-0 flex-col items-center justify-center ${
-                        isChild
-                            ? 'text-muted-foreground'
-                            : amountClassNameForType(effectiveType)
-                    }`}
-                    title={`${shareTitle}: ${shareLabel}`}
+                <Link
+                    className="flex min-w-0 items-center gap-3"
+                    draggable={false}
+                    href={href}
+                    prefetch={false}
                 >
-                    {isChild ? (
-                        <span
-                            className={`text-xs font-medium tabular-nums ${amountClassNameForType(effectiveType)}`}
-                        >
-                            <span className="sr-only">{shareTitle}: </span>
-                            {shareLabel}
-                        </span>
-                    ) : (
-                        <>
-                            <DatatypeChart
-                                className="text-2xl"
-                                expression={datatypePieExpression(share)}
-                            />
-                            <span className="mt-0.5 text-[0.65rem] font-medium leading-none tabular-nums">
+                    <span
+                        className={`flex w-10 shrink-0 flex-col items-center justify-center ${
+                            isChild
+                                ? 'text-muted-foreground'
+                                : amountClassNameForType(effectiveType)
+                        }`}
+                        title={`${shareTitle}: ${shareLabel}`}
+                    >
+                        {isChild ? (
+                            <span
+                                className={`text-xs font-medium tabular-nums ${amountClassNameForType(effectiveType)}`}
+                            >
                                 <span className="sr-only">{shareTitle}: </span>
                                 {shareLabel}
                             </span>
-                        </>
-                    )}
-                </span>
-                <span className="min-w-0">
-                    <span className="block truncate font-medium">
-                        {displayLabel}
+                        ) : (
+                            <>
+                                <DatatypeChart
+                                    className="text-2xl"
+                                    expression={datatypePieExpression(share)}
+                                />
+                                <span className="mt-0.5 text-[0.65rem] font-medium leading-none tabular-nums">
+                                    <span className="sr-only">
+                                        {shareTitle}:{' '}
+                                    </span>
+                                    {shareLabel}
+                                </span>
+                            </>
+                        )}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                        {category.transactionCount}{' '}
-                        {category.transactionCount === 1
-                            ? 'transaction'
-                            : 'transactions'}
-                        {isChild ? (
-                            <> · {categoryTypeLabel(effectiveType)}</>
-                        ) : null}
+                    <span className="min-w-0">
+                        <span className="block truncate font-medium">
+                            {displayLabel}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                            {category.transactionCount}{' '}
+                            {category.transactionCount === 1
+                                ? 'transaction'
+                                : 'transactions'}
+                            {isChild ? (
+                                <> · {categoryTypeLabel(effectiveType)}</>
+                            ) : null}
+                        </span>
                     </span>
-                </span>
-            </Link>
+                </Link>
+            </div>
             <Link
                 className="min-w-0 text-right"
                 draggable={false}
@@ -422,26 +427,24 @@ function CategoryGroup({
     nodes,
     summary,
     timezone,
-    type,
     title
 }: {
     readonly nodes: readonly DashboardCategoryNode[];
     readonly summary: DashboardSummary;
     readonly timezone: string;
-    readonly type: AggregateType;
     readonly title: string;
 }) {
+    if (nodes.length === 0) {
+        return null;
+    }
+
     return (
         <div>
             <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                 {title}
             </h3>
             <CollapsibleReportCategoryGroup
-                empty={
-                    <p className="py-3 text-sm text-muted-foreground">
-                        No {type} activity for this period.
-                    </p>
-                }
+                empty={null}
                 nodes={nodes}
                 renderChild={({ child, parent }) => (
                     <CategoryRow
@@ -480,6 +483,10 @@ function CategoryPanel({
     const incomeCategories = buildDashboardCategoryNodes(summary, 'income');
     const expenseCategories = buildDashboardCategoryNodes(summary, 'expense');
 
+    if (incomeCategories.length === 0 && expenseCategories.length === 0) {
+        return null;
+    }
+
     return (
         <Card>
             <CardHeader>
@@ -491,14 +498,12 @@ function CategoryPanel({
                         nodes={incomeCategories}
                         summary={summary}
                         timezone={timezone}
-                        type="income"
                         title="Income"
                     />
                     <CategoryGroup
                         nodes={expenseCategories}
                         summary={summary}
                         timezone={timezone}
-                        type="expense"
                         title="Expenses"
                     />
                 </div>
