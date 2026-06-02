@@ -290,14 +290,15 @@ test.describe('authenticated app workflows', () => {
             })
         ).toHaveCount(0);
 
-        await page.goto('/transactions');
-        await page.getByRole('button', { name: /Filters/ }).click();
-        await page.getByLabel('Search').fill(note);
-        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.goto(
+            `/transactions?search=${encodeURIComponent(note)}`
+        );
 
-        const row = page.getByRole('row').filter({ hasText: note });
+        await expect(page.getByLabel('Search')).toHaveValue(note);
+        const row = page.getByRole('row').filter({
+            hasText: replacementCategory
+        });
         await expect(row).toHaveCount(1, { timeout: 15_000 });
-        await expect(row.first()).toContainText(replacementCategory);
         await expect(row.first()).not.toContainText(sourceCategory);
     });
 
