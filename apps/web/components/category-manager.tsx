@@ -110,7 +110,11 @@ function EditCategoryButton({
                     Edit
                 </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent
+                onOpenAutoFocus={event => {
+                    event.preventDefault();
+                }}
+            >
                 <DialogHeader>
                     <DialogTitle>Edit category</DialogTitle>
                 </DialogHeader>

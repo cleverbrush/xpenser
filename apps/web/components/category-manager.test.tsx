@@ -180,6 +180,20 @@ describe('CategoryManager', () => {
         });
     });
 
+    it('does not autofocus the category name when opening edit dialog', async () => {
+        renderManager([category(1, 'Subscriptions')]);
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Edit Subscriptions' })
+        );
+
+        await waitFor(() => {
+            const input = screen.getByLabelText('Name') as HTMLInputElement;
+            expect(input.value).toBe('Subscriptions');
+            expect(document.activeElement).not.toBe(input);
+        });
+    });
+
     it('validates parent category names before creating', async () => {
         createCategoryAction.mockResolvedValue(undefined);
         renderManager([]);
