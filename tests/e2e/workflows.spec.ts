@@ -177,10 +177,16 @@ test.describe('authenticated app workflows', () => {
         await createCategory(page, activeCategory, 'expense');
         await page.goto('/settings/categories');
         await page
-            .getByRole('button', { name: `Archive ${parentCategory}` })
+            .getByRole('button', {
+                exact: true,
+                name: `Archive ${parentCategory}`
+            })
             .click();
         await expect(
-            page.getByRole('button', { name: `Restore ${parentCategory}` })
+            page.getByRole('button', {
+                exact: true,
+                name: `Restore ${parentCategory}`
+            })
         ).toBeVisible({ timeout: 15_000 });
 
         await page.goto('/dashboard');
