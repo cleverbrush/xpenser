@@ -30,6 +30,7 @@ import {
     datatypeExpression,
     datatypePieExpression
 } from '@/components/datatype-chart';
+import { CollapsibleReportCategoryGroup } from '@/components/report-category-group';
 import { categoryTypeLabel } from '@/lib/category-display';
 import { dashboardCategoryShare } from '@/lib/dashboard-category-share';
 import {
@@ -430,76 +431,41 @@ function CategoryGroup({
     readonly type: AggregateType;
     readonly title: string;
 }) {
-    const [expandedCategories, setExpandedCategories] = useState<
-        ReadonlySet<string>
-    >(new Set());
-
-    function toggleCategory(categoryKey: string) {
-        setExpandedCategories(current => {
-            const next = new Set(current);
-            if (next.has(categoryKey)) {
-                next.delete(categoryKey);
-            } else {
-                next.add(categoryKey);
-            }
-            return next;
-        });
-    }
-
     return (
         <div>
             <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                 {title}
             </h3>
-            <div className="flex flex-col divide-y">
-                {nodes.length === 0 ? (
+            <CollapsibleReportCategoryGroup
+                empty={
                     <p className="py-3 text-sm text-muted-foreground">
                         No {type} activity for this period.
                     </p>
-                ) : (
-                    nodes.map(node => {
-                        const hasChildren = node.children.length > 0;
-                        const categoryKey = `${node.category.type}:${node.category.categoryId}`;
-                        const expanded = expandedCategories.has(categoryKey);
-
-                        return (
-                            <div className="flex flex-col" key={categoryKey}>
-                                <CategoryRow
-                                    category={node.category}
-                                    expandable={hasChildren}
-                                    expanded={expanded}
-                                    onToggle={() => toggleCategory(categoryKey)}
-                                    parentRollup={hasChildren}
-                                    summary={summary}
-                                    timezone={timezone}
-                                />
-                                {hasChildren && expanded ? (
-                                    <div className="border-t">
-                                        {node.children.map(child => (
-                                            <CategoryRow
-                                                category={child}
-                                                depth={1}
-                                                key={`${child.type}-${child.categoryId}-${child.categoryParentId ?? 'self'}`}
-                                                label={categoryRowLabel(
-                                                    child,
-                                                    node.category
-                                                )}
-                                                shareOverride={childCategoryShare(
-                                                    node.category,
-                                                    child
-                                                )}
-                                                shareTitleOverride={`Share of ${node.category.categoryName}`}
-                                                summary={summary}
-                                                timezone={timezone}
-                                            />
-                                        ))}
-                                    </div>
-                                ) : null}
-                            </div>
-                        );
-                    })
+                }
+                nodes={nodes}
+                renderChild={({ child, parent }) => (
+                    <CategoryRow
+                        category={child}
+                        depth={1}
+                        label={categoryRowLabel(child, parent)}
+                        shareOverride={childCategoryShare(parent, child)}
+                        shareTitleOverride={`Share of ${parent.categoryName}`}
+                        summary={summary}
+                        timezone={timezone}
+                    />
                 )}
-            </div>
+                renderParent={({ expandable, expanded, node, onToggle }) => (
+                    <CategoryRow
+                        category={node.category}
+                        expandable={expandable}
+                        expanded={expanded}
+                        onToggle={onToggle}
+                        parentRollup={expandable}
+                        summary={summary}
+                        timezone={timezone}
+                    />
+                )}
+            />
         </div>
     );
 }

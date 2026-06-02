@@ -23,6 +23,7 @@ import {
     type DashboardPeriodSelection
 } from '@/components/dashboard-period-nav';
 import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
+import { CollapsibleReportCategoryGroup } from '@/components/report-category-group';
 import { StatsCharts, StatsChartsSkeleton } from '@/components/stats-charts';
 import { categoryTypeLabel } from '@/lib/category-display';
 import { categoryTrendHref } from '@/lib/category-trend-query';
@@ -422,23 +423,8 @@ function CategoryTrendPanel({
     readonly stats: StatsOverview;
     readonly timezone: string;
 }) {
-    const [expandedCategories, setExpandedCategories] = useState<
-        ReadonlySet<string>
-    >(new Set());
     const incomeCategories = buildStatsCategoryNodes(stats, 'income');
     const expenseCategories = buildStatsCategoryNodes(stats, 'expense');
-
-    function toggleCategory(categoryKey: string) {
-        setExpandedCategories(current => {
-            const next = new Set(current);
-            if (next.has(categoryKey)) {
-                next.delete(categoryKey);
-            } else {
-                next.add(categoryKey);
-            }
-            return next;
-        });
-    }
 
     return (
         <Card>
@@ -451,165 +437,109 @@ function CategoryTrendPanel({
                         <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                             Income
                         </h3>
-                        <div className="flex flex-col divide-y">
-                            {incomeCategories.length === 0 ? (
+                        <CollapsibleReportCategoryGroup
+                            empty={
                                 <p className="py-3 text-sm text-muted-foreground">
                                     No income activity for this period.
                                 </p>
-                            ) : (
-                                incomeCategories.map(node => {
-                                    const hasChildren =
-                                        node.children.length > 0;
-                                    const categoryKey = `${node.category.type}:${node.category.categoryId}`;
-                                    const expanded =
-                                        expandedCategories.has(categoryKey);
-
-                                    return (
-                                        <div
-                                            className="flex flex-col"
-                                            key={categoryKey}
-                                        >
-                                            <CategoryTrendRow
-                                                category={node.category}
-                                                currency={stats.currency}
-                                                expandable={hasChildren}
-                                                expanded={expanded}
-                                                href={
-                                                    hasChildren
-                                                        ? statsCategoryTransactionsHref(
-                                                              stats,
-                                                              node.category,
-                                                              timezone
-                                                          )
-                                                        : categoryTrendHref(
-                                                              node.category
-                                                                  .categoryId,
-                                                              {
-                                                                  groupBy:
-                                                                      'month',
-                                                                  range: 'last-12-months'
-                                                              }
-                                                          )
-                                                }
-                                                onToggle={() =>
-                                                    toggleCategory(categoryKey)
-                                                }
-                                            />
-                                            {hasChildren && expanded ? (
-                                                <div className="border-t">
-                                                    {node.children.map(
-                                                        child => (
-                                                            <CategoryTrendRow
-                                                                category={child}
-                                                                currency={
-                                                                    stats.currency
-                                                                }
-                                                                depth={1}
-                                                                href={categoryTrendHref(
-                                                                    child.categoryId,
-                                                                    {
-                                                                        groupBy:
-                                                                            'month',
-                                                                        range: 'last-12-months'
-                                                                    }
-                                                                )}
-                                                                key={`${child.type}-${child.categoryId}-${child.categoryParentId ?? 'self'}`}
-                                                                label={statsCategoryRowLabel(
-                                                                    child,
-                                                                    node.category
-                                                                )}
-                                                            />
-                                                        )
-                                                    )}
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    );
-                                })
+                            }
+                            nodes={incomeCategories}
+                            renderChild={({ child, parent }) => (
+                                <CategoryTrendRow
+                                    category={child}
+                                    currency={stats.currency}
+                                    depth={1}
+                                    href={categoryTrendHref(child.categoryId, {
+                                        groupBy: 'month',
+                                        range: 'last-12-months'
+                                    })}
+                                    label={statsCategoryRowLabel(child, parent)}
+                                />
                             )}
-                        </div>
+                            renderParent={({
+                                expandable,
+                                expanded,
+                                node,
+                                onToggle
+                            }) => (
+                                <CategoryTrendRow
+                                    category={node.category}
+                                    currency={stats.currency}
+                                    expandable={expandable}
+                                    expanded={expanded}
+                                    href={
+                                        expandable
+                                            ? statsCategoryTransactionsHref(
+                                                  stats,
+                                                  node.category,
+                                                  timezone
+                                              )
+                                            : categoryTrendHref(
+                                                  node.category.categoryId,
+                                                  {
+                                                      groupBy: 'month',
+                                                      range: 'last-12-months'
+                                                  }
+                                              )
+                                    }
+                                    onToggle={onToggle}
+                                />
+                            )}
+                        />
                     </div>
                     <div>
                         <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                             Expenses
                         </h3>
-                        <div className="flex flex-col divide-y">
-                            {expenseCategories.length === 0 ? (
+                        <CollapsibleReportCategoryGroup
+                            empty={
                                 <p className="py-3 text-sm text-muted-foreground">
                                     No expense activity for this period.
                                 </p>
-                            ) : (
-                                expenseCategories.map(node => {
-                                    const hasChildren =
-                                        node.children.length > 0;
-                                    const categoryKey = `${node.category.type}:${node.category.categoryId}`;
-                                    const expanded =
-                                        expandedCategories.has(categoryKey);
-
-                                    return (
-                                        <div
-                                            className="flex flex-col"
-                                            key={categoryKey}
-                                        >
-                                            <CategoryTrendRow
-                                                category={node.category}
-                                                currency={stats.currency}
-                                                expandable={hasChildren}
-                                                expanded={expanded}
-                                                href={
-                                                    hasChildren
-                                                        ? statsCategoryTransactionsHref(
-                                                              stats,
-                                                              node.category,
-                                                              timezone
-                                                          )
-                                                        : categoryTrendHref(
-                                                              node.category
-                                                                  .categoryId,
-                                                              {
-                                                                  groupBy:
-                                                                      'month',
-                                                                  range: 'last-12-months'
-                                                              }
-                                                          )
-                                                }
-                                                onToggle={() =>
-                                                    toggleCategory(categoryKey)
-                                                }
-                                            />
-                                            {hasChildren && expanded ? (
-                                                <div className="border-t">
-                                                    {node.children.map(
-                                                        child => (
-                                                            <CategoryTrendRow
-                                                                category={child}
-                                                                currency={
-                                                                    stats.currency
-                                                                }
-                                                                depth={1}
-                                                                href={categoryTrendHref(
-                                                                    child.categoryId,
-                                                                    {
-                                                                        groupBy:
-                                                                            'month',
-                                                                        range: 'last-12-months'
-                                                                    }
-                                                                )}
-                                                                key={`${child.type}-${child.categoryId}-${child.categoryParentId ?? 'self'}`}
-                                                                label={statsCategoryRowLabel(
-                                                                    child,
-                                                                    node.category
-                                                                )}
-                                                            />
-                                                        )
-                                                    )}
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    );
-                                })
+                            }
+                            nodes={expenseCategories}
+                            renderChild={({ child, parent }) => (
+                                <CategoryTrendRow
+                                    category={child}
+                                    currency={stats.currency}
+                                    depth={1}
+                                    href={categoryTrendHref(child.categoryId, {
+                                        groupBy: 'month',
+                                        range: 'last-12-months'
+                                    })}
+                                    label={statsCategoryRowLabel(child, parent)}
+                                />
                             )}
-                        </div>
+                            renderParent={({
+                                expandable,
+                                expanded,
+                                node,
+                                onToggle
+                            }) => (
+                                <CategoryTrendRow
+                                    category={node.category}
+                                    currency={stats.currency}
+                                    expandable={expandable}
+                                    expanded={expanded}
+                                    href={
+                                        expandable
+                                            ? statsCategoryTransactionsHref(
+                                                  stats,
+                                                  node.category,
+                                                  timezone
+                                              )
+                                            : categoryTrendHref(
+                                                  node.category.categoryId,
+                                                  {
+                                                      groupBy: 'month',
+                                                      range: 'last-12-months'
+                                                  }
+                                              )
+                                    }
+                                    onToggle={onToggle}
+                                />
+                            )}
+                        />
                     </div>
                 </div>
             </CardContent>
