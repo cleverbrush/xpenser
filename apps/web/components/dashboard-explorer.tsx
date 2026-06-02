@@ -220,7 +220,7 @@ function CategoryRow({
                         aria-label={`${
                             expanded ? 'Collapse' : 'Expand'
                         } ${category.categoryDisplayName}`}
-                        className="-left-5 absolute top-1/2 size-4 -translate-y-1/2 rounded-sm"
+                        className="-left-3 absolute top-1/2 size-4 -translate-y-1/2 rounded-sm"
                         onClick={onToggle}
                         size="icon-xs"
                         type="button"
