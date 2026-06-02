@@ -37,7 +37,10 @@ import {
     useMemo,
     useState
 } from 'react';
-import { categoryEffectiveType } from '@/lib/category-display';
+import {
+    categoryEffectiveType,
+    transactionCategoryOptions
+} from '@/lib/category-display';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 
 type TransactionDialogValues = Pick<
@@ -100,28 +103,35 @@ export function TransactionDialog({
     const occurredAtInvalid = occurredAt.touched && Boolean(occurredAt.error);
     const initialCategoryId = initialValues?.categoryId;
     const initialValueType = initialValues?.type;
+    const selectableCategories = useMemo(
+        () => transactionCategoryOptions(categories, initialCategoryId),
+        [categories, initialCategoryId]
+    );
     const initialType = useMemo<TransactionType>(() => {
         if (initialValueType) {
             return initialValueType;
         }
 
-        return categories.some(
+        return selectableCategories.some(
             category => categoryEffectiveType(category) === 'expense'
         )
             ? 'expense'
             : categoryEffectiveType(
-                  categories[0] ?? { kind: 'normal', type: 'expense' }
+                  selectableCategories[0] ?? {
+                      kind: 'normal',
+                      type: 'expense'
+                  }
               );
-    }, [categories, initialValueType]);
+    }, [initialValueType, selectableCategories]);
     const filteredCategories = useMemo(
         () =>
-            categories.filter(
+            selectableCategories.filter(
                 category => categoryEffectiveType(category) === selectedType
             ),
-        [categories, selectedType]
+        [selectableCategories, selectedType]
     );
     const activeCategory = useMemo(() => {
-        const selectedCategory = categories.find(
+        const selectedCategory = selectableCategories.find(
             category =>
                 category.id === selectedCategoryId &&
                 categoryEffectiveType(category) === selectedType
@@ -138,11 +148,13 @@ export function TransactionDialog({
             return undefined;
         }
 
-        return categories.find(category => category.id === initialCategoryId);
+        return selectableCategories.find(
+            category => category.id === initialCategoryId
+        );
     }, [
-        categories,
         initialCategoryId,
         initialValueType,
+        selectableCategories,
         selectedCategoryId,
         selectedType
     ]);
@@ -215,7 +227,7 @@ export function TransactionDialog({
     function handleTypeChange(value: TransactionType) {
         setSelectedType(value);
 
-        const currentCategory = categories.find(
+        const currentCategory = selectableCategories.find(
             category => category.id === activeCategoryId
         );
         if (
@@ -225,7 +237,7 @@ export function TransactionDialog({
             return;
         }
 
-        const nextCategory = categories.find(
+        const nextCategory = selectableCategories.find(
             category => categoryEffectiveType(category) === value
         );
         if (nextCategory) {

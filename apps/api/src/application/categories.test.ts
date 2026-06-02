@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { CategoryDb } from '../db/schemas.js';
 import {
     CategoryInUseError,
     CategoryNotFoundError,
     categoriesByRecentTransactionCount,
+    categoryAvailableForTransactions,
     categoryReportingType,
     LastCategoryError
 } from './categories.js';
@@ -26,6 +28,51 @@ describe('category reporting direction', () => {
         expect(categoryReportingType({ kind: 'offset', type: 'income' })).toBe(
             'expense'
         );
+    });
+});
+
+describe('category transaction availability', () => {
+    it('blocks archived categories and children of archived parents', () => {
+        const archivedAt = new Date('2026-05-10T00:00:00.000Z');
+        const car: CategoryDb = {
+            id: 1,
+            userId: 1,
+            name: 'Car',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            archivedAt,
+            createdAt: archivedAt,
+            updatedAt: archivedAt
+        };
+        const fuel: CategoryDb = {
+            ...car,
+            id: 2,
+            name: 'Fuel',
+            parentId: car.id,
+            archivedAt: null
+        };
+        const groceries: CategoryDb = {
+            ...car,
+            id: 3,
+            name: 'Groceries',
+            archivedAt: null
+        };
+        const categoriesById = new Map([
+            [car.id, car],
+            [fuel.id, fuel],
+            [groceries.id, groceries]
+        ]);
+
+        expect(categoryAvailableForTransactions(car, categoriesById)).toBe(
+            false
+        );
+        expect(categoryAvailableForTransactions(fuel, categoriesById)).toBe(
+            false
+        );
+        expect(
+            categoryAvailableForTransactions(groceries, categoriesById)
+        ).toBe(true);
     });
 });
 

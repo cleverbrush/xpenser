@@ -54,6 +54,18 @@ export function categoryDisplayName(
     return parent ? `${parent.name} -> ${category.name}` : category.name;
 }
 
+export function categoryAvailableForTransactions(
+    category: Pick<CategoryDb, 'archivedAt' | 'parentId'>,
+    categoriesById: ReadonlyMap<number, CategoryDb>
+): boolean {
+    if (category.archivedAt) {
+        return false;
+    }
+
+    const parent = categoryParent(category, categoriesById);
+    return !parent?.archivedAt;
+}
+
 function mapCategory(
     row: CategoryDb,
     inUse: boolean,
@@ -72,6 +84,7 @@ function mapCategory(
         displayName: categoryDisplayName(row, categoriesById),
         inUse,
         hasChildren,
+        archivedAt: row.archivedAt ?? null,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt
     };
@@ -257,13 +270,18 @@ export async function listCategories(
             category.parentId ? [category.parentId] : []
         )
     );
+    const filteredCategories = query.activeOnly
+        ? categoryRows.filter(category =>
+              categoryAvailableForTransactions(category, categoriesById)
+          )
+        : categoryRows;
     const orderedCategories =
         query.sort === 'recent-transaction-count'
             ? categoriesByRecentTransactionCount(
-                  categoryRows,
+                  filteredCategories,
                   recentTransactions
               )
-            : [...categoryRows].sort((left, right) =>
+            : [...filteredCategories].sort((left, right) =>
                   compareCategories(categoriesById, left, right)
               );
 
@@ -295,7 +313,8 @@ export async function createCategory(
         parentId: parentId ?? undefined,
         name: body.name.trim(),
         type: body.type,
-        kind
+        kind,
+        archivedAt: null
     });
 
     const categories = (await db.categories.where(
@@ -347,6 +366,7 @@ export async function updateCategory(
         type?: 'expense' | 'income';
         parentId?: number | null;
         kind?: CategoryKind;
+        archivedAt?: Date | null;
         updatedAt: Date;
     } = { updatedAt: new Date() };
     if (body.name !== undefined) {
@@ -360,6 +380,9 @@ export async function updateCategory(
     }
     if (body.kind !== undefined) {
         update.kind = body.kind;
+    }
+    if (body.archived !== undefined) {
+        update.archivedAt = body.archived ? new Date() : null;
     }
 
     const [updated] = await db.categories

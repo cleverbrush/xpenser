@@ -41,6 +41,7 @@ import type {
     UserDb
 } from '../db/schemas.js';
 import {
+    categoryAvailableForTransactions,
     categoryDisplayName,
     categoryParent,
     categoryReportingType
@@ -372,8 +373,19 @@ export async function createTransaction(
     userId: number,
     body: CreateTransactionBody
 ): Promise<Transaction> {
-    const user = await getUser(db, userId);
-    const category = await getCategory(db, userId, body.categoryId);
+    const [user, categoriesById] = await Promise.all([
+        getUser(db, userId),
+        loadCategoriesById(db, userId)
+    ]);
+    const category = categoriesById.get(body.categoryId);
+    if (!category) {
+        throw new TransactionCategoryError('Category was not found.');
+    }
+    if (!categoryAvailableForTransactions(category, categoriesById)) {
+        throw new TransactionCategoryError(
+            'Archived categories cannot be used for new transactions.'
+        );
+    }
     const date = transactionDate(body.occurredAt, user.timezone);
     const exchange = await getExchangeRate(
         db,
@@ -435,8 +447,24 @@ export async function updateTransaction(
         note: body.note ?? current.note
     };
 
-    const user = await getUser(db, userId);
-    const category = await getCategory(db, userId, next.categoryId);
+    const [user, categoriesById] = await Promise.all([
+        getUser(db, userId),
+        loadCategoriesById(db, userId)
+    ]);
+    const category = categoriesById.get(next.categoryId);
+    if (!category) {
+        throw new TransactionCategoryError('Category was not found.');
+    }
+    const categoryChanged =
+        body.categoryId !== undefined && body.categoryId !== current.categoryId;
+    if (
+        categoryChanged &&
+        !categoryAvailableForTransactions(category, categoriesById)
+    ) {
+        throw new TransactionCategoryError(
+            'Archived categories cannot be used for new transactions.'
+        );
+    }
     const exchange = await getExchangeRate(
         db,
         config,

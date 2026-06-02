@@ -9,7 +9,7 @@ export default async function CapturePage() {
     const client = await getApiClient();
     const me = await client.auth.me();
     const [categories, currencies, recentTransactions] = await Promise.all([
-        client.categories.list({ query: {} }),
+        client.categories.list({ query: { activeOnly: true } }),
         client.currencies.list(),
         client.transactions.list({
             query: { direction: 'desc', limit: 100, page: 1 }

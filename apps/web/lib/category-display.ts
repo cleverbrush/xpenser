@@ -4,6 +4,10 @@ export type CategoryDirection = Category['type'];
 
 type CategoryDirectionInput = Pick<Category, 'kind' | 'type'>;
 type CategoryTreeInput = Pick<Category, 'id' | 'parentId'>;
+type CategoryAvailabilityInput = Pick<
+    Category,
+    'archivedAt' | 'id' | 'parentId'
+>;
 
 export function oppositeCategoryDirection(
     type: CategoryDirection
@@ -21,6 +25,37 @@ export function categoryEffectiveType(
 
 export function categoryTypeLabel(type: CategoryDirection): string {
     return type === 'expense' ? 'Expense' : 'Income';
+}
+
+export function categoryArchived(
+    category: Pick<Category, 'archivedAt'>
+): boolean {
+    return Boolean(category.archivedAt);
+}
+
+export function categoryAvailableForTransactions<
+    T extends CategoryAvailabilityInput
+>(category: T, categories: readonly T[]): boolean {
+    if (categoryArchived(category)) {
+        return false;
+    }
+
+    const parent = category.parentId
+        ? categories.find(candidate => candidate.id === category.parentId)
+        : undefined;
+
+    return !parent?.archivedAt;
+}
+
+export function transactionCategoryOptions<T extends CategoryAvailabilityInput>(
+    categories: readonly T[],
+    includeCategoryId?: number
+): T[] {
+    return categories.filter(
+        category =>
+            categoryAvailableForTransactions(category, categories) ||
+            category.id === includeCategoryId
+    );
 }
 
 export type CategoryTreeNode<T extends CategoryTreeInput> = {

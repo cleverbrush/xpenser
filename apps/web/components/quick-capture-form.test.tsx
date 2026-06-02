@@ -38,6 +38,7 @@ function category(
         displayName: name,
         inUse: true,
         hasChildren: false,
+        archivedAt: null,
         createdAt: timestamp,
         updatedAt: timestamp
     };
@@ -181,6 +182,33 @@ describe('QuickCaptureForm', () => {
             'Enter a positive amount with up to two decimals.'
         );
         expect(createCaptureTransactionAction).not.toHaveBeenCalled();
+    });
+
+    it('shows a management link when no active categories are available', () => {
+        render(
+            <QuickCaptureForm
+                categories={[
+                    {
+                        ...category(7, 'Old groceries'),
+                        archivedAt: new Date('2026-05-11T00:00:00.000Z')
+                    }
+                ]}
+                currencies={currencies}
+                defaultCurrency="USD"
+                timezone="UTC"
+                transactionCurrencies={['USD']}
+            />
+        );
+
+        expect(screen.getByText('No active categories')).toBeTruthy();
+        expect(
+            screen
+                .getByRole('link', { name: 'Manage categories' })
+                .getAttribute('href')
+        ).toBe('/settings/categories');
+        expect(
+            screen.queryByRole('button', { name: 'Save transaction' })
+        ).toBeNull();
     });
 
     it('accepts comma decimal input without browser number coercion', async () => {

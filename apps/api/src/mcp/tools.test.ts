@@ -110,6 +110,7 @@ describe('MCP tool helpers', () => {
                     displayName: 'Food',
                     inUse: true,
                     hasChildren: false,
+                    archivedAt: null,
                     createdAt: new Date('2026-05-01T00:00:00.000Z'),
                     updatedAt: new Date('2026-05-02T00:00:00.000Z')
                 }

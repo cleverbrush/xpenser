@@ -1,6 +1,11 @@
 import type { Category } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
-import { categoryEffectiveType, categoryTree } from './category-display';
+import {
+    categoryAvailableForTransactions,
+    categoryEffectiveType,
+    categoryTree,
+    transactionCategoryOptions
+} from './category-display';
 
 const timestamp = new Date('2026-05-01T00:00:00.000Z');
 
@@ -18,6 +23,7 @@ function category(
         displayName: name,
         inUse: false,
         hasChildren: false,
+        archivedAt: null,
         createdAt: timestamp,
         updatedAt: timestamp,
         ...overrides
@@ -64,5 +70,41 @@ describe('category display helpers', () => {
             { category: 'Car', children: ['Fuel', 'Parking'] },
             { category: 'Salary', children: [] }
         ]);
+    });
+
+    it('hides archived categories and children of archived parents from transaction options', () => {
+        const archivedAt = new Date('2026-05-10T00:00:00.000Z');
+        const car = category(1, 'Car', { archivedAt, hasChildren: true });
+        const fuel = category(2, 'Fuel', {
+            displayName: 'Car -> Fuel',
+            parentId: 1
+        });
+        const categories = [
+            car,
+            fuel,
+            category(3, 'Groceries'),
+            category(4, 'Old income', {
+                archivedAt,
+                type: 'income'
+            })
+        ];
+
+        expect(categoryAvailableForTransactions(car, categories)).toBe(false);
+        expect(categoryAvailableForTransactions(fuel, categories)).toBe(false);
+        expect(
+            transactionCategoryOptions(categories).map(item => item.name)
+        ).toEqual(['Groceries']);
+    });
+
+    it('keeps an explicitly included archived category available for editing', () => {
+        const archivedAt = new Date('2026-05-10T00:00:00.000Z');
+        const categories = [
+            category(1, 'Old rent', { archivedAt }),
+            category(2, 'Groceries')
+        ];
+
+        expect(
+            transactionCategoryOptions(categories, 1).map(item => item.name)
+        ).toEqual(['Old rent', 'Groceries']);
     });
 });

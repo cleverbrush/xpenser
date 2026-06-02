@@ -20,6 +20,7 @@ import {
     StatsQuerySchema,
     TimeZoneSchema,
     TokenResponseSchema,
+    UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
     UserPreferenceSchema
 } from './schemas.js';
@@ -92,6 +93,15 @@ describe('shared schemas', () => {
         expect(result.valid).toBe(true);
     });
 
+    it('validates category archive update payloads', () => {
+        const result = UpdateCategoryBodySchema.validate({
+            archived: true
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.object?.archived).toBe(true);
+    });
+
     it('defaults email report preferences to enabled when updating preferences', () => {
         const result = UpdateUserPreferenceBodySchema.validate({
             defaultCurrency: 'USD',
@@ -107,8 +117,9 @@ describe('shared schemas', () => {
     it('validates category list sorting controls', () => {
         expect(
             CategoryListQuerySchema.validate({
+                activeOnly: 'true',
                 sort: 'recent-transaction-count'
-            }).valid
+            } as never).object?.activeOnly
         ).toBe(true);
         expect(CategoryListQuerySchema.validate({}).valid).toBe(true);
         expect(
@@ -136,6 +147,7 @@ describe('shared schemas', () => {
             displayName: 'Car -> Returns',
             inUse: true,
             hasChildren: false,
+            archivedAt: null,
             createdAt: new Date(),
             updatedAt: new Date()
         });

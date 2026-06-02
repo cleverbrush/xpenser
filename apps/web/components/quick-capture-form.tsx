@@ -22,13 +22,17 @@ import {
     SelectValue
 } from '@xpenser/ui';
 import { CheckCircle2Icon, RotateCcwIcon, SaveIcon } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useMemo, useState } from 'react';
 import {
     createCaptureTransactionAction,
     deleteTransactionAction
 } from '@/lib/actions';
-import { categoryEffectiveType } from '@/lib/category-display';
+import {
+    categoryEffectiveType,
+    transactionCategoryOptions
+} from '@/lib/category-display';
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 
@@ -103,10 +107,17 @@ export function QuickCaptureForm({
             ),
         [currencies, defaultCurrency, transactionCurrencies]
     );
-    const startingType = useMemo(() => initialType(categories), [categories]);
+    const transactionCategories = useMemo(
+        () => transactionCategoryOptions(categories),
+        [categories]
+    );
+    const startingType = useMemo(
+        () => initialType(transactionCategories),
+        [transactionCategories]
+    );
     const [type, setType] = useState<TransactionType>(startingType);
     const [categoryId, setCategoryId] = useState<number | undefined>(() =>
-        firstCategoryId(categories, startingType)
+        firstCategoryId(transactionCategories, startingType)
     );
     const [amount, setAmount] = useState('');
     const [currency, setCurrency] = useState(() =>
@@ -123,10 +134,10 @@ export function QuickCaptureForm({
     const [lastSaved, setLastSaved] = useState<Transaction | null>(null);
     const typedCategories = useMemo(
         () =>
-            categories.filter(
+            transactionCategories.filter(
                 category => categoryEffectiveType(category) === type
             ),
-        [categories, type]
+        [transactionCategories, type]
     );
     const activeCategoryId =
         typedCategories.find(category => category.id === categoryId)?.id ??
@@ -137,11 +148,13 @@ export function QuickCaptureForm({
     function handleTypeChange(nextType: TransactionType) {
         setType(nextType);
         setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
-        const current = categories.find(category => category.id === categoryId);
+        const current = transactionCategories.find(
+            category => category.id === categoryId
+        );
         if (current && categoryEffectiveType(current) === nextType) {
             return;
         }
-        setCategoryId(firstCategoryId(categories, nextType));
+        setCategoryId(firstCategoryId(transactionCategories, nextType));
     }
 
     function resetAfterSave() {
@@ -209,6 +222,29 @@ export function QuickCaptureForm({
         } finally {
             setUndoPending(false);
         }
+    }
+
+    if (transactionCategories.length === 0) {
+        return (
+            <Card>
+                <CardContent className="flex flex-col gap-3 p-4 sm:p-6">
+                    <div>
+                        <p className="text-sm font-medium">
+                            No active categories
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                            Restore or add a category before creating
+                            transactions.
+                        </p>
+                    </div>
+                    <Button asChild className="w-full sm:w-auto">
+                        <Link href="/settings/categories">
+                            Manage categories
+                        </Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        );
     }
 
     return (

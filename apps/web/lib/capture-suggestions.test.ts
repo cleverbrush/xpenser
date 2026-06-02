@@ -18,6 +18,7 @@ function category(
         displayName: name,
         inUse: true,
         hasChildren: false,
+        archivedAt: null,
         createdAt: timestamp,
         updatedAt: timestamp
     };

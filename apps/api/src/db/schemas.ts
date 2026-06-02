@@ -132,6 +132,7 @@ export const CategoryDbSchema = object({
     name: string(),
     type: string(),
     kind: string().defaultTo('normal'),
+    archivedAt: date().optional().hasColumnName('archived_at'),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 }).hasTableName('categories');
@@ -246,6 +247,7 @@ export type CategoryDb = {
     readonly name: string;
     readonly type: 'expense' | 'income';
     readonly kind: 'normal' | 'offset';
+    readonly archivedAt?: Date | null;
     readonly createdAt: Date;
     readonly updatedAt: Date;
 };

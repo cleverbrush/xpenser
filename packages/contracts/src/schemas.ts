@@ -605,6 +605,13 @@ export const CategorySchema = object({
     hasChildren: boolean().describe(
         'True when this category has child categories.'
     ),
+    /** Timestamp when the category was archived and hidden from new transactions. */
+    archivedAt: date()
+        .coerce()
+        .nullable()
+        .describe(
+            'Timestamp when the category was archived and hidden from new transactions.'
+        ),
     /** Creation timestamp. */
     createdAt: date().coerce().describe('Creation timestamp.'),
     /** Last update timestamp. */
@@ -615,7 +622,14 @@ export const CategoryListQuerySchema = object({
     /** Optional category ordering mode. */
     sort: enumOf('recent-transaction-count')
         .optional()
-        .describe('Optional category ordering mode.')
+        .describe('Optional category ordering mode.'),
+    /** True to return only categories available for new transaction creation. */
+    activeOnly: boolean()
+        .coerce()
+        .optional()
+        .describe(
+            'True to return only categories available for new transaction creation.'
+        )
 }).schemaName('CategoryListQuery');
 
 export const CreateCategoryBodySchema = object({
@@ -659,7 +673,11 @@ export const UpdateCategoryBodySchema = object({
     /** Whether transactions in this category report on the same or opposite side. */
     kind: CategoryKindSchema.optional().describe(
         'Whether transactions in this category report on the same or opposite side.'
-    )
+    ),
+    /** Whether this category should be archived or restored. */
+    archived: boolean()
+        .optional()
+        .describe('Whether this category should be archived or restored.')
 }).schemaName('UpdateCategoryBody');
 
 export const TransactionSchema = object({

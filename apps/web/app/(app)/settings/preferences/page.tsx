@@ -7,9 +7,9 @@ import {
     CardHeader,
     CardTitle
 } from '@xpenser/ui';
-import { Send, Unlink } from 'lucide-react';
+import { FolderTreeIcon, Send, Unlink } from 'lucide-react';
+import Link from 'next/link';
 import { ApiKeysSettings } from '@/components/api-keys-settings';
-import { CategorySettings } from '@/components/category-settings';
 import { PreferencesForm } from '@/components/forms/preferences-form';
 import {
     createTelegramLinkAction,
@@ -21,10 +21,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function PreferencesPage() {
     const client = await getApiClient();
-    const [me, currencies, categories, telegram, apiKeys] = await Promise.all([
+    const [me, currencies, telegram, apiKeys] = await Promise.all([
         client.auth.me(),
         client.currencies.list(),
-        client.categories.list({ query: {} }),
         client.users.telegramStatus(),
         client.users.listApiKeys()
     ]);
@@ -102,6 +101,28 @@ export default async function PreferencesPage() {
             </Card>
             <Card>
                 <CardHeader>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                            <CardTitle>Categories</CardTitle>
+                            <CardDescription>
+                                Manage expense and income categories,
+                                subcategories, and archived entries.
+                            </CardDescription>
+                        </div>
+                        <Button asChild className="w-full sm:w-auto">
+                            <Link href="/settings/categories">
+                                <FolderTreeIcon
+                                    aria-hidden
+                                    className="size-4"
+                                />
+                                Manage categories
+                            </Link>
+                        </Button>
+                    </div>
+                </CardHeader>
+            </Card>
+            <Card>
+                <CardHeader>
                     <CardTitle>API keys</CardTitle>
                     <CardDescription>
                         Use API keys from scripts and external tools.
@@ -111,7 +132,6 @@ export default async function PreferencesPage() {
                     <ApiKeysSettings apiKeys={apiKeys} />
                 </CardContent>
             </Card>
-            <CategorySettings categories={categories} />
         </div>
     );
 }

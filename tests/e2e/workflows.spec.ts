@@ -10,15 +10,18 @@ async function createCategory(
     name: string,
     type: 'expense' | 'income'
 ): Promise<void> {
-    await page.goto('/settings/preferences');
+    await page.goto('/settings/categories');
 
-    const form = page.getByTestId('category-form');
-    await form.getByLabel('Name').fill(name);
-    if (type === 'income') {
-        await selectOption(page, form.getByLabel('Category type'), 'Income');
-    }
+    const form = page.getByTestId(`${type}-category-form`);
+    await form
+        .getByLabel(`New ${type === 'income' ? 'Income' : 'Expense'} category name`)
+        .fill(name);
 
-    await form.getByRole('button', { name: 'Create category' }).click();
+    await form
+        .getByRole('button', {
+            name: type === 'income' ? 'Add income' : 'Add expense'
+        })
+        .click();
     await expect(
         page.getByText(name).filter({ visible: true }).first()
     ).toBeVisible({
@@ -143,6 +146,59 @@ test.describe('authenticated app workflows', () => {
         await deleteDialog.getByRole('button', { name: 'Delete' }).click();
         await expect(deleteDialog).toBeHidden({ timeout: 15_000 });
         await expect(row).toHaveCount(0, { timeout: 15_000 });
+    });
+
+    test('creates subcategories and hides archived trees from transaction creation', async ({
+        page
+    }) => {
+        const parentCategory = uniqueName('E2E archive parent');
+        const childCategory = uniqueName('E2E archive child');
+        const activeCategory = uniqueName('E2E archive active');
+
+        await createCategory(page, parentCategory, 'expense');
+
+        await page.goto('/settings/categories');
+        await page
+            .getByLabel(`New ${parentCategory} subcategory name`)
+            .fill(childCategory);
+        await page
+            .getByLabel(`${parentCategory} subcategory behavior`)
+            .selectOption({ label: 'Return' });
+        await page.getByRole('button', { name: 'Add subcategory' }).click();
+        await expect(
+            page.getByText(childCategory).filter({ visible: true }).first()
+        ).toBeVisible({ timeout: 15_000 });
+
+        await createCategory(page, activeCategory, 'expense');
+        await page.goto('/settings/categories');
+        await page
+            .getByRole('button', { name: `Archive ${parentCategory}` })
+            .click();
+        await expect(
+            page.getByRole('button', { name: `Restore ${parentCategory}` })
+        ).toBeVisible({ timeout: 15_000 });
+
+        await page.goto('/dashboard');
+        await page
+            .getByRole('button', { name: /^(Add|Add transaction)$/ })
+            .click();
+        const addDialog = page.getByRole('dialog', {
+            name: 'Add transaction'
+        });
+        await expect(addDialog).toBeVisible();
+        await addDialog.getByLabel('Transaction category').click();
+        await expect(
+            page.getByRole('option', { exact: true, name: activeCategory })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('option', { exact: true, name: parentCategory })
+        ).toHaveCount(0);
+        await expect(
+            page.getByRole('option', {
+                exact: true,
+                name: `${parentCategory} -> ${childCategory}`
+            })
+        ).toHaveCount(0);
     });
 
     test('orders add transaction categories by recent popularity', async ({

@@ -245,6 +245,26 @@ export async function updateCategoryAction(formData: FormData) {
     revalidatePath('/stats');
 }
 
+export async function setCategoryArchivedAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.categories.update({
+        params: { id: Number(requiredString(formData, 'id')) },
+        body: {
+            archived: booleanString(formData, 'archived', false)
+        }
+    });
+    revalidateTag('categories', 'max');
+    revalidateTag('user-profile', 'max');
+    revalidateTag('dashboard', 'max');
+    revalidateTag('stats', 'max');
+    revalidatePath('/settings/categories');
+    revalidatePath('/settings/preferences');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+}
+
 export async function deleteCategoryAction(formData: FormData) {
     const client = await getApiClient();
     await client.categories.delete({
