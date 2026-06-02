@@ -44,6 +44,7 @@ function statsOverview(): StatsOverview {
         largestIncomeCategory: 'Salary',
         trend: [],
         byCategory: [],
+        byParentCategory: [],
         comparison: {
             previousPeriod: {
                 from: new Date('2026-04-01T00:00:00.000Z'),
@@ -77,7 +78,8 @@ function dashboardSummary(): DashboardSummary {
         currency: 'USD',
         expenseTotal: 50,
         incomeTotal: 100,
-        byCategory: []
+        byCategory: [],
+        byParentCategory: []
     };
 }
 
@@ -103,7 +105,12 @@ describe('MCP tool helpers', () => {
                     id: 1,
                     name: 'Food',
                     type: 'expense' as const,
+                    parentId: null,
+                    kind: 'normal' as const,
+                    displayName: 'Food',
                     inUse: true,
+                    hasChildren: false,
+                    archivedAt: null,
                     createdAt: new Date('2026-05-01T00:00:00.000Z'),
                     updatedAt: new Date('2026-05-02T00:00:00.000Z')
                 }
@@ -115,8 +122,10 @@ describe('MCP tool helpers', () => {
                             id: 100,
                             categoryId: 1,
                             categoryName: 'Food',
+                            categoryDisplayName: 'Food',
+                            categoryParentId: null,
+                            categoryKind: 'normal' as const,
                             type: 'expense' as const,
-                            effect: 'normal' as const,
                             amount: 12.34,
                             currency: 'USD',
                             defaultCurrencyAmount: 12.34,

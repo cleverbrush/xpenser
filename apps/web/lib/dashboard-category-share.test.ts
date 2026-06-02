@@ -6,6 +6,7 @@ type DashboardCategory = DashboardSummary['byCategory'][number];
 
 const baseSummary: DashboardSummary = {
     byCategory: [],
+    byParentCategory: [],
     currency: 'USD',
     expenseTotal: 400,
     from: new Date('2026-05-01T00:00:00.000Z'),
@@ -20,6 +21,9 @@ function category(
     return {
         categoryId: 1,
         categoryName: 'Category',
+        categoryDisplayName: 'Category',
+        categoryParentId: null,
+        categoryKind: 'normal',
         percentChange: 0,
         previousPeriodTotal: 0,
         total: 0,
@@ -46,25 +50,28 @@ describe('dashboard category share', () => {
         ).toBe(25);
     });
 
-    it('returns zero when the matching total is not positive', () => {
+    it('returns zero when the matching side has no activity', () => {
         expect(
             dashboardCategoryShare(
                 { ...baseSummary, expenseTotal: 0 },
                 category({ total: 100 })
             )
         ).toBe(0);
+    });
+
+    it('uses magnitude for display-only share calculations', () => {
         expect(
             dashboardCategoryShare(
                 { ...baseSummary, incomeTotal: -100 },
-                category({ total: 100, type: 'income' })
+                category({ total: -100, type: 'income' })
             )
-        ).toBe(0);
+        ).toBe(100);
     });
 
     it('bounds display shares to the pie chart percentage range', () => {
         expect(
             dashboardCategoryShare(baseSummary, category({ total: -100 }))
-        ).toBe(0);
+        ).toBe(25);
         expect(
             dashboardCategoryShare(baseSummary, category({ total: 500 }))
         ).toBe(100);

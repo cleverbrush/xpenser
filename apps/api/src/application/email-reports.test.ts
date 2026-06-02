@@ -74,7 +74,7 @@ describe('email report due checks', () => {
 });
 
 describe('email report OpenAI payload', () => {
-    it('labels expense reversals as refunds instead of negative spending', () => {
+    it('labels expense-parent offset categories as income returns', () => {
         const payload = emailReportOpenAiPayload({
             type: 'weekly',
             period: {
@@ -102,14 +102,14 @@ describe('email report OpenAI payload', () => {
             notableTransactions: [
                 {
                     amount: 25,
-                    categoryImpact: -25,
+                    categoryImpact: 25,
+                    categoryKind: 'offset',
                     categoryName: 'Travel',
                     date: '2026-05-27',
-                    effect: 'reversal',
                     interpretation:
-                        'Expense reversal/refund. It reduces expenses and improves net position; do not describe it as spending.',
+                        'Return or refund category. It counts as income and improves net position; do not describe it as new spending.',
                     netImpact: 25,
-                    type: 'expense'
+                    type: 'income'
                 }
             ]
         });
@@ -117,16 +117,16 @@ describe('email report OpenAI payload', () => {
         const transaction = payload.report.notableTransactions.at(0);
         expect(transaction).toMatchObject({
             amount: 25,
-            categoryImpact: -25,
-            effect: 'reversal',
+            categoryImpact: 25,
+            categoryKind: 'offset',
             netImpact: 25,
-            type: 'expense'
+            type: 'income'
         });
         expect(transaction?.interpretation).toContain(
-            'do not describe it as spending'
+            'do not describe it as new spending'
         );
-        expect(
-            payload.report.dataSemantics.transactionEffects.reversal
-        ).toContain('Expense reversals are refunds');
+        expect(payload.report.dataSemantics.categoryKinds.offset).toContain(
+            'opposite side'
+        );
     });
 });

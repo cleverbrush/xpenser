@@ -42,9 +42,12 @@ import {
 } from '@/lib/actions';
 import { expiredSessionPath } from '@/lib/auth-routes';
 import {
+    categoryEffectiveType,
+    categoryTypeLabel
+} from '@/lib/category-display';
+import {
     amountClassNameForTransaction,
     directionBadgeClassName,
-    effectBadgeClassName,
     formatDateTime,
     formatTransactionMoney
 } from '@/lib/format';
@@ -61,9 +64,14 @@ type TransactionFeedResponse = {
 };
 
 function activeFilterCount(searchParams: URLSearchParams): number {
-    return ['search', 'type', 'categoryId', 'from', 'to'].filter(key =>
-        Boolean(searchParams.get(key))
-    ).length;
+    return [
+        'search',
+        'type',
+        'categoryId',
+        'parentCategoryId',
+        'from',
+        'to'
+    ].filter(key => Boolean(searchParams.get(key))).length;
 }
 
 function fieldValue(formData: FormData, key: string): string {
@@ -86,28 +94,28 @@ function transactionAmount(transaction: Transaction) {
                 className={`font-medium ${amountClassNameForTransaction(
                     transaction.amount,
                     transaction.type,
-                    transaction.effect
+                    transaction.categoryKind
                 )}`}
             >
                 {formatTransactionMoney(
                     transaction.amount,
                     transaction.currency,
                     transaction.type,
-                    transaction.effect
+                    transaction.categoryKind
                 )}
             </span>
             <span
                 className={`text-xs ${amountClassNameForTransaction(
                     transaction.defaultCurrencyAmount,
                     transaction.type,
-                    transaction.effect
+                    transaction.categoryKind
                 )}`}
             >
                 {formatTransactionMoney(
                     transaction.defaultCurrencyAmount,
                     transaction.defaultCurrency,
                     transaction.type,
-                    transaction.effect
+                    transaction.categoryKind
                 )}
             </span>
         </div>
@@ -116,22 +124,12 @@ function transactionAmount(transaction: Transaction) {
 
 function transactionBadges(transaction: Transaction) {
     return (
-        <>
-            <Badge
-                className={directionBadgeClassName(transaction.type)}
-                variant="outline"
-            >
-                {transaction.type}
-            </Badge>
-            {transaction.effect === 'reversal' ? (
-                <Badge
-                    className={effectBadgeClassName(transaction.effect)}
-                    variant="outline"
-                >
-                    reversal
-                </Badge>
-            ) : null}
-        </>
+        <Badge
+            className={directionBadgeClassName(transaction.type)}
+            variant="outline"
+        >
+            {categoryTypeLabel(transaction.type)}
+        </Badge>
     );
 }
 
@@ -198,7 +196,7 @@ function DeleteTransactionButton({
                 <DialogHeader>
                     <DialogTitle>Delete transaction?</DialogTitle>
                     <DialogDescription>
-                        This will remove {transaction.categoryName} from{' '}
+                        This will remove {transaction.categoryDisplayName} from{' '}
                         {formatDateTime(transaction.occurredAt, timezone)}.
                     </DialogDescription>
                 </DialogHeader>
@@ -284,7 +282,7 @@ function TransactionCards({
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                             <h2 className="truncate text-sm font-semibold">
-                                {transaction.categoryName}
+                                {transaction.categoryDisplayName}
                             </h2>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
                                 {transactionBadges(transaction)}
@@ -341,7 +339,7 @@ function TransactionTable({
                         {transactions.map(transaction => (
                             <TableRow key={transaction.id}>
                                 <TableCell>
-                                    {transaction.categoryName}
+                                    {transaction.categoryDisplayName}
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-2">
@@ -446,6 +444,12 @@ export function TransactionsBrowser({
             const value = fieldValue(formData, key);
             if (value) {
                 params.set(key, value);
+            }
+        }
+        if (!params.has('categoryId')) {
+            const parentCategoryId = searchParams.get('parentCategoryId');
+            if (parentCategoryId) {
+                params.set('parentCategoryId', parentCategoryId);
             }
         }
 
@@ -591,7 +595,11 @@ export function TransactionsBrowser({
                                         key={category.id}
                                         value={category.id}
                                     >
-                                        {category.name} ({category.type})
+                                        {category.displayName} (
+                                        {categoryTypeLabel(
+                                            categoryEffectiveType(category)
+                                        )}
+                                        )
                                     </option>
                                 ))}
                             </select>

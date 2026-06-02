@@ -18,6 +18,7 @@ import {
     createCategoryHandler,
     deleteCategoryHandler,
     listCategoriesHandler,
+    moveAndDeleteCategoryHandler,
     updateCategoryHandler
 } from './categories.js';
 import { convertCurrencyHandler, listCurrenciesHandler } from './currencies.js';
@@ -72,7 +73,8 @@ export const handlers = {
         list: listCategoriesHandler,
         create: createCategoryHandler,
         update: updateCategoryHandler,
-        delete: deleteCategoryHandler
+        delete: deleteCategoryHandler,
+        moveAndDelete: moveAndDeleteCategoryHandler
     },
     transactions: {
         list: listTransactionsHandler,

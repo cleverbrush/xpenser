@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
     CategoryListQuerySchema,
+    CategorySchema,
     CategoryTrendQuerySchema,
     ConfirmEmailBodySchema,
     CreateApiKeyBodySchema,
+    CreateCategoryBodySchema,
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
     CurrencyConversionQuerySchema,
     EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
+    MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
     RegisterBodySchema,
@@ -18,6 +21,7 @@ import {
     StatsQuerySchema,
     TimeZoneSchema,
     TokenResponseSchema,
+    UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
     UserPreferenceSchema
 } from './schemas.js';
@@ -90,6 +94,24 @@ describe('shared schemas', () => {
         expect(result.valid).toBe(true);
     });
 
+    it('validates category archive update payloads', () => {
+        const result = UpdateCategoryBodySchema.validate({
+            archived: true
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.object?.archived).toBe(true);
+    });
+
+    it('validates category move-and-delete payloads', () => {
+        const result = MoveAndDeleteCategoryBodySchema.validate({
+            replacementCategoryId: 12
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.object?.replacementCategoryId).toBe(12);
+    });
+
     it('defaults email report preferences to enabled when updating preferences', () => {
         const result = UpdateUserPreferenceBodySchema.validate({
             defaultCurrency: 'USD',
@@ -105,13 +127,42 @@ describe('shared schemas', () => {
     it('validates category list sorting controls', () => {
         expect(
             CategoryListQuerySchema.validate({
+                activeOnly: 'true',
                 sort: 'recent-transaction-count'
-            }).valid
+            } as never).object?.activeOnly
         ).toBe(true);
         expect(CategoryListQuerySchema.validate({}).valid).toBe(true);
         expect(
             CategoryListQuerySchema.validate({ sort: 'name' } as never).valid
         ).toBe(false);
+    });
+
+    it('validates category hierarchy and kind fields', () => {
+        expect(
+            CreateCategoryBodySchema.validate({
+                name: 'Returns',
+                type: 'expense',
+                parentId: 1,
+                kind: 'offset'
+            }).valid
+        ).toBe(true);
+
+        const result = CategorySchema.validate({
+            id: 2,
+            name: 'Returns',
+            type: 'expense',
+            kind: 'offset',
+            parentId: 1,
+            parentName: 'Car',
+            displayName: 'Car -> Returns',
+            inUse: true,
+            hasChildren: false,
+            archivedAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        });
+
+        expect(result.valid).toBe(true);
     });
 
     it('returns required messages before format messages for empty login fields', () => {
@@ -222,19 +273,6 @@ describe('shared schemas', () => {
         });
 
         expect(result.valid).toBe(true);
-    });
-
-    it('accepts reversal transaction effects', () => {
-        const result = CreateTransactionBodySchema.validate({
-            categoryId: 1,
-            amount: 1234.56,
-            currency: 'USD',
-            effect: 'reversal',
-            occurredAt: new Date()
-        });
-
-        expect(result.valid).toBe(true);
-        expect(result.object?.effect).toBe('reversal');
     });
 
     it('rejects transaction amounts below cent precision', () => {

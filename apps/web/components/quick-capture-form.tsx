@@ -9,7 +9,6 @@ import {
     Button,
     Card,
     CardContent,
-    cn,
     Field,
     FieldError,
     FieldGroup,
@@ -23,31 +22,40 @@ import {
     SelectValue
 } from '@xpenser/ui';
 import { CheckCircle2Icon, RotateCcwIcon, SaveIcon } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useMemo, useState } from 'react';
 import {
     createCaptureTransactionAction,
     deleteTransactionAction
 } from '@/lib/actions';
+import {
+    categoryEffectiveType,
+    transactionCategoryOptions
+} from '@/lib/category-display';
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 
 type TransactionType = Category['type'];
-type TransactionEffect = Transaction['effect'];
 
 const CATEGORY_BATCH_SIZE = 4;
 
 function initialType(categories: readonly Category[]): TransactionType {
-    return categories.some(category => category.type === 'expense')
+    return categories.some(
+        category => categoryEffectiveType(category) === 'expense'
+    )
         ? 'expense'
-        : (categories[0]?.type ?? 'expense');
+        : categoryEffectiveType(
+              categories[0] ?? { kind: 'normal', type: 'expense' }
+          );
 }
 
 function firstCategoryId(
     categories: readonly Category[],
     type: TransactionType
 ): number | undefined {
-    return categories.find(category => category.type === type)?.id;
+    return categories.find(category => categoryEffectiveType(category) === type)
+        ?.id;
 }
 
 function firstCurrency(
@@ -68,11 +76,11 @@ function parseCaptureAmount(value: string): number | undefined {
 }
 
 function savedSummary(transaction: Transaction, timezone: string) {
-    return `${transaction.categoryName} - ${formatTransactionMoney(
+    return `${transaction.categoryDisplayName} - ${formatTransactionMoney(
         transaction.amount,
         transaction.currency,
         transaction.type,
-        transaction.effect
+        transaction.categoryKind
     )} - ${formatDateTime(transaction.occurredAt, timezone)}`;
 }
 
@@ -99,16 +107,22 @@ export function QuickCaptureForm({
             ),
         [currencies, defaultCurrency, transactionCurrencies]
     );
-    const startingType = useMemo(() => initialType(categories), [categories]);
+    const transactionCategories = useMemo(
+        () => transactionCategoryOptions(categories),
+        [categories]
+    );
+    const startingType = useMemo(
+        () => initialType(transactionCategories),
+        [transactionCategories]
+    );
     const [type, setType] = useState<TransactionType>(startingType);
     const [categoryId, setCategoryId] = useState<number | undefined>(() =>
-        firstCategoryId(categories, startingType)
+        firstCategoryId(transactionCategories, startingType)
     );
     const [amount, setAmount] = useState('');
     const [currency, setCurrency] = useState(() =>
         firstCurrency(currencyOptions, defaultCurrency)
     );
-    const [effect, setEffect] = useState<TransactionEffect>('normal');
     const [occurredAtText, setOccurredAtText] = useState(() =>
         dateToLocalDateTimeInput(new Date(), timezone)
     );
@@ -119,8 +133,11 @@ export function QuickCaptureForm({
     const [error, setError] = useState<string | null>(null);
     const [lastSaved, setLastSaved] = useState<Transaction | null>(null);
     const typedCategories = useMemo(
-        () => categories.filter(category => category.type === type),
-        [categories, type]
+        () =>
+            transactionCategories.filter(
+                category => categoryEffectiveType(category) === type
+            ),
+        [transactionCategories, type]
     );
     const activeCategoryId =
         typedCategories.find(category => category.id === categoryId)?.id ??
@@ -131,16 +148,17 @@ export function QuickCaptureForm({
     function handleTypeChange(nextType: TransactionType) {
         setType(nextType);
         setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
-        const current = categories.find(category => category.id === categoryId);
-        if (current?.type === nextType) {
+        const current = transactionCategories.find(
+            category => category.id === categoryId
+        );
+        if (current && categoryEffectiveType(current) === nextType) {
             return;
         }
-        setCategoryId(firstCategoryId(categories, nextType));
+        setCategoryId(firstCategoryId(transactionCategories, nextType));
     }
 
     function resetAfterSave() {
         setAmount('');
-        setEffect('normal');
         setOccurredAtText(dateToLocalDateTimeInput(new Date(), timezone));
     }
 
@@ -170,7 +188,6 @@ export function QuickCaptureForm({
         formData.set('categoryId', String(activeCategoryId));
         formData.set('amount', String(amountValue));
         formData.set('currency', currency);
-        formData.set('effect', effect);
         formData.set('occurredAt', occurredAt.toISOString());
 
         setPending(true);
@@ -205,6 +222,29 @@ export function QuickCaptureForm({
         } finally {
             setUndoPending(false);
         }
+    }
+
+    if (transactionCategories.length === 0) {
+        return (
+            <Card>
+                <CardContent className="flex flex-col gap-3 p-4 sm:p-6">
+                    <div>
+                        <p className="text-sm font-medium">
+                            No active categories
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                            Restore or add a category before creating
+                            transactions.
+                        </p>
+                    </div>
+                    <Button asChild className="w-full sm:w-auto">
+                        <Link href="/settings/categories">
+                            Manage categories
+                        </Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        );
     }
 
     return (
@@ -265,7 +305,7 @@ export function QuickCaptureForm({
 
                             <Field>
                                 <FieldLabel>Type</FieldLabel>
-                                <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                <div className="grid grid-cols-2 gap-2">
                                     {(['expense', 'income'] as const).map(
                                         value => (
                                             <Button
@@ -287,29 +327,6 @@ export function QuickCaptureForm({
                                             </Button>
                                         )
                                     )}
-                                    <label
-                                        className={cn(
-                                            'flex h-10 items-center justify-center gap-2 rounded-md border bg-background px-3 text-sm font-medium',
-                                            effect === 'reversal' &&
-                                                'border-primary bg-primary/10 text-primary'
-                                        )}
-                                    >
-                                        <input
-                                            checked={effect === 'reversal'}
-                                            className="size-4 rounded border-input"
-                                            name="effect"
-                                            onChange={event =>
-                                                setEffect(
-                                                    event.target.checked
-                                                        ? 'reversal'
-                                                        : 'normal'
-                                                )
-                                            }
-                                            type="checkbox"
-                                            value="reversal"
-                                        />
-                                        <span>Reversal</span>
-                                    </label>
                                 </div>
                             </Field>
 
@@ -333,10 +350,10 @@ export function QuickCaptureForm({
                                                     ? 'default'
                                                     : 'outline'
                                             }
-                                            title={category.name}
+                                            title={category.displayName}
                                         >
                                             <span className="truncate">
-                                                {category.name}
+                                                {category.displayName}
                                             </span>
                                         </Button>
                                     ))}

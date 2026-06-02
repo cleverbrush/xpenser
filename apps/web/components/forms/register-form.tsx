@@ -9,13 +9,7 @@ import {
     FieldDescription,
     FieldError,
     FieldGroup,
-    FieldLabel,
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue
+    FieldLabel
 } from '@xpenser/ui';
 import Link from 'next/link';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
@@ -26,6 +20,7 @@ import { CurrencyMultiSelect } from './currency-multi-select';
 import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
 import { ResendEmailConfirmationForm } from './resend-email-confirmation-form';
+import { SchemaSelectField } from './schema-fields';
 
 export function RegisterForm({
     currencies
@@ -33,12 +28,13 @@ export function RegisterForm({
     readonly currencies: readonly Currency[];
 }) {
     const form = useSchemaForm(RegisterBodySchema);
-    const defaultCurrency = form.useField(field => field.defaultCurrency);
     const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
         null
     );
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
+    const [formVersion, setFormVersion] = useState(0);
+    const [selectedDefaultCurrency, setSelectedDefaultCurrency] = useState('');
     const [selectedTimezone, setSelectedTimezone] = useState('UTC');
     const [selectedFavoriteCurrencies, setSelectedFavoriteCurrencies] =
         useState<string[]>([]);
@@ -63,24 +59,28 @@ export function RegisterForm({
 
         form.reset({
             defaultCurrency: initialDefaultCurrency,
-            favoriteCurrencies: []
+            favoriteCurrencies: [],
+            timezone: 'UTC'
         });
+        setSelectedDefaultCurrency(initialDefaultCurrency);
         setSelectedTimezone('UTC');
         setSelectedFavoriteCurrencies([]);
+        setFormVersion(version => version + 1);
     }, [form, initialDefaultCurrency]);
-
-    const defaultCurrencyInvalid =
-        defaultCurrency.touched && Boolean(defaultCurrency.error);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
         const selectedDefault =
-            defaultCurrency.value ?? initialDefaultCurrency ?? '';
+            selectedDefaultCurrency || initialDefaultCurrency || '';
         const favoriteCurrencies = selectedFavoriteCurrencies.filter(
             currency => currency !== selectedDefault
         );
-        form.setValue({ favoriteCurrencies, timezone: selectedTimezone });
+        form.setValue({
+            defaultCurrency: selectedDefault,
+            favoriteCurrencies,
+            timezone: selectedTimezone
+        });
         const result = await form.submit();
         if (!result.valid || !result.object) {
             return;
@@ -134,7 +134,7 @@ export function RegisterForm({
 
     return (
         <form noValidate onSubmit={handleSubmit}>
-            <FieldGroup>
+            <FieldGroup key={formVersion}>
                 <SchemaField
                     fieldProps={{ autoComplete: 'email' }}
                     forProperty={field => field.email}
@@ -161,70 +161,65 @@ export function RegisterForm({
                         variant="password"
                     />
                 </div>
-                <Field data-invalid={defaultCurrencyInvalid ? true : undefined}>
-                    <FieldLabel>Default currency</FieldLabel>
-                    <Select
-                        onOpenChange={open => {
-                            if (!open) {
-                                defaultCurrency.onBlur();
-                            }
-                        }}
-                        onValueChange={value => {
-                            defaultCurrency.onChange(value);
-                            setSelectedFavoriteCurrencies(current =>
-                                current.filter(currency => currency !== value)
+                <SchemaSelectField
+                    forProperty={field => field.defaultCurrency}
+                    form={form}
+                    label="Default currency"
+                    onChange={(value, field) => {
+                        const nextFavoriteCurrencies =
+                            selectedFavoriteCurrencies.filter(
+                                currency => currency !== value
                             );
-                        }}
-                        value={defaultCurrency.value ?? initialDefaultCurrency}
-                    >
-                        <SelectTrigger aria-invalid={defaultCurrencyInvalid}>
-                            <SelectValue placeholder="Currency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                {sortedCurrencies.map(currency => (
-                                    <SelectItem
-                                        key={currency.code}
-                                        value={currency.code}
-                                    >
-                                        <CurrencyOption currency={currency} />
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                    {defaultCurrency.touched && defaultCurrency.error ? (
-                        <FieldError>{defaultCurrency.error}</FieldError>
-                    ) : null}
-                </Field>
-                <CurrencyMultiSelect
-                    currencies={sortedCurrencies}
-                    excludedCurrency={
-                        defaultCurrency.value ?? initialDefaultCurrency
-                    }
-                    onChange={setSelectedFavoriteCurrencies}
-                    selectedCurrencies={selectedFavoriteCurrencies}
+
+                        field.onChange(value);
+                        setSelectedDefaultCurrency(value);
+                        setSelectedFavoriteCurrencies(nextFavoriteCurrencies);
+                        form.setValue({
+                            favoriteCurrencies: nextFavoriteCurrencies
+                        });
+                    }}
+                    options={sortedCurrencies.map(currency => ({
+                        label: <CurrencyOption currency={currency} />,
+                        value: currency.code
+                    }))}
+                    placeholder="Currency"
+                    value={selectedDefaultCurrency || initialDefaultCurrency}
                 />
-                <Field>
-                    <FieldLabel>Time zone</FieldLabel>
-                    <Select
-                        onValueChange={setSelectedTimezone}
-                        value={selectedTimezone}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                {timeZones.map(timeZone => (
-                                    <SelectItem key={timeZone} value={timeZone}>
-                                        {timeZoneLabel(timeZone)}
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                </Field>
+                <SchemaField
+                    forProperty={field => field.favoriteCurrencies}
+                    form={form}
+                    renderer={field => (
+                        <CurrencyMultiSelect
+                            currencies={sortedCurrencies}
+                            error={field.error}
+                            excludedCurrency={
+                                selectedDefaultCurrency ||
+                                initialDefaultCurrency
+                            }
+                            onBlur={field.onBlur}
+                            onChange={values => {
+                                field.onChange(values);
+                                setSelectedFavoriteCurrencies(values);
+                            }}
+                            selectedCurrencies={selectedFavoriteCurrencies}
+                            touched={field.touched}
+                        />
+                    )}
+                />
+                <SchemaSelectField
+                    forProperty={field => field.timezone}
+                    form={form}
+                    label="Time zone"
+                    onChange={(value, field) => {
+                        field.onChange(value);
+                        setSelectedTimezone(value);
+                    }}
+                    options={timeZones.map(timeZone => ({
+                        label: timeZoneLabel(timeZone),
+                        value: timeZone
+                    }))}
+                    value={selectedTimezone}
+                />
                 {error ? <FieldError role="alert">{error}</FieldError> : null}
                 <Button className="w-full" disabled={pending} type="submit">
                     {pending ? 'Creating account...' : 'Create account'}

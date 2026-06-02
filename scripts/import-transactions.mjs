@@ -235,13 +235,6 @@ function normalizeCurrency(value, rowNumber) {
     return currency;
 }
 
-export function effectForSignedAmount(categoryType, signedAmount) {
-    return (categoryType === 'expense' && signedAmount < 0) ||
-        (categoryType === 'income' && signedAmount > 0)
-        ? 'reversal'
-        : 'normal';
-}
-
 export function parseTransactionRow(line, rowNumber, categoryTypes) {
     const normalizedLine =
         rowNumber === 1 ? line.replace(/^\uFEFF/, '') : line;
@@ -281,10 +274,6 @@ export function parseTransactionRow(line, rowNumber, categoryTypes) {
         amount: Math.abs(signedAmount),
         exchangeRateToUsd,
         currency: normalizeCurrency(currencyText, rowNumber),
-        effect:
-            signedAmount === 0
-                ? 'normal'
-                : effectForSignedAmount(categoryType, signedAmount),
         skipReason: signedAmount === 0 ? 'zero_amount' : undefined,
         note: note === '' ? undefined : note
     };
@@ -295,8 +284,6 @@ export function summarizeRows(rows) {
         total: rows.length,
         importable: 0,
         skipped: 0,
-        normal: 0,
-        reversal: 0,
         currencies: new Map(),
         categories: new Map(),
         skipReasons: new Map()
@@ -311,7 +298,6 @@ export function summarizeRows(rows) {
             );
         } else {
             summary.importable += 1;
-            summary[row.effect] += 1;
         }
         summary.currencies.set(
             row.currency,
@@ -337,8 +323,6 @@ function printSummary(label, rows) {
     console.log(`${label}: ${summary.total}`);
     console.log(`  importable: ${summary.importable}`);
     console.log(`  skipped: ${summary.skipped}`);
-    console.log(`  normal: ${summary.normal}`);
-    console.log(`  reversal: ${summary.reversal}`);
     if (summary.skipped > 0) {
         console.log(
             `  skip reasons: ${JSON.stringify(sortedObject(summary.skipReasons))}`
@@ -542,10 +526,11 @@ async function apiRequest(options, path, request = {}) {
 function categoryMapFromApi(categories) {
     const byName = new Map();
     for (const category of categories) {
-        if (byName.has(category.name)) {
-            throw new Error(`Duplicate category in Xpenser: ${category.name}`);
+        const name = category.displayName ?? category.name;
+        if (byName.has(name)) {
+            throw new Error(`Duplicate category in Xpenser: ${name}`);
         }
-        byName.set(category.name, category);
+        byName.set(name, category);
     }
     return byName;
 }
@@ -633,7 +618,6 @@ function transactionBody(row, categoriesByName) {
         categoryId: category.id,
         amount: row.amount,
         currency: row.currency,
-        effect: row.effect,
         occurredAt: row.timestamp
     };
     if (row.note) {

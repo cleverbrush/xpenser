@@ -42,7 +42,7 @@ export default async function DashboardPage({
     const anchorDate = selectedDate ?? new Date();
     const [categories, currencies, window] = await Promise.all([
         client.categories.list({
-            query: { sort: 'recent-transaction-count' }
+            query: { activeOnly: true, sort: 'recent-transaction-count' }
         }),
         client.currencies.list(),
         client.dashboard.window({

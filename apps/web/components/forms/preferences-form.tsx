@@ -1,6 +1,6 @@
 'use client';
 
-import { useSchemaForm } from '@cleverbrush/react-form';
+import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
 import {
     type Currency,
     UpdateUserPreferenceBodySchema,
@@ -13,13 +13,7 @@ import {
     FieldError,
     FieldGroup,
     FieldLabel,
-    Input,
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue
+    Input
 } from '@xpenser/ui';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { updatePreferencesAction } from '@/lib/actions';
@@ -28,6 +22,7 @@ import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
 import { CurrencyMultiSelect } from './currency-multi-select';
 import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
+import { SchemaCheckboxField, SchemaSelectField } from './schema-fields';
 
 export function PreferencesForm({
     me,
@@ -37,9 +32,16 @@ export function PreferencesForm({
     readonly currencies: readonly Currency[];
 }) {
     const form = useSchemaForm(UpdateUserPreferenceBodySchema);
-    const defaultCurrency = form.useField(field => field.defaultCurrency);
-    const favoriteCurrencies = form.useField(field => field.favoriteCurrencies);
-    const timezone = form.useField(field => field.timezone);
+    const [selectedDefaultCurrency, setSelectedDefaultCurrency] = useState(
+        me.defaultCurrency
+    );
+    const [selectedFavoriteCurrencies, setSelectedFavoriteCurrencies] =
+        useState<string[]>(
+            me.favoriteCurrencies.filter(
+                currency => currency !== me.defaultCurrency
+            )
+        );
+    const [selectedTimezone, setSelectedTimezone] = useState(me.timezone);
     const [
         selectedWeeklyEmailReportEnabled,
         setSelectedWeeklyEmailReportEnabled
@@ -48,34 +50,33 @@ export function PreferencesForm({
         selectedMonthlyEmailReportEnabled,
         setSelectedMonthlyEmailReportEnabled
     ] = useState(me.monthlyEmailReportEnabled);
+    const [formVersion, setFormVersion] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
     const sortedCurrencies = useMemo(
         () => sortCurrenciesForDisplay(currencies),
         [currencies]
     );
-    const selectedDefaultCurrency = defaultCurrency.value ?? me.defaultCurrency;
-    const selectedTimezone = timezone.value ?? me.timezone;
-    const selectedFavoriteCurrencies = (
-        favoriteCurrencies.value ?? me.favoriteCurrencies
-    ).filter(currency => currency !== selectedDefaultCurrency);
-    const defaultCurrencyInvalid =
-        defaultCurrency.touched && Boolean(defaultCurrency.error);
-    const timezoneInvalid = timezone.touched && Boolean(timezone.error);
     const timeZones = useMemo(() => supportedTimeZones(), []);
 
     useEffect(() => {
+        const nextFavoriteCurrencies = me.favoriteCurrencies.filter(
+            currency => currency !== me.defaultCurrency
+        );
+
         form.reset({
             defaultCurrency: me.defaultCurrency,
-            favoriteCurrencies: me.favoriteCurrencies.filter(
-                currency => currency !== me.defaultCurrency
-            ),
+            favoriteCurrencies: nextFavoriteCurrencies,
             timezone: me.timezone,
             weeklyEmailReportEnabled: me.weeklyEmailReportEnabled,
             monthlyEmailReportEnabled: me.monthlyEmailReportEnabled
         });
+        setSelectedDefaultCurrency(me.defaultCurrency);
+        setSelectedFavoriteCurrencies(nextFavoriteCurrencies);
+        setSelectedTimezone(me.timezone);
         setSelectedWeeklyEmailReportEnabled(me.weeklyEmailReportEnabled);
         setSelectedMonthlyEmailReportEnabled(me.monthlyEmailReportEnabled);
+        setFormVersion(version => version + 1);
     }, [
         form,
         me.defaultCurrency,
@@ -92,6 +93,7 @@ export function PreferencesForm({
             currency => currency !== selectedDefaultCurrency
         );
         form.setValue({
+            defaultCurrency: selectedDefaultCurrency,
             favoriteCurrencies,
             timezone: selectedTimezone,
             weeklyEmailReportEnabled: selectedWeeklyEmailReportEnabled,
@@ -120,86 +122,66 @@ export function PreferencesForm({
 
     return (
         <form noValidate onSubmit={handleSubmit}>
-            <FieldGroup>
+            <FieldGroup key={formVersion}>
                 <Field>
                     <FieldLabel htmlFor="email">Email</FieldLabel>
                     <Input id="email" readOnly value={me.email} />
                 </Field>
-                <Field data-invalid={defaultCurrencyInvalid ? true : undefined}>
-                    <FieldLabel>Default currency</FieldLabel>
-                    <Select
-                        onOpenChange={open => {
-                            if (!open) {
-                                defaultCurrency.onBlur();
-                            }
-                        }}
-                        onValueChange={value => {
-                            defaultCurrency.onChange(value);
-                            favoriteCurrencies.onChange(
-                                selectedFavoriteCurrencies.filter(
-                                    currency => currency !== value
-                                )
+                <SchemaSelectField
+                    forProperty={field => field.defaultCurrency}
+                    form={form}
+                    label="Default currency"
+                    onChange={(value, field) => {
+                        const nextFavoriteCurrencies =
+                            selectedFavoriteCurrencies.filter(
+                                currency => currency !== value
                             );
-                        }}
-                        value={selectedDefaultCurrency}
-                    >
-                        <SelectTrigger aria-invalid={defaultCurrencyInvalid}>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                {sortedCurrencies.map(currency => (
-                                    <SelectItem
-                                        key={currency.code}
-                                        value={currency.code}
-                                    >
-                                        <CurrencyOption currency={currency} />
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                    {defaultCurrency.touched && defaultCurrency.error ? (
-                        <FieldError>{defaultCurrency.error}</FieldError>
-                    ) : null}
-                </Field>
-                <CurrencyMultiSelect
-                    currencies={sortedCurrencies}
-                    error={favoriteCurrencies.error}
-                    excludedCurrency={selectedDefaultCurrency}
-                    onBlur={favoriteCurrencies.onBlur}
-                    onChange={values => favoriteCurrencies.onChange(values)}
-                    selectedCurrencies={selectedFavoriteCurrencies}
-                    touched={favoriteCurrencies.touched}
+
+                        field.onChange(value);
+                        setSelectedDefaultCurrency(value);
+                        setSelectedFavoriteCurrencies(nextFavoriteCurrencies);
+                        form.setValue({
+                            favoriteCurrencies: nextFavoriteCurrencies
+                        });
+                    }}
+                    options={sortedCurrencies.map(currency => ({
+                        label: <CurrencyOption currency={currency} />,
+                        value: currency.code
+                    }))}
+                    value={selectedDefaultCurrency}
                 />
-                <Field data-invalid={timezoneInvalid ? true : undefined}>
-                    <FieldLabel>Time zone</FieldLabel>
-                    <Select
-                        onOpenChange={open => {
-                            if (!open) {
-                                timezone.onBlur();
-                            }
-                        }}
-                        onValueChange={value => timezone.onChange(value)}
-                        value={selectedTimezone}
-                    >
-                        <SelectTrigger aria-invalid={timezoneInvalid}>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                {timeZones.map(timeZone => (
-                                    <SelectItem key={timeZone} value={timeZone}>
-                                        {timeZoneLabel(timeZone)}
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                    {timezone.touched && timezone.error ? (
-                        <FieldError>{timezone.error}</FieldError>
-                    ) : null}
-                </Field>
+                <SchemaField
+                    forProperty={field => field.favoriteCurrencies}
+                    form={form}
+                    renderer={field => (
+                        <CurrencyMultiSelect
+                            currencies={sortedCurrencies}
+                            error={field.error}
+                            excludedCurrency={selectedDefaultCurrency}
+                            onBlur={field.onBlur}
+                            onChange={values => {
+                                field.onChange(values);
+                                setSelectedFavoriteCurrencies(values);
+                            }}
+                            selectedCurrencies={selectedFavoriteCurrencies}
+                            touched={field.touched}
+                        />
+                    )}
+                />
+                <SchemaSelectField
+                    forProperty={field => field.timezone}
+                    form={form}
+                    label="Time zone"
+                    onChange={(value, field) => {
+                        field.onChange(value);
+                        setSelectedTimezone(value);
+                    }}
+                    options={timeZones.map(timeZone => ({
+                        label: timeZoneLabel(timeZone),
+                        value: timeZone
+                    }))}
+                    value={selectedTimezone}
+                />
                 <Field>
                     <div className="space-y-1">
                         <FieldLabel>Email reports</FieldLabel>
@@ -208,60 +190,32 @@ export function PreferencesForm({
                         </FieldDescription>
                     </div>
                     <div className="grid gap-3 rounded-md border border-input p-3">
-                        <label
-                            className="flex items-start gap-3 text-sm"
-                            htmlFor="weekly-email-report"
-                        >
-                            <Input
-                                checked={selectedWeeklyEmailReportEnabled}
-                                className="mt-0.5 size-4"
-                                id="weekly-email-report"
-                                name="weeklyEmailReportEnabled"
-                                onChange={event =>
-                                    setSelectedWeeklyEmailReportEnabled(
-                                        event.target.checked
-                                    )
-                                }
-                                type="checkbox"
-                                value={String(selectedWeeklyEmailReportEnabled)}
-                            />
-                            <span>
-                                <span className="block font-medium">
-                                    Weekly report
-                                </span>
-                                <span className="text-muted-foreground">
-                                    Sent Monday morning for the previous week.
-                                </span>
-                            </span>
-                        </label>
-                        <label
-                            className="flex items-start gap-3 text-sm"
-                            htmlFor="monthly-email-report"
-                        >
-                            <Input
-                                checked={selectedMonthlyEmailReportEnabled}
-                                className="mt-0.5 size-4"
-                                id="monthly-email-report"
-                                name="monthlyEmailReportEnabled"
-                                onChange={event =>
-                                    setSelectedMonthlyEmailReportEnabled(
-                                        event.target.checked
-                                    )
-                                }
-                                type="checkbox"
-                                value={String(
-                                    selectedMonthlyEmailReportEnabled
-                                )}
-                            />
-                            <span>
-                                <span className="block font-medium">
-                                    Monthly report
-                                </span>
-                                <span className="text-muted-foreground">
-                                    Sent on the first morning of each month.
-                                </span>
-                            </span>
-                        </label>
+                        <SchemaCheckboxField
+                            checked={selectedWeeklyEmailReportEnabled}
+                            description="Sent Monday morning for the previous week."
+                            forProperty={field =>
+                                field.weeklyEmailReportEnabled
+                            }
+                            form={form}
+                            label="Weekly report"
+                            onChange={(checked, field) => {
+                                field.onChange(checked);
+                                setSelectedWeeklyEmailReportEnabled(checked);
+                            }}
+                        />
+                        <SchemaCheckboxField
+                            checked={selectedMonthlyEmailReportEnabled}
+                            description="Sent on the first morning of each month."
+                            forProperty={field =>
+                                field.monthlyEmailReportEnabled
+                            }
+                            form={form}
+                            label="Monthly report"
+                            onChange={(checked, field) => {
+                                field.onChange(checked);
+                                setSelectedMonthlyEmailReportEnabled(checked);
+                            }}
+                        />
                     </div>
                 </Field>
                 {error ? <FieldError role="alert">{error}</FieldError> : null}

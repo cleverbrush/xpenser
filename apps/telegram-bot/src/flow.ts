@@ -8,8 +8,6 @@ import type {
 export const cancelCallback = 'cancel';
 export const noteSkipCallback = 'note:skip';
 export const noteAddCallback = 'note:add';
-export const reversalNoCallback = 'reversal:no';
-export const reversalYesCallback = 'reversal:yes';
 export const addCommand = '/add';
 export const addButtonText = 'Add';
 
@@ -77,18 +75,6 @@ export function currencyKeyboard(
     rows.push([{ text: 'Cancel', callback_data: cancelCallback }]);
 
     return { inline_keyboard: rows };
-}
-
-export function reversalKeyboard(): InlineKeyboardMarkup {
-    return {
-        inline_keyboard: [
-            [
-                { text: 'No', callback_data: reversalNoCallback },
-                { text: 'Yes, reversal', callback_data: reversalYesCallback }
-            ],
-            [{ text: 'Cancel', callback_data: cancelCallback }]
-        ]
-    };
 }
 
 export function categoriesByRecentUse(

@@ -5,6 +5,7 @@ import { Button } from '@xpenser/ui';
 import { PlusIcon } from 'lucide-react';
 import Link from 'next/link';
 import { createTransactionAction } from '@/lib/actions';
+import { transactionCategoryOptions } from '@/lib/category-display';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { TransactionDialog } from './transaction-dialog';
 
@@ -26,6 +27,20 @@ export function AddTransactionDialog({
         defaultCurrency,
         transactionCurrencies
     );
+    const transactionCategories = transactionCategoryOptions(categories);
+
+    if (transactionCategories.length === 0) {
+        return (
+            <Button
+                asChild
+                className="w-auto self-start"
+                size="sm"
+                variant="outline"
+            >
+                <Link href="/settings/categories">Manage categories</Link>
+            </Button>
+        );
+    }
 
     return (
         <>
@@ -38,7 +53,7 @@ export function AddTransactionDialog({
             <div className="hidden sm:block">
                 <TransactionDialog
                     action={createTransactionAction}
-                    categories={categories}
+                    categories={transactionCategories}
                     currencies={currencyOptions}
                     defaultCurrency={defaultCurrency}
                     description="Amounts are stored in the original currency and converted for reports."

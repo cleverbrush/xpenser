@@ -13,8 +13,7 @@ import {
     parseAmount,
     parseStartToken,
     preferredCurrencies,
-    quickAddReplyKeyboard,
-    reversalKeyboard
+    quickAddReplyKeyboard
 } from './flow.js';
 
 describe('telegram bot flow helpers', () => {
@@ -79,22 +78,56 @@ describe('telegram bot flow helpers', () => {
         ]);
     });
 
-    it('builds reversal choice buttons', () => {
-        expect(reversalKeyboard().inline_keyboard).toEqual([
-            [
-                { text: 'No', callback_data: 'reversal:no' },
-                { text: 'Yes, reversal', callback_data: 'reversal:yes' }
-            ],
-            [{ text: 'Cancel', callback_data: 'cancel' }]
-        ]);
-    });
-
     it('sorts recently used categories first', () => {
         const categories = [
-            { id: 1, name: 'Food', type: 'expense' },
-            { id: 2, name: 'House', type: 'expense' },
-            { id: 3, name: 'Salary', type: 'income' },
-            { id: 4, name: 'Travel', type: 'expense' }
+            {
+                id: 1,
+                name: 'Food',
+                type: 'expense',
+                parentId: null,
+                kind: 'normal',
+                displayName: 'Food',
+                inUse: true,
+                hasChildren: false,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            {
+                id: 2,
+                name: 'House',
+                type: 'expense',
+                parentId: null,
+                kind: 'normal',
+                displayName: 'House',
+                inUse: true,
+                hasChildren: false,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            {
+                id: 3,
+                name: 'Salary',
+                type: 'income',
+                parentId: null,
+                kind: 'normal',
+                displayName: 'Salary',
+                inUse: true,
+                hasChildren: false,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            },
+            {
+                id: 4,
+                name: 'Travel',
+                type: 'expense',
+                parentId: null,
+                kind: 'normal',
+                displayName: 'Travel',
+                inUse: true,
+                hasChildren: false,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }
         ] as Category[];
         const transactions = [
             { categoryId: 2 },

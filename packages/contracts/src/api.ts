@@ -24,6 +24,7 @@ import {
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
     LoginBodySchema,
+    MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
     PassportResolveUserResponseSchema,
@@ -48,6 +49,8 @@ import {
 } from './schemas.js';
 
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
+const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
+    t.id}/move-and-delete`;
 const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
 const categories = endpoint
@@ -240,11 +243,28 @@ export const api = defineApi({
             .clearsCacheTag('categories')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
-            .responses({ 200: CategorySchema, 404: ErrorResponseSchema }),
+            .responses({
+                200: CategorySchema,
+                400: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         delete: categories
             .delete(ById)
             .clearsCacheTag('categories')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('stats')
+            .responses({
+                204: null,
+                400: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        moveAndDelete: categories
+            .post(CategoryMoveAndDelete)
+            .body(MoveAndDeleteCategoryBodySchema)
+            .clearsCacheTag('categories')
+            .clearsCacheTag('transactions')
+            .clearsCacheTag('user-profile')
+            .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
             .responses({
                 204: null,

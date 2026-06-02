@@ -39,9 +39,6 @@ export function telegramCallbackAction(data: string | undefined): string {
     if (data.startsWith('cur:')) {
         return 'currency_select';
     }
-    if (data.startsWith('reversal:')) {
-        return 'reversal_select';
-    }
     if (data === 'note:skip') {
         return 'note_skip';
     }

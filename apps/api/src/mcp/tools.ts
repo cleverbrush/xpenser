@@ -113,6 +113,11 @@ const TransactionListInputSchema = object({
         .positive()
         .optional()
         .describe('Filter by category identifier.'),
+    parentCategoryId: number()
+        .isInteger()
+        .positive()
+        .optional()
+        .describe('Filter by a parent category and its direct children.'),
     from: dateString
         .optional()
         .describe('Inclusive occurrence start date or timestamp.'),
@@ -215,6 +220,7 @@ export function normalizeTransactionListInput(
         search: nonempty(input.search),
         type: input.type,
         categoryId: input.categoryId,
+        parentCategoryId: input.parentCategoryId,
         from: parseOptionalDate(input.from, 'from'),
         to: parseOptionalDate(input.to, 'to'),
         page,

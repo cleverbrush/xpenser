@@ -5,7 +5,6 @@ import {
     amountClassNameForType,
     amountClassNameForValue,
     directionBadgeClassName,
-    effectBadgeClassName,
     formatAmount,
     formatCategoryTotalMoney,
     formatDate,
@@ -41,16 +40,19 @@ describe('money formatting', () => {
         );
     });
 
-    it('applies directional signs for transaction types and reversals', () => {
+    it('applies directional signs from the reported transaction type', () => {
         expect(signedAmountForType(12.34, 'expense')).toBe(-12.34);
         expect(signedAmountForType(12.34, 'income')).toBe(12.34);
         expect(signedAmountForTransaction(12.34, 'expense')).toBe(-12.34);
-        expect(signedAmountForTransaction(12.34, 'expense', 'reversal')).toBe(
+        expect(signedAmountForTransaction(12.34, 'expense', 'offset')).toBe(
+            -12.34
+        );
+        expect(signedAmountForTransaction(12.34, 'income', 'offset')).toBe(
             12.34
         );
         expect(formatDirectionalMoney(12.34, 'USD', 'expense')).toBe('-$12.34');
-        expect(formatTransactionMoney(12.34, 'USD', 'income', 'reversal')).toBe(
-            '-$12.34'
+        expect(formatTransactionMoney(12.34, 'USD', 'income', 'offset')).toBe(
+            '$12.34'
         );
     });
 
@@ -75,18 +77,17 @@ describe('date and percent formatting', () => {
 });
 
 describe('semantic class helpers', () => {
-    it('maps values, types, and effects to stable class groups', () => {
+    it('maps values, types, and category kinds to stable class groups', () => {
         expect(amountClassNameForValue(-1)).toContain('rose');
         expect(amountClassNameForValue(1)).toContain('emerald');
         expect(amountClassNameForValue(0)).toBe('text-muted-foreground');
         expect(amountClassNameForType('expense')).toContain('rose');
         expect(amountClassNameForTransaction(1, 'expense')).toContain('rose');
-        expect(
-            amountClassNameForTransaction(1, 'expense', 'reversal')
-        ).toContain('emerald');
+        expect(amountClassNameForTransaction(1, 'income', 'offset')).toContain(
+            'emerald'
+        );
         expect(amountClassNameForCategoryTotal(1, 'expense')).toContain('rose');
         expect(directionBadgeClassName('income')).toContain('emerald');
-        expect(effectBadgeClassName('reversal')).toContain('amber');
         expect(percentChangeClassNameForCategory(10, 'expense')).toContain(
             'rose'
         );

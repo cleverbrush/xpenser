@@ -6,12 +6,14 @@ import type {
     StatsWindowResponse
 } from '@xpenser/contracts';
 import {
+    Button,
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle
 } from '@xpenser/ui';
+import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -21,7 +23,9 @@ import {
     type DashboardPeriodSelection
 } from '@/components/dashboard-period-nav';
 import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
+import { CollapsibleReportCategoryGroup } from '@/components/report-category-group';
 import { StatsCharts, StatsChartsSkeleton } from '@/components/stats-charts';
+import { categoryTypeLabel } from '@/lib/category-display';
 import { categoryTrendHref } from '@/lib/category-trend-query';
 import {
     dateParam,
@@ -35,6 +39,10 @@ import {
     formatMoney,
     signedCategoryTotal
 } from '@/lib/format';
+import {
+    buildReportCategoryNodes,
+    type ReportCategoryNode
+} from '@/lib/report-category-tree';
 
 type DashboardPeriod = DashboardSummary['period'];
 type StatsWindowItem = StatsWindowResponse['items'][number];
@@ -42,6 +50,85 @@ type StatsCategory = StatsOverview['byCategory'][number];
 type StatsCache = Partial<
     Record<DashboardPeriod, Record<string, StatsWindowItem>>
 >;
+
+function statsCategoryTransactionsHref(
+    stats: StatsOverview,
+    category: StatsCategory,
+    timezone: string
+): string {
+    const params = new URLSearchParams({
+        type: category.type,
+        from: dateParam(stats.from, timezone),
+        to: dateParam(stats.to, timezone),
+        parentCategoryId: String(category.categoryId)
+    });
+    return `/transactions?${params.toString()}`;
+}
+
+type StatsCategoryNode = ReportCategoryNode<StatsCategory>;
+
+function fallbackStatsParentCategory(
+    parentId: number,
+    categories: readonly StatsCategory[],
+    type: StatsCategory['type'],
+    parentName: string
+): StatsCategory {
+    const trendLength = Math.max(
+        ...categories.map(category => category.trend.length),
+        0
+    );
+
+    return {
+        categoryId: parentId,
+        categoryName: parentName,
+        categoryDisplayName: parentName,
+        categoryParentId: null,
+        categoryKind: 'normal',
+        previousPeriodTotal: categories.reduce(
+            (sum, category) => sum + category.previousPeriodTotal,
+            0
+        ),
+        previousYearTotal: categories.reduce(
+            (sum, category) => sum + category.previousYearTotal,
+            0
+        ),
+        share: 0,
+        total: categories.reduce((sum, category) => sum + category.total, 0),
+        transactionCount: categories.reduce(
+            (sum, category) => sum + category.transactionCount,
+            0
+        ),
+        trend: Array.from({ length: trendLength }, (_, index) =>
+            categories.reduce(
+                (sum, category) => sum + (category.trend[index] ?? 0),
+                0
+            )
+        ),
+        type
+    };
+}
+
+function buildStatsCategoryNodes(
+    stats: StatsOverview,
+    type: StatsCategory['type']
+): StatsCategoryNode[] {
+    return buildReportCategoryNodes({
+        categories: stats.byCategory,
+        createParentCategory: fallbackStatsParentCategory,
+        parentCategories: stats.byParentCategory,
+        type
+    });
+}
+
+function statsCategoryRowLabel(
+    category: StatsCategory,
+    parent?: StatsCategory
+): string {
+    if (!parent || category.categoryParentId !== null) {
+        return category.categoryName;
+    }
+    return 'General';
+}
 
 function formatCountDelta(value: number): string {
     if (value === 0) {
@@ -253,53 +340,96 @@ function StatsCards({ stats }: { readonly stats: StatsOverview }) {
 
 function CategoryTrendRow({
     category,
-    currency
+    currency,
+    depth = 0,
+    expanded = false,
+    expandable = false,
+    label,
+    onToggle,
+    href
 }: {
     readonly category: StatsCategory;
     readonly currency: string;
+    readonly depth?: number;
+    readonly expanded?: boolean;
+    readonly expandable?: boolean;
+    readonly label?: string;
+    readonly onToggle?: () => void;
+    readonly href: string;
 }) {
+    const effectiveType = category.type;
+    const isChild = depth > 0;
+
     return (
-        <Link
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2"
-            href={categoryTrendHref(category.categoryId, {
-                groupBy: 'month',
-                range: 'last-12-months'
-            })}
-            prefetch={false}
-        >
-            <span className="min-w-0">
-                <span className="block truncate font-medium">
-                    {category.categoryName}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                    {category.transactionCount}{' '}
-                    {category.transactionCount === 1
-                        ? 'transaction'
-                        : 'transactions'}
-                </span>
-            </span>
-            <span
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2">
+            <div
+                className={`relative flex min-w-0 items-center ${
+                    isChild ? 'pl-3' : ''
+                }`}
+            >
+                {expandable ? (
+                    <Button
+                        aria-label={`${
+                            expanded ? 'Collapse' : 'Expand'
+                        } ${category.categoryDisplayName}`}
+                        className="-left-3 absolute top-1/2 size-4 -translate-y-1/2 rounded-sm"
+                        onClick={onToggle}
+                        size="icon-xs"
+                        type="button"
+                        variant="ghost"
+                    >
+                        {expanded ? (
+                            <ChevronDownIcon aria-hidden className="size-3" />
+                        ) : (
+                            <ChevronRightIcon aria-hidden className="size-3" />
+                        )}
+                    </Button>
+                ) : null}
+                <Link className="min-w-0" href={href} prefetch={false}>
+                    <span className="block truncate font-medium">
+                        {label ?? category.categoryDisplayName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                        {category.transactionCount}{' '}
+                        {category.transactionCount === 1
+                            ? 'transaction'
+                            : 'transactions'}
+                        {isChild ? (
+                            <> · {categoryTypeLabel(effectiveType)}</>
+                        ) : null}
+                    </span>
+                </Link>
+            </div>
+            <Link
                 className={`font-semibold ${amountClassNameForCategoryTotal(
                     category.total,
                     category.type
                 )}`}
+                href={href}
+                prefetch={false}
             >
                 <AmountDisplay
                     currency={currency}
                     value={signedCategoryTotal(category.total, category.type)}
                 />
-            </span>
-        </Link>
+            </Link>
+        </div>
     );
 }
 
-function CategoryTrendPanel({ stats }: { readonly stats: StatsOverview }) {
-    const incomeCategories = stats.byCategory.filter(
-        category => category.type === 'income'
-    );
-    const expenseCategories = stats.byCategory.filter(
-        category => category.type === 'expense'
-    );
+function CategoryTrendPanel({
+    stats,
+    timezone
+}: {
+    readonly stats: StatsOverview;
+    readonly timezone: string;
+}) {
+    const incomeCategories = buildStatsCategoryNodes(stats, 'income');
+    const expenseCategories = buildStatsCategoryNodes(stats, 'expense');
+
+    if (incomeCategories.length === 0 && expenseCategories.length === 0) {
+        return null;
+    }
 
     return (
         <Card>
@@ -307,47 +437,130 @@ function CategoryTrendPanel({ stats }: { readonly stats: StatsOverview }) {
                 <CardTitle>Category trends</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                        <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                            Income
-                        </h3>
-                        <div className="flex flex-col divide-y">
-                            {incomeCategories.length === 0 ? (
-                                <p className="py-3 text-sm text-muted-foreground">
-                                    No income activity for this period.
-                                </p>
-                            ) : (
-                                incomeCategories.map(category => (
+                <div
+                    className={
+                        incomeCategories.length > 0 &&
+                        expenseCategories.length > 0
+                            ? 'grid gap-4 md:grid-cols-2'
+                            : 'grid gap-4'
+                    }
+                >
+                    {incomeCategories.length > 0 ? (
+                        <div>
+                            <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                                Income
+                            </h3>
+                            <CollapsibleReportCategoryGroup
+                                empty={null}
+                                nodes={incomeCategories}
+                                renderChild={({ child, parent }) => (
                                     <CategoryTrendRow
-                                        category={category}
+                                        category={child}
                                         currency={stats.currency}
-                                        key={`${category.type}-${category.categoryId}`}
+                                        depth={1}
+                                        href={categoryTrendHref(
+                                            child.categoryId,
+                                            {
+                                                groupBy: 'month',
+                                                range: 'last-12-months'
+                                            }
+                                        )}
+                                        label={statsCategoryRowLabel(
+                                            child,
+                                            parent
+                                        )}
                                     />
-                                ))
-                            )}
-                        </div>
-                    </div>
-                    <div>
-                        <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                            Expenses
-                        </h3>
-                        <div className="flex flex-col divide-y">
-                            {expenseCategories.length === 0 ? (
-                                <p className="py-3 text-sm text-muted-foreground">
-                                    No expense activity for this period.
-                                </p>
-                            ) : (
-                                expenseCategories.map(category => (
+                                )}
+                                renderParent={({
+                                    expandable,
+                                    expanded,
+                                    node,
+                                    onToggle
+                                }) => (
                                     <CategoryTrendRow
-                                        category={category}
+                                        category={node.category}
                                         currency={stats.currency}
-                                        key={`${category.type}-${category.categoryId}`}
+                                        expandable={expandable}
+                                        expanded={expanded}
+                                        href={
+                                            expandable
+                                                ? statsCategoryTransactionsHref(
+                                                      stats,
+                                                      node.category,
+                                                      timezone
+                                                  )
+                                                : categoryTrendHref(
+                                                      node.category.categoryId,
+                                                      {
+                                                          groupBy: 'month',
+                                                          range: 'last-12-months'
+                                                      }
+                                                  )
+                                        }
+                                        onToggle={onToggle}
                                     />
-                                ))
-                            )}
+                                )}
+                            />
                         </div>
-                    </div>
+                    ) : null}
+                    {expenseCategories.length > 0 ? (
+                        <div>
+                            <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                                Expenses
+                            </h3>
+                            <CollapsibleReportCategoryGroup
+                                empty={null}
+                                nodes={expenseCategories}
+                                renderChild={({ child, parent }) => (
+                                    <CategoryTrendRow
+                                        category={child}
+                                        currency={stats.currency}
+                                        depth={1}
+                                        href={categoryTrendHref(
+                                            child.categoryId,
+                                            {
+                                                groupBy: 'month',
+                                                range: 'last-12-months'
+                                            }
+                                        )}
+                                        label={statsCategoryRowLabel(
+                                            child,
+                                            parent
+                                        )}
+                                    />
+                                )}
+                                renderParent={({
+                                    expandable,
+                                    expanded,
+                                    node,
+                                    onToggle
+                                }) => (
+                                    <CategoryTrendRow
+                                        category={node.category}
+                                        currency={stats.currency}
+                                        expandable={expandable}
+                                        expanded={expanded}
+                                        href={
+                                            expandable
+                                                ? statsCategoryTransactionsHref(
+                                                      stats,
+                                                      node.category,
+                                                      timezone
+                                                  )
+                                                : categoryTrendHref(
+                                                      node.category.categoryId,
+                                                      {
+                                                          groupBy: 'month',
+                                                          range: 'last-12-months'
+                                                      }
+                                                  )
+                                        }
+                                        onToggle={onToggle}
+                                    />
+                                )}
+                            />
+                        </div>
+                    ) : null}
                 </div>
             </CardContent>
         </Card>
@@ -614,7 +827,7 @@ export function StatsExplorer({
 
             <StatsCards stats={stats} />
 
-            <CategoryTrendPanel stats={stats} />
+            <CategoryTrendPanel stats={stats} timezone={timezone} />
 
             <DashboardSwipeArea
                 basePath="/stats"

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-    effectForSignedAmount,
     isRetryableStatus,
     parseCategoryTypes,
     parseCsvLine,
@@ -31,13 +30,6 @@ describe('historical transaction import helpers', () => {
         ]);
     });
 
-    it('maps sign/type combinations to transaction effects', () => {
-        expect(effectForSignedAmount('expense', 10)).toBe('normal');
-        expect(effectForSignedAmount('expense', -10)).toBe('reversal');
-        expect(effectForSignedAmount('income', -10)).toBe('normal');
-        expect(effectForSignedAmount('income', 10)).toBe('reversal');
-    });
-
     it('normalizes expense rows for API create bodies', () => {
         expect(
             parseTransactionRow(
@@ -54,12 +46,11 @@ describe('historical transaction import helpers', () => {
             amount: 50,
             exchangeRateToUsd: 27,
             currency: 'UAH',
-            effect: 'normal',
             note: undefined
         });
     });
 
-    it('uses reversal for income rows with positive signs', () => {
+    it('keeps positive income rows as positive import magnitudes', () => {
         expect(
             parseTransactionRow(
                 '2020-03-20T12:21:37.699Z,Salary,250.00,1.00,USD,Chargeback',
@@ -68,7 +59,6 @@ describe('historical transaction import helpers', () => {
             )
         ).toMatchObject({
             amount: 250,
-            effect: 'reversal',
             note: 'Chargeback'
         });
     });
@@ -92,12 +82,11 @@ describe('historical transaction import helpers', () => {
             )
         ).toMatchObject({
             amount: 0,
-            effect: 'normal',
             skipReason: 'zero_amount'
         });
     });
 
-    it('summarizes rows by effect and currency', () => {
+    it('summarizes rows by importability and currency', () => {
         const rows = [
             parseTransactionRow(
                 '2020-03-20T12:05:32.040Z,Food,50.00,27.00,UAH,',
@@ -120,8 +109,6 @@ describe('historical transaction import helpers', () => {
         expect(summary.total).toBe(3);
         expect(summary.importable).toBe(2);
         expect(summary.skipped).toBe(1);
-        expect(summary.normal).toBe(1);
-        expect(summary.reversal).toBe(1);
         expect(summary.currencies.get('UAH')).toBe(1);
         expect(summary.currencies.get('USD')).toBe(2);
         expect(summary.skipReasons.get('zero_amount')).toBe(1);

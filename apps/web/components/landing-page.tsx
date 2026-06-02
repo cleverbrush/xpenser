@@ -49,7 +49,7 @@ const appFeatures: readonly Feature[] = [
     },
     {
         description:
-            'Record income, expenses, refunds, and reversals with category, note, date, and currency context.',
+            'Record income, expenses, refunds, and returns with category, note, date, and currency context.',
         icon: ReceiptTextIcon,
         title: 'Transaction tracking'
     },
@@ -108,7 +108,10 @@ const frameworkFeatures: readonly Feature[] = [
 
 const capabilityRows = [
     ['Dashboard', 'Cash flow, net total, category split, trend marks'],
-    ['Transactions', 'Filtering, editing, reversals, multi-currency input'],
+    [
+        'Transactions',
+        'Filtering, editing, nested categories, multi-currency input'
+    ],
     ['Conversion', 'Automatic default-currency conversion via Frankfurter'],
     ['Reports', 'Period comparison with charted historical context'],
     [

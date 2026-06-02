@@ -17,7 +17,6 @@ describe('telegram tracing helpers', () => {
         expect(telegramCallbackAction('cat:123')).toBe('category_select');
         expect(telegramCallbackAction('catpage:2')).toBe('category_page');
         expect(telegramCallbackAction('cur:USD')).toBe('currency_select');
-        expect(telegramCallbackAction('reversal:yes')).toBe('reversal_select');
         expect(telegramCallbackAction('note:add')).toBe('note_add');
         expect(telegramCallbackAction('unknown:secret')).toBe('unknown');
     });
