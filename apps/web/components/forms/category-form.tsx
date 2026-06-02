@@ -2,19 +2,7 @@
 
 import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
 import { type Category, CreateCategoryBodySchema } from '@xpenser/contracts';
-import {
-    Button,
-    Field,
-    FieldError,
-    FieldGroup,
-    FieldLabel,
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue
-} from '@xpenser/ui';
+import { Button, FieldError, FieldGroup } from '@xpenser/ui';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import {
@@ -23,6 +11,7 @@ import {
     updateCategoryAction
 } from '@/lib/actions';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
+import { SchemaCheckboxField, SchemaSelectField } from './schema-fields';
 
 export function CategoryForm({
     categories = [],
@@ -40,17 +29,19 @@ export function CategoryForm({
     readonly submitLabel?: string;
 }) {
     const form = useSchemaForm(CreateCategoryBodySchema);
-    const type = form.useField(field => field.type);
-    const parentId = form.useField(field => field.parentId);
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
+    const [formVersion, setFormVersion] = useState(0);
+    const [selectedType, setSelectedType] = useState<Category['type']>(
+        initialCategory?.type ?? 'expense'
+    );
+    const [selectedParentId, setSelectedParentId] = useState<number | null>(
+        initialCategory?.parentId ?? null
+    );
     const [selectedKind, setSelectedKind] = useState<Category['kind']>(
         initialCategory?.kind ?? 'normal'
     );
-    const selectedType = type.value ?? initialCategory?.type ?? 'expense';
-    const selectedParentId =
-        parentId.value ?? initialCategory?.parentId ?? null;
     const structuralDisabled =
         Boolean(initialCategory?.inUse) ||
         Boolean(initialCategory?.hasChildren);
@@ -61,22 +52,29 @@ export function CategoryForm({
             category.type === selectedType
     );
     const offsetKindLabel = selectedType === 'expense' ? 'Return' : 'Expense';
-    const typeInvalid = type.touched && Boolean(type.error);
 
     useEffect(() => {
+        const nextType = initialCategory?.type ?? 'expense';
+        const nextParentId = initialCategory?.parentId ?? null;
+        const nextKind = initialCategory?.kind ?? 'normal';
+
         form.reset({
             name: initialCategory?.name,
-            type: initialCategory?.type ?? 'expense',
-            parentId: initialCategory?.parentId ?? null,
-            kind: initialCategory?.kind ?? 'normal'
+            type: nextType,
+            parentId: nextParentId,
+            kind: nextKind
         });
-        setSelectedKind(initialCategory?.kind ?? 'normal');
+        setSelectedType(nextType);
+        setSelectedParentId(nextParentId);
+        setSelectedKind(nextKind);
+        setFormVersion(version => version + 1);
     }, [form, initialCategory]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
         form.setValue({
+            type: selectedType,
             parentId: selectedParentId,
             kind: selectedParentId ? selectedKind : 'normal'
         });
@@ -113,7 +111,7 @@ export function CategoryForm({
 
     return (
         <form data-testid="category-form" noValidate onSubmit={handleSubmit}>
-            <FieldGroup>
+            <FieldGroup key={formVersion}>
                 <SchemaField
                     fieldProps={{ placeholder: namePlaceholder }}
                     forProperty={field => field.name}
@@ -121,114 +119,82 @@ export function CategoryForm({
                     label="Name"
                     name="name"
                 />
-                <Field data-invalid={typeInvalid ? true : undefined}>
-                    <FieldLabel>Type</FieldLabel>
-                    <Select
-                        onOpenChange={open => {
-                            if (!open) {
-                                type.onBlur();
-                            }
-                        }}
-                        onValueChange={value => {
-                            if (value === 'expense' || value === 'income') {
-                                type.onChange(value);
-                            }
-                            parentId.onChange(null);
+                <SchemaSelectField
+                    disabled={structuralDisabled}
+                    forProperty={field => field.type}
+                    form={form}
+                    label="Type"
+                    onChange={(value, field) => {
+                        if (value === 'expense' || value === 'income') {
+                            field.onChange(value);
+                            setSelectedType(value);
+                            setSelectedParentId(null);
                             setSelectedKind('normal');
-                        }}
-                        value={type.value ?? 'expense'}
-                    >
-                        <SelectTrigger
-                            aria-invalid={typeInvalid}
-                            aria-label="Category type"
-                            disabled={structuralDisabled}
-                        >
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectGroup>
-                                <SelectItem value="expense">Expense</SelectItem>
-                                <SelectItem value="income">Income</SelectItem>
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
-                    {type.touched && type.error ? (
-                        <FieldError>{type.error}</FieldError>
-                    ) : null}
-                </Field>
+                            form.setValue({
+                                parentId: null,
+                                kind: 'normal'
+                            });
+                        }
+                    }}
+                    options={[
+                        { label: 'Expense', value: 'expense' },
+                        { label: 'Income', value: 'income' }
+                    ]}
+                    value={selectedType}
+                />
                 {!first ? (
                     <>
-                        <Field>
-                            <FieldLabel>Parent</FieldLabel>
-                            <Select
-                                disabled={structuralDisabled}
-                                onValueChange={value => {
-                                    const nextParentId =
-                                        value === 'none' ? null : Number(value);
-                                    parentId.onChange(nextParentId);
-                                    if (nextParentId === null) {
-                                        setSelectedKind('normal');
-                                    }
-                                }}
-                                value={
-                                    selectedParentId === null
-                                        ? 'none'
-                                        : String(selectedParentId)
+                        <SchemaSelectField
+                            ariaLabel="Parent category"
+                            disabled={structuralDisabled}
+                            forProperty={field => field.parentId}
+                            form={form}
+                            label="Parent"
+                            onChange={(value, field) => {
+                                const nextParentId =
+                                    value === 'none' ? null : Number(value);
+                                field.onChange(nextParentId);
+                                setSelectedParentId(nextParentId);
+                                if (nextParentId === null) {
+                                    setSelectedKind('normal');
+                                    form.setValue({ kind: 'normal' });
                                 }
-                            >
-                                <SelectTrigger aria-label="Parent category">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        <SelectItem value="none">
-                                            No parent
-                                        </SelectItem>
-                                        {parentOptions.map(category => (
-                                            <SelectItem
-                                                key={category.id}
-                                                value={String(category.id)}
-                                            >
-                                                {category.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                        </Field>
-                        <Field>
-                            <FieldLabel>Child behavior</FieldLabel>
-                            <Select
-                                disabled={
-                                    structuralDisabled ||
-                                    selectedParentId === null
-                                }
-                                onValueChange={value =>
-                                    setSelectedKind(
-                                        value === 'offset' ? 'offset' : 'normal'
-                                    )
-                                }
-                                value={
-                                    selectedParentId === null
-                                        ? 'normal'
-                                        : selectedKind
-                                }
-                            >
-                                <SelectTrigger aria-label="Child behavior">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        <SelectItem value="normal">
-                                            Same direction
-                                        </SelectItem>
-                                        <SelectItem value="offset">
-                                            {offsetKindLabel}
-                                        </SelectItem>
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                        </Field>
+                            }}
+                            options={[
+                                { label: 'No parent', value: 'none' },
+                                ...parentOptions.map(category => ({
+                                    label: category.name,
+                                    value: String(category.id)
+                                }))
+                            ]}
+                            value={
+                                selectedParentId === null
+                                    ? 'none'
+                                    : String(selectedParentId)
+                            }
+                        />
+                        <SchemaCheckboxField
+                            checked={
+                                selectedParentId !== null &&
+                                selectedKind === 'offset'
+                            }
+                            description={
+                                selectedParentId === null
+                                    ? 'Select a parent category first.'
+                                    : `Report transactions as ${offsetKindLabel.toLowerCase()}.`
+                            }
+                            disabled={
+                                structuralDisabled || selectedParentId === null
+                            }
+                            forProperty={field => field.kind}
+                            form={form}
+                            label="Reverse direction"
+                            onChange={(checked, field) => {
+                                const nextKind = checked ? 'offset' : 'normal';
+                                field.onChange(nextKind);
+                                setSelectedKind(nextKind);
+                            }}
+                        />
                     </>
                 ) : null}
                 {error ? <FieldError role="alert">{error}</FieldError> : null}

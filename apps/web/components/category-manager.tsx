@@ -1,6 +1,7 @@
 'use client';
 
-import type { Category } from '@xpenser/contracts';
+import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
+import { type Category, CreateCategoryBodySchema } from '@xpenser/contracts';
 import {
     Badge,
     Button,
@@ -10,24 +11,27 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    FieldError,
-    Input
+    FieldError
 } from '@xpenser/ui';
 import {
     ArchiveIcon,
     ArchiveRestoreIcon,
+    ChevronDownIcon,
+    ChevronRightIcon,
     PencilIcon,
     PlusIcon,
-    Trash2Icon
+    Trash2Icon,
+    XIcon
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, Fragment, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import {
     createCategoryAction,
     deleteCategoryAction,
     setCategoryArchivedAction
 } from '@/lib/actions';
 import {
+    type CategoryTreeNode,
     categoryArchived,
     categoryAvailableForTransactions,
     categoryEffectiveType,
@@ -36,10 +40,10 @@ import {
 } from '@/lib/category-display';
 import { directionBadgeClassName } from '@/lib/format';
 import { CategoryForm } from './forms/category-form';
-import { isNextRedirectError } from './forms/form-utils';
+import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
+import { SchemaCheckboxField } from './forms/schema-fields';
 
 type CategoryType = Category['type'];
-type CategoryKind = Category['kind'];
 
 function offsetKindLabel(type: CategoryType): string {
     return type === 'expense' ? 'Return' : 'Expense';
@@ -181,12 +185,16 @@ function CategoryRow({
     categories,
     category,
     deletingLastCategory,
-    nested = false
+    expanded,
+    nested = false,
+    onToggle
 }: {
     readonly categories: readonly Category[];
     readonly category: Category;
     readonly deletingLastCategory: boolean;
+    readonly expanded?: boolean;
     readonly nested?: boolean;
+    readonly onToggle?: () => void;
 }) {
     const deleteDisabled = categoryDeleteDisabled(
         category,
@@ -194,6 +202,9 @@ function CategoryRow({
     );
     const archived = categoryArchived(category);
     const available = categoryAvailableForTransactions(category, categories);
+
+    const collapsible = category.parentId === null;
+    const ToggleIcon = expanded ? ChevronDownIcon : ChevronRightIcon;
 
     return (
         <div
@@ -203,21 +214,39 @@ function CategoryRow({
                 !available && 'bg-muted/30 text-muted-foreground'
             )}
         >
-            <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate text-sm font-semibold text-foreground">
-                        {category.name}
-                    </p>
-                    {archived ? (
-                        <Badge variant="outline">Archived</Badge>
-                    ) : null}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                    <CategoryTypeBadge category={category} />
-                    <Badge variant="outline">{childKindLabel(category)}</Badge>
-                    <Badge variant="outline">
-                        {categoryStatus(category, deletingLastCategory)}
-                    </Badge>
+            <div className="flex min-w-0 gap-2">
+                {collapsible ? (
+                    <Button
+                        aria-label={`${expanded ? 'Collapse' : 'Expand'} ${
+                            category.displayName
+                        }`}
+                        className="mt-0.5 shrink-0"
+                        onClick={onToggle}
+                        size="icon-xs"
+                        type="button"
+                        variant="ghost"
+                    >
+                        <ToggleIcon aria-hidden className="size-4" />
+                    </Button>
+                ) : null}
+                <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                            {category.name}
+                        </p>
+                        {archived ? (
+                            <Badge variant="outline">Archived</Badge>
+                        ) : null}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                        <CategoryTypeBadge category={category} />
+                        <Badge variant="outline">
+                            {childKindLabel(category)}
+                        </Badge>
+                        <Badge variant="outline">
+                            {categoryStatus(category, deletingLastCategory)}
+                        </Badge>
+                    </div>
                 </div>
             </div>
             <div className="flex flex-wrap gap-1 sm:justify-end">
@@ -236,42 +265,58 @@ function CategoryRow({
 }
 
 function QuickCategoryForm({
+    onCancel,
     parent,
     type
 }: {
+    readonly onCancel: () => void;
     readonly parent?: Category;
     readonly type: CategoryType;
 }) {
+    const form = useSchemaForm(CreateCategoryBodySchema);
     const router = useRouter();
-    const [name, setName] = useState('');
-    const [kind, setKind] = useState<CategoryKind>('normal');
+    const [reverseDirection, setReverseDirection] = useState(false);
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [formVersion, setFormVersion] = useState(0);
     const isChild = Boolean(parent);
     const typeLabel = categoryTypeLabel(type).toLowerCase();
 
+    useEffect(() => {
+        form.reset({
+            type,
+            parentId: parent?.id ?? null,
+            kind: 'normal'
+        });
+        setReverseDirection(false);
+        setFormVersion(version => version + 1);
+    }, [form, parent?.id, type]);
+
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        const trimmedName = name.trim();
-        if (trimmedName.length === 0) {
-            setError('Enter a category name.');
-            return;
-        }
 
-        const formData = new FormData();
-        formData.set('name', trimmedName);
-        formData.set('type', type);
-        formData.set('kind', isChild ? kind : 'normal');
-        if (parent) {
-            formData.set('parentId', String(parent.id));
+        form.setValue({
+            type,
+            parentId: parent?.id ?? null,
+            kind: isChild && reverseDirection ? 'offset' : 'normal'
+        });
+        const result = await form.submit();
+        if (!result.valid || !result.object) {
+            return;
         }
 
         setPending(true);
         setError(null);
         try {
-            await createCategoryAction(formData);
-            setName('');
-            setKind('normal');
+            await createCategoryAction(valuesToFormData(result.object));
+            form.reset({
+                type,
+                parentId: parent?.id ?? null,
+                kind: 'normal'
+            });
+            setReverseDirection(false);
+            setFormVersion(version => version + 1);
+            onCancel();
             router.refresh();
         } catch (caught) {
             if (isNextRedirectError(caught)) {
@@ -288,47 +333,45 @@ function QuickCategoryForm({
             className={cn(
                 'grid gap-2',
                 isChild
-                    ? 'grid-cols-1 border-t bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_9.5rem_auto]'
-                    : 'grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto]'
+                    ? 'grid-cols-1 bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,auto)_auto_auto]'
+                    : 'grid-cols-1 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]'
             )}
             data-testid={isChild ? 'subcategory-form' : `${type}-category-form`}
+            key={formVersion}
             noValidate
             onSubmit={handleSubmit}
         >
-            <Input
-                aria-label={
-                    parent
+            <SchemaField
+                fieldProps={{
+                    'aria-label': parent
                         ? `New ${parent.name} subcategory name`
-                        : `New ${categoryTypeLabel(type)} category name`
-                }
-                disabled={pending}
-                onChange={event => setName(event.target.value)}
-                placeholder={
-                    parent
+                        : `New ${categoryTypeLabel(type)} category name`,
+                    disabled: pending,
+                    placeholder: parent
                         ? `New ${parent.name} subcategory`
                         : `New ${typeLabel} category`
-                }
-                value={name}
+                }}
+                forProperty={field => field.name}
+                form={form}
+                name="name"
             />
             {parent ? (
-                <select
-                    aria-label={`${parent.name} subcategory behavior`}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                <SchemaCheckboxField
+                    checked={reverseDirection}
+                    description={`Report as ${offsetKindLabel(
+                        type
+                    ).toLowerCase()}.`}
                     disabled={pending}
-                    onChange={event =>
-                        setKind(
-                            event.target.value === 'offset'
-                                ? 'offset'
-                                : 'normal'
-                        )
-                    }
-                    value={kind}
-                >
-                    <option value="normal">Same direction</option>
-                    <option value="offset">{offsetKindLabel(type)}</option>
-                </select>
+                    forProperty={field => field.kind}
+                    form={form}
+                    label="Reverse direction"
+                    onChange={(checked, field) => {
+                        field.onChange(checked ? 'offset' : 'normal');
+                        setReverseDirection(checked);
+                    }}
+                />
             ) : null}
-            <Button disabled={pending} type="submit">
+            <Button disabled={pending} size="sm" type="submit">
                 <PlusIcon aria-hidden className="size-4" />
                 {pending
                     ? 'Adding...'
@@ -336,12 +379,106 @@ function QuickCategoryForm({
                       ? 'Add subcategory'
                       : `Add ${typeLabel}`}
             </Button>
+            <Button
+                aria-label="Cancel adding category"
+                disabled={pending}
+                onClick={onCancel}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+            >
+                <XIcon aria-hidden className="size-4" />
+            </Button>
             {error ? (
                 <FieldError className="sm:col-span-full" role="alert">
                     {error}
                 </FieldError>
             ) : null}
         </form>
+    );
+}
+
+function AddCategoryButton({
+    label,
+    onClick
+}: {
+    readonly label: string;
+    readonly onClick: () => void;
+}) {
+    return (
+        <Button
+            aria-label={label}
+            className="px-2 sm:px-3"
+            onClick={onClick}
+            size="sm"
+            type="button"
+            variant="ghost"
+        >
+            <PlusIcon aria-hidden className="size-4" />
+            <span className="hidden sm:inline">{label}</span>
+        </Button>
+    );
+}
+
+function CategoryNode({
+    categories,
+    deletingLastCategory,
+    node,
+    type
+}: {
+    readonly categories: readonly Category[];
+    readonly deletingLastCategory: boolean;
+    readonly node: CategoryTreeNode<Category>;
+    readonly type: CategoryType;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const [addingChild, setAddingChild] = useState(false);
+    const archived = categoryArchived(node.category);
+
+    return (
+        <div className="flex flex-col divide-y">
+            <CategoryRow
+                categories={categories}
+                category={node.category}
+                deletingLastCategory={deletingLastCategory}
+                expanded={expanded}
+                onToggle={() => {
+                    setExpanded(current => !current);
+                    setAddingChild(false);
+                }}
+            />
+            {expanded ? (
+                <>
+                    {node.children.map(child => (
+                        <CategoryRow
+                            categories={categories}
+                            category={child}
+                            deletingLastCategory={deletingLastCategory}
+                            key={child.id}
+                            nested
+                        />
+                    ))}
+                    {archived ? null : (
+                        <div className="bg-muted/20">
+                            {addingChild ? (
+                                <QuickCategoryForm
+                                    onCancel={() => setAddingChild(false)}
+                                    parent={node.category}
+                                    type={type}
+                                />
+                            ) : (
+                                <div className="p-2 pl-8 sm:pl-10">
+                                    <AddCategoryButton
+                                        label={`Add subcategory to ${node.category.name}`}
+                                        onClick={() => setAddingChild(true)}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
+            ) : null}
+        </div>
     );
 }
 
@@ -358,19 +495,31 @@ function CategorySection({
     const nodes = categoryTree(sectionCategories);
     const deletingLastCategory = categories.length <= 1;
     const title = `${categoryTypeLabel(type)} categories`;
+    const [addingParent, setAddingParent] = useState(false);
 
     return (
         <section className="overflow-hidden rounded-lg border bg-card">
-            <div className="border-b p-4">
-                <h2 className="text-base font-semibold">{title}</h2>
-                <p className="text-sm text-muted-foreground">
-                    Add parent categories and the subcategories used for
-                    transactions.
-                </p>
+            <div className="flex items-start justify-between gap-3 border-b p-4">
+                <div>
+                    <h2 className="text-base font-semibold">{title}</h2>
+                    <p className="text-sm text-muted-foreground">
+                        Add parent categories and the subcategories used for
+                        transactions.
+                    </p>
+                </div>
+                <AddCategoryButton
+                    label={`Add ${categoryTypeLabel(type).toLowerCase()}`}
+                    onClick={() => setAddingParent(true)}
+                />
             </div>
-            <div className="border-b p-3">
-                <QuickCategoryForm type={type} />
-            </div>
+            {addingParent ? (
+                <div className="border-b">
+                    <QuickCategoryForm
+                        onCancel={() => setAddingParent(false)}
+                        type={type}
+                    />
+                </div>
+            ) : null}
             <div className="flex flex-col divide-y">
                 {nodes.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground">
@@ -378,28 +527,13 @@ function CategorySection({
                     </div>
                 ) : (
                     nodes.map(node => (
-                        <Fragment key={node.category.id}>
-                            <CategoryRow
-                                categories={categories}
-                                category={node.category}
-                                deletingLastCategory={deletingLastCategory}
-                            />
-                            {node.children.map(child => (
-                                <CategoryRow
-                                    categories={categories}
-                                    category={child}
-                                    deletingLastCategory={deletingLastCategory}
-                                    key={child.id}
-                                    nested
-                                />
-                            ))}
-                            {categoryArchived(node.category) ? null : (
-                                <QuickCategoryForm
-                                    parent={node.category}
-                                    type={type}
-                                />
-                            )}
-                        </Fragment>
+                        <CategoryNode
+                            categories={categories}
+                            deletingLastCategory={deletingLastCategory}
+                            key={node.category.id}
+                            node={node}
+                            type={type}
+                        />
                     ))
                 )}
             </div>

@@ -10,6 +10,7 @@ import {
     within
 } from '@testing-library/react';
 import type { Category } from '@xpenser/contracts';
+import { XpenserFormProvider } from '@xpenser/ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CategoryManager } from './category-manager';
 
@@ -54,6 +55,14 @@ function category(
     };
 }
 
+function renderManager(categories: readonly Category[]) {
+    return render(
+        <XpenserFormProvider>
+            <CategoryManager categories={categories} />
+        </XpenserFormProvider>
+    );
+}
+
 describe('CategoryManager', () => {
     afterEach(() => {
         createCategoryAction.mockReset();
@@ -64,7 +73,10 @@ describe('CategoryManager', () => {
 
     it('creates a parent expense category from the inline form', async () => {
         createCategoryAction.mockResolvedValue(undefined);
-        render(<CategoryManager categories={[]} />);
+        renderManager([]);
+
+        expect(screen.queryByTestId('expense-category-form')).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Add expense' }));
 
         const form = screen.getByTestId('expense-category-form');
         fireEvent.change(
@@ -86,15 +98,16 @@ describe('CategoryManager', () => {
 
     it('creates an offset child category under its parent', async () => {
         createCategoryAction.mockResolvedValue(undefined);
-        render(
-            <CategoryManager
-                categories={[
-                    category(1, 'Car', {
-                        displayName: 'Car',
-                        hasChildren: true
-                    })
-                ]}
-            />
+        renderManager([
+            category(1, 'Car', {
+                displayName: 'Car',
+                hasChildren: true
+            })
+        ]);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Car' }));
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Add subcategory to Car' })
         );
 
         const form = screen.getByTestId('subcategory-form');
@@ -102,10 +115,7 @@ describe('CategoryManager', () => {
             within(form).getByLabelText('New Car subcategory name'),
             { target: { value: 'Returns' } }
         );
-        fireEvent.change(
-            within(form).getByLabelText('Car subcategory behavior'),
-            { target: { value: 'offset' } }
-        );
+        fireEvent.click(within(form).getByRole('checkbox'));
         fireEvent.submit(form);
 
         await waitFor(() =>
@@ -120,7 +130,7 @@ describe('CategoryManager', () => {
 
     it('archives a category from its row action', async () => {
         setCategoryArchivedAction.mockResolvedValue(undefined);
-        render(<CategoryManager categories={[category(1, 'Subscriptions')]} />);
+        renderManager([category(1, 'Subscriptions')]);
 
         fireEvent.click(
             screen.getByRole('button', { name: 'Archive Subscriptions' })
@@ -134,5 +144,52 @@ describe('CategoryManager', () => {
         expect(formData.get('id')).toBe('1');
         expect(formData.get('archived')).toBe('true');
         expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it('keeps parent rows collapsed until expanded', () => {
+        renderManager([
+            category(1, 'Car', {
+                displayName: 'Car',
+                hasChildren: true
+            }),
+            category(2, 'Fuel', {
+                displayName: 'Car -> Fuel',
+                parentId: 1
+            })
+        ]);
+
+        expect(screen.queryByText('Fuel')).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Car' }));
+
+        expect(screen.getByText('Fuel')).toBeTruthy();
+        expect(
+            screen.getByRole('button', { name: 'Add subcategory to Car' })
+        ).toBeTruthy();
+    });
+
+    it('opens edit dialog with existing category values', async () => {
+        renderManager([category(1, 'Subscriptions')]);
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Edit Subscriptions' })
+        );
+
+        await waitFor(() => {
+            const input = screen.getByLabelText('Name') as HTMLInputElement;
+            expect(input.value).toBe('Subscriptions');
+        });
+    });
+
+    it('validates parent category names before creating', async () => {
+        createCategoryAction.mockResolvedValue(undefined);
+        renderManager([]);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Add expense' }));
+        fireEvent.submit(screen.getByTestId('expense-category-form'));
+
+        expect(
+            await screen.findByText('category name is required')
+        ).toBeTruthy();
+        expect(createCategoryAction).not.toHaveBeenCalled();
     });
 });

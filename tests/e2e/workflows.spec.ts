@@ -11,10 +11,18 @@ async function createCategory(
     type: 'expense' | 'income'
 ): Promise<void> {
     await page.goto('/settings/categories');
+    await page
+        .getByRole('button', {
+            exact: true,
+            name: type === 'income' ? 'Add income' : 'Add expense'
+        })
+        .click();
 
     const form = page.getByTestId(`${type}-category-form`);
     await form
-        .getByLabel(`New ${type === 'income' ? 'Income' : 'Expense'} category name`)
+        .getByLabel(
+            `New ${type === 'income' ? 'Income' : 'Expense'} category name`
+        )
         .fill(name);
 
     await form
@@ -158,15 +166,25 @@ test.describe('authenticated app workflows', () => {
         await createCategory(page, parentCategory, 'expense');
 
         await page.goto('/settings/categories');
+        await page
+            .getByRole('button', {
+                exact: true,
+                name: `Expand ${parentCategory}`
+            })
+            .click();
+        await page
+            .getByRole('button', {
+                exact: true,
+                name: `Add subcategory to ${parentCategory}`
+            })
+            .click();
         const subcategoryForm = page.getByTestId('subcategory-form').filter({
             has: page.getByLabel(`New ${parentCategory} subcategory name`)
         });
         await subcategoryForm
             .getByLabel(`New ${parentCategory} subcategory name`)
             .fill(childCategory);
-        await subcategoryForm
-            .getByLabel(`${parentCategory} subcategory behavior`)
-            .selectOption({ label: 'Return' });
+        await subcategoryForm.getByLabel('Reverse direction').check();
         await subcategoryForm
             .getByRole('button', { name: 'Add subcategory' })
             .click();

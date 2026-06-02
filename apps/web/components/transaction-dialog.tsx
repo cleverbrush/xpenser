@@ -20,7 +20,6 @@ import {
     FieldError,
     FieldGroup,
     FieldLabel,
-    Input,
     Select,
     SelectContent,
     SelectGroup,
@@ -42,6 +41,7 @@ import {
     transactionCategoryOptions
 } from '@/lib/category-display';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
+import { SchemaDateTimeField, SchemaSelectField } from './forms/schema-fields';
 
 type TransactionDialogValues = Pick<
     Transaction,
@@ -85,22 +85,18 @@ export function TransactionDialog({
     readonly timezone: string;
 }) {
     const form = useSchemaForm(CreateTransactionBodySchema);
-    const categoryId = form.useField(field => field.categoryId);
-    const currency = form.useField(field => field.currency);
-    const occurredAt = form.useField(field => field.occurredAt);
     const router = useRouter();
     const [open, setOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
+    const [formVersion, setFormVersion] = useState(0);
     const [selectedType, setSelectedType] =
         useState<TransactionType>('expense');
     const [selectedCategoryId, setSelectedCategoryId] = useState<
         number | undefined
     >();
+    const [selectedCurrency, setSelectedCurrency] = useState(defaultCurrency);
     const [occurredAtText, setOccurredAtText] = useState('');
-    const categoryInvalid = categoryId.touched && Boolean(categoryId.error);
-    const currencyInvalid = currency.touched && Boolean(currency.error);
-    const occurredAtInvalid = occurredAt.touched && Boolean(occurredAt.error);
     const initialCategoryId = initialValues?.categoryId;
     const initialValueType = initialValues?.type;
     const selectableCategories = useMemo(
@@ -201,6 +197,7 @@ export function TransactionDialog({
 
         setSelectedType(initialType);
         setSelectedCategoryId(initialValues?.categoryId);
+        setSelectedCurrency(initialCurrency);
         setOccurredAtText(
             dateToLocalDateTimeInput(initialOccurredAt, timezone)
         );
@@ -211,6 +208,7 @@ export function TransactionDialog({
             occurredAt: initialOccurredAt,
             note: initialValues?.note ?? undefined
         });
+        setFormVersion(version => version + 1);
     }, [form, initialCurrency, initialType, initialValues, timezone]);
 
     useEffect(() => {
@@ -242,7 +240,7 @@ export function TransactionDialog({
         );
         if (nextCategory) {
             setSelectedCategoryId(nextCategory.id);
-            categoryId.onChange(nextCategory.id);
+            form.setValue({ categoryId: nextCategory.id });
             return;
         }
 
@@ -250,18 +248,13 @@ export function TransactionDialog({
         form.setValue({ categoryId: undefined });
     }
 
-    function handleCategoryChange(value: string) {
-        const nextCategoryId = Number(value);
-        setSelectedCategoryId(nextCategoryId);
-        categoryId.onChange(nextCategoryId);
-    }
-
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
-        if (activeCategoryId !== undefined) {
-            form.setValue({ categoryId: activeCategoryId });
-        }
+        form.setValue({
+            categoryId: activeCategoryId,
+            currency: selectedCurrency
+        });
 
         const result = await form.submit();
         if (!result.valid || !result.object) {
@@ -299,7 +292,7 @@ export function TransactionDialog({
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
                 <form noValidate onSubmit={handleSubmit}>
-                    <FieldGroup>
+                    <FieldGroup key={formVersion}>
                         <Field>
                             <FieldLabel>Type</FieldLabel>
                             <Select
@@ -323,49 +316,27 @@ export function TransactionDialog({
                                 </SelectContent>
                             </Select>
                         </Field>
-                        <Field
-                            data-invalid={categoryInvalid ? true : undefined}
-                        >
-                            <FieldLabel>Category</FieldLabel>
-                            <Select
-                                key={`${selectedType}:${
-                                    activeCategoryId ?? 'none'
-                                }`}
-                                onOpenChange={selectOpen => {
-                                    if (!selectOpen) {
-                                        categoryId.onBlur();
-                                    }
-                                }}
-                                onValueChange={handleCategoryChange}
-                                value={
-                                    activeCategoryId === undefined
-                                        ? ''
-                                        : String(activeCategoryId)
-                                }
-                            >
-                                <SelectTrigger
-                                    aria-invalid={categoryInvalid}
-                                    aria-label="Transaction category"
-                                >
-                                    <SelectValue placeholder="Select category" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        {filteredCategories.map(category => (
-                                            <SelectItem
-                                                key={category.id}
-                                                value={String(category.id)}
-                                            >
-                                                {category.displayName}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                            {categoryId.touched && categoryId.error ? (
-                                <FieldError>{categoryId.error}</FieldError>
-                            ) : null}
-                        </Field>
+                        <SchemaSelectField
+                            ariaLabel="Transaction category"
+                            forProperty={field => field.categoryId}
+                            form={form}
+                            label="Category"
+                            onChange={(value, field) => {
+                                const nextCategoryId = Number(value);
+                                field.onChange(nextCategoryId);
+                                setSelectedCategoryId(nextCategoryId);
+                            }}
+                            options={filteredCategories.map(category => ({
+                                label: category.displayName,
+                                value: String(category.id)
+                            }))}
+                            placeholder="Select category"
+                            value={
+                                activeCategoryId === undefined
+                                    ? ''
+                                    : String(activeCategoryId)
+                            }
+                        />
                         <div className="grid gap-4 sm:grid-cols-2">
                             <SchemaField
                                 fieldProps={{ min: '0.01', step: '0.01' }}
@@ -374,75 +345,35 @@ export function TransactionDialog({
                                 label="Amount"
                                 name="amount"
                             />
-                            <Field
-                                data-invalid={
-                                    currencyInvalid ? true : undefined
-                                }
-                            >
-                                <FieldLabel>Currency</FieldLabel>
-                                <Select
-                                    onOpenChange={selectOpen => {
-                                        if (!selectOpen) {
-                                            currency.onBlur();
-                                        }
-                                    }}
-                                    onValueChange={value =>
-                                        currency.onChange(value)
-                                    }
-                                    value={currency.value ?? initialCurrency}
-                                >
-                                    <SelectTrigger
-                                        aria-invalid={currencyInvalid}
-                                        aria-label="Transaction currency"
-                                    >
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            {currencyOptions.map(currency => (
-                                                <SelectItem
-                                                    key={currency.code}
-                                                    value={currency.code}
-                                                >
-                                                    {currency.code}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
-                                {currency.touched && currency.error ? (
-                                    <FieldError>{currency.error}</FieldError>
-                                ) : null}
-                            </Field>
-                        </div>
-                        <Field
-                            data-invalid={occurredAtInvalid ? true : undefined}
-                        >
-                            <FieldLabel htmlFor="occurredAt">
-                                Date and time
-                            </FieldLabel>
-                            <Input
-                                aria-invalid={occurredAtInvalid}
-                                id="occurredAt"
-                                name="occurredAt"
-                                onBlur={occurredAt.onBlur}
-                                onChange={event => {
-                                    const value = event.target.value;
-                                    setOccurredAtText(value);
-                                    occurredAt.onChange(
-                                        localDateTimeInputToDate(
-                                            value,
-                                            timezone
-                                        ) ?? new Date(Number.NaN)
-                                    );
+                            <SchemaSelectField
+                                ariaLabel="Transaction currency"
+                                forProperty={field => field.currency}
+                                form={form}
+                                label="Currency"
+                                onChange={(value, field) => {
+                                    field.onChange(value);
+                                    setSelectedCurrency(value);
                                 }}
-                                type="datetime-local"
-                                value={occurredAtText}
+                                options={currencyOptions.map(currency => ({
+                                    label: currency.code,
+                                    value: currency.code
+                                }))}
+                                value={selectedCurrency}
                             />
-                            {occurredAt.touched && occurredAt.error ? (
-                                <FieldError>{occurredAt.error}</FieldError>
-                            ) : null}
-                        </Field>
+                        </div>
+                        <SchemaDateTimeField
+                            forProperty={field => field.occurredAt}
+                            form={form}
+                            label="Date and time"
+                            onChange={(value, field) => {
+                                setOccurredAtText(value);
+                                field.onChange(
+                                    localDateTimeInputToDate(value, timezone) ??
+                                        new Date(Number.NaN)
+                                );
+                            }}
+                            value={occurredAtText}
+                        />
                         <SchemaField
                             forProperty={field => field.note}
                             form={form}
