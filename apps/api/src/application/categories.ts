@@ -421,14 +421,23 @@ export async function deleteCategory(
     userId: number,
     categoryId: number
 ): Promise<void> {
-    await getCategory(db, userId, categoryId);
+    const source = await getCategory(db, userId, categoryId);
 
-    const categories = await db.categories.where(
+    const categories = (await db.categories.where(
         candidate => candidate.userId,
         userId
+    )) as CategoryDb[];
+    const categoriesById = new Map(
+        categories.map(category => [category.id, category] as const)
     );
     if (categories.length <= 1) {
         throw new LastCategoryError('At least one category is required.');
+    }
+
+    if (!categoryAvailableForTransactions(source, categoriesById)) {
+        throw new CategoryHierarchyError(
+            'Category must be restored before it can be deleted.'
+        );
     }
 
     if (await categoryHasChildren(db, userId, categoryId)) {
@@ -469,23 +478,38 @@ export async function moveAndDeleteCategory(
         );
     }
 
-    if (source.type !== replacement.type) {
-        throw new CategoryHierarchyError(
-            'Replacement category must have the same type.'
-        );
-    }
-
-    const categories = await db.categories.where(
+    const categories = (await db.categories.where(
         candidate => candidate.userId,
         userId
+    )) as CategoryDb[];
+    const categoriesById = new Map(
+        categories.map(category => [category.id, category] as const)
     );
     if (categories.length <= 1) {
         throw new LastCategoryError('At least one category is required.');
     }
 
+    if (!categoryAvailableForTransactions(source, categoriesById)) {
+        throw new CategoryHierarchyError(
+            'Category must be restored before it can be deleted.'
+        );
+    }
+
+    if (!categoryAvailableForTransactions(replacement, categoriesById)) {
+        throw new CategoryHierarchyError(
+            'Replacement category must be active.'
+        );
+    }
+
     if (await categoryHasChildren(db, userId, categoryId)) {
         throw new CategoryHierarchyError(
             'Category cannot be deleted while it has subcategories.'
+        );
+    }
+
+    if (categoryReportingType(source) !== categoryReportingType(replacement)) {
+        throw new CategoryHierarchyError(
+            'Replacement category must report in the same direction.'
         );
     }
 

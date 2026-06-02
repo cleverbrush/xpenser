@@ -180,7 +180,12 @@ describe('CategoryManager', () => {
             category(3, 'Archived fuel', {
                 archivedAt: new Date('2026-05-11T00:00:00.000Z')
             }),
-            category(4, 'Salary', { type: 'income' })
+            category(4, 'Salary', { type: 'income' }),
+            category(5, 'Returns', {
+                displayName: 'Car -> Returns',
+                kind: 'offset',
+                parentId: 6
+            })
         ]);
 
         fireEvent.click(
@@ -193,6 +198,13 @@ describe('CategoryManager', () => {
         ).toHaveProperty('disabled', true);
 
         fireEvent.click(screen.getByLabelText('Replacement category'));
+        expect(
+            screen.queryByRole('option', { name: 'Archived fuel' })
+        ).toBeNull();
+        expect(
+            screen.queryByRole('option', { name: 'Car -> Returns' })
+        ).toBeNull();
+        expect(screen.queryByRole('option', { name: 'Salary' })).toBeNull();
         fireEvent.click(await screen.findByRole('option', { name: 'Fuel' }));
         fireEvent.submit(
             screen
@@ -207,7 +219,48 @@ describe('CategoryManager', () => {
             .calls[0]?.[0] as FormData;
         expect(formData.get('id')).toBe('1');
         expect(formData.get('replacementCategoryId')).toBe('2');
-        expect(screen.queryByRole('option', { name: 'Salary' })).toBeNull();
+    });
+
+    it('filters income replacement categories by effective direction', async () => {
+        moveAndDeleteCategoryAction.mockResolvedValue(undefined);
+        renderManager([
+            category(1, 'Old salary', { inUse: true, type: 'income' }),
+            category(2, 'Salary', { type: 'income' }),
+            category(3, 'Expense correction', {
+                displayName: 'Salary -> Expense correction',
+                kind: 'offset',
+                parentId: 4,
+                type: 'income'
+            }),
+            category(5, 'Fuel')
+        ]);
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Delete Old salary' })
+        );
+        fireEvent.click(screen.getByLabelText('Replacement category'));
+
+        expect(
+            screen.queryByRole('option', {
+                name: 'Salary -> Expense correction'
+            })
+        ).toBeNull();
+        expect(screen.queryByRole('option', { name: 'Fuel' })).toBeNull();
+        fireEvent.click(await screen.findByRole('option', { name: 'Salary' }));
+
+        fireEvent.submit(
+            screen
+                .getByRole('button', { name: 'Move and delete' })
+                .closest('form') as HTMLFormElement
+        );
+
+        await waitFor(() =>
+            expect(moveAndDeleteCategoryAction).toHaveBeenCalledOnce()
+        );
+        const formData = moveAndDeleteCategoryAction.mock
+            .calls[0]?.[0] as FormData;
+        expect(formData.get('id')).toBe('1');
+        expect(formData.get('replacementCategoryId')).toBe('2');
     });
 
     it('keeps parent category delete disabled', () => {
@@ -224,6 +277,25 @@ describe('CategoryManager', () => {
         }) as HTMLButtonElement;
 
         expect(deleteButton.disabled).toBe(true);
+    });
+
+    it('hides edit and delete actions for archived categories', () => {
+        renderManager([
+            category(1, 'Old fuel', {
+                archivedAt: new Date('2026-05-11T00:00:00.000Z')
+            }),
+            category(2, 'Fuel')
+        ]);
+
+        expect(
+            screen.getByRole('button', { name: 'Restore Old fuel' })
+        ).toBeTruthy();
+        expect(
+            screen.queryByRole('button', { name: 'Edit Old fuel' })
+        ).toBeNull();
+        expect(
+            screen.queryByRole('button', { name: 'Delete Old fuel' })
+        ).toBeNull();
     });
 
     it('keeps parent rows collapsed until expanded', () => {

@@ -77,6 +77,20 @@ function categoryDeleteDisabled(
     return category.hasChildren || deletingLastCategory;
 }
 
+function categoryReplacementCandidates(
+    category: Category,
+    categories: readonly Category[]
+): Category[] {
+    const effectiveType = categoryEffectiveType(category);
+
+    return categories.filter(
+        candidate =>
+            candidate.id !== category.id &&
+            categoryAvailableForTransactions(candidate, categories) &&
+            categoryEffectiveType(candidate) === effectiveType
+    );
+}
+
 function categoryStatus(category: Category, deletingLastCategory: boolean) {
     if (deletingLastCategory) {
         return 'Required';
@@ -190,9 +204,10 @@ function DeleteCategoryButton({
 }) {
     const [open, setOpen] = useState(false);
     const [replacementCategoryId, setReplacementCategoryId] = useState('');
-    const replacementCategories = categories.filter(
-        candidate =>
-            candidate.id !== category.id && candidate.type === category.type
+    const effectiveType = categoryEffectiveType(category);
+    const replacementCategories = categoryReplacementCandidates(
+        category,
+        categories
     );
     const selectedReplacement = replacementCategories.find(
         candidate => String(candidate.id) === replacementCategoryId
@@ -225,7 +240,7 @@ function DeleteCategoryButton({
                     <DialogTitle>Delete category?</DialogTitle>
                     <DialogDescription>
                         {requiresReplacement
-                            ? `Move transactions from ${category.displayName} to another ${categoryTypeLabel(category.type).toLowerCase()} category before deleting it.`
+                            ? `Move transactions from ${category.displayName} to another ${categoryTypeLabel(effectiveType).toLowerCase()} category before deleting it.`
                             : `Delete ${category.displayName}. This cannot be undone.`}
                     </DialogDescription>
                 </DialogHeader>
@@ -261,9 +276,7 @@ function DeleteCategoryButton({
                                                     key={candidate.id}
                                                     value={String(candidate.id)}
                                                 >
-                                                    {categoryArchived(candidate)
-                                                        ? `${candidate.displayName} (archived)`
-                                                        : candidate.displayName}
+                                                    {candidate.displayName}
                                                 </SelectItem>
                                             )
                                         )}
@@ -274,7 +287,7 @@ function DeleteCategoryButton({
                                 <FieldError>
                                     Create another{' '}
                                     {categoryTypeLabel(
-                                        category.type
+                                        effectiveType
                                     ).toLowerCase()}{' '}
                                     category before deleting this one.
                                 </FieldError>
@@ -324,6 +337,7 @@ function CategoryRow({
     );
     const archived = categoryArchived(category);
     const available = categoryAvailableForTransactions(category, categories);
+    const showEditAndDelete = available;
 
     const collapsible = category.parentId === null;
     const ToggleIcon = expanded ? ChevronDownIcon : ChevronRightIcon;
@@ -372,16 +386,20 @@ function CategoryRow({
                 </div>
             </div>
             <div className="flex flex-wrap gap-1 sm:justify-end">
-                <EditCategoryButton
-                    categories={categories}
-                    category={category}
-                />
+                {showEditAndDelete ? (
+                    <EditCategoryButton
+                        categories={categories}
+                        category={category}
+                    />
+                ) : null}
                 <ArchiveCategoryButton category={category} />
-                <DeleteCategoryButton
-                    categories={categories}
-                    category={category}
-                    disabled={deleteDisabled}
-                />
+                {showEditAndDelete ? (
+                    <DeleteCategoryButton
+                        categories={categories}
+                        category={category}
+                        disabled={deleteDisabled}
+                    />
+                ) : null}
             </div>
         </div>
     );

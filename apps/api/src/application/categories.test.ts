@@ -7,6 +7,7 @@ import {
     categoriesByRecentTransactionCount,
     categoryAvailableForTransactions,
     categoryReportingType,
+    deleteCategory,
     LastCategoryError,
     moveAndDeleteCategory
 } from './categories.js';
@@ -233,12 +234,27 @@ function testDb(
     };
 }
 
+describe('delete category', () => {
+    it('rejects archived categories', async () => {
+        const archived = categoryRow(1, 'Old fuel', {
+            archivedAt: new Date('2026-05-12T00:00:00.000Z')
+        });
+        const replacement = categoryRow(2, 'Fuel');
+
+        await expect(
+            deleteCategory(
+                testDb([archived, replacement], []) as never,
+                1,
+                archived.id
+            )
+        ).rejects.toBeInstanceOf(CategoryHierarchyError);
+    });
+});
+
 describe('move and delete category', () => {
     it('moves matching user transactions and deletes the source category', async () => {
         const source = categoryRow(1, 'Old fuel');
-        const replacement = categoryRow(2, 'Fuel', {
-            archivedAt: new Date('2026-05-12T00:00:00.000Z')
-        });
+        const replacement = categoryRow(2, 'Fuel');
         const categories = [source, replacement];
         const transactions = [
             {
@@ -277,9 +293,55 @@ describe('move and delete category', () => {
         });
     });
 
-    it('rejects replacement categories with a different type', async () => {
-        const source = categoryRow(1, 'Old fuel');
+    it('moves offset transactions to a normal same-direction replacement', async () => {
+        const source = categoryRow(1, 'Returns', { kind: 'offset' });
         const replacement = categoryRow(2, 'Salary', { type: 'income' });
+        const categories = [source, replacement];
+        const transactions = [
+            {
+                id: 1,
+                userId: 1,
+                categoryId: source.id,
+                type: 'expense' as const,
+                updatedAt: source.updatedAt
+            }
+        ];
+
+        await moveAndDeleteCategory(
+            testDb(categories, transactions) as never,
+            1,
+            source.id,
+            replacement.id
+        );
+
+        expect(categories.map(category => category.id)).toEqual([
+            replacement.id
+        ]);
+        expect(transactions[0]).toMatchObject({
+            categoryId: replacement.id,
+            type: 'income'
+        });
+    });
+
+    it('rejects replacement categories with a different effective direction', async () => {
+        const source = categoryRow(1, 'Old fuel');
+        const replacement = categoryRow(2, 'Returns', { kind: 'offset' });
+
+        await expect(
+            moveAndDeleteCategory(
+                testDb([source, replacement], []) as never,
+                1,
+                source.id,
+                replacement.id
+            )
+        ).rejects.toBeInstanceOf(CategoryHierarchyError);
+    });
+
+    it('rejects archived replacement categories', async () => {
+        const source = categoryRow(1, 'Old fuel');
+        const replacement = categoryRow(2, 'Archived fuel', {
+            archivedAt: new Date('2026-05-12T00:00:00.000Z')
+        });
 
         await expect(
             moveAndDeleteCategory(

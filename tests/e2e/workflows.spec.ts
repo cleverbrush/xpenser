@@ -206,6 +206,18 @@ test.describe('authenticated app workflows', () => {
                 name: `Restore ${parentCategory}`
             })
         ).toBeVisible({ timeout: 15_000 });
+        await expect(
+            page.getByRole('button', {
+                exact: true,
+                name: `Edit ${parentCategory}`
+            })
+        ).toHaveCount(0);
+        await expect(
+            page.getByRole('button', {
+                exact: true,
+                name: `Delete ${parentCategory}`
+            })
+        ).toHaveCount(0);
 
         await page.goto('/dashboard');
         await page
@@ -256,10 +268,43 @@ test.describe('authenticated app workflows', () => {
     }) => {
         const sourceCategory = uniqueName('E2E move source');
         const replacementCategory = uniqueName('E2E move target');
+        const returnsParentCategory = uniqueName('E2E move returns parent');
+        const returnsCategory = uniqueName('E2E move returns');
         const note = uniqueName('E2E move note');
 
         await createCategory(page, sourceCategory, 'expense');
         await createCategory(page, replacementCategory, 'expense');
+        await createCategory(page, returnsParentCategory, 'expense');
+
+        await page.goto('/settings/categories');
+        await page
+            .getByRole('button', {
+                exact: true,
+                name: `Expand ${returnsParentCategory}`
+            })
+            .click();
+        await page
+            .getByRole('button', {
+                exact: true,
+                name: `Add subcategory to ${returnsParentCategory}`
+            })
+            .click();
+        const returnsForm = page.getByTestId('subcategory-form').filter({
+            has: page.getByLabel(
+                `New ${returnsParentCategory} subcategory name`
+            )
+        });
+        await returnsForm
+            .getByLabel(`New ${returnsParentCategory} subcategory name`)
+            .fill(returnsCategory);
+        await returnsForm.getByLabel('Reverse direction').check();
+        await returnsForm
+            .getByRole('button', { name: 'Add subcategory' })
+            .click();
+        await expect(
+            page.getByText(returnsCategory).filter({ visible: true }).first()
+        ).toBeVisible({ timeout: 15_000 });
+
         await createTransaction(page, sourceCategory, 'expense', '8.90', note);
 
         await page.goto('/settings/categories');
@@ -274,11 +319,25 @@ test.describe('authenticated app workflows', () => {
             name: 'Delete category?'
         });
         await expect(deleteDialog).toBeVisible();
-        await selectOption(
-            page,
-            deleteDialog.getByLabel('Replacement category'),
-            replacementCategory
-        );
+        await deleteDialog.getByLabel('Replacement category').click();
+        await expect(
+            page.getByRole('option', {
+                exact: true,
+                name: replacementCategory
+            })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('option', {
+                exact: true,
+                name: `${returnsParentCategory} -> ${returnsCategory}`
+            })
+        ).toHaveCount(0);
+        await page
+            .getByRole('option', {
+                exact: true,
+                name: replacementCategory
+            })
+            .click();
         await deleteDialog
             .getByRole('button', { name: 'Move and delete' })
             .click();
