@@ -9,18 +9,18 @@ import {
     FieldDescription,
     FieldError,
     FieldGroup,
-    FieldLabel
+    FieldLabel,
+    type SelectRendererFieldProps
 } from '@xpenser/ui';
 import Link from 'next/link';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { registerAction } from '@/lib/actions';
 import { sortCurrenciesForDisplay } from '@/lib/currency-display';
 import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
-import { CurrencyMultiSelect } from './currency-multi-select';
 import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
 import { ResendEmailConfirmationForm } from './resend-email-confirmation-form';
-import { SchemaSelectField } from './schema-fields';
+import type { CurrencyMultiSelectRendererFieldProps } from './schema-fields';
 
 export function RegisterForm({
     currencies
@@ -161,64 +161,75 @@ export function RegisterForm({
                         variant="password"
                     />
                 </div>
-                <SchemaSelectField
+                <SchemaField
+                    fieldProps={
+                        {
+                            onValueChange: (value, field) => {
+                                const nextFavoriteCurrencies =
+                                    selectedFavoriteCurrencies.filter(
+                                        currency => currency !== value
+                                    );
+
+                                field.onChange(value);
+                                setSelectedDefaultCurrency(value);
+                                setSelectedFavoriteCurrencies(
+                                    nextFavoriteCurrencies
+                                );
+                                form.setValue({
+                                    favoriteCurrencies: nextFavoriteCurrencies
+                                });
+                            },
+                            options: sortedCurrencies.map(currency => ({
+                                label: <CurrencyOption currency={currency} />,
+                                value: currency.code
+                            })),
+                            placeholder: 'Currency',
+                            value:
+                                selectedDefaultCurrency ||
+                                initialDefaultCurrency
+                        } satisfies SelectRendererFieldProps
+                    }
                     forProperty={field => field.defaultCurrency}
                     form={form}
                     label="Default currency"
-                    onChange={(value, field) => {
-                        const nextFavoriteCurrencies =
-                            selectedFavoriteCurrencies.filter(
-                                currency => currency !== value
-                            );
-
-                        field.onChange(value);
-                        setSelectedDefaultCurrency(value);
-                        setSelectedFavoriteCurrencies(nextFavoriteCurrencies);
-                        form.setValue({
-                            favoriteCurrencies: nextFavoriteCurrencies
-                        });
-                    }}
-                    options={sortedCurrencies.map(currency => ({
-                        label: <CurrencyOption currency={currency} />,
-                        value: currency.code
-                    }))}
-                    placeholder="Currency"
-                    value={selectedDefaultCurrency || initialDefaultCurrency}
+                    variant="select"
                 />
                 <SchemaField
-                    forProperty={field => field.favoriteCurrencies}
-                    form={form}
-                    renderer={field => (
-                        <CurrencyMultiSelect
-                            currencies={sortedCurrencies}
-                            error={field.error}
-                            excludedCurrency={
+                    fieldProps={
+                        {
+                            currencies: sortedCurrencies,
+                            excludedCurrency:
                                 selectedDefaultCurrency ||
-                                initialDefaultCurrency
-                            }
-                            onBlur={field.onBlur}
-                            onChange={values => {
+                                initialDefaultCurrency,
+                            onChange: (values, field) => {
                                 field.onChange(values);
                                 setSelectedFavoriteCurrencies(values);
-                            }}
-                            selectedCurrencies={selectedFavoriteCurrencies}
-                            touched={field.touched}
-                        />
-                    )}
+                            },
+                            selectedCurrencies: selectedFavoriteCurrencies
+                        } satisfies CurrencyMultiSelectRendererFieldProps
+                    }
+                    forProperty={field => field.favoriteCurrencies}
+                    form={form}
+                    variant="currency-multi-select"
                 />
-                <SchemaSelectField
+                <SchemaField
+                    fieldProps={
+                        {
+                            onValueChange: (value, field) => {
+                                field.onChange(value);
+                                setSelectedTimezone(value);
+                            },
+                            options: timeZones.map(timeZone => ({
+                                label: timeZoneLabel(timeZone),
+                                value: timeZone
+                            })),
+                            value: selectedTimezone
+                        } satisfies SelectRendererFieldProps
+                    }
                     forProperty={field => field.timezone}
                     form={form}
                     label="Time zone"
-                    onChange={(value, field) => {
-                        field.onChange(value);
-                        setSelectedTimezone(value);
-                    }}
-                    options={timeZones.map(timeZone => ({
-                        label: timeZoneLabel(timeZone),
-                        value: timeZone
-                    }))}
-                    value={selectedTimezone}
+                    variant="select"
                 />
                 {error ? <FieldError role="alert">{error}</FieldError> : null}
                 <Button className="w-full" disabled={pending} type="submit">

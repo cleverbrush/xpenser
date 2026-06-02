@@ -9,6 +9,7 @@ import {
 } from '@xpenser/timezone';
 import {
     Button,
+    type DateTimeRendererFieldProps,
     Dialog,
     DialogContent,
     DialogDescription,
@@ -24,6 +25,7 @@ import {
     SelectContent,
     SelectGroup,
     SelectItem,
+    type SelectRendererFieldProps,
     SelectTrigger,
     SelectValue
 } from '@xpenser/ui';
@@ -41,7 +43,6 @@ import {
     transactionCategoryOptions
 } from '@/lib/category-display';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
-import { SchemaDateTimeField, SchemaSelectField } from './forms/schema-fields';
 
 type TransactionDialogValues = Pick<
     Transaction,
@@ -316,26 +317,32 @@ export function TransactionDialog({
                                 </SelectContent>
                             </Select>
                         </Field>
-                        <SchemaSelectField
-                            ariaLabel="Transaction category"
+                        <SchemaField
+                            fieldProps={
+                                {
+                                    ariaLabel: 'Transaction category',
+                                    onValueChange: (value, field) => {
+                                        const nextCategoryId = Number(value);
+                                        field.onChange(nextCategoryId);
+                                        setSelectedCategoryId(nextCategoryId);
+                                    },
+                                    options: filteredCategories.map(
+                                        category => ({
+                                            label: category.displayName,
+                                            value: String(category.id)
+                                        })
+                                    ),
+                                    placeholder: 'Select category',
+                                    value:
+                                        activeCategoryId === undefined
+                                            ? ''
+                                            : String(activeCategoryId)
+                                } satisfies SelectRendererFieldProps
+                            }
                             forProperty={field => field.categoryId}
                             form={form}
                             label="Category"
-                            onChange={(value, field) => {
-                                const nextCategoryId = Number(value);
-                                field.onChange(nextCategoryId);
-                                setSelectedCategoryId(nextCategoryId);
-                            }}
-                            options={filteredCategories.map(category => ({
-                                label: category.displayName,
-                                value: String(category.id)
-                            }))}
-                            placeholder="Select category"
-                            value={
-                                activeCategoryId === undefined
-                                    ? ''
-                                    : String(activeCategoryId)
-                            }
+                            variant="select"
                         />
                         <div className="grid gap-4 sm:grid-cols-2">
                             <SchemaField
@@ -345,34 +352,49 @@ export function TransactionDialog({
                                 label="Amount"
                                 name="amount"
                             />
-                            <SchemaSelectField
-                                ariaLabel="Transaction currency"
+                            <SchemaField
+                                fieldProps={
+                                    {
+                                        ariaLabel: 'Transaction currency',
+                                        onValueChange: (value, field) => {
+                                            field.onChange(value);
+                                            setSelectedCurrency(value);
+                                        },
+                                        options: currencyOptions.map(
+                                            currency => ({
+                                                label: currency.code,
+                                                value: currency.code
+                                            })
+                                        ),
+                                        value: selectedCurrency
+                                    } satisfies SelectRendererFieldProps
+                                }
                                 forProperty={field => field.currency}
                                 form={form}
                                 label="Currency"
-                                onChange={(value, field) => {
-                                    field.onChange(value);
-                                    setSelectedCurrency(value);
-                                }}
-                                options={currencyOptions.map(currency => ({
-                                    label: currency.code,
-                                    value: currency.code
-                                }))}
-                                value={selectedCurrency}
+                                variant="select"
                             />
                         </div>
-                        <SchemaDateTimeField
+                        <SchemaField
+                            fieldProps={
+                                {
+                                    onValueChange: (value, field) => {
+                                        setOccurredAtText(value);
+                                        field.onChange(
+                                            localDateTimeInputToDate(
+                                                value,
+                                                timezone
+                                            ) ?? new Date(Number.NaN)
+                                        );
+                                    },
+                                    value: occurredAtText
+                                } satisfies DateTimeRendererFieldProps
+                            }
                             forProperty={field => field.occurredAt}
                             form={form}
                             label="Date and time"
-                            onChange={(value, field) => {
-                                setOccurredAtText(value);
-                                field.onChange(
-                                    localDateTimeInputToDate(value, timezone) ??
-                                        new Date(Number.NaN)
-                                );
-                            }}
-                            value={occurredAtText}
+                            name="occurredAt"
+                            variant="datetime-local"
                         />
                         <SchemaField
                             forProperty={field => field.note}
