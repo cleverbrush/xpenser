@@ -268,7 +268,9 @@ function notableTransaction(
     categoriesById: ReadonlyMap<number, CategoryDb>
 ): NotableTransaction {
     const category =
-        transaction.category ?? categoriesById.get(transaction.categoryId);
+        categoriesById.get(transaction.categoryId) ??
+        transaction.category ??
+        undefined;
 
     return {
         amount: Math.abs(Number(transaction.defaultCurrencyAmount)),

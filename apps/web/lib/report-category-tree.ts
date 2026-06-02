@@ -21,9 +21,9 @@ function parentNameFor<T extends ReportCategoryTreeCategory>(
 ): string {
     const first = children[0];
     return (
+        fallback?.categoryName ??
         first?.categoryParentName ??
         first?.categoryDisplayName.split(' -> ')[0] ??
-        fallback?.categoryName ??
         ''
     );
 }

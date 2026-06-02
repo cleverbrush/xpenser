@@ -159,6 +159,35 @@ describe('report category tree', () => {
         ]);
     });
 
+    it('uses parent rollup names when child metadata lacks a parent display path', () => {
+        const returns = category({
+            categoryDisplayName: 'Returns',
+            categoryId: 2,
+            categoryKind: 'offset',
+            categoryName: 'Returns',
+            categoryParentId: 1,
+            total: 25,
+            transactionCount: 1,
+            type: 'income'
+        });
+        const carRollup = category({
+            categoryId: 1,
+            categoryName: 'Car',
+            total: 25,
+            transactionCount: 1,
+            type: 'income'
+        });
+
+        expect(build([returns], [carRollup], 'income')).toEqual([
+            {
+                category: 'Car',
+                children: ['Returns'],
+                total: 25,
+                type: 'income'
+            }
+        ]);
+    });
+
     it('ignores rollup rows that point at child category ids', () => {
         const returns = category({
             categoryDisplayName: 'Car -> Returns',

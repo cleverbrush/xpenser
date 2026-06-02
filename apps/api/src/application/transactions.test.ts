@@ -149,6 +149,90 @@ describe('transaction category signs', () => {
             { id: car.id, name: 'Car', type: 'income', total: 25 }
         ]);
     });
+
+    it('uses fresh category lookup metadata for dashboard hierarchy summaries', () => {
+        const timestamp = new Date('2026-05-10T12:00:00.000Z');
+        const car = {
+            id: 1,
+            userId: 1,
+            name: 'Car',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        } as const;
+        const returns = {
+            ...car,
+            id: 2,
+            name: 'Returns',
+            parentId: car.id,
+            kind: 'offset'
+        } as const;
+        const staleJoinedReturns = {
+            ...returns,
+            parentId: null,
+            kind: 'normal'
+        } as const;
+        const row = {
+            id: 1,
+            userId: 1,
+            categoryId: returns.id,
+            category: staleJoinedReturns,
+            type: 'expense',
+            amount: '25',
+            currency: 'USD',
+            defaultCurrencyAmount: '25',
+            defaultCurrency: 'USD',
+            exchangeRate: '1',
+            exchangeRateDate: '2026-05-10',
+            occurredAt: timestamp,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        } as const;
+        const summary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'year',
+            {
+                from: new Date('2026-01-01T00:00:00.000Z'),
+                to: new Date('2026-12-31T23:59:59.999Z')
+            },
+            [row],
+            [],
+            new Map<number, CategoryDb>([
+                [car.id, car],
+                [returns.id, returns]
+            ])
+        );
+
+        expect(summary.expenseTotal).toBe(0);
+        expect(summary.incomeTotal).toBe(25);
+        expect(
+            summary.byCategory.map(category => ({
+                id: category.categoryId,
+                name: category.categoryName,
+                parentId: category.categoryParentId,
+                type: category.type,
+                total: category.total
+            }))
+        ).toEqual([
+            {
+                id: returns.id,
+                name: 'Returns',
+                parentId: car.id,
+                type: 'income',
+                total: 25
+            }
+        ]);
+        expect(
+            summary.byParentCategory.map(category => ({
+                id: category.categoryId,
+                name: category.categoryName,
+                type: category.type,
+                total: category.total
+            }))
+        ).toEqual([{ id: car.id, name: 'Car', type: 'income', total: 25 }]);
+    });
 });
 
 describe('stats range resolution', () => {

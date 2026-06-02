@@ -180,11 +180,18 @@ function parentCategoryFields(
     };
 }
 
+function categoryForTransaction(
+    row: Pick<TransactionDb, 'category' | 'categoryId'>,
+    categoriesById: ReadonlyMap<number, CategoryDb>
+): CategoryDb | undefined {
+    return categoriesById.get(row.categoryId) ?? row.category ?? undefined;
+}
+
 function mapTransaction(
     row: TransactionDb,
     categoriesById: ReadonlyMap<number, CategoryDb>
 ): Transaction {
-    const category = row.category ?? categoriesById.get(row.categoryId);
+    const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
 
     return {
@@ -304,9 +311,10 @@ export async function listTransactions(
                 return true;
             }
 
-            const category =
-                transaction.category ??
-                categoriesById.get(transaction.categoryId);
+            const category = categoryForTransaction(
+                transaction,
+                categoriesById
+            );
             return (
                 categoryReportingType(category, transaction.type) === query.type
             );
@@ -316,9 +324,10 @@ export async function listTransactions(
                 return true;
             }
 
-            const category =
-                transaction.category ??
-                categoriesById.get(transaction.categoryId);
+            const category = categoryForTransaction(
+                transaction,
+                categoriesById
+            );
             return (
                 transaction.categoryId === query.parentCategoryId ||
                 category?.parentId === query.parentCategoryId
@@ -329,9 +338,10 @@ export async function listTransactions(
                 return true;
             }
 
-            const category =
-                transaction.category ??
-                categoriesById.get(transaction.categoryId);
+            const category = categoryForTransaction(
+                transaction,
+                categoriesById
+            );
             return (
                 category?.name.toLowerCase().includes(search) ||
                 (category
@@ -1115,7 +1125,7 @@ function summarizeSelectedRows(
     let expenseCount = 0;
 
     for (const row of rows) {
-        const rowCategory = row.category ?? categoriesById.get(row.categoryId);
+        const rowCategory = categoryForTransaction(row, categoriesById);
         const total = transactionSignedDefaultAmount(row, rowCategory);
         const fields = categoryFields(rowCategory, row, categoriesById);
         const type = fields.type;
@@ -1185,7 +1195,7 @@ function summarizeComparisonRows(
     let expenseCount = 0;
 
     for (const row of rows) {
-        const category = row.category ?? categoriesById.get(row.categoryId);
+        const category = categoryForTransaction(row, categoriesById);
         const total = transactionSignedDefaultAmount(row, category);
         const fields = categoryFields(category, row, categoriesById);
         const type = fields.type;
@@ -1425,7 +1435,7 @@ export function summarizeDashboardRows(
     const previousTotalsByCategory = new Map<string, number>();
 
     for (const row of previousRows) {
-        const category = row.category ?? categoriesById.get(row.categoryId);
+        const category = categoryForTransaction(row, categoriesById);
         const fields = categoryFields(category, row, categoriesById);
         const key = `${fields.type}:${fields.categoryId}`;
         previousTotalsByCategory.set(
@@ -1436,7 +1446,7 @@ export function summarizeDashboardRows(
     }
 
     for (const row of rows) {
-        const category = row.category ?? categoriesById.get(row.categoryId);
+        const category = categoryForTransaction(row, categoriesById);
         const fields = categoryFields(category, row, categoriesById);
         const key = `${fields.type}:${fields.categoryId}`;
         const current = totalsByCategory.get(key) ?? {
