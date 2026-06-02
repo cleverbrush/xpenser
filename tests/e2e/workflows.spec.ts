@@ -230,6 +230,27 @@ test.describe('authenticated app workflows', () => {
         ).toHaveCount(0);
     });
 
+    test('does not autofocus category name on mobile edit', async ({ page }) => {
+        const category = uniqueName('E2E mobile edit');
+
+        await page.setViewportSize({ height: 844, width: 390 });
+        await createCategory(page, category, 'expense');
+
+        await page.goto('/settings/categories');
+        await page
+            .getByRole('button', {
+                exact: true,
+                name: `Edit ${category}`
+            })
+            .click();
+
+        const editDialog = page.getByRole('dialog', { name: 'Edit category' });
+        await expect(editDialog).toBeVisible();
+        const nameInput = editDialog.getByLabel('Name');
+        await expect(nameInput).toHaveValue(category);
+        await expect(nameInput).not.toBeFocused();
+    });
+
     test('orders add transaction categories by recent popularity', async ({
         page
     }) => {
