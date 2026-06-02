@@ -158,13 +158,18 @@ test.describe('authenticated app workflows', () => {
         await createCategory(page, parentCategory, 'expense');
 
         await page.goto('/settings/categories');
-        await page
+        const subcategoryForm = page.getByTestId('subcategory-form').filter({
+            has: page.getByLabel(`New ${parentCategory} subcategory name`)
+        });
+        await subcategoryForm
             .getByLabel(`New ${parentCategory} subcategory name`)
             .fill(childCategory);
-        await page
+        await subcategoryForm
             .getByLabel(`${parentCategory} subcategory behavior`)
             .selectOption({ label: 'Return' });
-        await page.getByRole('button', { name: 'Add subcategory' }).click();
+        await subcategoryForm
+            .getByRole('button', { name: 'Add subcategory' })
+            .click();
         await expect(
             page.getByText(childCategory).filter({ visible: true }).first()
         ).toBeVisible({ timeout: 15_000 });
