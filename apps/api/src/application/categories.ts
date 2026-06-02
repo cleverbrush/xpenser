@@ -451,3 +451,58 @@ export async function deleteCategory(
         .where(candidate => candidate.userId, userId)
         .delete();
 }
+
+export async function moveAndDeleteCategory(
+    db: AppDb,
+    userId: number,
+    categoryId: number,
+    replacementCategoryId: number
+): Promise<void> {
+    const [source, replacement] = await Promise.all([
+        getCategory(db, userId, categoryId),
+        getCategory(db, userId, replacementCategoryId)
+    ]);
+
+    if (source.id === replacement.id) {
+        throw new CategoryHierarchyError(
+            'Replacement category must be different from the deleted category.'
+        );
+    }
+
+    if (source.type !== replacement.type) {
+        throw new CategoryHierarchyError(
+            'Replacement category must have the same type.'
+        );
+    }
+
+    const categories = await db.categories.where(
+        candidate => candidate.userId,
+        userId
+    );
+    if (categories.length <= 1) {
+        throw new LastCategoryError('At least one category is required.');
+    }
+
+    if (await categoryHasChildren(db, userId, categoryId)) {
+        throw new CategoryHierarchyError(
+            'Category cannot be deleted while it has subcategories.'
+        );
+    }
+
+    const now = new Date();
+    await db.transaction(async trx => {
+        await trx.transactions
+            .where(transaction => transaction.userId, userId)
+            .where(transaction => transaction.categoryId, categoryId)
+            .update({
+                categoryId: replacement.id,
+                type: replacement.type,
+                updatedAt: now
+            });
+
+        await trx.categories
+            .where(candidate => candidate.id, categoryId)
+            .where(candidate => candidate.userId, userId)
+            .delete();
+    });
+}

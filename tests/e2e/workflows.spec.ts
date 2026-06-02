@@ -251,6 +251,56 @@ test.describe('authenticated app workflows', () => {
         await expect(nameInput).not.toBeFocused();
     });
 
+    test('moves transactions before deleting an in-use category', async ({
+        page
+    }) => {
+        const sourceCategory = uniqueName('E2E move source');
+        const replacementCategory = uniqueName('E2E move target');
+        const note = uniqueName('E2E move note');
+
+        await createCategory(page, sourceCategory, 'expense');
+        await createCategory(page, replacementCategory, 'expense');
+        await createTransaction(page, sourceCategory, 'expense', '8.90', note);
+
+        await page.goto('/settings/categories');
+        await page
+            .getByRole('button', {
+                exact: true,
+                name: `Delete ${sourceCategory}`
+            })
+            .click();
+
+        const deleteDialog = page.getByRole('dialog', {
+            name: 'Delete category?'
+        });
+        await expect(deleteDialog).toBeVisible();
+        await selectOption(
+            page,
+            deleteDialog.getByLabel('Replacement category'),
+            replacementCategory
+        );
+        await deleteDialog
+            .getByRole('button', { name: 'Move and delete' })
+            .click();
+        await expect(deleteDialog).toBeHidden({ timeout: 15_000 });
+        await expect(
+            page.getByRole('button', {
+                exact: true,
+                name: `Delete ${sourceCategory}`
+            })
+        ).toHaveCount(0);
+
+        await page.goto('/transactions');
+        await page.getByRole('button', { name: /Filters/ }).click();
+        await page.getByLabel('Search').fill(note);
+        await page.getByRole('button', { name: 'Apply' }).click();
+
+        const row = page.getByRole('row').filter({ hasText: note });
+        await expect(row).toHaveCount(1, { timeout: 15_000 });
+        await expect(row.first()).toContainText(replacementCategory);
+        await expect(row.first()).not.toContainText(sourceCategory);
+    });
+
     test('orders add transaction categories by recent popularity', async ({
         page
     }) => {

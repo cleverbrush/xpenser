@@ -7,12 +7,14 @@ import {
     deleteCategory,
     LastCategoryError,
     listCategories,
+    moveAndDeleteCategory,
     updateCategory
 } from '../../application/categories.js';
 import type {
     CreateCategoryEndpoint,
     DeleteCategoryEndpoint,
     ListCategoriesEndpoint,
+    MoveAndDeleteCategoryEndpoint,
     UpdateCategoryEndpoint
 } from '../endpoints.js';
 
@@ -73,6 +75,32 @@ export const deleteCategoryHandler: Handler<
             return ActionResult.badRequest({ message: err.message });
         }
         if (err instanceof LastCategoryError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        throw err;
+    }
+};
+
+export const moveAndDeleteCategoryHandler: Handler<
+    typeof MoveAndDeleteCategoryEndpoint
+> = async ({ body, params, principal }, { db }) => {
+    try {
+        await moveAndDeleteCategory(
+            db,
+            principal.userId,
+            params.id,
+            body.replacementCategoryId
+        );
+        return ActionResult.noContent();
+    } catch (err) {
+        if (err instanceof CategoryNotFoundError) {
+            return ActionResult.notFound({ message: err.message });
+        }
+        if (
+            err instanceof CategoryHierarchyError ||
+            err instanceof CategoryInUseError ||
+            err instanceof LastCategoryError
+        ) {
             return ActionResult.badRequest({ message: err.message });
         }
         throw err;

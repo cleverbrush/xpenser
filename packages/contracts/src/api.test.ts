@@ -34,6 +34,7 @@ describe('api contract authorization metadata', () => {
             api.categories.create,
             api.categories.update,
             api.categories.delete,
+            api.categories.moveAndDelete,
             api.currencies.convert,
             api.transactions.list,
             api.transactions.create,

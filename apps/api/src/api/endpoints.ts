@@ -197,6 +197,16 @@ export const DeleteCategoryEndpoint = api.categories.delete
     .tags('categories')
     .operationId('deleteCategory');
 
+export const MoveAndDeleteCategoryEndpoint = api.categories.moveAndDelete
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Move transactions and delete category')
+    .description(
+        'Moves transactions from a leaf category into another same-type category, then deletes the source category.'
+    )
+    .tags('categories')
+    .operationId('moveAndDeleteCategory');
+
 export const ListTransactionsEndpoint = api.transactions.list
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -303,7 +313,8 @@ export const endpoints = {
         list: ListCategoriesEndpoint,
         create: CreateCategoryEndpoint,
         update: UpdateCategoryEndpoint,
-        delete: DeleteCategoryEndpoint
+        delete: DeleteCategoryEndpoint,
+        moveAndDelete: MoveAndDeleteCategoryEndpoint
     },
     transactions: {
         list: ListTransactionsEndpoint,

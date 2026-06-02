@@ -12,6 +12,7 @@ import {
     EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
+    MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
     RegisterBodySchema,
@@ -100,6 +101,15 @@ describe('shared schemas', () => {
 
         expect(result.valid).toBe(true);
         expect(result.object?.archived).toBe(true);
+    });
+
+    it('validates category move-and-delete payloads', () => {
+        const result = MoveAndDeleteCategoryBodySchema.validate({
+            replacementCategoryId: 12
+        });
+
+        expect(result.valid).toBe(true);
+        expect(result.object?.replacementCategoryId).toBe(12);
     });
 
     it('defaults email report preferences to enabled when updating preferences', () => {

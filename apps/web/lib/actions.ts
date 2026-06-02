@@ -277,6 +277,29 @@ export async function deleteCategoryAction(formData: FormData) {
     revalidatePath('/settings/preferences');
 }
 
+export async function moveAndDeleteCategoryAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.categories.moveAndDelete({
+        params: { id: Number(requiredString(formData, 'id')) },
+        body: {
+            replacementCategoryId: Number(
+                requiredString(formData, 'replacementCategoryId')
+            )
+        }
+    });
+    revalidateTag('categories', 'max');
+    revalidateTag('transactions', 'max');
+    revalidateTag('user-profile', 'max');
+    revalidateTag('dashboard', 'max');
+    revalidateTag('stats', 'max');
+    revalidatePath('/settings/categories');
+    revalidatePath('/settings/preferences');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+}
+
 export async function createTransactionAction(formData: FormData) {
     const client = await getApiClient();
     await client.transactions.create({

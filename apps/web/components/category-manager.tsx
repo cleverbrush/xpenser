@@ -7,11 +7,22 @@ import {
     Button,
     cn,
     Dialog,
+    DialogClose,
     DialogContent,
+    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    FieldError
+    Field,
+    FieldError,
+    FieldLabel,
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
 } from '@xpenser/ui';
 import {
     ArchiveIcon,
@@ -28,6 +39,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import {
     createCategoryAction,
     deleteCategoryAction,
+    moveAndDeleteCategoryAction,
     setCategoryArchivedAction
 } from '@/lib/actions';
 import {
@@ -62,7 +74,7 @@ function categoryDeleteDisabled(
     category: Category,
     deletingLastCategory: boolean
 ): boolean {
-    return category.inUse || category.hasChildren || deletingLastCategory;
+    return category.hasChildren || deletingLastCategory;
 }
 
 function categoryStatus(category: Category, deletingLastCategory: boolean) {
@@ -168,20 +180,126 @@ function ArchiveCategoryButton({ category }: { readonly category: Category }) {
 }
 
 function DeleteCategoryButton({
+    categories,
     category,
     disabled
 }: {
+    readonly categories: readonly Category[];
     readonly category: Category;
     readonly disabled: boolean;
 }) {
+    const [open, setOpen] = useState(false);
+    const [replacementCategoryId, setReplacementCategoryId] = useState('');
+    const replacementCategories = categories.filter(
+        candidate =>
+            candidate.id !== category.id && candidate.type === category.type
+    );
+    const selectedReplacement = replacementCategories.find(
+        candidate => String(candidate.id) === replacementCategoryId
+    );
+    const requiresReplacement = category.inUse;
+
+    function handleOpenChange(nextOpen: boolean) {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+            setReplacementCategoryId('');
+        }
+    }
+
     return (
-        <form action={deleteCategoryAction}>
-            <input name="id" type="hidden" value={category.id} />
-            <Button disabled={disabled} size="sm" type="submit" variant="ghost">
-                <Trash2Icon aria-hidden className="size-4" />
-                Delete
-            </Button>
-        </form>
+        <Dialog onOpenChange={handleOpenChange} open={open}>
+            <DialogTrigger asChild>
+                <Button
+                    aria-label={`Delete ${category.displayName}`}
+                    disabled={disabled}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                >
+                    <Trash2Icon aria-hidden className="size-4" />
+                    Delete
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Delete category?</DialogTitle>
+                    <DialogDescription>
+                        {requiresReplacement
+                            ? `Move transactions from ${category.displayName} to another ${categoryTypeLabel(category.type).toLowerCase()} category before deleting it.`
+                            : `Delete ${category.displayName}. This cannot be undone.`}
+                    </DialogDescription>
+                </DialogHeader>
+                <form
+                    action={
+                        requiresReplacement
+                            ? moveAndDeleteCategoryAction
+                            : deleteCategoryAction
+                    }
+                    className="flex flex-col gap-4"
+                >
+                    <input name="id" type="hidden" value={category.id} />
+                    {requiresReplacement ? (
+                        <Field>
+                            <FieldLabel>Move transactions to</FieldLabel>
+                            <input
+                                name="replacementCategoryId"
+                                type="hidden"
+                                value={replacementCategoryId}
+                            />
+                            <Select
+                                onValueChange={setReplacementCategoryId}
+                                value={replacementCategoryId}
+                            >
+                                <SelectTrigger aria-label="Replacement category">
+                                    <SelectValue placeholder="Select replacement category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        {replacementCategories.map(
+                                            candidate => (
+                                                <SelectItem
+                                                    key={candidate.id}
+                                                    value={String(candidate.id)}
+                                                >
+                                                    {categoryArchived(candidate)
+                                                        ? `${candidate.displayName} (archived)`
+                                                        : candidate.displayName}
+                                                </SelectItem>
+                                            )
+                                        )}
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                            {replacementCategories.length === 0 ? (
+                                <FieldError>
+                                    Create another{' '}
+                                    {categoryTypeLabel(
+                                        category.type
+                                    ).toLowerCase()}{' '}
+                                    category before deleting this one.
+                                </FieldError>
+                            ) : null}
+                        </Field>
+                    ) : null}
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button
+                            disabled={
+                                requiresReplacement && !selectedReplacement
+                            }
+                            type="submit"
+                            variant="destructive"
+                        >
+                            {requiresReplacement ? 'Move and delete' : 'Delete'}
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -260,6 +378,7 @@ function CategoryRow({
                 />
                 <ArchiveCategoryButton category={category} />
                 <DeleteCategoryButton
+                    categories={categories}
                     category={category}
                     disabled={deleteDisabled}
                 />

@@ -680,6 +680,13 @@ export const UpdateCategoryBodySchema = object({
         .describe('Whether this category should be archived or restored.')
 }).schemaName('UpdateCategoryBody');
 
+export const MoveAndDeleteCategoryBodySchema = object({
+    /** Category that should receive transactions before deleting the selected category. */
+    replacementCategoryId: number().describe(
+        'Category that should receive transactions before deleting the selected category.'
+    )
+}).schemaName('MoveAndDeleteCategoryBody');
+
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
     id: number().describe('Unique transaction identifier.'),

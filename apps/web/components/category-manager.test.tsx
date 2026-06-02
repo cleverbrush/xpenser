@@ -14,10 +14,13 @@ import { XpenserFormProvider } from '@xpenser/ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CategoryManager } from './category-manager';
 
+Element.prototype.scrollIntoView = vi.fn();
+
 const refresh = vi.fn();
 const createCategoryAction = vi.fn();
 const setCategoryArchivedAction = vi.fn();
 const deleteCategoryAction = vi.fn();
+const moveAndDeleteCategoryAction = vi.fn();
 const timestamp = new Date('2026-05-10T12:30:00.000Z');
 
 vi.mock('next/navigation', () => ({
@@ -29,6 +32,8 @@ vi.mock('@/lib/actions', () => ({
         createCategoryAction(formData),
     deleteCategoryAction: (formData: FormData) =>
         deleteCategoryAction(formData),
+    moveAndDeleteCategoryAction: (formData: FormData) =>
+        moveAndDeleteCategoryAction(formData),
     setCategoryArchivedAction: (formData: FormData) =>
         setCategoryArchivedAction(formData),
     updateCategoryAction: (formData: FormData) => Promise.resolve(formData)
@@ -67,6 +72,7 @@ describe('CategoryManager', () => {
     afterEach(() => {
         createCategoryAction.mockReset();
         deleteCategoryAction.mockReset();
+        moveAndDeleteCategoryAction.mockReset();
         setCategoryArchivedAction.mockReset();
         refresh.mockReset();
     });
@@ -144,6 +150,80 @@ describe('CategoryManager', () => {
         expect(formData.get('id')).toBe('1');
         expect(formData.get('archived')).toBe('true');
         expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it('confirms deletion for unused categories', () => {
+        renderManager([category(1, 'Subscriptions'), category(2, 'Fuel')]);
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Delete Subscriptions' })
+        );
+
+        const dialog = screen.getByRole('dialog', { name: 'Delete category?' });
+        expect(dialog).toBeTruthy();
+        expect(
+            within(dialog).getByText(
+                'Delete Subscriptions. This cannot be undone.'
+            )
+        ).toBeTruthy();
+        expect(
+            within(dialog).getByRole('button', { name: 'Delete' })
+        ).toBeTruthy();
+        expect(screen.queryByLabelText('Replacement category')).toBeNull();
+    });
+
+    it('moves transactions before deleting an in-use category', async () => {
+        moveAndDeleteCategoryAction.mockResolvedValue(undefined);
+        renderManager([
+            category(1, 'Old fuel', { inUse: true }),
+            category(2, 'Fuel'),
+            category(3, 'Archived fuel', {
+                archivedAt: new Date('2026-05-11T00:00:00.000Z')
+            }),
+            category(4, 'Salary', { type: 'income' })
+        ]);
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Delete Old fuel' })
+        );
+
+        expect(screen.getByLabelText('Replacement category')).toBeTruthy();
+        expect(
+            screen.getByRole('button', { name: 'Move and delete' })
+        ).toHaveProperty('disabled', true);
+
+        fireEvent.click(screen.getByLabelText('Replacement category'));
+        fireEvent.click(await screen.findByRole('option', { name: 'Fuel' }));
+        fireEvent.submit(
+            screen
+                .getByRole('button', { name: 'Move and delete' })
+                .closest('form') as HTMLFormElement
+        );
+
+        await waitFor(() =>
+            expect(moveAndDeleteCategoryAction).toHaveBeenCalledOnce()
+        );
+        const formData = moveAndDeleteCategoryAction.mock
+            .calls[0]?.[0] as FormData;
+        expect(formData.get('id')).toBe('1');
+        expect(formData.get('replacementCategoryId')).toBe('2');
+        expect(screen.queryByRole('option', { name: 'Salary' })).toBeNull();
+    });
+
+    it('keeps parent category delete disabled', () => {
+        renderManager([
+            category(1, 'Car', {
+                displayName: 'Car',
+                hasChildren: true
+            }),
+            category(2, 'Fuel')
+        ]);
+
+        const deleteButton = screen.getByRole('button', {
+            name: 'Delete Car'
+        }) as HTMLButtonElement;
+
+        expect(deleteButton.disabled).toBe(true);
     });
 
     it('keeps parent rows collapsed until expanded', () => {
