@@ -105,6 +105,37 @@ function DashboardMerchantRow({
     );
 }
 
+function DashboardMerchantAvatarLink({
+    merchant,
+    summary,
+    timezone
+}: {
+    readonly merchant: DashboardMerchant;
+    readonly summary: DashboardSummary;
+    readonly timezone: string;
+}) {
+    return (
+        <Link
+            aria-label={`${merchant.merchantName} transactions`}
+            className="-ml-2 rounded-full ring-2 ring-background transition-transform first:ml-0 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-ring"
+            draggable={false}
+            href={merchantHref(summary, merchant, timezone)}
+            prefetch={false}
+            title={merchant.merchantName}
+        >
+            <MerchantLogo
+                className="rounded-full border bg-background shadow-sm"
+                merchant={{
+                    displayName: merchant.merchantName,
+                    logoUrl: merchant.merchantLogoUrl,
+                    name: merchant.merchantName
+                }}
+                size="md"
+            />
+        </Link>
+    );
+}
+
 export function DashboardMerchantPanel({
     summary,
     timezone
@@ -225,30 +256,18 @@ export function DashboardMerchantPanel({
                         ) : null}
                     </>
                 ) : (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex min-w-0 items-center overflow-hidden py-1 pl-1">
                         {compactMerchants.map(merchant => (
-                            <Link
-                                aria-label={`${merchant.merchantName} transactions`}
-                                className="rounded-md border bg-background p-1 transition-colors hover:bg-muted/50"
-                                draggable={false}
-                                href={merchantHref(summary, merchant, timezone)}
+                            <DashboardMerchantAvatarLink
                                 key={merchant.merchantId}
-                                prefetch={false}
-                                title={merchant.merchantName}
-                            >
-                                <MerchantLogo
-                                    merchant={{
-                                        displayName: merchant.merchantName,
-                                        logoUrl: merchant.merchantLogoUrl,
-                                        name: merchant.merchantName
-                                    }}
-                                    size="sm"
-                                />
-                            </Link>
+                                merchant={merchant}
+                                summary={summary}
+                                timezone={timezone}
+                            />
                         ))}
                         {compactOverflowCount > 0 ? (
                             <Link
-                                className="flex h-8 shrink-0 items-center rounded-md border bg-background px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                                className="-ml-2 flex size-8 shrink-0 items-center justify-center rounded-full border bg-muted px-2 text-xs font-medium text-muted-foreground ring-2 ring-background transition-colors hover:bg-muted/80 hover:text-foreground"
                                 draggable={false}
                                 href={aggregateHref(summary, timezone)}
                                 prefetch={false}

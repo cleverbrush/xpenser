@@ -46,7 +46,7 @@ describe('DashboardMerchantPanel', () => {
         const merchants = Array.from({ length: 24 }, (_, index) =>
             merchant(index + 1)
         );
-        render(
+        const { container } = render(
             <DashboardMerchantPanel
                 summary={summary({
                     merchantCount: 30,
@@ -62,6 +62,11 @@ describe('DashboardMerchantPanel', () => {
         expect(screen.queryByText(/merchant-1\.example/)).toBeNull();
         expect(screen.queryByText(/1 purchase/)).toBeNull();
         expect(screen.queryByRole('link', { name: 'View all' })).toBeNull();
+        expect(
+            container.querySelector(
+                'img[src="https://merchant-1.example/logo.svg"]'
+            )
+        ).toBeTruthy();
 
         const merchantLink = screen
             .getAllByRole('link')

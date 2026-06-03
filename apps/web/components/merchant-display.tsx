@@ -1,5 +1,5 @@
 import type { Merchant } from '@xpenser/contracts';
-import { Badge } from '@xpenser/ui';
+import { Avatar, AvatarFallback, AvatarImage, Badge } from '@xpenser/ui';
 
 export function merchantDisplayName(merchant: Merchant): string {
     return merchant.displayName || merchant.brandName || merchant.name;
@@ -25,35 +25,33 @@ export function MerchantLogo({
         md: 'size-8',
         lg: 'size-16'
     }[size];
-
-    if (merchant.logoUrl) {
-        return (
-            <span
-                aria-hidden
-                className={classNames(
-                    sizeClassName,
-                    'shrink-0 rounded-sm bg-contain bg-center bg-no-repeat',
-                    className
-                )}
-                style={{
-                    backgroundImage: `url(${JSON.stringify(merchant.logoUrl)})`
-                }}
-            />
-        );
-    }
+    const fallbackTextClassName = {
+        xs: 'text-[9px]',
+        sm: 'text-[10px]',
+        md: 'text-xs',
+        lg: 'text-xl'
+    }[size];
 
     return (
-        <span
+        <Avatar
             aria-hidden
             className={classNames(
                 sizeClassName,
-                'flex shrink-0 items-center justify-center rounded-sm bg-muted font-medium text-muted-foreground',
-                size === 'sm' ? 'text-[10px]' : 'text-sm',
+                'rounded-sm bg-muted',
                 className
             )}
         >
-            {label.slice(0, 1).toUpperCase()}
-        </span>
+            <AvatarImage
+                alt=""
+                className="object-contain"
+                src={merchant.logoUrl ?? undefined}
+            />
+            <AvatarFallback
+                className={classNames('rounded-sm', fallbackTextClassName)}
+            >
+                {label.slice(0, 1).toUpperCase()}
+            </AvatarFallback>
+        </Avatar>
     );
 }
 
