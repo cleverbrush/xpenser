@@ -113,6 +113,7 @@ describe('DashboardMerchantPanel', () => {
         expect(screen.getByText('Merchant 1')).toBeTruthy();
         expect(screen.getByText(/merchant-1\.example/)).toBeTruthy();
         expect(screen.getByText(/1 purchase/)).toBeTruthy();
+        expect(screen.getByText('2.5%')).toBeTruthy();
         expect(screen.getByText('Merchant 8')).toBeTruthy();
         expect(screen.queryByText('Merchant 9')).toBeNull();
         expect(

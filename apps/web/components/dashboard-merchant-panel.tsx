@@ -13,10 +13,15 @@ import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { AmountDisplay } from '@/components/amount-display';
+import {
+    DatatypeChart,
+    datatypePieExpression
+} from '@/components/datatype-chart';
 import { MerchantLogo } from '@/components/merchant-display';
 import { dateParam } from '@/lib/dashboard-periods';
 import {
     amountClassNameForCategoryTotal,
+    formatPercent,
     signedCategoryTotal
 } from '@/lib/format';
 
@@ -49,6 +54,19 @@ function merchantPurchaseLabel(count: number): string {
     return `${count} ${count === 1 ? 'purchase' : 'purchases'}`;
 }
 
+function merchantExpenseShare(
+    summary: Pick<DashboardSummary, 'expenseTotal'>,
+    merchant: Pick<DashboardMerchant, 'expenseTotal'>
+): number {
+    const basis = Math.abs(summary.expenseTotal);
+    if (basis <= 0) {
+        return 0;
+    }
+
+    const share = (Math.abs(merchant.expenseTotal) / basis) * 100;
+    return Math.max(0, Math.min(100, share));
+}
+
 function DashboardMerchantRow({
     merchant,
     summary,
@@ -58,13 +76,29 @@ function DashboardMerchantRow({
     readonly summary: DashboardSummary;
     readonly timezone: string;
 }) {
+    const share = merchantExpenseShare(summary, merchant);
+    const shareLabel = formatPercent(share);
+
     return (
         <Link
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2"
+            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2"
             draggable={false}
             href={merchantHref(summary, merchant, timezone)}
             prefetch={false}
         >
+            <span
+                className="flex w-10 shrink-0 flex-col items-center justify-center text-rose-700 dark:text-rose-400"
+                title={`Share of expenses: ${shareLabel}`}
+            >
+                <DatatypeChart
+                    className="text-2xl"
+                    expression={datatypePieExpression(share)}
+                />
+                <span className="mt-0.5 text-[0.65rem] font-medium leading-none tabular-nums">
+                    <span className="sr-only">Share of expenses: </span>
+                    {shareLabel}
+                </span>
+            </span>
             <span className="flex min-w-0 items-center gap-3">
                 <MerchantLogo
                     merchant={{
