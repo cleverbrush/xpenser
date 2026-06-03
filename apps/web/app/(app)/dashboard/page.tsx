@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 import { DashboardExplorer } from '@/components/dashboard-explorer';
-import { initialDashboardWindowDate } from '@/components/dashboard-window-explorer';
 import { getApiClient } from '@/lib/api';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
+import { initialDashboardWindowDate } from '@/lib/dashboard-window';
 
 type DashboardSearchParams = {
     readonly date?: string;

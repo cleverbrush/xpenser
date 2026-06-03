@@ -19,6 +19,7 @@ import {
 } from '@/components/dashboard-period-nav';
 import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
 import { dateParam, parseDateParam, periodHref } from '@/lib/dashboard-periods';
+import { dashboardWindowItemDateForAnchor } from '@/lib/dashboard-window';
 
 type DashboardPeriod = DashboardSummary['period'];
 type DashboardWindowItem = DashboardWindowResponse['items'][number];
@@ -60,25 +61,6 @@ function initialCache(
     return mergeDashboardItems({}, period, items, true);
 }
 
-function itemDateForAnchor(
-    items: readonly DashboardWindowItem[],
-    date: string,
-    timezone: string
-): string | undefined {
-    const anchor = parseDateParam(date, timezone);
-    if (!anchor) {
-        return items.find(item => item.date === date)?.date;
-    }
-
-    return (
-        items.find(item => {
-            const from = new Date(item.summary.from);
-            const to = new Date(item.summary.to);
-            return anchor >= from && anchor <= to;
-        })?.date ?? items.find(item => item.date === date)?.date
-    );
-}
-
 function itemForSelection(
     cache: DashboardCache,
     period: DashboardPeriod,
@@ -87,22 +69,12 @@ function itemForSelection(
 ): DashboardWindowItem | undefined {
     const periodItems = cache[period] ?? {};
     return periodItems[
-        itemDateForAnchor(Object.values(periodItems), date, timezone) ?? date
-    ];
-}
-
-export function initialDashboardWindowDate(
-    window: DashboardWindowResponse,
-    anchorDate: Date,
-    timezone: string
-): string {
-    return (
-        itemDateForAnchor(
-            window.items,
-            dateParam(anchorDate, timezone),
+        dashboardWindowItemDateForAnchor(
+            Object.values(periodItems),
+            date,
             timezone
-        ) ?? dateParam(anchorDate, timezone)
-    );
+        ) ?? date
+    ];
 }
 
 export function DashboardWindowExplorer({
@@ -243,7 +215,11 @@ export function DashboardWindowExplorer({
                 return;
             }
 
-            const loadedDate = itemDateForAnchor(items, next.date, timezone);
+            const loadedDate = dashboardWindowItemDateForAnchor(
+                items,
+                next.date,
+                timezone
+            );
             if (loadedDate) {
                 commitSelection(next.period, loadedDate, pushHistory);
             } else {

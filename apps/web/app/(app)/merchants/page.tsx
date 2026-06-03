@@ -1,8 +1,8 @@
 import { brandAnalyticsMerchantLimit } from '@/components/brand-analytics-panel';
 import { BrandsExplorer } from '@/components/brands-explorer';
-import { initialDashboardWindowDate } from '@/components/dashboard-window-explorer';
 import { getApiClient } from '@/lib/api';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
+import { initialDashboardWindowDate } from '@/lib/dashboard-window';
 
 type BrandsSearchParams = {
     readonly date?: string;
