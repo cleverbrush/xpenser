@@ -123,6 +123,9 @@ describe('ui primitives', () => {
         expect(container.querySelector('img')?.getAttribute('src')).toBe(
             '/merchant-logo.svg'
         );
+        expect(
+            screen.getByTestId('avatar-image').getAttribute('class')
+        ).not.toContain('opacity-0');
 
         fireEvent.error(screen.getByTestId('avatar-image'));
 

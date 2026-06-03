@@ -26,7 +26,6 @@ export function AvatarImage({
     src,
     ...props
 }: React.ImgHTMLAttributes<HTMLImageElement>) {
-    const [loadedSrc, setLoadedSrc] = React.useState<string>();
     const [failedSrc, setFailedSrc] = React.useState<string>();
 
     if (failedSrc === src || !src) {
@@ -36,8 +35,7 @@ export function AvatarImage({
     return (
         <img
             className={cn(
-                'pointer-events-none absolute inset-0 z-10 size-full object-cover transition-opacity duration-150',
-                loadedSrc === src ? 'opacity-100' : 'opacity-0',
+                'pointer-events-none absolute inset-0 z-10 size-full object-cover',
                 className
             )}
             alt={alt}
@@ -45,10 +43,7 @@ export function AvatarImage({
                 setFailedSrc(src);
                 onError?.(event);
             }}
-            onLoad={event => {
-                setLoadedSrc(src);
-                onLoad?.(event);
-            }}
+            onLoad={onLoad}
             src={src}
             {...props}
         />
