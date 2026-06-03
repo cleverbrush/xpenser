@@ -1,8 +1,12 @@
 import type { Merchant } from '@xpenser/contracts';
-import { Badge, cn } from '@xpenser/ui';
+import { Badge } from '@xpenser/ui';
 
 export function merchantDisplayName(merchant: Merchant): string {
     return merchant.displayName || merchant.brandName || merchant.name;
+}
+
+function classNames(...values: Array<string | undefined>) {
+    return values.filter(Boolean).join(' ');
 }
 
 export function MerchantLogo({
@@ -26,7 +30,7 @@ export function MerchantLogo({
         return (
             <span
                 aria-hidden
-                className={cn(
+                className={classNames(
                     sizeClassName,
                     'shrink-0 rounded-sm bg-contain bg-center bg-no-repeat',
                     className
@@ -41,7 +45,7 @@ export function MerchantLogo({
     return (
         <span
             aria-hidden
-            className={cn(
+            className={classNames(
                 sizeClassName,
                 'flex shrink-0 items-center justify-center rounded-sm bg-muted font-medium text-muted-foreground',
                 size === 'sm' ? 'text-[10px]' : 'text-sm',
