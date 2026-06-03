@@ -78,6 +78,8 @@ function dashboardSummary(): DashboardSummary {
         currency: 'USD',
         expenseTotal: 50,
         incomeTotal: 100,
+        merchantCount: 0,
+        topMerchants: [],
         byCategory: [],
         byParentCategory: []
     };

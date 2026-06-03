@@ -1180,6 +1180,33 @@ export const CategoryTrendQuerySchema = object({
     })
     .schemaName('CategoryTrendQuery');
 
+export const DashboardMerchantTotalSchema = object({
+    /** Merchant identifier. */
+    merchantId: number().describe('Merchant identifier.'),
+    /** Merchant display name. */
+    merchantName: string().describe('Merchant display name.'),
+    /** Merchant domain, when available. */
+    merchantDomain: string()
+        .optional()
+        .describe('Merchant domain, when available.'),
+    /** Merchant logo URL, when available. */
+    merchantLogoUrl: string()
+        .optional()
+        .describe('Merchant logo URL, when available.'),
+    /** Merchant primary brand color, when available. */
+    merchantPrimaryColor: string()
+        .optional()
+        .describe('Merchant primary brand color, when available.'),
+    /** Expense total in the user's default currency. */
+    expenseTotal: decimalNumber().describe(
+        "Expense total in the user's default currency."
+    ),
+    /** Number of expense transactions linked to this merchant. */
+    transactionCount: number().describe(
+        'Number of expense transactions linked to this merchant.'
+    )
+}).schemaName('DashboardMerchantTotal');
+
 export const DashboardCategoryTotalSchema = object({
     /** Category identifier. */
     categoryId: number().describe('Category identifier.'),
@@ -1405,6 +1432,14 @@ export const DashboardSummarySchema = object({
     expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
     /** Income in the default currency. */
     incomeTotal: decimalNumber().describe('Income in the default currency.'),
+    /** Number of distinct expense merchants in the selected period. */
+    merchantCount: number().describe(
+        'Number of distinct expense merchants in the selected period.'
+    ),
+    /** Top expense merchants for the selected period. */
+    topMerchants: array(DashboardMerchantTotalSchema).describe(
+        'Top expense merchants for the selected period.'
+    ),
     /** Category totals for the selected period. */
     byCategory: array(DashboardCategoryTotalSchema).describe(
         'Category totals for the selected period.'

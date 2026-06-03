@@ -61,6 +61,8 @@ type DashboardPeriod = NonNullable<DashboardSummary['period']>;
 
 type DashboardCategory = DashboardSummary['byCategory'][number];
 
+type DashboardMerchant = DashboardSummary['topMerchants'][number];
+
 type StatsBucket = StatsOverview['trend'][number];
 
 type StatsCategory = StatsOverview['byCategory'][number];
@@ -108,6 +110,7 @@ type CategoryComparison = {
 };
 
 export const categoryTrendMaxBuckets = 500;
+const dashboardMerchantLimit = 24;
 
 export function transactionSignedDefaultAmount(
     transaction: Pick<TransactionDb, 'defaultCurrencyAmount'> & {
@@ -1530,10 +1533,12 @@ export function summarizeDashboardRows(
     range: StatsRange,
     rows: readonly TransactionDb[],
     previousRows: readonly TransactionDb[],
-    categoriesById: ReadonlyMap<number, CategoryDb>
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    merchantsById: ReadonlyMap<number, MerchantDb>
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
+    const totalsByMerchant = new Map<number, DashboardMerchant>();
     const previousTotalsByCategory = new Map<string, number>();
 
     for (const row of previousRows) {
@@ -1574,6 +1579,24 @@ export function summarizeDashboardRows(
                 (current.trend[bucketIndex] ?? 0) + total;
         }
         totalsByCategory.set(key, current);
+
+        if (fields.type === 'expense' && row.merchantId) {
+            const merchant = merchantsById.get(row.merchantId);
+            if (merchant) {
+                const currentMerchant = totalsByMerchant.get(merchant.id) ?? {
+                    merchantId: merchant.id,
+                    merchantName: merchant.brandName ?? merchant.name,
+                    merchantDomain: merchant.domain ?? undefined,
+                    merchantLogoUrl: merchant.logoUrl ?? undefined,
+                    merchantPrimaryColor: merchant.primaryColor ?? undefined,
+                    expenseTotal: 0,
+                    transactionCount: 0
+                };
+                currentMerchant.expenseTotal += total;
+                currentMerchant.transactionCount += 1;
+                totalsByMerchant.set(merchant.id, currentMerchant);
+            }
+        }
     }
 
     for (const [key, category] of totalsByCategory) {
@@ -1593,6 +1616,14 @@ export function summarizeDashboardRows(
         bucketCount,
         categoriesById
     );
+    const topMerchants = Array.from(totalsByMerchant.values())
+        .sort(
+            (left, right) =>
+                right.transactionCount - left.transactionCount ||
+                right.expenseTotal - left.expenseTotal ||
+                left.merchantName.localeCompare(right.merchantName)
+        )
+        .slice(0, dashboardMerchantLimit);
 
     return {
         period,
@@ -1605,6 +1636,8 @@ export function summarizeDashboardRows(
         incomeTotal: byCategory
             .filter(item => item.type === 'income')
             .reduce((sum, item) => sum + item.total, 0),
+        merchantCount: totalsByMerchant.size,
+        topMerchants,
         byCategory,
         byParentCategory
     };
@@ -1628,11 +1661,13 @@ export async function dashboardSummary(
         range,
         user.timezone
     );
-    const [rows, previousRows, categoriesById] = await Promise.all([
-        transactionsForRange(db, userId, range),
-        transactionsForRange(db, userId, comparisonRange),
-        loadCategoriesById(db, userId)
-    ]);
+    const [rows, previousRows, categoriesById, merchantsById] =
+        await Promise.all([
+            transactionsForRange(db, userId, range),
+            transactionsForRange(db, userId, comparisonRange),
+            loadCategoriesById(db, userId),
+            loadMerchantsById(db, userId)
+        ]);
 
     return summarizeDashboardRows(
         user,
@@ -1640,7 +1675,8 @@ export async function dashboardSummary(
         range,
         rows,
         previousRows,
-        categoriesById
+        categoriesById,
+        merchantsById
     );
 }
 
@@ -1672,7 +1708,7 @@ export async function dashboardWindow(
             )
         };
     });
-    const [allRows, categoriesById] = await Promise.all([
+    const [allRows, categoriesById, merchantsById] = await Promise.all([
         transactionsForRange(
             db,
             userId,
@@ -1680,7 +1716,8 @@ export async function dashboardWindow(
                 plans.flatMap(plan => [plan.range, plan.previousRange])
             )
         ),
-        loadCategoriesById(db, userId)
+        loadCategoriesById(db, userId),
+        loadMerchantsById(db, userId)
     ]);
 
     return {
@@ -1692,7 +1729,8 @@ export async function dashboardWindow(
                 plan.range,
                 rowsInRange(allRows, plan.range),
                 rowsInRange(allRows, plan.previousRange),
-                categoriesById
+                categoriesById,
+                merchantsById
             )
         }))
     };

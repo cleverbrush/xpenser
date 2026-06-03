@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CategoryDb } from '../db/schemas.js';
+import type { CategoryDb, MerchantDb } from '../db/schemas.js';
 import {
     categoryTrendMaxBuckets,
     compareTransactionsByOccurrenceAsc,
@@ -121,7 +121,8 @@ describe('transaction category signs', () => {
             new Map<number, CategoryDb>([
                 [car.id, car],
                 [returns.id, returns]
-            ])
+            ]),
+            new Map<number, MerchantDb>()
         );
 
         expect(summary.expenseTotal).toBe(100);
@@ -202,7 +203,8 @@ describe('transaction category signs', () => {
             new Map<number, CategoryDb>([
                 [car.id, car],
                 [returns.id, returns]
-            ])
+            ]),
+            new Map<number, MerchantDb>()
         );
 
         expect(summary.expenseTotal).toBe(0);
@@ -232,6 +234,138 @@ describe('transaction category signs', () => {
                 total: category.total
             }))
         ).toEqual([{ id: car.id, name: 'Car', type: 'income', total: 25 }]);
+    });
+
+    it('summarizes linked expense merchants by purchase count for dashboard previews', () => {
+        const timestamp = new Date('2026-05-10T12:00:00.000Z');
+        const groceries = {
+            id: 1,
+            userId: 1,
+            name: 'Groceries',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        } as const;
+        const salary = {
+            ...groceries,
+            id: 2,
+            name: 'Salary',
+            type: 'income'
+        } as const;
+        const merchant = (
+            id: number,
+            name: string,
+            overrides: Partial<MerchantDb> = {}
+        ) =>
+            ({
+                id,
+                userId: 1,
+                name,
+                normalizedName: name.toLowerCase(),
+                createdAt: timestamp,
+                updatedAt: timestamp,
+                ...overrides
+            }) as MerchantDb;
+        const transaction = (
+            id: number,
+            categoryId: number,
+            amount: string,
+            merchantId?: number
+        ) =>
+            ({
+                id,
+                userId: 1,
+                categoryId,
+                merchantId,
+                type: categoryId === salary.id ? 'income' : 'expense',
+                amount,
+                currency: 'USD',
+                defaultCurrencyAmount: amount,
+                defaultCurrency: 'USD',
+                exchangeRate: '1',
+                exchangeRateDate: '2026-05-10',
+                occurredAt: timestamp,
+                createdAt: timestamp,
+                updatedAt: timestamp
+            }) as const;
+        const merchants = new Map<number, MerchantDb>([
+            [
+                1,
+                merchant(1, 'Big Store', {
+                    brandName: 'Big Store',
+                    domain: 'big.example',
+                    logoUrl: 'https://big.example/logo.svg',
+                    primaryColor: '#0066cc'
+                })
+            ],
+            [2, merchant(2, 'Corner Shop')],
+            [3, merchant(3, 'Paycheck Inc')]
+        ]);
+        const extraMerchants = Array.from({ length: 25 }, (_, index) => {
+            const id = index + 10;
+            return [id, merchant(id, `Merchant ${id}`)] as const;
+        });
+        const summary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            {
+                from: new Date('2026-05-01T00:00:00.000Z'),
+                to: new Date('2026-05-31T23:59:59.999Z')
+            },
+            [
+                transaction(1, groceries.id, '20', 1),
+                transaction(2, groceries.id, '30', 1),
+                transaction(3, groceries.id, '100', 2),
+                transaction(4, salary.id, '500', 3),
+                transaction(5, groceries.id, '10'),
+                ...extraMerchants.map(([id]) =>
+                    transaction(id, groceries.id, '1', id)
+                )
+            ],
+            [],
+            new Map<number, CategoryDb>([
+                [groceries.id, groceries],
+                [salary.id, salary]
+            ]),
+            new Map<number, MerchantDb>([...merchants, ...extraMerchants])
+        );
+
+        expect(summary.merchantCount).toBe(27);
+        expect(summary.topMerchants).toHaveLength(24);
+        expect(summary.topMerchants.slice(0, 3)).toEqual([
+            {
+                merchantId: 1,
+                merchantName: 'Big Store',
+                merchantDomain: 'big.example',
+                merchantLogoUrl: 'https://big.example/logo.svg',
+                merchantPrimaryColor: '#0066cc',
+                expenseTotal: 50,
+                transactionCount: 2
+            },
+            {
+                merchantId: 2,
+                merchantName: 'Corner Shop',
+                merchantDomain: undefined,
+                merchantLogoUrl: undefined,
+                merchantPrimaryColor: undefined,
+                expenseTotal: 100,
+                transactionCount: 1
+            },
+            {
+                merchantId: 10,
+                merchantName: 'Merchant 10',
+                merchantDomain: undefined,
+                merchantLogoUrl: undefined,
+                merchantPrimaryColor: undefined,
+                expenseTotal: 1,
+                transactionCount: 1
+            }
+        ]);
+        expect(summary.topMerchants.some(item => item.merchantId === 3)).toBe(
+            false
+        );
     });
 });
 

@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
+import { DashboardMerchantPanel } from '@/components/dashboard-merchant-panel';
 import {
     DashboardPeriodNav,
     type DashboardPeriodSelection
@@ -523,6 +524,7 @@ function DashboardPeriodPanel({
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
             <SummaryCards summary={summary} timezone={timezone} />
+            <DashboardMerchantPanel summary={summary} timezone={timezone} />
             <CategoryPanel summary={summary} timezone={timezone} />
         </div>
     );
@@ -543,6 +545,36 @@ function DashboardPeriodPanelSkeleton() {
                     </Card>
                 ))}
             </div>
+            <Card>
+                <CardHeader>
+                    <div className="h-6 w-24 rounded-md bg-muted" />
+                    <div className="h-3 w-28 rounded-md bg-muted" />
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col divide-y">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                                <div className="size-6 rounded-sm bg-muted" />
+                                <div className="space-y-2">
+                                    <div className="h-4 w-28 rounded-md bg-muted" />
+                                    <div className="h-3 w-20 rounded-md bg-muted" />
+                                </div>
+                            </div>
+                            <div className="h-4 w-16 rounded-md bg-muted" />
+                        </div>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                                <div className="size-6 rounded-sm bg-muted" />
+                                <div className="space-y-2">
+                                    <div className="h-4 w-24 rounded-md bg-muted" />
+                                    <div className="h-3 w-16 rounded-md bg-muted" />
+                                </div>
+                            </div>
+                            <div className="h-4 w-14 rounded-md bg-muted" />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
             <Card>
                 <CardHeader>
                     <div className="h-6 w-24 rounded-md bg-muted" />

@@ -10,6 +10,7 @@ import {
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
     CurrencyConversionQuerySchema,
+    DashboardSummarySchema,
     EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
@@ -399,6 +400,33 @@ describe('shared schemas', () => {
                 timeframe: 'this-month'
             } as never).valid
         ).toBe(false);
+    });
+
+    it('validates dashboard merchant summaries', () => {
+        expect(
+            DashboardSummarySchema.validate({
+                period: 'month',
+                from: new Date('2026-05-01T00:00:00.000Z'),
+                to: new Date('2026-05-31T23:59:59.999Z'),
+                currency: 'USD',
+                expenseTotal: 100,
+                incomeTotal: 0,
+                merchantCount: 1,
+                topMerchants: [
+                    {
+                        merchantId: 7,
+                        merchantName: 'Walmart',
+                        merchantDomain: 'walmart.com',
+                        merchantLogoUrl: 'https://walmart.com/logo.svg',
+                        merchantPrimaryColor: '#0071ce',
+                        expenseTotal: 100,
+                        transactionCount: 3
+                    }
+                ],
+                byCategory: [],
+                byParentCategory: []
+            }).valid
+        ).toBe(true);
     });
 
     it('validates category trend controls', () => {
