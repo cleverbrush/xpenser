@@ -184,6 +184,7 @@ export const updatePreferencesHandler: Handler<
         principal.userId,
         body.defaultCurrency,
         body.favoriteCurrencies,
+        body.countryCode,
         body.timezone,
         body.weeklyEmailReportEnabled,
         body.monthlyEmailReportEnabled

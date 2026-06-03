@@ -6,12 +6,14 @@ import {
     ConfirmEmailBodySchema,
     CreateApiKeyBodySchema,
     CreateCategoryBodySchema,
+    CreateMerchantBodySchema,
     CreateTransactionBodySchema,
     CurrencyCodeSchema,
     CurrencyConversionQuerySchema,
     EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
+    MerchantSchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
@@ -38,6 +40,7 @@ describe('shared schemas', () => {
             password: 'super-secret',
             confirmPassword: 'super-secret',
             defaultCurrency: 'USD',
+            countryCode: 'US',
             favoriteCurrencies: ['EUR', 'GBP']
         });
 
@@ -72,6 +75,7 @@ describe('shared schemas', () => {
         expect(
             UpdateUserPreferenceBodySchema.validate({
                 defaultCurrency: 'USD',
+                countryCode: 'US',
                 favoriteCurrencies: ['EUR'],
                 timezone: 'Europe/London'
             }).valid
@@ -83,6 +87,7 @@ describe('shared schemas', () => {
             id: 1,
             email: 'jane@example.com',
             defaultCurrency: 'USD',
+            countryCode: 'US',
             favoriteCurrencies: ['EUR'],
             transactionCurrencies: ['EUR', 'USD'],
             timezone: 'UTC',
@@ -115,6 +120,7 @@ describe('shared schemas', () => {
     it('defaults email report preferences to enabled when updating preferences', () => {
         const result = UpdateUserPreferenceBodySchema.validate({
             defaultCurrency: 'USD',
+            countryCode: 'US',
             favoriteCurrencies: ['EUR'],
             timezone: 'UTC'
         });
@@ -165,6 +171,31 @@ describe('shared schemas', () => {
         expect(result.valid).toBe(true);
     });
 
+    it('validates merchant payloads', () => {
+        expect(
+            CreateMerchantBodySchema.validate({ name: 'Trader Joe' }).valid
+        ).toBe(true);
+        expect(CreateMerchantBodySchema.validate({ name: '' }).valid).toBe(
+            false
+        );
+
+        expect(
+            MerchantSchema.validate({
+                id: 3,
+                name: 'Trader Joe',
+                displayName: 'Trader Joe',
+                brandName: 'Trader Joe',
+                domain: 'traderjoes.com',
+                logoUrl: 'https://example.com/logo.svg',
+                suggestedCategoryId: 1,
+                suggestedCategoryDisplayName: 'Groceries',
+                transactionCount: 2,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }).valid
+        ).toBe(true);
+    });
+
     it('returns required messages before format messages for empty login fields', () => {
         const result = LoginBodySchema.validate(
             { email: '', password: '' },
@@ -197,6 +228,7 @@ describe('shared schemas', () => {
                     email: 'jane@example.com',
                     role: 'user',
                     defaultCurrency: 'USD',
+                    countryCode: 'US',
                     timezone: 'UTC',
                     hasCategories: false
                 }
@@ -233,6 +265,7 @@ describe('shared schemas', () => {
             password: 'super-secret',
             confirmPassword: 'different-secret',
             defaultCurrency: 'USD',
+            countryCode: 'US',
             favoriteCurrencies: ['EUR', 'GBP']
         });
 

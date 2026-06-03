@@ -93,6 +93,7 @@ describe('MCP tool helpers', () => {
                 id: 7,
                 email: 'jane@example.com',
                 defaultCurrency: 'USD',
+                countryCode: 'US',
                 favoriteCurrencies: ['EUR'],
                 transactionCurrencies: ['USD', 'EUR'],
                 timezone: 'UTC',
@@ -121,6 +122,7 @@ describe('MCP tool helpers', () => {
                         {
                             id: 100,
                             categoryId: 1,
+                            merchantId: null,
                             categoryName: 'Food',
                             categoryDisplayName: 'Food',
                             categoryParentId: null,
@@ -159,11 +161,13 @@ describe('MCP tool helpers', () => {
         const query = normalizeTransactionListInput({
             search: '  food  ',
             from: '2026-05-01T00:00:00.000Z',
+            merchantId: 12,
             limit: 250
         });
 
         expect(query).toMatchObject({
             search: 'food',
+            merchantId: 12,
             page: 1,
             limit: 100,
             direction: 'desc'

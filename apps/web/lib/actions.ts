@@ -1,7 +1,7 @@
 'use server';
 
 import { createHash, randomBytes } from 'node:crypto';
-import type { Transaction } from '@xpenser/contracts';
+import type { Merchant, Transaction } from '@xpenser/contracts';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -45,14 +45,22 @@ function editableString(formData: FormData, key: string): string | undefined {
 }
 
 function transactionBody(formData: FormData, editableNote = false) {
+    const merchantId = optionalString(formData, 'merchantId');
     return {
         categoryId: Number(requiredString(formData, 'categoryId')),
+        merchantId: merchantId ? Number(merchantId) : null,
         amount: Number(requiredString(formData, 'amount')),
         currency: requiredString(formData, 'currency'),
         occurredAt: new Date(requiredString(formData, 'occurredAt')),
         note: editableNote
             ? editableString(formData, 'note')
             : optionalString(formData, 'note')
+    };
+}
+
+function merchantBody(formData: FormData) {
+    return {
+        name: requiredString(formData, 'name')
     };
 }
 
@@ -158,6 +166,9 @@ export async function registerAction(formData: FormData) {
                 password,
                 confirmPassword: requiredString(formData, 'confirmPassword'),
                 defaultCurrency,
+                countryCode: requiredString(formData, 'countryCode')
+                    .trim()
+                    .toUpperCase(),
                 favoriteCurrencies: favoriteCurrencies(
                     formData,
                     defaultCurrency
@@ -300,12 +311,26 @@ export async function moveAndDeleteCategoryAction(formData: FormData) {
     revalidatePath('/stats');
 }
 
+export async function createMerchantAction(
+    formData: FormData
+): Promise<Merchant> {
+    const client = await getApiClient();
+    const merchant = await client.merchants.create({
+        body: merchantBody(formData)
+    });
+    revalidateTag('merchants', 'max');
+    revalidatePath('/capture');
+    revalidatePath('/transactions');
+    return merchant;
+}
+
 export async function createTransactionAction(formData: FormData) {
     const client = await getApiClient();
     await client.transactions.create({
         body: transactionBody(formData)
     });
     revalidateTag('categories', 'max');
+    revalidateTag('merchants', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -324,6 +349,7 @@ export async function createCaptureTransactionAction(
         body: transactionBody(formData)
     });
     revalidateTag('categories', 'max');
+    revalidateTag('merchants', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -342,6 +368,7 @@ export async function updateTransactionAction(formData: FormData) {
         body: transactionBody(formData, true)
     });
     revalidateTag('categories', 'max');
+    revalidateTag('merchants', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -358,6 +385,7 @@ export async function deleteTransactionAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'id')) }
     });
     revalidateTag('categories', 'max');
+    revalidateTag('merchants', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -373,6 +401,8 @@ export async function updatePreferencesAction(formData: FormData) {
     await client.users.updatePreferences({
         body: {
             defaultCurrency,
+            countryCode:
+                optionalString(formData, 'countryCode')?.toUpperCase() ?? 'US',
             favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency),
             timezone: optionalString(formData, 'timezone') ?? 'UTC',
             weeklyEmailReportEnabled: booleanString(

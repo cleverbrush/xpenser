@@ -16,6 +16,13 @@ export const CurrencyCodeSchema = string()
     .describe('ISO 4217 currency code, for example USD or EUR.')
     .schemaName('CurrencyCode');
 
+export const CountryCodeSchema = string()
+    .required('country is required')
+    .nonempty('country is required')
+    .matches(/^[A-Z]{2}$/, 'country must be a 2-letter ISO 3166-1 code')
+    .describe('ISO 3166-1 alpha-2 country code, for example US or UA.')
+    .schemaName('CountryCode');
+
 export const TimeZoneSchema = string()
     .required('timezone is required')
     .nonempty('timezone is required')
@@ -138,6 +145,10 @@ export const RegisterBodySchema = object({
     /** Default currency used for dashboards and reports. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for dashboards and reports.'
+    ),
+    /** Country used to localize merchant enrichment. */
+    countryCode: CountryCodeSchema.describe(
+        'Country used to localize merchant enrichment.'
     ),
     /** Favorite currencies shown first when creating transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema)
@@ -304,6 +315,10 @@ export const TokenResponseSchema = object({
         defaultCurrency: CurrencyCodeSchema.describe(
             'Default currency used for reports.'
         ),
+        /** Country used to localize merchant enrichment. */
+        countryCode: CountryCodeSchema.describe(
+            'Country used to localize merchant enrichment.'
+        ),
         /** Time zone used for transaction display and reporting periods. */
         timezone: TimeZoneSchema.describe(
             'Time zone used for transaction display and reporting periods.'
@@ -323,6 +338,10 @@ export const UserPreferenceSchema = object({
     /** Default currency used for reports and new transactions. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for reports and new transactions.'
+    ),
+    /** Country used to localize merchant enrichment. */
+    countryCode: CountryCodeSchema.describe(
+        'Country used to localize merchant enrichment.'
     ),
     /** Favorite currencies offered when entering transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
@@ -404,6 +423,10 @@ export const UpdateUserPreferenceBodySchema = object({
     /** Default currency used for reports and new transactions. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for reports and new transactions.'
+    ),
+    /** Country used to localize merchant enrichment. */
+    countryCode: CountryCodeSchema.optional().describe(
+        'Country used to localize merchant enrichment.'
     ),
     /** Favorite currencies offered when entering transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
@@ -687,6 +710,76 @@ export const MoveAndDeleteCategoryBodySchema = object({
     )
 }).schemaName('MoveAndDeleteCategoryBody');
 
+export const MerchantSchema = object({
+    /** Unique merchant identifier. */
+    id: number().describe('Unique merchant identifier.'),
+    /** User-entered merchant name. */
+    name: string().describe('User-entered merchant name.'),
+    /** Merchant name shown in transaction forms and reports. */
+    displayName: string().describe(
+        'Merchant name shown in transaction forms and reports.'
+    ),
+    /** Provider-resolved brand name, when available. */
+    brandName: string()
+        .optional()
+        .describe('Provider-resolved brand name, when available.'),
+    /** Provider-resolved brand domain, when available. */
+    domain: string()
+        .optional()
+        .describe('Provider-resolved brand domain, when available.'),
+    /** Provider-resolved brand description, when available. */
+    description: string()
+        .optional()
+        .describe('Provider-resolved brand description, when available.'),
+    /** Provider-resolved logo URL, when available. */
+    logoUrl: string()
+        .optional()
+        .describe('Provider-resolved logo URL, when available.'),
+    /** Provider-resolved primary color hex code, when available. */
+    primaryColor: string()
+        .optional()
+        .describe('Provider-resolved primary color hex code, when available.'),
+    /** Suggested category for this user and merchant, when history exists. */
+    suggestedCategoryId: number()
+        .optional()
+        .describe(
+            'Suggested category for this user and merchant, when history exists.'
+        ),
+    /** Suggested category display name, when history exists. */
+    suggestedCategoryDisplayName: string()
+        .optional()
+        .describe('Suggested category display name, when history exists.'),
+    /** Number of transactions linked to this merchant. */
+    transactionCount: number().describe(
+        'Number of transactions linked to this merchant.'
+    ),
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last update timestamp. */
+    updatedAt: date().coerce().describe('Last update timestamp.')
+}).schemaName('Merchant');
+
+export const MerchantListQuerySchema = object({
+    /** Text search applied to merchant names and domains. */
+    search: string()
+        .optional()
+        .describe('Text search applied to merchant names and domains.'),
+    /** Maximum number of merchants to return. */
+    limit: number()
+        .coerce()
+        .default(25)
+        .describe('Maximum number of merchants to return.')
+}).schemaName('MerchantListQuery');
+
+export const CreateMerchantBodySchema = object({
+    /** User-entered merchant name. */
+    name: string()
+        .required('merchant name is required')
+        .nonempty('merchant name is required')
+        .maxLength(160, 'merchant name is too long')
+        .describe('User-entered merchant name.')
+}).schemaName('CreateMerchantBody');
+
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
     id: number().describe('Unique transaction identifier.'),
@@ -694,6 +787,20 @@ export const TransactionSchema = object({
     categoryId: number().describe(
         'Category identifier selected for the transaction.'
     ),
+    /** Merchant identifier selected for the transaction, when available. */
+    merchantId: number()
+        .nullable()
+        .describe(
+            'Merchant identifier selected for the transaction, when available.'
+        ),
+    /** Merchant name at read time, when available. */
+    merchantName: string()
+        .optional()
+        .describe('Merchant name at read time, when available.'),
+    /** Merchant logo URL at read time, when available. */
+    merchantLogoUrl: string()
+        .optional()
+        .describe('Merchant logo URL at read time, when available.'),
     /** Category name at read time. */
     categoryName: string().describe('Category name at read time.'),
     /** Category path at read time. */
@@ -753,6 +860,11 @@ export const CreateTransactionBodySchema = object({
     categoryId: number()
         .required('category is required')
         .describe('Category identifier selected for the transaction.'),
+    /** Optional merchant identifier selected for the transaction. */
+    merchantId: number()
+        .nullable()
+        .optional()
+        .describe('Optional merchant identifier selected for the transaction.'),
     /** Amount entered by the user in the original currency. */
     amount: decimalNumber()
         .required('amount is required')
@@ -833,6 +945,11 @@ export const TransactionListQuerySchema = object({
         .coerce()
         .optional()
         .describe('Filter by a parent category and its direct children.'),
+    /** Filter by merchant identifier. */
+    merchantId: number()
+        .coerce()
+        .optional()
+        .describe('Filter by merchant identifier.'),
     /** Inclusive start date for transaction occurrence. */
     from: date()
         .coerce()
@@ -1340,6 +1457,9 @@ export type CategoryKind = InferType<typeof CategoryKindSchema>;
 export type Category = InferType<typeof CategorySchema>;
 export type CategoryListQuery = InferType<typeof CategoryListQuerySchema>;
 export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;
+export type Merchant = InferType<typeof MerchantSchema>;
+export type MerchantListQuery = InferType<typeof MerchantListQuerySchema>;
+export type CreateMerchantBody = InferType<typeof CreateMerchantBodySchema>;
 export type Transaction = InferType<typeof TransactionSchema>;
 export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema

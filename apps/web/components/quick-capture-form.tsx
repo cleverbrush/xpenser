@@ -5,6 +5,7 @@ import {
     type Category,
     CreateTransactionBodySchema,
     type Currency,
+    type Merchant,
     type Transaction
 } from '@xpenser/contracts';
 import {
@@ -42,6 +43,7 @@ import {
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { valuesToFormData } from './forms/form-utils';
+import { MerchantPicker } from './merchant-picker';
 
 type TransactionType = Category['type'];
 
@@ -83,7 +85,10 @@ function parseCaptureAmount(value: string): number | undefined {
 }
 
 function savedSummary(transaction: Transaction, timezone: string) {
-    return `${transaction.categoryDisplayName} - ${formatTransactionMoney(
+    const merchant = transaction.merchantName
+        ? `${transaction.merchantName} - `
+        : '';
+    return `${merchant}${transaction.categoryDisplayName} - ${formatTransactionMoney(
         transaction.amount,
         transaction.currency,
         transaction.type,
@@ -95,12 +100,14 @@ export function QuickCaptureForm({
     categories,
     currencies,
     defaultCurrency,
+    merchants,
     timezone,
     transactionCurrencies
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly merchants: readonly Merchant[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
@@ -127,6 +134,7 @@ export function QuickCaptureForm({
     const [categoryId, setCategoryId] = useState<number | undefined>(() =>
         firstCategoryId(transactionCategories, startingType)
     );
+    const [merchantId, setMerchantId] = useState<number | null>(null);
     const [amount, setAmount] = useState('');
     const [currency, setCurrency] = useState(() =>
         firstCurrency(currencyOptions, defaultCurrency)
@@ -165,6 +173,26 @@ export function QuickCaptureForm({
         setCategoryId(firstCategoryId(transactionCategories, nextType));
     }
 
+    function handleMerchantChange(merchant: Merchant | undefined) {
+        setMerchantId(merchant?.id ?? null);
+
+        if (!merchant?.suggestedCategoryId) {
+            return;
+        }
+
+        const suggested = transactionCategories.find(
+            category => category.id === merchant.suggestedCategoryId
+        );
+        if (!suggested) {
+            return;
+        }
+
+        setType(categoryEffectiveType(suggested));
+        setCategoryId(suggested.id);
+        setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
+        form.setValue({ categoryId: suggested.id });
+    }
+
     function resetAfterSave() {
         const nextOccurredAt = new Date();
         setAmount('');
@@ -172,6 +200,7 @@ export function QuickCaptureForm({
         form.reset({
             amount: undefined,
             categoryId: activeCategoryId,
+            merchantId,
             currency,
             occurredAt: nextOccurredAt,
             note: undefined
@@ -203,6 +232,7 @@ export function QuickCaptureForm({
         form.setValue({
             amount: amountValue,
             categoryId: activeCategoryId,
+            merchantId,
             currency,
             occurredAt
         });
@@ -326,6 +356,12 @@ export function QuickCaptureForm({
                                     </Select>
                                 </div>
                             </Field>
+
+                            <MerchantPicker
+                                merchants={merchants}
+                                onChange={handleMerchantChange}
+                                selectedMerchantId={merchantId}
+                            />
 
                             <Field>
                                 <FieldLabel>Type</FieldLabel>

@@ -118,6 +118,11 @@ const TransactionListInputSchema = object({
         .positive()
         .optional()
         .describe('Filter by a parent category and its direct children.'),
+    merchantId: number()
+        .isInteger()
+        .positive()
+        .optional()
+        .describe('Filter by merchant identifier.'),
     from: dateString
         .optional()
         .describe('Inclusive occurrence start date or timestamp.'),
@@ -221,6 +226,7 @@ export function normalizeTransactionListInput(
         type: input.type,
         categoryId: input.categoryId,
         parentCategoryId: input.parentCategoryId,
+        merchantId: input.merchantId,
         from: parseOptionalDate(input.from, 'from'),
         to: parseOptionalDate(input.to, 'to'),
         page,

@@ -10,6 +10,7 @@ import {
     CreateApiKeyBodySchema,
     CreateApiKeyResponseSchema,
     CreateCategoryBodySchema,
+    CreateMerchantBodySchema,
     CreateTelegramLinkTokenResponseSchema,
     CreateTransactionBodySchema,
     CurrencyConversionQuerySchema,
@@ -24,6 +25,8 @@ import {
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
     LoginBodySchema,
+    MerchantListQuerySchema,
+    MerchantSchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
@@ -55,6 +58,9 @@ const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
 const categories = endpoint
     .resource('/api/categories')
+    .authorize(PrincipalSchema);
+const merchants = endpoint
+    .resource('/api/merchants')
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
@@ -272,6 +278,18 @@ export const api = defineApi({
                 404: ErrorResponseSchema
             })
     },
+    merchants: {
+        list: merchants
+            .get()
+            .query(MerchantListQuerySchema)
+            .cacheTag('merchants')
+            .responses({ 200: array(MerchantSchema) }),
+        create: merchants
+            .post()
+            .body(CreateMerchantBodySchema)
+            .clearsCacheTag('merchants')
+            .responses({ 201: MerchantSchema, 400: ErrorResponseSchema })
+    },
     transactions: {
         list: transactions
             .get()
@@ -282,6 +300,7 @@ export const api = defineApi({
             .post()
             .body(CreateTransactionBodySchema)
             .clearsCacheTag('categories')
+            .clearsCacheTag('merchants')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -291,6 +310,7 @@ export const api = defineApi({
             .patch(ById)
             .body(UpdateTransactionBodySchema)
             .clearsCacheTag('categories')
+            .clearsCacheTag('merchants')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -303,6 +323,7 @@ export const api = defineApi({
         delete: transactions
             .delete(ById)
             .clearsCacheTag('categories')
+            .clearsCacheTag('merchants')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')

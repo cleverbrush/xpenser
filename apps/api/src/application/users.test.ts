@@ -38,6 +38,7 @@ function mockDbWithUser(): AppDb {
                 authProvider: 'local',
                 role: 'user',
                 defaultCurrency: 'USD',
+                countryCode: 'US',
                 timezone: 'UTC'
             }))
         },
@@ -87,6 +88,7 @@ describe('user token issuance', () => {
                         authProvider: 'local',
                         role: 'user',
                         defaultCurrency: 'USD',
+                        countryCode: 'US',
                         timezone: 'UTC'
                     }))
                 }
@@ -147,6 +149,7 @@ describe('email confirmation', () => {
                             authProvider: 'local',
                             role: 'user',
                             defaultCurrency: 'USD',
+                            countryCode: 'US',
                             timezone: 'UTC'
                         }))
                     }))
@@ -176,6 +179,7 @@ describe('email confirmation', () => {
             authProvider: 'local',
             role: 'user',
             defaultCurrency: 'USD',
+            countryCode: 'US',
             timezone: 'UTC'
         };
         let updateValues: object | undefined;

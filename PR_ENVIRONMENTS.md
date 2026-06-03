@@ -386,6 +386,7 @@ PR_ENV_NGINX_PROXY_SCRIPT
 PASSPORT_SERVICE_KEY
 CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ZONE_ID
+BRANDFETCH_API_KEY
 PR_ENV_GITHUB_TOKEN
 ```
 
@@ -402,6 +403,8 @@ Notes:
 - `CLOUDFLARE_API_TOKEN` should be scoped to edit DNS for the
   `cleverbrush.com` zone.
 - `CLOUDFLARE_ZONE_ID` is the Cloudflare zone ID for `cleverbrush.com`.
+- `BRANDFETCH_API_KEY` is the server-side bearer token used by preview API
+  services for merchant enrichment.
 - `PR_ENV_GITHUB_TOKEN` should be a fine-grained personal access token scoped
   only to this repository with `Administration` repository permissions set to
   read/write. GitHub requires this permission to delete repository
@@ -434,6 +437,42 @@ PASSPORT_BASE_URL=https://auth.cleverbrush.com
 PASSPORT_PROJECT=xpenser
 POSTGRES_DB=xpenser
 POSTGRES_USER=xpenser
+MERCHANT_ENRICHMENT_ENABLED=0
+MERCHANT_ENRICHMENT_TIMEOUT_MS=2000
+```
+
+## Merchant Enrichment Setup
+
+Create a Brandfetch account with Transaction API access and add its server-side
+API key as `BRANDFETCH_API_KEY`. This implementation uses the authenticated
+Transaction API from the xpenser API service, so no `BRANDFETCH_CLIENT_ID` is
+needed; that client ID is for public logo-link style integrations.
+
+Add these values for merchant enrichment:
+
+```text
+GitHub repository secret:
+BRANDFETCH_API_KEY
+
+GitHub repository variables, optional:
+MERCHANT_ENRICHMENT_ENABLED=0
+MERCHANT_ENRICHMENT_TIMEOUT_MS=2000
+
+Local or production Compose env:
+BRANDFETCH_API_KEY=
+MERCHANT_ENRICHMENT_ENABLED=0
+MERCHANT_ENRICHMENT_TIMEOUT_MS=2000
+```
+
+Set `MERCHANT_ENRICHMENT_ENABLED=1` only after `BRANDFETCH_API_KEY` is present.
+The merchant country passed to Brandfetch comes from `users.country_code`; new
+users choose it at registration and existing users are backfilled to `US`.
+
+Third-party accounts/API keys to create for this merchant feature:
+
+```text
+Brandfetch account with Transaction API access
+Brandfetch server API key for BRANDFETCH_API_KEY
 ```
 
 ## Runtime Behavior
@@ -511,6 +550,15 @@ b64() {
   b64 "xpenser.cleverbrush.com"
   b64 "true"
   b64 "1"
+  b64 "$BRANDFETCH_API_KEY"
+  b64 "$MERCHANT_ENRICHMENT_ENABLED"
+  b64 "$MERCHANT_ENRICHMENT_TIMEOUT_MS"
+  b64 "$OPENAI_API_KEY"
+  b64 "$OPENAI_REPORT_MODEL"
+  b64 "$RESEND_API_KEY"
+  b64 "$EMAIL_FROM"
+  b64 "$EMAIL_REPORTS_ENABLED"
+  b64 "$EMAIL_REPORTS_SCHEDULER_ENABLED"
 } | PR_ENV_SECRET_STREAM=1 /opt/pr-env/pr-env-proxy.sh deploy 123 <commit-sha>
 
 # Cleanup keeps the endpoint slot empty because cleanup does not export

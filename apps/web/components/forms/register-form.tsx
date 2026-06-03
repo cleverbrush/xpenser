@@ -15,6 +15,7 @@ import {
 import Link from 'next/link';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { registerAction } from '@/lib/actions';
+import { countryLabel, supportedCountries } from '@/lib/countries';
 import { sortCurrenciesForDisplay } from '@/lib/currency-display';
 import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
 import { CurrencyOption } from './currency-option';
@@ -35,6 +36,7 @@ export function RegisterForm({
     const [pending, setPending] = useState(false);
     const [formVersion, setFormVersion] = useState(0);
     const [selectedDefaultCurrency, setSelectedDefaultCurrency] = useState('');
+    const [selectedCountryCode, setSelectedCountryCode] = useState('US');
     const [selectedTimezone, setSelectedTimezone] = useState('UTC');
     const [selectedFavoriteCurrencies, setSelectedFavoriteCurrencies] =
         useState<string[]>([]);
@@ -43,6 +45,7 @@ export function RegisterForm({
         [currencies]
     );
     const timeZones = useMemo(() => supportedTimeZones(), []);
+    const countries = useMemo(() => supportedCountries(), []);
 
     const initialDefaultCurrency = useMemo(
         () =>
@@ -60,9 +63,11 @@ export function RegisterForm({
         form.reset({
             defaultCurrency: initialDefaultCurrency,
             favoriteCurrencies: [],
+            countryCode: 'US',
             timezone: 'UTC'
         });
         setSelectedDefaultCurrency(initialDefaultCurrency);
+        setSelectedCountryCode('US');
         setSelectedTimezone('UTC');
         setSelectedFavoriteCurrencies([]);
         setFormVersion(version => version + 1);
@@ -79,6 +84,7 @@ export function RegisterForm({
         form.setValue({
             defaultCurrency: selectedDefault,
             favoriteCurrencies,
+            countryCode: selectedCountryCode,
             timezone: selectedTimezone
         });
         const result = await form.submit();
@@ -192,6 +198,25 @@ export function RegisterForm({
                     forProperty={field => field.defaultCurrency}
                     form={form}
                     label="Default currency"
+                    variant="select"
+                />
+                <SchemaField
+                    fieldProps={
+                        {
+                            onValueChange: (value, field) => {
+                                field.onChange(value);
+                                setSelectedCountryCode(value);
+                            },
+                            options: countries.map(country => ({
+                                label: countryLabel(country.code),
+                                value: country.code
+                            })),
+                            value: selectedCountryCode
+                        } satisfies SelectRendererFieldProps
+                    }
+                    forProperty={field => field.countryCode}
+                    form={form}
+                    label="Country"
                     variant="select"
                 />
                 <SchemaField

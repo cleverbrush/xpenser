@@ -22,6 +22,7 @@ export const UserDbSchema = object({
     role: string(),
     authProvider: string().hasColumnName('auth_provider'),
     defaultCurrency: string().hasColumnName('default_currency'),
+    countryCode: string().hasColumnName('country_code').defaultTo('US'),
     timezone: string().defaultTo('UTC'),
     weeklyEmailReportEnabled: boolean()
         .hasColumnName('weekly_email_report_enabled')
@@ -41,6 +42,7 @@ export const UserDbSchema = object({
         'role',
         'authProvider',
         'defaultCurrency',
+        'countryCode',
         'timezone',
         'weeklyEmailReportEnabled',
         'monthlyEmailReportEnabled',
@@ -58,6 +60,7 @@ export const UserDbSchema = object({
         'role',
         'authProvider',
         'defaultCurrency',
+        'countryCode',
         'timezone',
         'weeklyEmailReportEnabled',
         'monthlyEmailReportEnabled'
@@ -137,6 +140,31 @@ export const CategoryDbSchema = object({
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 }).hasTableName('categories');
 
+export const MerchantDbSchema = object({
+    id: number().primaryKey(),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_merchants_user_id'),
+    name: string(),
+    normalizedName: string()
+        .hasColumnName('normalized_name')
+        .index('idx_merchants_user_normalized_name'),
+    brandName: string().optional().hasColumnName('brand_name'),
+    domain: string().optional(),
+    description: string().optional(),
+    logoUrl: string().optional().hasColumnName('logo_url'),
+    primaryColor: string().optional().hasColumnName('primary_color'),
+    enrichmentProvider: string()
+        .optional()
+        .hasColumnName('enrichment_provider'),
+    enrichmentStatus: string().optional().hasColumnName('enrichment_status'),
+    enrichedAt: date().optional().hasColumnName('enriched_at'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('merchants');
+
 export const TransactionDbSchema = object({
     id: number().primaryKey(),
     userId: number()
@@ -149,6 +177,12 @@ export const TransactionDbSchema = object({
         .references('categories', 'id')
         .onDelete('RESTRICT')
         .index('idx_transactions_category_id'),
+    merchantId: number()
+        .hasColumnName('merchant_id')
+        .references('merchants', 'id')
+        .onDelete('SET NULL')
+        .index('idx_transactions_merchant_id')
+        .optional(),
     type: string(),
     amount: number(),
     currency: string(),
@@ -193,6 +227,7 @@ export const TelegramAccountEntity = defineEntity(TelegramAccountDbSchema);
 export const TelegramLinkTokenEntity = defineEntity(TelegramLinkTokenDbSchema);
 export const ApiKeyEntity = defineEntity(ApiKeyDbSchema);
 export const CategoryEntity = defineEntity(CategoryDbSchema);
+export const MerchantEntity = defineEntity(MerchantDbSchema);
 export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
     t => t.category,
     l => l.categoryId,
@@ -208,6 +243,7 @@ export const entityMap = {
     telegramLinkTokens: TelegramLinkTokenEntity,
     apiKeys: ApiKeyEntity,
     categories: CategoryEntity,
+    merchants: MerchantEntity,
     transactions: TransactionEntity,
     exchangeRates: ExchangeRateEntity
 };
@@ -225,6 +261,7 @@ export type UserDb = {
     readonly role: string;
     readonly authProvider: string;
     readonly defaultCurrency: string;
+    readonly countryCode: string;
     readonly timezone: string;
     readonly weeklyEmailReportEnabled: boolean;
     readonly monthlyEmailReportEnabled: boolean;
@@ -248,6 +285,23 @@ export type CategoryDb = {
     readonly type: 'expense' | 'income';
     readonly kind: 'normal' | 'offset';
     readonly archivedAt?: Date | null;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+};
+
+export type MerchantDb = {
+    readonly id: number;
+    readonly userId: number;
+    readonly name: string;
+    readonly normalizedName: string;
+    readonly brandName?: string | null;
+    readonly domain?: string | null;
+    readonly description?: string | null;
+    readonly logoUrl?: string | null;
+    readonly primaryColor?: string | null;
+    readonly enrichmentProvider?: string | null;
+    readonly enrichmentStatus?: string | null;
+    readonly enrichedAt?: Date | null;
     readonly createdAt: Date;
     readonly updatedAt: Date;
 };
@@ -287,6 +341,7 @@ export type TransactionDb = {
     readonly id: number;
     readonly userId: number;
     readonly categoryId: number;
+    readonly merchantId?: number | null;
     readonly category?: CategoryDb | null;
     readonly type: 'expense' | 'income';
     readonly amount: string | number;

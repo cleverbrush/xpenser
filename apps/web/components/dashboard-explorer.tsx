@@ -4,7 +4,8 @@ import type {
     Category,
     Currency,
     DashboardSummary,
-    DashboardWindowResponse
+    DashboardWindowResponse,
+    Merchant
 } from '@xpenser/contracts';
 import {
     Button,
@@ -649,6 +650,7 @@ export function DashboardExplorer({
     initialDate,
     initialPeriod,
     initialWindow,
+    merchants,
     timezone,
     transactionCurrencies
 }: {
@@ -658,6 +660,7 @@ export function DashboardExplorer({
     readonly initialDate: string;
     readonly initialPeriod: DashboardPeriod;
     readonly initialWindow: DashboardWindowResponse;
+    readonly merchants: readonly Merchant[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
@@ -918,6 +921,7 @@ export function DashboardExplorer({
                         categories={categories}
                         currencies={currencies}
                         defaultCurrency={defaultCurrency}
+                        merchants={merchants}
                         transactionCurrencies={transactionCurrencies}
                         timezone={timezone}
                     />

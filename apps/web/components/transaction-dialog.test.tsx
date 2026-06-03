@@ -8,9 +8,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { TransactionDialog } from './transaction-dialog';
 
 const refresh = vi.fn();
+const createMerchantAction = vi.fn();
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ refresh })
+}));
+
+vi.mock('@/lib/actions', () => ({
+    createMerchantAction: (formData: FormData) => createMerchantAction(formData)
 }));
 
 describe('TransactionDialog', () => {
@@ -44,10 +49,12 @@ describe('TransactionDialog', () => {
                         amount: 12.34,
                         categoryId: 7,
                         currency: 'USD',
+                        merchantId: null,
                         note: 'Original',
                         occurredAt: new Date('2026-05-10T12:30:00.000Z'),
                         type: 'expense'
                     }}
+                    merchants={[]}
                     submitLabel="Save changes"
                     title="Edit transaction"
                     transactionId={42}

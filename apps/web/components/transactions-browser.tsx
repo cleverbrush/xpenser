@@ -1,6 +1,11 @@
 'use client';
 
-import type { Category, Currency, Transaction } from '@xpenser/contracts';
+import type {
+    Category,
+    Currency,
+    Merchant,
+    Transaction
+} from '@xpenser/contracts';
 import {
     Badge,
     Button,
@@ -69,6 +74,7 @@ function activeFilterCount(searchParams: URLSearchParams): number {
         'type',
         'categoryId',
         'parentCategoryId',
+        'merchantId',
         'from',
         'to'
     ].filter(key => Boolean(searchParams.get(key))).length;
@@ -133,16 +139,41 @@ function transactionBadges(transaction: Transaction) {
     );
 }
 
+function transactionMerchant(transaction: Transaction) {
+    if (!transaction.merchantName) {
+        return null;
+    }
+
+    return (
+        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+            {transaction.merchantLogoUrl ? (
+                <span
+                    aria-hidden
+                    className="size-4 rounded-sm bg-contain bg-center bg-no-repeat"
+                    style={{
+                        backgroundImage: `url(${JSON.stringify(
+                            transaction.merchantLogoUrl
+                        )})`
+                    }}
+                />
+            ) : null}
+            <span className="truncate">{transaction.merchantName}</span>
+        </div>
+    );
+}
+
 function EditTransactionButton({
     categories,
     currencies,
     defaultCurrency,
+    merchants,
     timezone,
     transaction
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly merchants: readonly Merchant[];
     readonly timezone: string;
     readonly transaction: Transaction;
 }) {
@@ -155,6 +186,7 @@ function EditTransactionButton({
             description="Update the transaction details and converted report values."
             errorMessage="Could not update the transaction."
             initialValues={transaction}
+            merchants={merchants}
             submitLabel="Save changes"
             title="Edit transaction"
             transactionId={transaction.id}
@@ -233,12 +265,14 @@ function TransactionActions({
     categories,
     currencies,
     defaultCurrency,
+    merchants,
     timezone,
     transaction
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly merchants: readonly Merchant[];
     readonly timezone: string;
     readonly transaction: Transaction;
 }) {
@@ -248,6 +282,7 @@ function TransactionActions({
                 categories={categories}
                 currencies={currencies}
                 defaultCurrency={defaultCurrency}
+                merchants={merchants}
                 timezone={timezone}
                 transaction={transaction}
             />
@@ -263,12 +298,14 @@ function TransactionCards({
     categories,
     currencies,
     defaultCurrency,
+    merchants,
     timezone,
     transactions
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly merchants: readonly Merchant[];
     readonly timezone: string;
     readonly transactions: readonly Transaction[];
 }) {
@@ -298,10 +335,12 @@ function TransactionCards({
                             categories={categories}
                             currencies={currencies}
                             defaultCurrency={defaultCurrency}
+                            merchants={merchants}
                             timezone={timezone}
                             transaction={transaction}
                         />
                     </div>
+                    {transactionMerchant(transaction)}
                     <div className="mt-3">{transactionAmount(transaction)}</div>
                 </article>
             ))}
@@ -313,12 +352,14 @@ function TransactionTable({
     categories,
     currencies,
     defaultCurrency,
+    merchants,
     timezone,
     transactions
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly merchants: readonly Merchant[];
     readonly timezone: string;
     readonly transactions: readonly Transaction[];
 }) {
@@ -329,6 +370,7 @@ function TransactionTable({
                     <TableHeader>
                         <TableRow>
                             <TableHead>Category</TableHead>
+                            <TableHead>Merchant</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>When</TableHead>
@@ -340,6 +382,13 @@ function TransactionTable({
                             <TableRow key={transaction.id}>
                                 <TableCell>
                                     {transaction.categoryDisplayName}
+                                </TableCell>
+                                <TableCell>
+                                    {transactionMerchant(transaction) ?? (
+                                        <span className="text-xs text-muted-foreground">
+                                            -
+                                        </span>
+                                    )}
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-2">
@@ -360,6 +409,7 @@ function TransactionTable({
                                         categories={categories}
                                         currencies={currencies}
                                         defaultCurrency={defaultCurrency}
+                                        merchants={merchants}
                                         timezone={timezone}
                                         transaction={transaction}
                                     />
@@ -378,6 +428,7 @@ export function TransactionsBrowser({
     currencies,
     defaultCurrency,
     hasInitialFilters,
+    merchants,
     initialResponse,
     transactionCurrencies,
     timezone
@@ -386,6 +437,7 @@ export function TransactionsBrowser({
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
     readonly hasInitialFilters: boolean;
+    readonly merchants: readonly Merchant[];
     readonly initialResponse: TransactionFeedResponse;
     readonly transactionCurrencies: readonly string[];
     readonly timezone: string;
@@ -440,7 +492,14 @@ export function TransactionsBrowser({
 
         const formData = new FormData(event.currentTarget);
         const params = new URLSearchParams();
-        for (const key of ['search', 'type', 'categoryId', 'from', 'to']) {
+        for (const key of [
+            'search',
+            'type',
+            'categoryId',
+            'merchantId',
+            'from',
+            'to'
+        ]) {
             const value = fieldValue(formData, key);
             if (value) {
                 params.set(key, value);
@@ -604,6 +663,29 @@ export function TransactionsBrowser({
                                 ))}
                             </select>
                         </Field>
+                        <Field className="md:col-span-2">
+                            <FieldLabel htmlFor="merchantId">
+                                Merchant
+                            </FieldLabel>
+                            <select
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                defaultValue={
+                                    searchParams.get('merchantId') ?? ''
+                                }
+                                id="merchantId"
+                                name="merchantId"
+                            >
+                                <option value="">All merchants</option>
+                                {merchants.map(merchant => (
+                                    <option
+                                        key={merchant.id}
+                                        value={merchant.id}
+                                    >
+                                        {merchant.displayName}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
                         <Field>
                             <FieldLabel htmlFor="from">From</FieldLabel>
                             <Input
@@ -644,6 +726,7 @@ export function TransactionsBrowser({
                         categories={categories}
                         currencies={dialogCurrencies}
                         defaultCurrency={defaultCurrency}
+                        merchants={merchants}
                         timezone={timezone}
                         transactions={items}
                     />
@@ -651,6 +734,7 @@ export function TransactionsBrowser({
                         categories={categories}
                         currencies={dialogCurrencies}
                         defaultCurrency={defaultCurrency}
+                        merchants={merchants}
                         timezone={timezone}
                         transactions={items}
                     />

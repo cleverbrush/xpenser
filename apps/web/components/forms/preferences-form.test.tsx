@@ -24,6 +24,7 @@ const me: UserPreference = {
     id: 1,
     email: 'jane@example.com',
     defaultCurrency: 'USD',
+    countryCode: 'US',
     favoriteCurrencies: ['EUR'],
     transactionCurrencies: ['USD', 'EUR'],
     timezone: 'UTC',

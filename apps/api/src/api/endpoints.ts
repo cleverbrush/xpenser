@@ -207,6 +207,22 @@ export const MoveAndDeleteCategoryEndpoint = api.categories.moveAndDelete
     .tags('categories')
     .operationId('moveAndDeleteCategory');
 
+export const ListMerchantsEndpoint = api.merchants.list
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List merchants')
+    .description('Lists merchants owned by the authenticated user.')
+    .tags('merchants')
+    .operationId('listMerchants');
+
+export const CreateMerchantEndpoint = api.merchants.create
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Create merchant')
+    .description('Creates or reuses a user-owned merchant.')
+    .tags('merchants')
+    .operationId('createMerchant');
+
 export const ListTransactionsEndpoint = api.transactions.list
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -315,6 +331,10 @@ export const endpoints = {
         update: UpdateCategoryEndpoint,
         delete: DeleteCategoryEndpoint,
         moveAndDelete: MoveAndDeleteCategoryEndpoint
+    },
+    merchants: {
+        list: ListMerchantsEndpoint,
+        create: CreateMerchantEndpoint
     },
     transactions: {
         list: ListTransactionsEndpoint,

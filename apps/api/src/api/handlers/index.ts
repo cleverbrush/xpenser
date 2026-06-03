@@ -22,6 +22,7 @@ import {
     updateCategoryHandler
 } from './categories.js';
 import { convertCurrencyHandler, listCurrenciesHandler } from './currencies.js';
+import { createMerchantHandler, listMerchantsHandler } from './merchants.js';
 import {
     createTelegramLinkTokenHandler,
     disconnectTelegramHandler,
@@ -75,6 +76,10 @@ export const handlers = {
         update: updateCategoryHandler,
         delete: deleteCategoryHandler,
         moveAndDelete: moveAndDeleteCategoryHandler
+    },
+    merchants: {
+        list: listMerchantsHandler,
+        create: createMerchantHandler
     },
     transactions: {
         list: listTransactionsHandler,

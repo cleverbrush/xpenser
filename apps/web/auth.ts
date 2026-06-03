@@ -27,6 +27,7 @@ type ApiUser = {
     readonly email: string;
     readonly role: string;
     readonly defaultCurrency: string;
+    readonly countryCode: string;
     readonly timezone: string;
     readonly hasCategories: boolean;
 };
@@ -42,6 +43,7 @@ declare module 'next-auth' {
         apiTokenExpiresAt?: string;
         role?: string;
         defaultCurrency?: string;
+        countryCode?: string;
         timezone?: string;
         hasCategories?: boolean;
     }
@@ -53,6 +55,7 @@ declare module 'next-auth/jwt' {
         apiTokenExpiresAt?: string;
         role?: string;
         defaultCurrency?: string;
+        countryCode?: string;
         timezone?: string;
         hasCategories?: boolean;
     }
@@ -147,6 +150,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
                     role: response.user.role,
                     defaultCurrency: response.user.defaultCurrency,
+                    countryCode: response.user.countryCode,
                     timezone: response.user.timezone,
                     hasCategories: response.user.hasCategories
                 };
@@ -173,6 +177,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
                     role: response.user.role,
                     defaultCurrency: response.user.defaultCurrency,
+                    countryCode: response.user.countryCode,
                     timezone: response.user.timezone,
                     hasCategories: response.user.hasCategories
                 };
@@ -197,6 +202,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
                     role: response.user.role,
                     defaultCurrency: response.user.defaultCurrency,
+                    countryCode: response.user.countryCode,
                     timezone: response.user.timezone,
                     hasCategories: response.user.hasCategories
                 };
@@ -216,6 +222,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                 token.email = user.email;
                 token.role = user.role;
                 token.defaultCurrency = user.defaultCurrency;
+                token.countryCode = user.countryCode;
                 token.timezone = user.timezone;
                 token.hasCategories = user.hasCategories;
             }
@@ -249,6 +256,7 @@ const nextAuth: NextAuthResult = NextAuth(() => ({
                     email: token.email ?? '',
                     role: token.role ?? 'user',
                     defaultCurrency: token.defaultCurrency ?? 'USD',
+                    countryCode: token.countryCode ?? 'US',
                     timezone: token.timezone ?? 'UTC',
                     hasCategories: Boolean(token.hasCategories)
                 }

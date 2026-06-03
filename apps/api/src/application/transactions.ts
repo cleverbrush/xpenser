@@ -37,6 +37,7 @@ import type { Config } from '../config.js';
 import type {
     AppDb,
     CategoryDb,
+    MerchantDb,
     TransactionDb,
     UserDb
 } from '../db/schemas.js';
@@ -51,6 +52,7 @@ import {
     getExchangeRate,
     transactionDate
 } from './currencies.js';
+import { getMerchant, MerchantNotFoundError } from './merchants.js';
 
 export class TransactionNotFoundError extends Error {}
 export class TransactionCategoryError extends Error {}
@@ -131,6 +133,18 @@ async function loadCategoriesById(
     );
 }
 
+async function loadMerchantsById(
+    db: AppDb,
+    userId: number
+): Promise<Map<number, MerchantDb>> {
+    const merchants = (await db.merchants.where(
+        merchant => merchant.userId,
+        userId
+    )) as MerchantDb[];
+
+    return new Map(merchants.map(merchant => [merchant.id, merchant] as const));
+}
+
 function categoryFields(
     category: CategoryDb | null | undefined,
     fallback: Pick<TransactionDb, 'categoryId' | 'type'>,
@@ -190,14 +204,21 @@ function categoryForTransaction(
 
 function mapTransaction(
     row: TransactionDb,
-    categoriesById: ReadonlyMap<number, CategoryDb>
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    merchantsById: ReadonlyMap<number, MerchantDb>
 ): Transaction {
     const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
+    const merchant = row.merchantId
+        ? merchantsById.get(row.merchantId)
+        : undefined;
 
     return {
         id: row.id,
         categoryId: fields.categoryId,
+        merchantId: merchant?.id ?? row.merchantId ?? null,
+        merchantName: merchant?.brandName ?? merchant?.name,
+        merchantLogoUrl: merchant?.logoUrl ?? undefined,
         categoryName: fields.categoryName,
         categoryDisplayName: fields.categoryDisplayName,
         categoryParentId: fields.categoryParentId,
@@ -260,6 +281,21 @@ async function getCategory(
     return category as CategoryDb;
 }
 
+async function validateMerchant(
+    db: AppDb,
+    userId: number,
+    merchantId: number
+): Promise<void> {
+    try {
+        await getMerchant(db, userId, merchantId);
+    } catch (err) {
+        if (err instanceof MerchantNotFoundError) {
+            throw new TransactionCategoryError(err.message);
+        }
+        throw err;
+    }
+}
+
 export async function listTransactions(
     db: AppDb,
     userId: number,
@@ -293,11 +329,12 @@ export async function listTransactions(
     }
 
     const direction = query.direction ?? 'desc';
-    const [rows, categoriesById] = await Promise.all([
+    const [rows, categoriesById, merchantsById] = await Promise.all([
         builder
             .orderBy(transaction => transaction.occurredAt, direction)
             .orderBy(transaction => transaction.id, direction),
-        loadCategoriesById(db, userId)
+        loadCategoriesById(db, userId),
+        loadMerchantsById(db, userId)
     ]);
     const sortedRows = [...rows].sort(
         direction === 'asc'
@@ -307,6 +344,13 @@ export async function listTransactions(
 
     const search = query.search?.trim().toLowerCase();
     const filtered = sortedRows
+        .filter(transaction => {
+            if (!query.merchantId) {
+                return true;
+            }
+
+            return transaction.merchantId === query.merchantId;
+        })
         .filter(transaction => {
             if (!query.type) {
                 return true;
@@ -352,6 +396,21 @@ export async function listTransactions(
                       ).toLowerCase()
                     : ''
                 ).includes(search) ||
+                (transaction.merchantId
+                    ? (
+                          merchantsById.get(transaction.merchantId)
+                              ?.brandName ??
+                          merchantsById.get(transaction.merchantId)?.name ??
+                          ''
+                      )
+                          .toLowerCase()
+                          .includes(search)
+                    : false) ||
+                (transaction.merchantId
+                    ? (merchantsById.get(transaction.merchantId)?.domain ?? '')
+                          .toLowerCase()
+                          .includes(search)
+                    : false) ||
                 transaction.note?.toLowerCase().includes(search)
             );
         });
@@ -360,7 +419,9 @@ export async function listTransactions(
     return {
         items: filtered
             .slice(offset, offset + limit)
-            .map(transaction => mapTransaction(transaction, categoriesById)),
+            .map(transaction =>
+                mapTransaction(transaction, categoriesById, merchantsById)
+            ),
         total: filtered.length,
         page,
         limit
@@ -386,6 +447,9 @@ export async function createTransaction(
             'Archived categories cannot be used for new transactions.'
         );
     }
+    if (body.merchantId !== undefined && body.merchantId !== null) {
+        await validateMerchant(db, userId, body.merchantId);
+    }
     const date = transactionDate(body.occurredAt, user.timezone);
     const exchange = await getExchangeRate(
         db,
@@ -398,6 +462,7 @@ export async function createTransaction(
     const created = await db.transactions.insert({
         userId,
         categoryId: body.categoryId,
+        merchantId: body.merchantId ?? undefined,
         type: category.type,
         amount: body.amount,
         currency: body.currency,
@@ -417,18 +482,19 @@ export async function getTransaction(
     userId: number,
     transactionId: number
 ): Promise<Transaction> {
-    const [row, categoriesById] = await Promise.all([
+    const [row, categoriesById, merchantsById] = await Promise.all([
         db.transactions
             .include(transaction => transaction.category)
             .where(transaction => transaction.id, transactionId)
             .where(transaction => transaction.userId, userId)
             .first(),
-        loadCategoriesById(db, userId)
+        loadCategoriesById(db, userId),
+        loadMerchantsById(db, userId)
     ]);
     if (!row) {
         throw new TransactionNotFoundError('Transaction was not found.');
     }
-    return mapTransaction(row as TransactionDb, categoriesById);
+    return mapTransaction(row as TransactionDb, categoriesById, merchantsById);
 }
 
 export async function updateTransaction(
@@ -441,6 +507,10 @@ export async function updateTransaction(
     const current = await getTransaction(db, userId, transactionId);
     const next = {
         categoryId: body.categoryId ?? current.categoryId,
+        merchantId:
+            body.merchantId !== undefined
+                ? body.merchantId
+                : current.merchantId,
         amount: body.amount ?? current.amount,
         currency: body.currency ?? current.currency,
         occurredAt: body.occurredAt ?? current.occurredAt,
@@ -465,6 +535,9 @@ export async function updateTransaction(
             'Archived categories cannot be used for new transactions.'
         );
     }
+    if (next.merchantId !== undefined && next.merchantId !== null) {
+        await validateMerchant(db, userId, next.merchantId);
+    }
     const exchange = await getExchangeRate(
         db,
         config,
@@ -478,6 +551,7 @@ export async function updateTransaction(
         .where(transaction => transaction.userId, userId)
         .update({
             categoryId: next.categoryId,
+            merchantId: (next.merchantId ?? null) as never,
             type: category.type,
             amount: next.amount,
             currency: next.currency,
