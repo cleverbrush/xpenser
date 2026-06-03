@@ -67,9 +67,6 @@ jobs:
     environment:
       name: pr-${{ github.event.number }}
       url: ${{ steps.preview-url.outputs.url }}
-    outputs:
-      preview-url: ${{ steps.preview-url.outputs.url }}
-      preview_url: ${{ steps.preview-url.outputs.url }}
 
     steps:
       - name: Preview URL
@@ -209,8 +206,17 @@ jobs:
 
       - name: Run Playwright
         env:
-          PLAYWRIGHT_BASE_URL: ${{ needs.deploy.outputs.preview_url }}
-        run: npm run test:e2e
+          PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          printf -v PLAYWRIGHT_BASE_URL 'https://%s-pr-%03d.%s' \
+            "$PR_ENV_DOMAIN_PROJECT" \
+            "$PR_NUMBER" \
+            "$PR_ENV_DOMAIN_SUFFIX"
+          export PLAYWRIGHT_BASE_URL
+          npm run test:e2e
 
       - name: Upload Playwright report
         if: always()
