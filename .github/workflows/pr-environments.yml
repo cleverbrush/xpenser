@@ -69,6 +69,7 @@ jobs:
       url: ${{ steps.preview-url.outputs.url }}
     outputs:
       preview-url: ${{ steps.preview-url.outputs.url }}
+      preview_url: ${{ steps.preview-url.outputs.url }}
 
     steps:
       - name: Preview URL
@@ -208,7 +209,7 @@ jobs:
 
       - name: Run Playwright
         env:
-          PLAYWRIGHT_BASE_URL: ${{ needs.deploy.outputs.preview-url }}
+          PLAYWRIGHT_BASE_URL: ${{ needs.deploy.outputs.preview_url }}
         run: npm run test:e2e
 
       - name: Upload Playwright report
