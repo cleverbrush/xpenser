@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { DashboardSummary } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
 import { DashboardMerchantPanel } from './dashboard-merchant-panel';
@@ -42,7 +42,7 @@ function summary(overrides: Partial<DashboardSummary> = {}): DashboardSummary {
 }
 
 describe('DashboardMerchantPanel', () => {
-    it('renders ranked merchant rows and overflow links for the selected period', () => {
+    it('renders a compact logo strip by default for the selected period', () => {
         const merchants = Array.from({ length: 24 }, (_, index) =>
             merchant(index + 1)
         );
@@ -58,11 +58,10 @@ describe('DashboardMerchantPanel', () => {
 
         expect(screen.getByText('Merchants')).toBeTruthy();
         expect(screen.getByText('30 brands in this period')).toBeTruthy();
-        expect(screen.getByText('Merchant 1')).toBeTruthy();
-        expect(screen.getByText(/merchant-1\.example/)).toBeTruthy();
-        expect(screen.getByText(/1 purchase/)).toBeTruthy();
-        expect(screen.getByText('Merchant 8')).toBeTruthy();
-        expect(screen.queryByText('Merchant 9')).toBeNull();
+        expect(screen.queryByText('Merchant 1')).toBeNull();
+        expect(screen.queryByText(/merchant-1\.example/)).toBeNull();
+        expect(screen.queryByText(/1 purchase/)).toBeNull();
+        expect(screen.queryByRole('link', { name: 'View all' })).toBeNull();
 
         const merchantLink = screen
             .getAllByRole('link')
@@ -76,6 +75,41 @@ describe('DashboardMerchantPanel', () => {
         expect(merchantLink.getAttribute('href')).toContain('from=2026-05-01');
         expect(merchantLink.getAttribute('href')).toContain('to=2026-05-31');
 
+        expect(
+            screen.getByRole('link', { name: /merchant 12 transactions/i })
+        ).toBeTruthy();
+        expect(
+            screen.queryByRole('link', { name: /merchant 13 transactions/i })
+        ).toBeNull();
+        expect(screen.getByText('+18')).toBeTruthy();
+    });
+
+    it('expands to ranked merchant rows and overflow links', () => {
+        const merchants = Array.from({ length: 24 }, (_, index) =>
+            merchant(index + 1)
+        );
+        render(
+            <DashboardMerchantPanel
+                summary={summary({
+                    merchantCount: 30,
+                    topMerchants: merchants
+                })}
+                timezone="UTC"
+            />
+        );
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Expand merchants' })
+        );
+
+        expect(
+            screen.getByRole('button', { name: 'Collapse merchants' })
+        ).toBeTruthy();
+        expect(screen.getByText('Merchant 1')).toBeTruthy();
+        expect(screen.getByText(/merchant-1\.example/)).toBeTruthy();
+        expect(screen.getByText(/1 purchase/)).toBeTruthy();
+        expect(screen.getByText('Merchant 8')).toBeTruthy();
+        expect(screen.queryByText('Merchant 9')).toBeNull();
         expect(
             screen.getByRole('link', { name: /merchant 9 transactions/i })
         ).toBeTruthy();
