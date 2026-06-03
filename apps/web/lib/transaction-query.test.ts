@@ -17,7 +17,8 @@ describe('transaction query helpers', () => {
                 page: '3',
                 search: ' coffee ',
                 to: '2026-05-10',
-                type: 'expense'
+                type: 'expense',
+                vendorId: 'none'
             })
         );
 
@@ -27,7 +28,8 @@ describe('transaction query helpers', () => {
             limit: 40,
             page: 3,
             search: 'coffee',
-            type: 'expense'
+            type: 'expense',
+            vendorId: 'none'
         });
         expect(query.from).toEqual(new Date('2026-05-01T00:00:00.000Z'));
         expect(query.to).toEqual(new Date('2026-05-10T23:59:59.999Z'));
@@ -40,7 +42,8 @@ describe('transaction query helpers', () => {
                 direction: 'sideways',
                 limit: '0',
                 page: 'x',
-                type: 'transfer'
+                type: 'transfer',
+                vendorId: '0'
             })
         );
 
@@ -49,7 +52,8 @@ describe('transaction query helpers', () => {
             direction: 'desc',
             limit: transactionPageSize,
             page: 1,
-            type: undefined
+            type: undefined,
+            vendorId: undefined
         });
     });
 

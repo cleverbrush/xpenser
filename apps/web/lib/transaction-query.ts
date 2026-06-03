@@ -42,6 +42,13 @@ export function parseTransactionId(value?: string): number | undefined {
     return Number.isFinite(id) && id > 0 ? id : undefined;
 }
 
+export function parseVendorFilter(value?: string): number | 'none' | undefined {
+    if (value === 'none') {
+        return 'none';
+    }
+    return parseTransactionId(value);
+}
+
 export function parseTransactionDateFilter(
     value: string | undefined,
     boundary: 'end' | 'start',
@@ -67,7 +74,7 @@ export function hasTransactionFilters(params: QuerySource): boolean {
         readParam(params, 'search')?.trim() ||
             parseTransactionType(readParam(params, 'type')) ||
             parseTransactionId(readParam(params, 'categoryId')) ||
-            parseTransactionId(readParam(params, 'vendorId')) ||
+            parseVendorFilter(readParam(params, 'vendorId')) ||
             parseTransactionId(readParam(params, 'parentCategoryId')) ||
             readParam(params, 'from') ||
             readParam(params, 'to')
@@ -89,7 +96,7 @@ export function buildTransactionListQuery(
         search: search || undefined,
         type: parseTransactionType(readParam(params, 'type')),
         categoryId: parseTransactionId(readParam(params, 'categoryId')),
-        vendorId: parseTransactionId(readParam(params, 'vendorId')),
+        vendorId: parseVendorFilter(readParam(params, 'vendorId')),
         parentCategoryId: parseTransactionId(
             readParam(params, 'parentCategoryId')
         ),

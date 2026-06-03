@@ -32,10 +32,12 @@ function vendor(overrides: Partial<Vendor> = {}): Vendor {
 }
 
 describe('VendorDirectory', () => {
-    it('renders vendor enrichment status and detail links', () => {
+    it('renders vendor details without a status badge', () => {
         render(<VendorDirectory vendors={[vendor()]} search="" />);
 
-        expect(screen.getAllByText('Enriched').length).toBeGreaterThan(0);
+        expect(
+            screen.queryByRole('columnheader', { name: 'Status' })
+        ).toBeNull();
         expect(screen.getAllByText('Groceries').length).toBeGreaterThan(0);
         expect(screen.getAllByText('3 transactions').length).toBeGreaterThan(0);
         expect(

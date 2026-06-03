@@ -13,11 +13,7 @@ import {
 } from '@xpenser/ui';
 import { SearchIcon } from 'lucide-react';
 import Link from 'next/link';
-import {
-    EnrichmentStatusBadge,
-    VendorLogo,
-    vendorDisplayName
-} from './vendor-display';
+import { VendorLogo, vendorDisplayName } from './vendor-display';
 
 function vendorSubtitle(vendor: Vendor): string {
     return vendor.domain || vendor.description || 'No vendor details';
@@ -56,9 +52,6 @@ function VendorCards({ vendors }: { readonly vendors: readonly Vendor[] }) {
                 >
                     <div className="flex items-start justify-between gap-3">
                         <VendorIdentity vendor={vendor} />
-                        <EnrichmentStatusBadge
-                            status={vendor.enrichmentStatus}
-                        />
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span>
@@ -92,7 +85,6 @@ function VendorTable({ vendors }: { readonly vendors: readonly Vendor[] }) {
                     <TableHeader>
                         <TableRow>
                             <TableHead>Vendor</TableHead>
-                            <TableHead>Status</TableHead>
                             <TableHead>Suggested category</TableHead>
                             <TableHead>Transactions</TableHead>
                             <TableHead />
@@ -103,11 +95,6 @@ function VendorTable({ vendors }: { readonly vendors: readonly Vendor[] }) {
                             <TableRow key={vendor.id}>
                                 <TableCell>
                                     <VendorIdentity vendor={vendor} />
-                                </TableCell>
-                                <TableCell>
-                                    <EnrichmentStatusBadge
-                                        status={vendor.enrichmentStatus}
-                                    />
                                 </TableCell>
                                 <TableCell>
                                     {vendor.suggestedCategoryDisplayName ? (

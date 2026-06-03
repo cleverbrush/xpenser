@@ -6,7 +6,8 @@ import {
     type InferType,
     number,
     object,
-    string
+    string,
+    union
 } from '@cleverbrush/schema';
 
 export const CurrencyCodeSchema = string()
@@ -1096,11 +1097,13 @@ export const TransactionListQuerySchema = object({
         .coerce()
         .optional()
         .describe('Filter by a parent category and its direct children.'),
-    /** Filter by vendor identifier. */
-    vendorId: number()
-        .coerce()
+    /** Filter by vendor identifier, or "none" for transactions without a vendor. */
+    vendorId: union(number().coerce())
+        .or(string('none'))
         .optional()
-        .describe('Filter by vendor identifier.'),
+        .describe(
+            'Filter by vendor identifier, or "none" for transactions without a vendor.'
+        ),
     /** Inclusive start date for transaction occurrence. */
     from: date()
         .coerce()
@@ -1250,8 +1253,12 @@ export const CategoryTrendQuerySchema = object({
     .schemaName('CategoryTrendQuery');
 
 export const DashboardVendorTotalSchema = object({
-    /** Vendor identifier. */
-    vendorId: number().describe('Vendor identifier.'),
+    /** Vendor identifier, or null for transactions without a vendor. */
+    vendorId: number()
+        .nullable()
+        .describe(
+            'Vendor identifier, or null for transactions without a vendor.'
+        ),
     /** Vendor display name. */
     vendorName: string().describe('Vendor display name.'),
     /** Vendor domain, when available. */
@@ -1266,13 +1273,17 @@ export const DashboardVendorTotalSchema = object({
     vendorPrimaryColor: string()
         .optional()
         .describe('Vendor primary vendors color, when available.'),
-    /** Expense total in the user's default currency. */
-    expenseTotal: decimalNumber().describe(
-        "Expense total in the user's default currency."
+    /** Transaction direction for this vendor group. */
+    type: CategoryTypeSchema.describe(
+        'Transaction direction for this vendor group.'
     ),
-    /** Number of expense transactions linked to this vendor. */
+    /** Total in the user's default currency for this vendor group. */
+    total: decimalNumber().describe(
+        "Total in the user's default currency for this vendor group."
+    ),
+    /** Number of selected-period transactions in this vendor group. */
     transactionCount: number().describe(
-        'Number of expense transactions linked to this vendor.'
+        'Number of selected-period transactions in this vendor group.'
     ),
     /** Selected-period bucket totals for lightweight vendor charts. */
     trend: array(decimalNumber()).describe(
@@ -1505,13 +1516,13 @@ export const DashboardSummarySchema = object({
     expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
     /** Income in the default currency. */
     incomeTotal: decimalNumber().describe('Income in the default currency.'),
-    /** Number of distinct expense vendors in the selected period. */
+    /** Number of vendor groups in the selected period. */
     vendorCount: number().describe(
-        'Number of distinct expense vendors in the selected period.'
+        'Number of vendor groups in the selected period.'
     ),
-    /** Top expense vendors for the selected period. */
+    /** Top vendor groups for the selected period. */
     topVendors: array(DashboardVendorTotalSchema).describe(
-        'Top expense vendors for the selected period.'
+        'Top vendor groups for the selected period.'
     ),
     /** Category totals for the selected period. */
     byCategory: array(DashboardCategoryTotalSchema).describe(

@@ -31,6 +31,24 @@ function vendorMatches(vendor: Vendor, query: string): boolean {
     ].some(value => value?.toLowerCase().includes(search));
 }
 
+function normalizedVendorSearch(value: string | undefined): string {
+    return value?.trim().toLowerCase() ?? '';
+}
+
+function vendorExactMatch(vendor: Vendor, query: string): boolean {
+    const search = normalizedVendorSearch(query);
+    if (!search) {
+        return false;
+    }
+
+    return [
+        vendor.name,
+        vendor.displayName,
+        vendor.resolvedName,
+        vendor.domain
+    ].some(value => normalizedVendorSearch(value) === search);
+}
+
 export function VendorPicker({
     vendors,
     onChange,
@@ -42,6 +60,7 @@ export function VendorPicker({
 }) {
     const [items, setItems] = useState<readonly Vendor[]>(vendors);
     const [query, setQuery] = useState('');
+    const [open, setOpen] = useState(false);
     const [pending, setPending] = useState(false);
     const [candidateSearchPending, setCandidateSearchPending] = useState(false);
     const [candidateSuggestions, setCandidateSuggestions] = useState<
@@ -58,7 +77,11 @@ export function VendorPicker({
 
     useEffect(() => {
         const search = query.trim();
-        if (search.length < 2) {
+        if (
+            !open ||
+            search.length < 2 ||
+            items.some(vendor => vendorExactMatch(vendor, search))
+        ) {
             setCandidateSuggestions([]);
             setCandidateSearchPending(false);
             setCandidateSearchError(null);
@@ -92,7 +115,7 @@ export function VendorPicker({
             active = false;
             clearTimeout(timeout);
         };
-    }, [query]);
+    }, [items, open, query]);
 
     const selected = useMemo(
         () => items.find(vendor => vendor.id === selectedVendorId),
@@ -119,11 +142,7 @@ export function VendorPicker({
     const normalizedQuery = query.trim().toLowerCase();
     const canCreate =
         query.trim() !== '' &&
-        !items.some(
-            vendor =>
-                vendor.name.trim().toLowerCase() === normalizedQuery ||
-                vendor.displayName.trim().toLowerCase() === normalizedQuery
-        );
+        !items.some(vendor => vendorExactMatch(vendor, normalizedQuery));
 
     async function saveVendor(formData: FormData) {
         setPending(true);
@@ -137,6 +156,7 @@ export function VendorPicker({
                 return [vendor, ...withoutDuplicate];
             });
             setQuery('');
+            setOpen(false);
             setCandidateSuggestions([]);
             onChange(vendor);
         } catch {
@@ -177,6 +197,7 @@ export function VendorPicker({
 
     function clearSelection() {
         setQuery('');
+        setOpen(false);
         setCandidateSuggestions([]);
         setCandidateSearchError(null);
         onChange(undefined);
@@ -216,54 +237,68 @@ export function VendorPicker({
                     </div>
                 </div>
             ) : (
-                <Input
-                    autoComplete="off"
-                    id="vendor-search"
-                    onChange={event => setQuery(event.target.value)}
-                    placeholder="Search vendor"
-                    value={query}
-                />
-            )}
-            {!selected ? (
-                <div className="flex flex-col gap-1">
-                    {visible.map(vendor => (
-                        <Button
-                            className="h-auto justify-start gap-2 px-2 py-2"
-                            key={vendor.id}
-                            onClick={() => {
-                                setQuery('');
-                                onChange(vendor);
-                            }}
-                            type="button"
-                            variant="outline"
-                        >
-                            <VendorLogo vendor={vendor} size="sm" />
-                            <span className="min-w-0 text-left">
-                                <span className="block truncate">
-                                    {vendorDisplayName(vendor)}
-                                </span>
-                                {vendor.suggestedCategoryDisplayName ? (
-                                    <span className="block truncate text-xs text-muted-foreground">
-                                        {vendor.suggestedCategoryDisplayName}
+                <div className="relative">
+                    <Input
+                        autoComplete="off"
+                        id="vendor-search"
+                        onBlur={() => {
+                            setTimeout(() => setOpen(false), 100);
+                        }}
+                        onChange={event => {
+                            setQuery(event.target.value);
+                            setOpen(true);
+                        }}
+                        onFocus={() => setOpen(true)}
+                        placeholder="Search vendor"
+                        value={query}
+                    />
+                    {open ? (
+                        <div className="absolute z-20 mt-1 flex max-h-72 w-full flex-col gap-1 overflow-auto rounded-md border bg-popover p-1 shadow-md">
+                            {visible.map(vendor => (
+                                <Button
+                                    className="h-auto justify-start gap-2 px-2 py-2"
+                                    key={vendor.id}
+                                    onMouseDown={event =>
+                                        event.preventDefault()
+                                    }
+                                    onClick={() => {
+                                        setQuery('');
+                                        setOpen(false);
+                                        onChange(vendor);
+                                    }}
+                                    type="button"
+                                    variant="ghost"
+                                >
+                                    <VendorLogo vendor={vendor} size="sm" />
+                                    <span className="min-w-0 text-left">
+                                        <span className="block truncate">
+                                            {vendorDisplayName(vendor)}
+                                        </span>
+                                        {vendor.suggestedCategoryDisplayName ? (
+                                            <span className="block truncate text-xs text-muted-foreground">
+                                                {
+                                                    vendor.suggestedCategoryDisplayName
+                                                }
+                                            </span>
+                                        ) : null}
                                     </span>
-                                ) : null}
-                            </span>
-                        </Button>
-                    ))}
-                    {visibleCandidateSuggestions.length > 0 ? (
-                        <div className="flex flex-col gap-1">
+                                </Button>
+                            ))}
                             {visibleCandidateSuggestions.map(suggestion => (
                                 <Button
                                     className="h-auto justify-start gap-2 px-2 py-2"
                                     disabled={pending}
                                     key={`${suggestion.brandfetchBrandId ?? suggestion.domain}-${suggestion.domain}`}
+                                    onMouseDown={event =>
+                                        event.preventDefault()
+                                    }
                                     onClick={() =>
                                         void createVendorFromCandidate(
                                             suggestion
                                         )
                                     }
                                     type="button"
-                                    variant="outline"
+                                    variant="ghost"
                                 >
                                     <VendorLogo
                                         vendor={{
@@ -283,39 +318,42 @@ export function VendorPicker({
                                     </span>
                                 </Button>
                             ))}
+                            {canCreate ? (
+                                <Button
+                                    className="justify-start gap-2"
+                                    disabled={pending}
+                                    onMouseDown={event =>
+                                        event.preventDefault()
+                                    }
+                                    onClick={createVendor}
+                                    type="button"
+                                    variant="ghost"
+                                >
+                                    <StoreIcon aria-hidden className="size-4" />
+                                    {pending
+                                        ? 'Saving vendor...'
+                                        : `Add ${query.trim()}`}
+                                </Button>
+                            ) : null}
+                            {!canCreate && visible.length === 0 ? (
+                                <FieldDescription className="px-2 py-1.5">
+                                    No matching vendors.
+                                </FieldDescription>
+                            ) : null}
+                            {candidateSearchPending ? (
+                                <FieldDescription className="px-2 py-1.5">
+                                    Searching vendors...
+                                </FieldDescription>
+                            ) : null}
+                            {candidateSearchError ? (
+                                <FieldDescription className="px-2 py-1.5">
+                                    {candidateSearchError}
+                                </FieldDescription>
+                            ) : null}
                         </div>
                     ) : null}
-                    {canCreate ? (
-                        <Button
-                            className="justify-start gap-2"
-                            disabled={pending}
-                            onClick={createVendor}
-                            type="button"
-                            variant="outline"
-                        >
-                            <StoreIcon aria-hidden className="size-4" />
-                            {pending
-                                ? 'Saving vendor...'
-                                : `Add ${query.trim()}`}
-                        </Button>
-                    ) : null}
-                    {!canCreate && visible.length === 0 ? (
-                        <FieldDescription>
-                            No matching vendors.
-                        </FieldDescription>
-                    ) : null}
-                    {candidateSearchPending ? (
-                        <FieldDescription>
-                            Searching vendors...
-                        </FieldDescription>
-                    ) : null}
-                    {candidateSearchError ? (
-                        <FieldDescription>
-                            {candidateSearchError}
-                        </FieldDescription>
-                    ) : null}
                 </div>
-            ) : null}
+            )}
             {error ? <FieldError role="alert">{error}</FieldError> : null}
         </Field>
     );

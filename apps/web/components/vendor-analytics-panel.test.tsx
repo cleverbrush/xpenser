@@ -19,7 +19,8 @@ function vendor(
         vendorDomain: `vendor-${id}.example`,
         vendorLogoUrl: `https://vendor-${id}.example/logo.svg`,
         vendorPrimaryColor: '#3366cc',
-        expenseTotal: id * 10,
+        type: 'expense',
+        total: id * 10,
         transactionCount: id,
         trend: [id * 5, id * 10],
         ...overrides
@@ -56,13 +57,14 @@ describe('VendorAnalyticsPanel', () => {
         );
 
         expect(screen.getByText('Vendors')).toBeTruthy();
-        expect(screen.getByText('2 vendors in this period')).toBeTruthy();
+        expect(screen.getByText('2 vendor groups in this period')).toBeTruthy();
         expect(
             screen.getByLabelText('Vendor grouping info').getAttribute('title')
-        ).toContain('Only expenses linked to a vendor');
+        ).toContain('including transactions without a vendor');
+        expect(screen.getAllByText('Expenses').length).toBeGreaterThan(0);
         expect(screen.getByText('Vendor 1')).toBeTruthy();
         expect(screen.getByText(/vendor-1\.example/)).toBeTruthy();
-        expect(screen.getByText(/1 purchase/)).toBeTruthy();
+        expect(screen.getByText(/1 transaction/)).toBeTruthy();
         expect(screen.getByText('2.5%')).toBeTruthy();
         expect(screen.getAllByText('{l:50,100}').length).toBeGreaterThan(0);
         expect(
@@ -84,10 +86,68 @@ describe('VendorAnalyticsPanel', () => {
         expect(vendorLink.getAttribute('href')).toContain('to=2026-05-31');
     });
 
-    it('renders an empty state when the selected period has no linked vendors', () => {
+    it('renders no vendor income and expense groups', () => {
+        render(
+            <VendorAnalyticsPanel
+                summary={summary({
+                    expenseTotal: 100,
+                    incomeTotal: 200,
+                    vendorCount: 2,
+                    topVendors: [
+                        vendor(1, {
+                            vendorId: null,
+                            vendorName: 'No vendor',
+                            vendorDomain: undefined,
+                            vendorLogoUrl: undefined,
+                            vendorPrimaryColor: undefined,
+                            type: 'income',
+                            total: 200,
+                            transactionCount: 1,
+                            trend: [0, 200]
+                        }),
+                        vendor(2, {
+                            vendorId: null,
+                            vendorName: 'No vendor',
+                            vendorDomain: undefined,
+                            vendorLogoUrl: undefined,
+                            vendorPrimaryColor: undefined,
+                            type: 'expense',
+                            total: 100,
+                            transactionCount: 1,
+                            trend: [0, 100]
+                        })
+                    ]
+                })}
+                timezone="UTC"
+            />
+        );
+
+        expect(screen.getAllByText('Income').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Expenses').length).toBeGreaterThan(0);
+        const links = screen
+            .getAllByRole('link')
+            .filter(link =>
+                link.getAttribute('href')?.includes('vendorId=none')
+            );
+        expect(links).toHaveLength(6);
+        expect(
+            links.some(link =>
+                link.getAttribute('href')?.includes('type=income')
+            )
+        ).toBe(true);
+        expect(
+            links.some(link =>
+                link.getAttribute('href')?.includes('type=expense')
+            )
+        ).toBe(true);
+    });
+
+    it('renders an empty state when the selected period has no vendor groups', () => {
         render(<VendorAnalyticsPanel summary={summary()} timezone="UTC" />);
 
-        expect(screen.getByText('0 vendors in this period')).toBeTruthy();
-        expect(screen.getByText('No vendors in this period.')).toBeTruthy();
+        expect(screen.getByText('0 vendor groups in this period')).toBeTruthy();
+        expect(
+            screen.getByText('No vendor groups in this period.')
+        ).toBeTruthy();
     });
 });

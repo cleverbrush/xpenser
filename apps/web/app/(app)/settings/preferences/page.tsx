@@ -127,8 +127,8 @@ export default async function PreferencesPage() {
                         <div className="space-y-1">
                             <CardTitle>Vendors</CardTitle>
                             <CardDescription>
-                                Manage vendor details, enrichment status, and
-                                transaction history.
+                                Manage vendor profile details and transaction
+                                history.
                             </CardDescription>
                         </div>
                         <Button asChild className="w-full sm:w-auto">

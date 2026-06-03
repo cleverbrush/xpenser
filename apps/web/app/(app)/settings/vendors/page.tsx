@@ -29,8 +29,7 @@ export default async function VendorsSettingsPage({
             <div>
                 <h1 className="text-2xl font-semibold">Vendors</h1>
                 <p className="text-sm text-muted-foreground">
-                    Review vendor details, enrichment status, and transaction
-                    history.
+                    Review vendor profile details and transaction history.
                 </p>
             </div>
             <VendorDirectory vendors={vendors} search={search} />

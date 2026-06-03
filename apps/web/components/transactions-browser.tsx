@@ -685,6 +685,7 @@ export function TransactionsBrowser({
                                 name="vendorId"
                             >
                                 <option value="">All vendors</option>
+                                <option value="none">No vendor</option>
                                 {vendors.map(vendor => (
                                     <option key={vendor.id} value={vendor.id}>
                                         {vendor.displayName}

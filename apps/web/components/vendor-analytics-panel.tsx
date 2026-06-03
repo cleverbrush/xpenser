@@ -29,32 +29,37 @@ type DashboardVendor = DashboardSummary['topVendors'][number];
 
 function vendorHref(
     summary: DashboardSummary,
-    vendor: Pick<DashboardVendor, 'vendorId'>,
+    vendor: Pick<DashboardVendor, 'type' | 'vendorId'>,
     timezone: string
 ): string {
     const params = new URLSearchParams({
-        type: 'expense',
+        type: vendor.type,
         from: dateParam(summary.from, timezone),
-        to: dateParam(summary.to, timezone),
-        vendorId: String(vendor.vendorId)
+        to: dateParam(summary.to, timezone)
     });
+    params.set(
+        'vendorId',
+        vendor.vendorId === null ? 'none' : String(vendor.vendorId)
+    );
     return `/transactions?${params.toString()}`;
 }
 
-function vendorPurchaseLabel(count: number): string {
-    return `${count} ${count === 1 ? 'purchase' : 'purchases'}`;
+function vendorTransactionLabel(count: number): string {
+    return `${count} ${count === 1 ? 'transaction' : 'transactions'}`;
 }
 
-function vendorExpenseShare(
-    summary: Pick<DashboardSummary, 'expenseTotal'>,
-    vendor: Pick<DashboardVendor, 'expenseTotal'>
+function vendorShare(
+    summary: Pick<DashboardSummary, 'expenseTotal' | 'incomeTotal'>,
+    vendor: Pick<DashboardVendor, 'total' | 'type'>
 ): number {
-    const basis = Math.abs(summary.expenseTotal);
+    const basis = Math.abs(
+        vendor.type === 'income' ? summary.incomeTotal : summary.expenseTotal
+    );
     if (basis <= 0) {
         return 0;
     }
 
-    const share = (Math.abs(vendor.expenseTotal) / basis) * 100;
+    const share = (Math.abs(vendor.total) / basis) * 100;
     return Math.max(0, Math.min(100, share));
 }
 
@@ -67,14 +72,16 @@ function VendorRow({
     readonly summary: DashboardSummary;
     readonly timezone: string;
 }) {
-    const share = vendorExpenseShare(summary, vendor);
+    const share = vendorShare(summary, vendor);
     const shareLabel = formatPercent(share);
     const showPeriodDetails = summary.period !== 'day';
     const href = vendorHref(summary, vendor, timezone);
     const amountClassName = amountClassNameForCategoryTotal(
-        vendor.expenseTotal,
-        'expense'
+        vendor.total,
+        vendor.type
     );
+    const shareTitle =
+        vendor.type === 'income' ? 'Share of income' : 'Share of expenses';
     const rowClassName = `grid items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2 ${
         showPeriodDetails
             ? 'grid-cols-[minmax(0,1fr)_auto_74px] sm:grid-cols-[minmax(0,1fr)_auto_104px]'
@@ -90,15 +97,15 @@ function VendorRow({
                 prefetch={false}
             >
                 <span
-                    className="flex w-10 shrink-0 flex-col items-center justify-center text-rose-700 dark:text-rose-400"
-                    title={`Share of expenses: ${shareLabel}`}
+                    className={`flex w-10 shrink-0 flex-col items-center justify-center ${amountClassName}`}
+                    title={`${shareTitle}: ${shareLabel}`}
                 >
                     <DatatypeChart
                         className="text-2xl"
                         expression={datatypePieExpression(share)}
                     />
                     <span className="mt-0.5 text-[0.65rem] font-medium leading-none tabular-nums">
-                        <span className="sr-only">Share of expenses: </span>
+                        <span className="sr-only">{shareTitle}: </span>
                         {shareLabel}
                     </span>
                 </span>
@@ -116,10 +123,10 @@ function VendorRow({
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                         {vendor.vendorDomain
-                            ? `${vendor.vendorDomain} · ${vendorPurchaseLabel(
+                            ? `${vendor.vendorDomain} · ${vendorTransactionLabel(
                                   vendor.transactionCount
                               )}`
-                            : vendorPurchaseLabel(vendor.transactionCount)}
+                            : vendorTransactionLabel(vendor.transactionCount)}
                     </span>
                 </span>
             </Link>
@@ -132,16 +139,13 @@ function VendorRow({
                 <span className={`font-semibold ${amountClassName}`}>
                     <AmountDisplay
                         currency={summary.currency}
-                        value={signedCategoryTotal(
-                            vendor.expenseTotal,
-                            'expense'
-                        )}
+                        value={signedCategoryTotal(vendor.total, vendor.type)}
                     />
                 </span>
             </Link>
             {showPeriodDetails ? (
                 <Link
-                    aria-label={`${vendor.vendorName} transactions`}
+                    aria-label={`${vendor.vendorName} ${vendor.type} transactions`}
                     className="flex min-w-0 justify-end overflow-hidden"
                     draggable={false}
                     href={href}
@@ -168,15 +172,17 @@ function VendorsHeader({ summary }: { readonly summary: DashboardSummary }) {
                             aria-label="Vendor grouping info"
                             className="inline-flex text-muted-foreground"
                             role="img"
-                            title="Only expenses linked to a vendor are grouped here."
+                            title="Transactions are grouped by vendor, including transactions without a vendor."
                         >
                             <InfoIcon aria-hidden className="size-4" />
                         </span>
                     </div>
                     <CardDescription>
                         {summary.vendorCount}{' '}
-                        {summary.vendorCount === 1 ? 'vendor' : 'vendors'} in
-                        this period
+                        {summary.vendorCount === 1
+                            ? 'vendor group'
+                            : 'vendor groups'}{' '}
+                        in this period
                     </CardDescription>
                 </div>
                 {summary.vendorCount > summary.topVendors.length ? (
@@ -189,6 +195,41 @@ function VendorsHeader({ summary }: { readonly summary: DashboardSummary }) {
     );
 }
 
+function VendorGroup({
+    summary,
+    timezone,
+    title,
+    type
+}: {
+    readonly summary: DashboardSummary;
+    readonly timezone: string;
+    readonly title: string;
+    readonly type: DashboardVendor['type'];
+}) {
+    const vendors = summary.topVendors.filter(vendor => vendor.type === type);
+    if (vendors.length === 0) {
+        return null;
+    }
+
+    return (
+        <div>
+            <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                {title}
+            </h3>
+            <div className="flex flex-col divide-y">
+                {vendors.map(vendor => (
+                    <VendorRow
+                        key={`${vendor.type}:${vendor.vendorId ?? 'none'}`}
+                        vendor={vendor}
+                        summary={summary}
+                        timezone={timezone}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export function VendorAnalyticsPanel({
     summary,
     timezone
@@ -196,26 +237,32 @@ export function VendorAnalyticsPanel({
     readonly summary: DashboardSummary;
     readonly timezone: string;
 }) {
+    const hasVendors = summary.topVendors.length > 0;
+
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
             <DashboardSummaryCards summary={summary} timezone={timezone} />
             <Card>
                 <VendorsHeader summary={summary} />
                 <CardContent>
-                    {summary.topVendors.length > 0 ? (
-                        <div className="flex flex-col divide-y">
-                            {summary.topVendors.map(vendor => (
-                                <VendorRow
-                                    key={vendor.vendorId}
-                                    vendor={vendor}
-                                    summary={summary}
-                                    timezone={timezone}
-                                />
-                            ))}
+                    {hasVendors ? (
+                        <div className="flex flex-col gap-4">
+                            <VendorGroup
+                                summary={summary}
+                                timezone={timezone}
+                                title="Income"
+                                type="income"
+                            />
+                            <VendorGroup
+                                summary={summary}
+                                timezone={timezone}
+                                title="Expenses"
+                                type="expense"
+                            />
                         </div>
                     ) : (
                         <p className="text-sm text-muted-foreground">
-                            No vendors in this period.
+                            No vendor groups in this period.
                         </p>
                     )}
                 </CardContent>

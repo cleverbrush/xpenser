@@ -63,7 +63,9 @@ describe('VendorPicker', () => {
             />
         );
 
-        fireEvent.change(screen.getByLabelText('Vendor'), {
+        const input = screen.getByLabelText('Vendor');
+        fireEvent.focus(input);
+        fireEvent.change(input, {
             target: { value: 'Bufet' }
         });
 
@@ -87,6 +89,45 @@ describe('VendorPicker', () => {
             'https://cdn.brandfetch.io/bufet/icon.svg'
         );
         expect(onChange).toHaveBeenCalledWith(selected);
+    });
+
+    it('shows local suggestions only after the vendor input is focused', () => {
+        const onChange = vi.fn();
+
+        render(
+            <VendorPicker
+                vendors={[vendor()]}
+                onChange={onChange}
+                selectedVendorId={null}
+            />
+        );
+
+        expect(screen.queryByRole('button', { name: /Bufet/ })).toBeNull();
+
+        fireEvent.focus(screen.getByLabelText('Vendor'));
+
+        expect(screen.getByRole('button', { name: /Bufet/ })).toBeTruthy();
+    });
+
+    it('does not search Brandfetch for an exact local vendor match', async () => {
+        const onChange = vi.fn();
+
+        render(
+            <VendorPicker
+                vendors={[vendor({ domain: 'bufet.ua' })]}
+                onChange={onChange}
+                selectedVendorId={null}
+            />
+        );
+
+        const input = screen.getByLabelText('Vendor');
+        fireEvent.focus(input);
+        fireEvent.change(input, {
+            target: { value: 'Bufet' }
+        });
+        await new Promise(resolve => setTimeout(resolve, 350));
+
+        expect(searchVendorCandidatesAction).not.toHaveBeenCalled();
     });
 
     it('hides search while a vendor is selected until cleared', () => {

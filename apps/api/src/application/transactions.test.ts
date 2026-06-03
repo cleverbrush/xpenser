@@ -236,7 +236,7 @@ describe('transaction category signs', () => {
         ).toEqual([{ id: car.id, name: 'Car', type: 'income', total: 25 }]);
     });
 
-    it('summarizes linked expense vendors by purchase count for dashboard previews', () => {
+    it('summarizes vendor transaction groups for dashboard previews', () => {
         const timestamp = new Date('2026-05-10T12:00:00.000Z');
         const groceries = {
             id: 1,
@@ -317,6 +317,7 @@ describe('transaction category signs', () => {
             transaction(3, groceries.id, '100', 2),
             transaction(4, salary.id, '500', 3),
             transaction(5, groceries.id, '10'),
+            transaction(6, salary.id, '25'),
             ...extraVendors.map(([id]) =>
                 transaction(id, groceries.id, '1', id)
             )
@@ -359,11 +360,11 @@ describe('transaction category signs', () => {
             100
         );
 
-        expect(summary.vendorCount).toBe(27);
+        expect(summary.vendorCount).toBe(30);
         expect(summary.topVendors).toHaveLength(24);
-        expect(emptyVendorSummary.vendorCount).toBe(27);
+        expect(emptyVendorSummary.vendorCount).toBe(30);
         expect(emptyVendorSummary.topVendors).toEqual([]);
-        expect(expandedVendorSummary.topVendors).toHaveLength(27);
+        expect(expandedVendorSummary.topVendors).toHaveLength(30);
         expect(summary.topVendors.slice(0, 3)).toEqual([
             {
                 vendorId: 1,
@@ -371,7 +372,8 @@ describe('transaction category signs', () => {
                 vendorDomain: 'big.example',
                 vendorLogoUrl: 'https://big.example/logo.svg',
                 vendorPrimaryColor: '#0066cc',
-                expenseTotal: 50,
+                type: 'expense',
+                total: 50,
                 transactionCount: 2,
                 trend: [0, 50, 0, 0, 0]
             },
@@ -381,22 +383,69 @@ describe('transaction category signs', () => {
                 vendorDomain: undefined,
                 vendorLogoUrl: undefined,
                 vendorPrimaryColor: undefined,
-                expenseTotal: 100,
+                type: 'expense',
+                total: 100,
                 transactionCount: 1,
                 trend: [0, 100, 0, 0, 0]
             },
+            {
+                vendorId: null,
+                vendorName: 'No vendor',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: 'expense',
+                total: 10,
+                transactionCount: 1,
+                trend: [0, 10, 0, 0, 0]
+            }
+        ]);
+        expect(expandedVendorSummary.topVendors).toContainEqual({
+            vendorId: 3,
+            vendorName: 'Paycheck Inc',
+            vendorDomain: undefined,
+            vendorLogoUrl: undefined,
+            vendorPrimaryColor: undefined,
+            type: 'income',
+            total: 500,
+            transactionCount: 1,
+            trend: [0, 500, 0, 0, 0]
+        });
+        expect(expandedVendorSummary.topVendors).toContainEqual({
+            vendorId: null,
+            vendorName: 'No vendor',
+            vendorDomain: undefined,
+            vendorLogoUrl: undefined,
+            vendorPrimaryColor: undefined,
+            type: 'income',
+            total: 25,
+            transactionCount: 1,
+            trend: [0, 25, 0, 0, 0]
+        });
+        expect(summary.topVendors.slice(3, 4)).toEqual([
             {
                 vendorId: 10,
                 vendorName: 'Vendor 10',
                 vendorDomain: undefined,
                 vendorLogoUrl: undefined,
                 vendorPrimaryColor: undefined,
-                expenseTotal: 1,
+                type: 'expense',
+                total: 1,
                 transactionCount: 1,
                 trend: [0, 1, 0, 0, 0]
             }
         ]);
-        expect(summary.topVendors.some(item => item.vendorId === 3)).toBe(
+        expect(
+            expandedVendorSummary.topVendors
+                .filter(vendor => vendor.type === 'expense')
+                .reduce((sum, vendor) => sum + vendor.total, 0)
+        ).toBe(expandedVendorSummary.expenseTotal);
+        expect(
+            expandedVendorSummary.topVendors
+                .filter(vendor => vendor.type === 'income')
+                .reduce((sum, vendor) => sum + vendor.total, 0)
+        ).toBe(expandedVendorSummary.incomeTotal);
+        expect(summary.topVendors.some(item => item.type === 'income')).toBe(
             false
         );
     });

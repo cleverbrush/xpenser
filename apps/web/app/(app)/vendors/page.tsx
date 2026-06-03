@@ -22,18 +22,28 @@ export default async function VendorsPage({
     const me = await client.auth.me();
     const selectedDate = parseDateParam(params.date, me.timezone);
     const anchorDate = selectedDate ?? new Date();
-    const window = await client.dashboard.window({
-        query: {
-            after: 2,
-            before: 2,
-            vendorLimit: vendorAnalyticsVendorLimit,
-            period,
-            ...(selectedDate ? { date: selectedDate } : {})
-        }
-    });
+    const [categories, currencies, vendors, window] = await Promise.all([
+        client.categories.list({
+            query: { activeOnly: true, sort: 'recent-transaction-count' }
+        }),
+        client.currencies.list(),
+        client.vendors.list({ query: { limit: 100 } }),
+        client.dashboard.window({
+            query: {
+                after: 2,
+                before: 2,
+                vendorLimit: vendorAnalyticsVendorLimit,
+                period,
+                ...(selectedDate ? { date: selectedDate } : {})
+            }
+        })
+    ]);
 
     return (
         <VendorsExplorer
+            categories={categories}
+            currencies={currencies}
+            defaultCurrency={me.defaultCurrency}
             initialDate={initialDashboardWindowDate(
                 window,
                 anchorDate,
@@ -41,7 +51,9 @@ export default async function VendorsPage({
             )}
             initialPeriod={period}
             initialWindow={window}
+            vendors={vendors}
             timezone={me.timezone}
+            transactionCurrencies={me.transactionCurrencies}
         />
     );
 }

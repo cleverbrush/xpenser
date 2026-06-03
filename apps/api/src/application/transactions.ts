@@ -112,6 +112,7 @@ type CategoryComparison = {
 
 export const categoryTrendMaxBuckets = 500;
 const dashboardVendorLimit = 24;
+const noVendorName = 'No vendor';
 
 export function transactionSignedDefaultAmount(
     transaction: Pick<TransactionDb, 'defaultCurrencyAmount'> & {
@@ -347,6 +348,9 @@ export async function listTransactions(
     const search = query.search?.trim().toLowerCase();
     const filtered = sortedRows
         .filter(transaction => {
+            if (query.vendorId === 'none') {
+                return transaction.vendorId == null;
+            }
             if (!query.vendorId) {
                 return true;
             }
@@ -1531,7 +1535,7 @@ export function summarizeDashboardRows(
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
-    const totalsByVendor = new Map<number, DashboardVendor>();
+    const totalsByVendor = new Map<string, DashboardVendor>();
     const previousTotalsByCategory = new Map<string, number>();
 
     for (const row of previousRows) {
@@ -1573,20 +1577,22 @@ export function summarizeDashboardRows(
         }
         totalsByCategory.set(key, current);
 
-        if (fields.type === 'expense' && row.vendorId) {
+        if (row.vendorId) {
             const vendor = vendorsById.get(row.vendorId);
             if (vendor) {
-                const currentVendor = totalsByVendor.get(vendor.id) ?? {
+                const vendorKey = `${fields.type}:${vendor.id}`;
+                const currentVendor = totalsByVendor.get(vendorKey) ?? {
                     vendorId: vendor.id,
                     vendorName: vendor.name,
                     vendorDomain: vendor.domain ?? undefined,
                     vendorLogoUrl: vendor.logoUrl ?? undefined,
                     vendorPrimaryColor: vendor.primaryColor ?? undefined,
-                    expenseTotal: 0,
+                    type: fields.type,
+                    total: 0,
                     transactionCount: 0,
                     trend: Array.from({ length: bucketCount }, () => 0)
                 };
-                currentVendor.expenseTotal += total;
+                currentVendor.total += total;
                 currentVendor.transactionCount += 1;
                 if (
                     bucketIndex >= 0 &&
@@ -1595,8 +1601,28 @@ export function summarizeDashboardRows(
                     currentVendor.trend[bucketIndex] =
                         (currentVendor.trend[bucketIndex] ?? 0) + total;
                 }
-                totalsByVendor.set(vendor.id, currentVendor);
+                totalsByVendor.set(vendorKey, currentVendor);
             }
+        } else {
+            const vendorKey = `${fields.type}:none`;
+            const currentVendor = totalsByVendor.get(vendorKey) ?? {
+                vendorId: null,
+                vendorName: noVendorName,
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: fields.type,
+                total: 0,
+                transactionCount: 0,
+                trend: Array.from({ length: bucketCount }, () => 0)
+            };
+            currentVendor.total += total;
+            currentVendor.transactionCount += 1;
+            if (bucketIndex >= 0 && bucketIndex < currentVendor.trend.length) {
+                currentVendor.trend[bucketIndex] =
+                    (currentVendor.trend[bucketIndex] ?? 0) + total;
+            }
+            totalsByVendor.set(vendorKey, currentVendor);
         }
     }
 
@@ -1620,8 +1646,9 @@ export function summarizeDashboardRows(
     const topVendors = Array.from(totalsByVendor.values())
         .sort(
             (left, right) =>
+                left.type.localeCompare(right.type) ||
                 right.transactionCount - left.transactionCount ||
-                right.expenseTotal - left.expenseTotal ||
+                right.total - left.total ||
                 left.vendorName.localeCompare(right.vendorName)
         )
         .slice(0, Math.max(0, vendorLimit));

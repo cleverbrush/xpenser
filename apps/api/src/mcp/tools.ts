@@ -5,7 +5,8 @@ import {
     number,
     type ObjectSchemaBuilder,
     object,
-    string
+    string,
+    union
 } from '@cleverbrush/schema';
 import { toJsonSchema } from '@cleverbrush/schema-json';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -118,11 +119,12 @@ const TransactionListInputSchema = object({
         .positive()
         .optional()
         .describe('Filter by a parent category and its direct children.'),
-    vendorId: number()
-        .isInteger()
-        .positive()
+    vendorId: union(number().isInteger().positive())
+        .or(string('none'))
         .optional()
-        .describe('Filter by vendor identifier.'),
+        .describe(
+            'Filter by vendor identifier, or "none" for transactions without a vendor.'
+        ),
     from: dateString
         .optional()
         .describe('Inclusive occurrence start date or timestamp.'),

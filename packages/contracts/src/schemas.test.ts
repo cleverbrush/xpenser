@@ -25,6 +25,7 @@ import {
     StatsQuerySchema,
     TimeZoneSchema,
     TokenResponseSchema,
+    TransactionListQuerySchema,
     UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
@@ -449,15 +450,35 @@ describe('shared schemas', () => {
                         vendorDomain: 'walmart.com',
                         vendorLogoUrl: 'https://walmart.com/logo.svg',
                         vendorPrimaryColor: '#0071ce',
-                        expenseTotal: 100,
+                        type: 'expense',
+                        total: 100,
                         transactionCount: 3,
                         trend: [20, 80]
+                    },
+                    {
+                        vendorId: null,
+                        vendorName: 'No vendor',
+                        type: 'income',
+                        total: 50,
+                        transactionCount: 1,
+                        trend: [0, 50]
                     }
                 ],
                 byCategory: [],
                 byParentCategory: []
             }).valid
         ).toBe(true);
+    });
+
+    it('validates vendor-less transaction filters', () => {
+        expect(
+            TransactionListQuerySchema.validate({ vendorId: 'none' }).object
+                ?.vendorId
+        ).toBe('none');
+        expect(
+            TransactionListQuerySchema.validate({ vendorId: 42 }).object
+                ?.vendorId
+        ).toBe(42);
     });
 
     it('validates category trend controls', () => {
