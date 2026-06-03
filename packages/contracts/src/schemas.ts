@@ -1103,7 +1103,12 @@ export const DashboardQuerySchema = object({
     date: date()
         .coerce()
         .optional()
-        .describe('Date used to choose the reporting period.')
+        .describe('Date used to choose the reporting period.'),
+    /** Maximum number of merchant groups to include. */
+    merchantLimit: number()
+        .coerce()
+        .optional()
+        .describe('Maximum number of merchant groups to include.')
 }).schemaName('DashboardQuery');
 
 export const PeriodWindowQuerySchema = object({
@@ -1125,6 +1130,33 @@ export const PeriodWindowQuerySchema = object({
         .default(2)
         .describe('Number of following periods to include.')
 }).schemaName('PeriodWindowQuery');
+
+export const DashboardWindowQuerySchema = object({
+    /** Reporting period. */
+    period: PeriodSchema.default('day').describe('Reporting period.'),
+    /** Date used to choose the center reporting period. */
+    date: date()
+        .coerce()
+        .optional()
+        .describe('Date used to choose the center reporting period.'),
+    /** Number of previous periods to include. */
+    before: number()
+        .coerce()
+        .default(2)
+        .describe('Number of previous periods to include.'),
+    /** Number of following periods to include. */
+    after: number()
+        .coerce()
+        .default(2)
+        .describe('Number of following periods to include.'),
+    /** Maximum number of merchant groups to include in each summary. */
+    merchantLimit: number()
+        .coerce()
+        .optional()
+        .describe(
+            'Maximum number of merchant groups to include in each summary.'
+        )
+}).schemaName('DashboardWindowQuery');
 
 export const StatsQuerySchema = object({
     /** Stats trend grouping. */

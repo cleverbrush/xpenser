@@ -28,7 +28,7 @@ export function AppNav() {
                         <Button asChild size="sm" variant="ghost">
                             <Link href="/merchants">
                                 <StoreIcon aria-hidden className="size-4" />
-                                Merchants
+                                Brands
                             </Link>
                         </Button>
                         <Button asChild size="sm" variant="ghost">

@@ -34,7 +34,7 @@ function MerchantIdentity({ merchant }: { readonly merchant: Merchant }) {
             <div className="min-w-0">
                 <Link
                     className="block truncate font-medium transition-colors hover:text-primary"
-                    href={`/merchants/${merchant.id}`}
+                    href={`/settings/merchants/${merchant.id}`}
                 >
                     {merchantDisplayName(merchant)}
                 </Link>
@@ -78,7 +78,9 @@ function MerchantCards({
                         size="sm"
                         variant="outline"
                     >
-                        <Link href={`/merchants/${merchant.id}`}>Open</Link>
+                        <Link href={`/settings/merchants/${merchant.id}`}>
+                            Open
+                        </Link>
                     </Button>
                 </article>
             ))}
@@ -132,7 +134,7 @@ function MerchantTable({
                                 <TableCell className="text-right">
                                     <Button asChild size="sm" variant="ghost">
                                         <Link
-                                            href={`/merchants/${merchant.id}`}
+                                            href={`/settings/merchants/${merchant.id}`}
                                         >
                                             Open
                                         </Link>

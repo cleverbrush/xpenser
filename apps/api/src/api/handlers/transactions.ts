@@ -100,7 +100,8 @@ export const dashboardSummaryHandler: Handler<
         db,
         principal.userId,
         query.period ?? 'day',
-        query.date
+        query.date,
+        query.merchantLimit
     );
 };
 
@@ -111,6 +112,7 @@ export const dashboardWindowHandler: Handler<
         after: query.after,
         before: query.before,
         date: query.date,
+        merchantLimit: query.merchantLimit,
         period: query.period ?? 'day'
     });
 };

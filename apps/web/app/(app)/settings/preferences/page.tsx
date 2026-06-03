@@ -7,7 +7,7 @@ import {
     CardHeader,
     CardTitle
 } from '@xpenser/ui';
-import { FolderTreeIcon, Send, Unlink } from 'lucide-react';
+import { FolderTreeIcon, Send, StoreIcon, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import { ApiKeysSettings } from '@/components/api-keys-settings';
 import { PreferencesForm } from '@/components/forms/preferences-form';
@@ -116,6 +116,25 @@ export default async function PreferencesPage() {
                                     className="size-4"
                                 />
                                 Manage categories
+                            </Link>
+                        </Button>
+                    </div>
+                </CardHeader>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                            <CardTitle>Merchants</CardTitle>
+                            <CardDescription>
+                                Manage merchant details, enrichment status, and
+                                transaction history.
+                            </CardDescription>
+                        </div>
+                        <Button asChild className="w-full sm:w-auto">
+                            <Link href="/settings/merchants">
+                                <StoreIcon aria-hidden className="size-4" />
+                                Manage merchants
                             </Link>
                         </Button>
                     </div>

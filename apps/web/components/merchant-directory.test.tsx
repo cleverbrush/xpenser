@@ -41,7 +41,10 @@ describe('MerchantDirectory', () => {
         expect(
             screen
                 .getAllByRole('link', { name: /walmart/i })
-                .some(link => link.getAttribute('href') === '/merchants/42')
+                .some(
+                    link =>
+                        link.getAttribute('href') === '/settings/merchants/42'
+                )
         ).toBe(true);
     });
 

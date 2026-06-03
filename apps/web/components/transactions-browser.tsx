@@ -164,7 +164,7 @@ function transactionMerchant(transaction: Transaction) {
     return transaction.merchantId ? (
         <Link
             className={`${className} transition-colors hover:text-foreground`}
-            href={`/merchants/${transaction.merchantId}`}
+            href={`/settings/merchants/${transaction.merchantId}`}
         >
             {content}
         </Link>

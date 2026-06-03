@@ -89,6 +89,7 @@ type PeriodWindowQuery = {
     readonly date?: Date;
     readonly before?: number;
     readonly after?: number;
+    readonly merchantLimit?: number;
 };
 
 type CategoryTrendRangeOptions = {
@@ -1534,7 +1535,8 @@ export function summarizeDashboardRows(
     rows: readonly TransactionDb[],
     previousRows: readonly TransactionDb[],
     categoriesById: ReadonlyMap<number, CategoryDb>,
-    merchantsById: ReadonlyMap<number, MerchantDb>
+    merchantsById: ReadonlyMap<number, MerchantDb>,
+    merchantLimit = dashboardMerchantLimit
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
@@ -1631,7 +1633,7 @@ export function summarizeDashboardRows(
                 right.expenseTotal - left.expenseTotal ||
                 left.merchantName.localeCompare(right.merchantName)
         )
-        .slice(0, dashboardMerchantLimit);
+        .slice(0, Math.max(0, merchantLimit));
 
     return {
         period,
@@ -1655,7 +1657,8 @@ export async function dashboardSummary(
     db: AppDb,
     userId: number,
     period: DashboardPeriod,
-    date?: Date
+    date?: Date,
+    merchantLimit = dashboardMerchantLimit
 ): Promise<DashboardSummary> {
     const user = await getUser(db, userId);
     const range = resolveDashboardRange(
@@ -1684,7 +1687,8 @@ export async function dashboardSummary(
         rows,
         previousRows,
         categoriesById,
-        merchantsById
+        merchantsById,
+        merchantLimit
     );
 }
 
@@ -1738,7 +1742,8 @@ export async function dashboardWindow(
                 rowsInRange(allRows, plan.range),
                 rowsInRange(allRows, plan.previousRange),
                 categoriesById,
-                merchantsById
+                merchantsById,
+                query.merchantLimit ?? dashboardMerchantLimit
             )
         }))
     };

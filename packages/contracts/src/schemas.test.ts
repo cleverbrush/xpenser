@@ -11,6 +11,7 @@ import {
     CurrencyCodeSchema,
     CurrencyConversionQuerySchema,
     DashboardSummarySchema,
+    DashboardWindowQuerySchema,
     EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
@@ -20,6 +21,7 @@ import {
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
+    PeriodWindowQuerySchema,
     RegisterBodySchema,
     ResendEmailConfirmationBodySchema,
     SessionTokenBodySchema,
@@ -400,6 +402,25 @@ describe('shared schemas', () => {
                 timeframe: 'this-month'
             } as never).valid
         ).toBe(false);
+    });
+
+    it('validates dashboard merchant window limits separately from generic period windows', () => {
+        const dashboardResult = DashboardWindowQuerySchema.validate({
+            after: 2,
+            before: 2,
+            merchantLimit: 100,
+            period: 'month'
+        });
+        const genericResult = PeriodWindowQuerySchema.validate({
+            after: 2,
+            before: 2,
+            merchantLimit: 100,
+            period: 'month'
+        } as never);
+
+        expect(dashboardResult.valid).toBe(true);
+        expect(dashboardResult.object?.merchantLimit).toBe(100);
+        expect(genericResult.valid).toBe(false);
     });
 
     it('validates dashboard merchant summaries', () => {

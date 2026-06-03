@@ -1,39 +1,47 @@
-import { MerchantDirectory } from '@/components/merchant-directory';
+import { brandAnalyticsMerchantLimit } from '@/components/brand-analytics-panel';
+import { BrandsExplorer } from '@/components/brands-explorer';
+import { initialDashboardWindowDate } from '@/components/dashboard-window-explorer';
 import { getApiClient } from '@/lib/api';
+import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
 
-type MerchantSearchParams = {
-    readonly search?: string | readonly string[];
+type BrandsSearchParams = {
+    readonly date?: string;
+    readonly period?: string;
 };
 
 export const dynamic = 'force-dynamic';
 
-function readSearch(value: MerchantSearchParams['search']): string {
-    const raw = Array.isArray(value) ? value[0] : value;
-    return typeof raw === 'string' ? raw.trim() : '';
-}
-
-export default async function MerchantsPage({
+export default async function BrandsPage({
     searchParams
 }: {
-    readonly searchParams: Promise<MerchantSearchParams>;
+    readonly searchParams: Promise<BrandsSearchParams>;
 }) {
     const params = await searchParams;
-    const search = readSearch(params.search);
+    const period = isDashboardPeriod(params.period) ? params.period : 'day';
     const client = await getApiClient();
-    const merchants = await client.merchants.list({
-        query: { limit: 100, search: search || undefined }
+    const me = await client.auth.me();
+    const selectedDate = parseDateParam(params.date, me.timezone);
+    const anchorDate = selectedDate ?? new Date();
+    const window = await client.dashboard.window({
+        query: {
+            after: 2,
+            before: 2,
+            merchantLimit: brandAnalyticsMerchantLimit,
+            period,
+            ...(selectedDate ? { date: selectedDate } : {})
+        }
     });
 
     return (
-        <div className="flex flex-col gap-5 sm:gap-6">
-            <div>
-                <h1 className="text-2xl font-semibold">Merchants</h1>
-                <p className="text-sm text-muted-foreground">
-                    Review merchant details, enrichment status, and transaction
-                    history.
-                </p>
-            </div>
-            <MerchantDirectory merchants={merchants} search={search} />
-        </div>
+        <BrandsExplorer
+            initialDate={initialDashboardWindowDate(
+                window,
+                anchorDate,
+                me.timezone
+            )}
+            initialPeriod={period}
+            initialWindow={window}
+            timezone={me.timezone}
+        />
     );
 }

@@ -307,33 +307,63 @@ describe('transaction category signs', () => {
             const id = index + 10;
             return [id, merchant(id, `Merchant ${id}`)] as const;
         });
+        const range = {
+            from: new Date('2026-05-01T00:00:00.000Z'),
+            to: new Date('2026-05-31T23:59:59.999Z')
+        };
+        const rows = [
+            transaction(1, groceries.id, '20', 1),
+            transaction(2, groceries.id, '30', 1),
+            transaction(3, groceries.id, '100', 2),
+            transaction(4, salary.id, '500', 3),
+            transaction(5, groceries.id, '10'),
+            ...extraMerchants.map(([id]) =>
+                transaction(id, groceries.id, '1', id)
+            )
+        ];
+        const categoriesById = new Map<number, CategoryDb>([
+            [groceries.id, groceries],
+            [salary.id, salary]
+        ]);
+        const merchantsById = new Map<number, MerchantDb>([
+            ...merchants,
+            ...extraMerchants
+        ]);
         const summary = summarizeDashboardRows(
             { defaultCurrency: 'USD', timezone: 'UTC' },
             'month',
-            {
-                from: new Date('2026-05-01T00:00:00.000Z'),
-                to: new Date('2026-05-31T23:59:59.999Z')
-            },
-            [
-                transaction(1, groceries.id, '20', 1),
-                transaction(2, groceries.id, '30', 1),
-                transaction(3, groceries.id, '100', 2),
-                transaction(4, salary.id, '500', 3),
-                transaction(5, groceries.id, '10'),
-                ...extraMerchants.map(([id]) =>
-                    transaction(id, groceries.id, '1', id)
-                )
-            ],
+            range,
+            rows,
             [],
-            new Map<number, CategoryDb>([
-                [groceries.id, groceries],
-                [salary.id, salary]
-            ]),
-            new Map<number, MerchantDb>([...merchants, ...extraMerchants])
+            categoriesById,
+            merchantsById
+        );
+        const emptyMerchantSummary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            range,
+            rows,
+            [],
+            categoriesById,
+            merchantsById,
+            0
+        );
+        const expandedMerchantSummary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            range,
+            rows,
+            [],
+            categoriesById,
+            merchantsById,
+            100
         );
 
         expect(summary.merchantCount).toBe(27);
         expect(summary.topMerchants).toHaveLength(24);
+        expect(emptyMerchantSummary.merchantCount).toBe(27);
+        expect(emptyMerchantSummary.topMerchants).toEqual([]);
+        expect(expandedMerchantSummary.topMerchants).toHaveLength(27);
         expect(summary.topMerchants.slice(0, 3)).toEqual([
             {
                 merchantId: 1,

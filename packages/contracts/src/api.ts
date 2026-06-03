@@ -18,6 +18,7 @@ import {
     CurrencySchema,
     DashboardQuerySchema,
     DashboardSummarySchema,
+    DashboardWindowQuerySchema,
     DashboardWindowResponseSchema,
     EmailConfirmationMessageResponseSchema,
     EmailConfirmationPendingResponseSchema,
@@ -370,17 +371,19 @@ export const api = defineApi({
             .query(DashboardQuerySchema)
             .cacheTag('dashboard', request => ({
                 date: request.query.date,
+                merchantLimit: request.query.merchantLimit,
                 period: request.query.period
             }))
             .responses({ 200: DashboardSummarySchema }),
         window: endpoint
             .get('/api/dashboard/window')
             .authorize(PrincipalSchema)
-            .query(PeriodWindowQuerySchema)
+            .query(DashboardWindowQuerySchema)
             .cacheTag('dashboard', request => ({
                 after: request.query.after,
                 before: request.query.before,
                 date: request.query.date,
+                merchantLimit: request.query.merchantLimit,
                 period: request.query.period
             }))
             .responses({ 200: DashboardWindowResponseSchema })

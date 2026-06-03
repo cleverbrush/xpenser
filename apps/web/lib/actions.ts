@@ -283,6 +283,8 @@ export async function updateCategoryAction(formData: FormData) {
     revalidatePath('/setup/categories');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
+    revalidatePath('/merchants');
+    revalidatePath('/settings/merchants');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -353,6 +355,7 @@ export async function createMerchantAction(
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/merchants');
+    revalidatePath('/settings/merchants');
     revalidatePath('/transactions');
     return merchant;
 }
@@ -383,7 +386,8 @@ export async function updateMerchantAction(
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/merchants');
-    revalidatePath(`/merchants/${id}`);
+    revalidatePath(`/settings/merchants/${id}`);
+    revalidatePath('/settings/merchants');
     revalidatePath('/transactions');
     return merchant;
 }
@@ -401,7 +405,8 @@ export async function retryMerchantEnrichmentAction(
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/merchants');
-    revalidatePath(`/merchants/${id}`);
+    revalidatePath(`/settings/merchants/${id}`);
+    revalidatePath('/settings/merchants');
     revalidatePath('/transactions');
     return merchant;
 }
@@ -438,6 +443,8 @@ export async function createCaptureTransactionAction(
     revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
+    revalidatePath('/merchants');
+    revalidatePath('/settings/merchants');
     revalidatePath('/transactions');
     revalidatePath('/stats');
     return transaction;
@@ -457,6 +464,8 @@ export async function updateTransactionAction(formData: FormData) {
     revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
+    revalidatePath('/merchants');
+    revalidatePath('/settings/merchants');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -473,6 +482,8 @@ export async function deleteTransactionAction(formData: FormData) {
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/dashboard');
+    revalidatePath('/merchants');
+    revalidatePath('/settings/merchants');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }

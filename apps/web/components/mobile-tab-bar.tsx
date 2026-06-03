@@ -29,7 +29,7 @@ const items = [
     },
     {
         href: '/merchants',
-        label: 'Merchants',
+        label: 'Brands',
         icon: StoreIcon
     },
     {

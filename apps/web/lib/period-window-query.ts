@@ -27,3 +27,21 @@ export function periodWindowQuery(
         ...(date ? { date } : undefined)
     };
 }
+
+export function dashboardPeriodWindowQuery(
+    params: URLSearchParams,
+    timezone: string
+): ReturnType<typeof periodWindowQuery> & {
+    readonly merchantLimit?: number;
+} {
+    const base = periodWindowQuery(params, timezone);
+    const merchantLimitParam = params.get('merchantLimit') ?? undefined;
+    const merchantLimit = merchantLimitParam
+        ? Number(merchantLimitParam)
+        : Number.NaN;
+
+    return {
+        ...base,
+        ...(Number.isFinite(merchantLimit) ? { merchantLimit } : undefined)
+    };
+}
