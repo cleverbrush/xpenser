@@ -5,7 +5,7 @@ import type {
     Currency,
     DashboardSummary,
     DashboardWindowResponse,
-    Merchant
+    Vendor
 } from '@xpenser/contracts';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@xpenser/ui';
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
@@ -39,7 +39,7 @@ import {
 type DashboardPeriod = DashboardSummary['period'];
 type DashboardCategory = DashboardSummary['byCategory'][number];
 type AggregateType = DashboardCategory['type'];
-const dashboardWindowQueryParams = { merchantLimit: 0 } as const;
+const dashboardWindowQueryParams = { vendorLimit: 0 } as const;
 
 function categoryHref(
     summary: DashboardSummary,
@@ -476,7 +476,7 @@ export function DashboardExplorer({
     initialDate,
     initialPeriod,
     initialWindow,
-    merchants,
+    vendors,
     timezone,
     transactionCurrencies
 }: {
@@ -486,7 +486,7 @@ export function DashboardExplorer({
     readonly initialDate: string;
     readonly initialPeriod: DashboardPeriod;
     readonly initialWindow: DashboardWindowResponse;
-    readonly merchants: readonly Merchant[];
+    readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
@@ -521,7 +521,7 @@ export function DashboardExplorer({
                             categories={categories}
                             currencies={currencies}
                             defaultCurrency={defaultCurrency}
-                            merchants={merchants}
+                            vendors={vendors}
                             transactionCurrencies={transactionCurrencies}
                             timezone={timezone}
                         />

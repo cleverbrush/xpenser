@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic';
 export default async function CapturePage() {
     const client = await getApiClient();
     const me = await client.auth.me();
-    const [categories, currencies, merchants, recentTransactions] =
+    const [categories, currencies, vendors, recentTransactions] =
         await Promise.all([
             client.categories.list({ query: { activeOnly: true } }),
             client.currencies.list(),
-            client.merchants.list({ query: { limit: 100 } }),
+            client.vendors.list({ query: { limit: 100 } }),
             client.transactions.list({
                 query: { direction: 'desc', limit: 100, page: 1 }
             })
@@ -31,7 +31,7 @@ export default async function CapturePage() {
                 )}
                 currencies={currencies}
                 defaultCurrency={me.defaultCurrency}
-                merchants={merchants}
+                vendors={vendors}
                 timezone={me.timezone}
                 transactionCurrencies={me.transactionCurrencies}
             />

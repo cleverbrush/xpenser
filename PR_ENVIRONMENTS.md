@@ -404,7 +404,7 @@ Notes:
   `cleverbrush.com` zone.
 - `CLOUDFLARE_ZONE_ID` is the Cloudflare zone ID for `cleverbrush.com`.
 - `BRANDFETCH_API_KEY` is the server-side bearer token used by preview API
-  services for merchant enrichment.
+  services for vendor enrichment.
 - `PR_ENV_GITHUB_TOKEN` should be a fine-grained personal access token scoped
   only to this repository with `Administration` repository permissions set to
   read/write. GitHub requires this permission to delete repository
@@ -437,42 +437,44 @@ PASSPORT_BASE_URL=https://auth.cleverbrush.com
 PASSPORT_PROJECT=xpenser
 POSTGRES_DB=xpenser
 POSTGRES_USER=xpenser
-MERCHANT_ENRICHMENT_ENABLED=0
-MERCHANT_ENRICHMENT_TIMEOUT_MS=2000
+VENDOR_ENRICHMENT_ENABLED=0
+VENDOR_ENRICHMENT_TIMEOUT_MS=2000
 ```
 
-## Merchant Enrichment Setup
+## Vendor Enrichment Setup
 
 Create a Brandfetch account with Transaction API access and add its server-side
-API key as `BRANDFETCH_API_KEY`. This implementation uses the authenticated
-Transaction API from the xpenser API service, so no `BRANDFETCH_CLIENT_ID` is
-needed; that client ID is for public logo-link style integrations.
+API key as `BRANDFETCH_API_KEY`. Add `BRANDFETCH_CLIENT_ID` as the Brandfetch
+client identifier used by the vendor candidate search endpoint.
 
-Add these values for merchant enrichment:
+Add these values for vendor enrichment:
 
 ```text
 GitHub repository secret:
 BRANDFETCH_API_KEY
 
-GitHub repository variables, optional:
-MERCHANT_ENRICHMENT_ENABLED=0
-MERCHANT_ENRICHMENT_TIMEOUT_MS=2000
+GitHub repository variables:
+BRANDFETCH_CLIENT_ID=xpenser
+VENDOR_ENRICHMENT_ENABLED=0
+VENDOR_ENRICHMENT_TIMEOUT_MS=2000
 
 Local or production Compose env:
 BRANDFETCH_API_KEY=
-MERCHANT_ENRICHMENT_ENABLED=0
-MERCHANT_ENRICHMENT_TIMEOUT_MS=2000
+BRANDFETCH_CLIENT_ID=xpenser
+VENDOR_ENRICHMENT_ENABLED=0
+VENDOR_ENRICHMENT_TIMEOUT_MS=2000
 ```
 
-Set `MERCHANT_ENRICHMENT_ENABLED=1` only after `BRANDFETCH_API_KEY` is present.
-The merchant country passed to Brandfetch comes from `users.country_code`; new
+Set `VENDOR_ENRICHMENT_ENABLED=1` only after `BRANDFETCH_API_KEY` is present.
+The vendor country passed to Brandfetch comes from `users.country_code`; new
 users choose it at registration and existing users are backfilled to `US`.
 
-Third-party accounts/API keys to create for this merchant feature:
+Third-party accounts/API keys to create for this vendor feature:
 
 ```text
 Brandfetch account with Transaction API access
 Brandfetch server API key for BRANDFETCH_API_KEY
+Brandfetch client identifier for BRANDFETCH_CLIENT_ID
 ```
 
 ## Runtime Behavior
@@ -551,8 +553,9 @@ b64() {
   b64 "true"
   b64 "1"
   b64 "$BRANDFETCH_API_KEY"
-  b64 "$MERCHANT_ENRICHMENT_ENABLED"
-  b64 "$MERCHANT_ENRICHMENT_TIMEOUT_MS"
+  b64 "$BRANDFETCH_CLIENT_ID"
+  b64 "$VENDOR_ENRICHMENT_ENABLED"
+  b64 "$VENDOR_ENRICHMENT_TIMEOUT_MS"
   b64 "$OPENAI_API_KEY"
   b64 "$OPENAI_REPORT_MODEL"
   b64 "$RESEND_API_KEY"

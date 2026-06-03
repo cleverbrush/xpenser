@@ -80,12 +80,12 @@ export const config = parseEnv(
         brandfetch: {
             apiKey: env('BRANDFETCH_API_KEY', string().optional()),
             clientId: env('BRANDFETCH_CLIENT_ID', string().optional()),
-            merchantEnrichmentEnabled: env(
-                'MERCHANT_ENRICHMENT_ENABLED',
+            vendorEnrichmentEnabled: env(
+                'VENDOR_ENRICHMENT_ENABLED',
                 string().default('0')
             ),
-            merchantEnrichmentTimeoutMs: env(
-                'MERCHANT_ENRICHMENT_TIMEOUT_MS',
+            vendorEnrichmentTimeoutMs: env(
+                'VENDOR_ENRICHMENT_TIMEOUT_MS',
                 number().coerce().default(2000)
             )
         },
@@ -150,12 +150,12 @@ export const config = parseEnv(
                 deliveryHourLocal: base.emailReportsEnv.deliveryHourLocal,
                 maxAttempts: base.emailReportsEnv.maxAttempts
             },
-            merchantEnrichment: {
+            vendorEnrichment: {
                 enabled:
                     ['1', 'true', 'yes'].includes(
-                        base.brandfetch.merchantEnrichmentEnabled.toLowerCase()
+                        base.brandfetch.vendorEnrichmentEnabled.toLowerCase()
                     ) && Boolean(base.brandfetch.apiKey),
-                timeoutMs: base.brandfetch.merchantEnrichmentTimeoutMs
+                timeoutMs: base.brandfetch.vendorEnrichmentTimeoutMs
             }
         };
     }

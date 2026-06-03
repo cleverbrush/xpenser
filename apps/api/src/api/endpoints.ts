@@ -207,53 +207,53 @@ export const MoveAndDeleteCategoryEndpoint = api.categories.moveAndDelete
     .tags('categories')
     .operationId('moveAndDeleteCategory');
 
-export const ListMerchantsEndpoint = api.merchants.list
+export const ListVendorsEndpoint = api.vendors.list
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
-    .summary('List merchants')
-    .description('Lists merchants owned by the authenticated user.')
-    .tags('merchants')
-    .operationId('listMerchants');
+    .summary('List vendors')
+    .description('Lists vendors owned by the authenticated user.')
+    .tags('vendors')
+    .operationId('listVendors');
 
-export const SearchMerchantBrandsEndpoint = api.merchants.searchBrands
+export const SearchVendorCandidatesEndpoint = api.vendors.searchCandidates
     .authorize(PrincipalSchema)
     .inject({ config: ConfigToken })
-    .summary('Search merchant brands')
-    .description('Searches Brandfetch for merchant brand candidates.')
-    .tags('merchants')
-    .operationId('searchMerchantBrands');
+    .summary('Search vendors')
+    .description('Searches Brandfetch for vendor candidates.')
+    .tags('vendors')
+    .operationId('searchVendorCandidates');
 
-export const GetMerchantEndpoint = api.merchants.get
+export const GetVendorEndpoint = api.vendors.get
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
-    .summary('Get merchant')
-    .description('Gets one merchant owned by the authenticated user.')
-    .tags('merchants')
-    .operationId('getMerchant');
+    .summary('Get vendor')
+    .description('Gets one vendor owned by the authenticated user.')
+    .tags('vendors')
+    .operationId('getVendor');
 
-export const CreateMerchantEndpoint = api.merchants.create
+export const CreateVendorEndpoint = api.vendors.create
     .authorize(PrincipalSchema)
     .inject({ db: DbToken, config: ConfigToken })
-    .summary('Create merchant')
-    .description('Creates or reuses a user-owned merchant.')
-    .tags('merchants')
-    .operationId('createMerchant');
+    .summary('Create vendor')
+    .description('Creates or reuses a user-owned vendor.')
+    .tags('vendors')
+    .operationId('createVendor');
 
-export const UpdateMerchantEndpoint = api.merchants.update
+export const UpdateVendorEndpoint = api.vendors.update
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
-    .summary('Update merchant')
-    .description('Updates editable merchant metadata.')
-    .tags('merchants')
-    .operationId('updateMerchant');
+    .summary('Update vendor')
+    .description('Updates editable vendor metadata.')
+    .tags('vendors')
+    .operationId('updateVendor');
 
-export const EnrichMerchantEndpoint = api.merchants.enrich
+export const EnrichVendorEndpoint = api.vendors.enrich
     .authorize(PrincipalSchema)
     .inject({ db: DbToken, config: ConfigToken })
-    .summary('Retry merchant enrichment')
-    .description('Retries merchant enrichment for a user-owned merchant.')
-    .tags('merchants')
-    .operationId('enrichMerchant');
+    .summary('Retry vendor enrichment')
+    .description('Retries vendor enrichment for a user-owned vendor.')
+    .tags('vendors')
+    .operationId('enrichVendor');
 
 export const ListTransactionsEndpoint = api.transactions.list
     .authorize(PrincipalSchema)
@@ -364,13 +364,13 @@ export const endpoints = {
         delete: DeleteCategoryEndpoint,
         moveAndDelete: MoveAndDeleteCategoryEndpoint
     },
-    merchants: {
-        searchBrands: SearchMerchantBrandsEndpoint,
-        list: ListMerchantsEndpoint,
-        get: GetMerchantEndpoint,
-        create: CreateMerchantEndpoint,
-        update: UpdateMerchantEndpoint,
-        enrich: EnrichMerchantEndpoint
+    vendors: {
+        searchCandidates: SearchVendorCandidatesEndpoint,
+        list: ListVendorsEndpoint,
+        get: GetVendorEndpoint,
+        create: CreateVendorEndpoint,
+        update: UpdateVendorEndpoint,
+        enrich: EnrichVendorEndpoint
     },
     transactions: {
         list: ListTransactionsEndpoint,

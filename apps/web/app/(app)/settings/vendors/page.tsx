@@ -1,39 +1,39 @@
-import { MerchantDirectory } from '@/components/merchant-directory';
+import { VendorDirectory } from '@/components/vendor-directory';
 import { getApiClient } from '@/lib/api';
 
-type MerchantSearchParams = {
+type VendorSearchParams = {
     readonly search?: string | readonly string[];
 };
 
 export const dynamic = 'force-dynamic';
 
-function readSearch(value: MerchantSearchParams['search']): string {
+function readSearch(value: VendorSearchParams['search']): string {
     const raw = Array.isArray(value) ? value[0] : value;
     return typeof raw === 'string' ? raw.trim() : '';
 }
 
-export default async function MerchantsSettingsPage({
+export default async function VendorsSettingsPage({
     searchParams
 }: {
-    readonly searchParams: Promise<MerchantSearchParams>;
+    readonly searchParams: Promise<VendorSearchParams>;
 }) {
     const params = await searchParams;
     const search = readSearch(params.search);
     const client = await getApiClient();
-    const merchants = await client.merchants.list({
+    const vendors = await client.vendors.list({
         query: { limit: 100, search: search || undefined }
     });
 
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
             <div>
-                <h1 className="text-2xl font-semibold">Merchants</h1>
+                <h1 className="text-2xl font-semibold">Vendors</h1>
                 <p className="text-sm text-muted-foreground">
-                    Review merchant details, enrichment status, and transaction
+                    Review vendor details, enrichment status, and transaction
                     history.
                 </p>
             </div>
-            <MerchantDirectory merchants={merchants} search={search} />
+            <VendorDirectory vendors={vendors} search={search} />
         </div>
     );
 }

@@ -101,8 +101,8 @@ jobs:
           BRANDFETCH_API_KEY: ${{ secrets.BRANDFETCH_API_KEY }}
           BRANDFETCH_CLIENT_ID: ${{ vars.BRANDFETCH_CLIENT_ID }}
           GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || format('git@github.com:{0}.git', github.repository) }}
-          MERCHANT_ENRICHMENT_ENABLED: ${{ vars.MERCHANT_ENRICHMENT_ENABLED || '0' }}
-          MERCHANT_ENRICHMENT_TIMEOUT_MS: ${{ vars.MERCHANT_ENRICHMENT_TIMEOUT_MS || '2000' }}
+          VENDOR_ENRICHMENT_ENABLED: ${{ vars.VENDOR_ENRICHMENT_ENABLED || '0' }}
+          VENDOR_ENRICHMENT_TIMEOUT_MS: ${{ vars.VENDOR_ENRICHMENT_TIMEOUT_MS || '2000' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_REPORT_MODEL: ${{ vars.OPENAI_REPORT_MODEL || 'gpt-5-mini' }}
           PASSPORT_BASE_URL: ${{ vars.PASSPORT_BASE_URL || 'https://auth.cleverbrush.com' }}
@@ -166,8 +166,8 @@ jobs:
             b64 "$PR_ENV_DNS_RECORD_TTL"
             b64 "$BRANDFETCH_API_KEY"
             b64 "$BRANDFETCH_CLIENT_ID"
-            b64 "$MERCHANT_ENRICHMENT_ENABLED"
-            b64 "$MERCHANT_ENRICHMENT_TIMEOUT_MS"
+            b64 "$VENDOR_ENRICHMENT_ENABLED"
+            b64 "$VENDOR_ENRICHMENT_TIMEOUT_MS"
             b64 "$OPENAI_API_KEY"
             b64 "$OPENAI_REPORT_MODEL"
             b64 "$RESEND_API_KEY"

@@ -7,7 +7,7 @@ export type TransactionSearchParams = {
     readonly search?: string | readonly string[];
     readonly type?: string | readonly string[];
     readonly categoryId?: string | readonly string[];
-    readonly merchantId?: string | readonly string[];
+    readonly vendorId?: string | readonly string[];
     readonly parentCategoryId?: string | readonly string[];
     readonly from?: string | readonly string[];
     readonly to?: string | readonly string[];
@@ -67,7 +67,7 @@ export function hasTransactionFilters(params: QuerySource): boolean {
         readParam(params, 'search')?.trim() ||
             parseTransactionType(readParam(params, 'type')) ||
             parseTransactionId(readParam(params, 'categoryId')) ||
-            parseTransactionId(readParam(params, 'merchantId')) ||
+            parseTransactionId(readParam(params, 'vendorId')) ||
             parseTransactionId(readParam(params, 'parentCategoryId')) ||
             readParam(params, 'from') ||
             readParam(params, 'to')
@@ -89,7 +89,7 @@ export function buildTransactionListQuery(
         search: search || undefined,
         type: parseTransactionType(readParam(params, 'type')),
         categoryId: parseTransactionId(readParam(params, 'categoryId')),
-        merchantId: parseTransactionId(readParam(params, 'merchantId')),
+        vendorId: parseTransactionId(readParam(params, 'vendorId')),
         parentCategoryId: parseTransactionId(
             readParam(params, 'parentCategoryId')
         ),

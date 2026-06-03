@@ -57,7 +57,7 @@ export function createXpenserClient(options: XpenserClientOptions) {
                 ttlByTag: {
                     currencies: 24 * 60 * 60 * 1_000,
                     dashboard: 60_000,
-                    merchants: 30_000,
+                    vendors: 30_000,
                     transactions: 30_000,
                     categories: 30_000,
                     'user-profile': 30_000

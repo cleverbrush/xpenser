@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CategoryDb, MerchantDb } from '../db/schemas.js';
+import type { CategoryDb, VendorDb } from '../db/schemas.js';
 import {
     categoryTrendMaxBuckets,
     compareTransactionsByOccurrenceAsc,
@@ -122,7 +122,7 @@ describe('transaction category signs', () => {
                 [car.id, car],
                 [returns.id, returns]
             ]),
-            new Map<number, MerchantDb>()
+            new Map<number, VendorDb>()
         );
 
         expect(summary.expenseTotal).toBe(100);
@@ -204,7 +204,7 @@ describe('transaction category signs', () => {
                 [car.id, car],
                 [returns.id, returns]
             ]),
-            new Map<number, MerchantDb>()
+            new Map<number, VendorDb>()
         );
 
         expect(summary.expenseTotal).toBe(0);
@@ -236,7 +236,7 @@ describe('transaction category signs', () => {
         ).toEqual([{ id: car.id, name: 'Car', type: 'income', total: 25 }]);
     });
 
-    it('summarizes linked expense merchants by purchase count for dashboard previews', () => {
+    it('summarizes linked expense vendors by purchase count for dashboard previews', () => {
         const timestamp = new Date('2026-05-10T12:00:00.000Z');
         const groceries = {
             id: 1,
@@ -254,10 +254,10 @@ describe('transaction category signs', () => {
             name: 'Salary',
             type: 'income'
         } as const;
-        const merchant = (
+        const vendor = (
             id: number,
             name: string,
-            overrides: Partial<MerchantDb> = {}
+            overrides: Partial<VendorDb> = {}
         ) =>
             ({
                 id,
@@ -267,18 +267,18 @@ describe('transaction category signs', () => {
                 createdAt: timestamp,
                 updatedAt: timestamp,
                 ...overrides
-            }) as MerchantDb;
+            }) as VendorDb;
         const transaction = (
             id: number,
             categoryId: number,
             amount: string,
-            merchantId?: number
+            vendorId?: number
         ) =>
             ({
                 id,
                 userId: 1,
                 categoryId,
-                merchantId,
+                vendorId,
                 type: categoryId === salary.id ? 'income' : 'expense',
                 amount,
                 currency: 'USD',
@@ -290,22 +290,22 @@ describe('transaction category signs', () => {
                 createdAt: timestamp,
                 updatedAt: timestamp
             }) as const;
-        const merchants = new Map<number, MerchantDb>([
+        const vendors = new Map<number, VendorDb>([
             [
                 1,
-                merchant(1, 'Big Store', {
-                    brandName: 'Big Store',
+                vendor(1, 'Big Store', {
+                    resolvedName: 'Big Store',
                     domain: 'big.example',
                     logoUrl: 'https://big.example/logo.svg',
                     primaryColor: '#0066cc'
                 })
             ],
-            [2, merchant(2, 'Corner Shop')],
-            [3, merchant(3, 'Paycheck Inc')]
+            [2, vendor(2, 'Corner Shop')],
+            [3, vendor(3, 'Paycheck Inc')]
         ]);
-        const extraMerchants = Array.from({ length: 25 }, (_, index) => {
+        const extraVendors = Array.from({ length: 25 }, (_, index) => {
             const id = index + 10;
-            return [id, merchant(id, `Merchant ${id}`)] as const;
+            return [id, vendor(id, `Vendor ${id}`)] as const;
         });
         const range = {
             from: new Date('2026-05-01T00:00:00.000Z'),
@@ -317,7 +317,7 @@ describe('transaction category signs', () => {
             transaction(3, groceries.id, '100', 2),
             transaction(4, salary.id, '500', 3),
             transaction(5, groceries.id, '10'),
-            ...extraMerchants.map(([id]) =>
+            ...extraVendors.map(([id]) =>
                 transaction(id, groceries.id, '1', id)
             )
         ];
@@ -325,9 +325,9 @@ describe('transaction category signs', () => {
             [groceries.id, groceries],
             [salary.id, salary]
         ]);
-        const merchantsById = new Map<number, MerchantDb>([
-            ...merchants,
-            ...extraMerchants
+        const vendorsById = new Map<number, VendorDb>([
+            ...vendors,
+            ...extraVendors
         ]);
         const summary = summarizeDashboardRows(
             { defaultCurrency: 'USD', timezone: 'UTC' },
@@ -336,67 +336,67 @@ describe('transaction category signs', () => {
             rows,
             [],
             categoriesById,
-            merchantsById
+            vendorsById
         );
-        const emptyMerchantSummary = summarizeDashboardRows(
+        const emptyVendorSummary = summarizeDashboardRows(
             { defaultCurrency: 'USD', timezone: 'UTC' },
             'month',
             range,
             rows,
             [],
             categoriesById,
-            merchantsById,
+            vendorsById,
             0
         );
-        const expandedMerchantSummary = summarizeDashboardRows(
+        const expandedVendorSummary = summarizeDashboardRows(
             { defaultCurrency: 'USD', timezone: 'UTC' },
             'month',
             range,
             rows,
             [],
             categoriesById,
-            merchantsById,
+            vendorsById,
             100
         );
 
-        expect(summary.merchantCount).toBe(27);
-        expect(summary.topMerchants).toHaveLength(24);
-        expect(emptyMerchantSummary.merchantCount).toBe(27);
-        expect(emptyMerchantSummary.topMerchants).toEqual([]);
-        expect(expandedMerchantSummary.topMerchants).toHaveLength(27);
-        expect(summary.topMerchants.slice(0, 3)).toEqual([
+        expect(summary.vendorCount).toBe(27);
+        expect(summary.topVendors).toHaveLength(24);
+        expect(emptyVendorSummary.vendorCount).toBe(27);
+        expect(emptyVendorSummary.topVendors).toEqual([]);
+        expect(expandedVendorSummary.topVendors).toHaveLength(27);
+        expect(summary.topVendors.slice(0, 3)).toEqual([
             {
-                merchantId: 1,
-                merchantName: 'Big Store',
-                merchantDomain: 'big.example',
-                merchantLogoUrl: 'https://big.example/logo.svg',
-                merchantPrimaryColor: '#0066cc',
+                vendorId: 1,
+                vendorName: 'Big Store',
+                vendorDomain: 'big.example',
+                vendorLogoUrl: 'https://big.example/logo.svg',
+                vendorPrimaryColor: '#0066cc',
                 expenseTotal: 50,
                 transactionCount: 2,
                 trend: [0, 50, 0, 0, 0]
             },
             {
-                merchantId: 2,
-                merchantName: 'Corner Shop',
-                merchantDomain: undefined,
-                merchantLogoUrl: undefined,
-                merchantPrimaryColor: undefined,
+                vendorId: 2,
+                vendorName: 'Corner Shop',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
                 expenseTotal: 100,
                 transactionCount: 1,
                 trend: [0, 100, 0, 0, 0]
             },
             {
-                merchantId: 10,
-                merchantName: 'Merchant 10',
-                merchantDomain: undefined,
-                merchantLogoUrl: undefined,
-                merchantPrimaryColor: undefined,
+                vendorId: 10,
+                vendorName: 'Vendor 10',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
                 expenseTotal: 1,
                 transactionCount: 1,
                 trend: [0, 1, 0, 0, 0]
             }
         ]);
-        expect(summary.topMerchants.some(item => item.merchantId === 3)).toBe(
+        expect(summary.topVendors.some(item => item.vendorId === 3)).toBe(
             false
         );
     });

@@ -111,7 +111,7 @@ describe('ui primitives', () => {
                 <AvatarImage
                     alt=""
                     data-testid="avatar-image"
-                    src="/merchant-logo.svg"
+                    src="/vendor-logo.svg"
                 />
                 <AvatarFallback>WM</AvatarFallback>
             </Avatar>
@@ -121,7 +121,7 @@ describe('ui primitives', () => {
             'rounded-full'
         );
         expect(container.querySelector('img')?.getAttribute('src')).toBe(
-            '/merchant-logo.svg'
+            '/vendor-logo.svg'
         );
         expect(
             screen.getByTestId('avatar-image').getAttribute('class')

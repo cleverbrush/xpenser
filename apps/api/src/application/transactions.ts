@@ -37,9 +37,9 @@ import type { Config } from '../config.js';
 import type {
     AppDb,
     CategoryDb,
-    MerchantDb,
     TransactionDb,
-    UserDb
+    UserDb,
+    VendorDb
 } from '../db/schemas.js';
 import {
     categoryAvailableForTransactions,
@@ -52,7 +52,7 @@ import {
     getExchangeRate,
     transactionDate
 } from './currencies.js';
-import { getMerchant, MerchantNotFoundError } from './merchants.js';
+import { getVendor, VendorNotFoundError } from './vendors.js';
 
 export class TransactionNotFoundError extends Error {}
 export class TransactionCategoryError extends Error {}
@@ -61,7 +61,7 @@ type DashboardPeriod = NonNullable<DashboardSummary['period']>;
 
 type DashboardCategory = DashboardSummary['byCategory'][number];
 
-type DashboardMerchant = DashboardSummary['topMerchants'][number];
+type DashboardVendor = DashboardSummary['topVendors'][number];
 
 type StatsBucket = StatsOverview['trend'][number];
 
@@ -89,7 +89,7 @@ type PeriodWindowQuery = {
     readonly date?: Date;
     readonly before?: number;
     readonly after?: number;
-    readonly merchantLimit?: number;
+    readonly vendorLimit?: number;
 };
 
 type CategoryTrendRangeOptions = {
@@ -111,7 +111,7 @@ type CategoryComparison = {
 };
 
 export const categoryTrendMaxBuckets = 500;
-const dashboardMerchantLimit = 24;
+const dashboardVendorLimit = 24;
 
 export function transactionSignedDefaultAmount(
     transaction: Pick<TransactionDb, 'defaultCurrencyAmount'> & {
@@ -137,16 +137,16 @@ async function loadCategoriesById(
     );
 }
 
-async function loadMerchantsById(
+async function loadVendorsById(
     db: AppDb,
     userId: number
-): Promise<Map<number, MerchantDb>> {
-    const merchants = (await db.merchants.where(
-        merchant => merchant.userId,
+): Promise<Map<number, VendorDb>> {
+    const vendors = (await db.vendors.where(
+        vendor => vendor.userId,
         userId
-    )) as MerchantDb[];
+    )) as VendorDb[];
 
-    return new Map(merchants.map(merchant => [merchant.id, merchant] as const));
+    return new Map(vendors.map(vendor => [vendor.id, vendor] as const));
 }
 
 function categoryFields(
@@ -209,20 +209,18 @@ function categoryForTransaction(
 function mapTransaction(
     row: TransactionDb,
     categoriesById: ReadonlyMap<number, CategoryDb>,
-    merchantsById: ReadonlyMap<number, MerchantDb>
+    vendorsById: ReadonlyMap<number, VendorDb>
 ): Transaction {
     const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
-    const merchant = row.merchantId
-        ? merchantsById.get(row.merchantId)
-        : undefined;
+    const vendor = row.vendorId ? vendorsById.get(row.vendorId) : undefined;
 
     return {
         id: row.id,
         categoryId: fields.categoryId,
-        merchantId: merchant?.id ?? row.merchantId ?? null,
-        merchantName: merchant?.brandName ?? merchant?.name,
-        merchantLogoUrl: merchant?.logoUrl ?? undefined,
+        vendorId: vendor?.id ?? row.vendorId ?? null,
+        vendorName: vendor?.resolvedName ?? vendor?.name,
+        vendorLogoUrl: vendor?.logoUrl ?? undefined,
         categoryName: fields.categoryName,
         categoryDisplayName: fields.categoryDisplayName,
         categoryParentId: fields.categoryParentId,
@@ -285,15 +283,15 @@ async function getCategory(
     return category as CategoryDb;
 }
 
-async function validateMerchant(
+async function validateVendor(
     db: AppDb,
     userId: number,
-    merchantId: number
+    vendorId: number
 ): Promise<void> {
     try {
-        await getMerchant(db, userId, merchantId);
+        await getVendor(db, userId, vendorId);
     } catch (err) {
-        if (err instanceof MerchantNotFoundError) {
+        if (err instanceof VendorNotFoundError) {
             throw new TransactionCategoryError(err.message);
         }
         throw err;
@@ -333,12 +331,12 @@ export async function listTransactions(
     }
 
     const direction = query.direction ?? 'desc';
-    const [rows, categoriesById, merchantsById] = await Promise.all([
+    const [rows, categoriesById, vendorsById] = await Promise.all([
         builder
             .orderBy(transaction => transaction.occurredAt, direction)
             .orderBy(transaction => transaction.id, direction),
         loadCategoriesById(db, userId),
-        loadMerchantsById(db, userId)
+        loadVendorsById(db, userId)
     ]);
     const sortedRows = [...rows].sort(
         direction === 'asc'
@@ -349,11 +347,11 @@ export async function listTransactions(
     const search = query.search?.trim().toLowerCase();
     const filtered = sortedRows
         .filter(transaction => {
-            if (!query.merchantId) {
+            if (!query.vendorId) {
                 return true;
             }
 
-            return transaction.merchantId === query.merchantId;
+            return transaction.vendorId === query.vendorId;
         })
         .filter(transaction => {
             if (!query.type) {
@@ -400,18 +398,17 @@ export async function listTransactions(
                       ).toLowerCase()
                     : ''
                 ).includes(search) ||
-                (transaction.merchantId
+                (transaction.vendorId
                     ? (
-                          merchantsById.get(transaction.merchantId)
-                              ?.brandName ??
-                          merchantsById.get(transaction.merchantId)?.name ??
+                          vendorsById.get(transaction.vendorId)?.resolvedName ??
+                          vendorsById.get(transaction.vendorId)?.name ??
                           ''
                       )
                           .toLowerCase()
                           .includes(search)
                     : false) ||
-                (transaction.merchantId
-                    ? (merchantsById.get(transaction.merchantId)?.domain ?? '')
+                (transaction.vendorId
+                    ? (vendorsById.get(transaction.vendorId)?.domain ?? '')
                           .toLowerCase()
                           .includes(search)
                     : false) ||
@@ -424,7 +421,7 @@ export async function listTransactions(
         items: filtered
             .slice(offset, offset + limit)
             .map(transaction =>
-                mapTransaction(transaction, categoriesById, merchantsById)
+                mapTransaction(transaction, categoriesById, vendorsById)
             ),
         total: filtered.length,
         page,
@@ -451,8 +448,8 @@ export async function createTransaction(
             'Archived categories cannot be used for new transactions.'
         );
     }
-    if (body.merchantId !== undefined && body.merchantId !== null) {
-        await validateMerchant(db, userId, body.merchantId);
+    if (body.vendorId !== undefined && body.vendorId !== null) {
+        await validateVendor(db, userId, body.vendorId);
     }
     const date = transactionDate(body.occurredAt, user.timezone);
     const exchange = await getExchangeRate(
@@ -466,7 +463,7 @@ export async function createTransaction(
     const created = await db.transactions.insert({
         userId,
         categoryId: body.categoryId,
-        merchantId: body.merchantId ?? undefined,
+        vendorId: body.vendorId ?? undefined,
         type: category.type,
         amount: body.amount,
         currency: body.currency,
@@ -486,19 +483,19 @@ export async function getTransaction(
     userId: number,
     transactionId: number
 ): Promise<Transaction> {
-    const [row, categoriesById, merchantsById] = await Promise.all([
+    const [row, categoriesById, vendorsById] = await Promise.all([
         db.transactions
             .include(transaction => transaction.category)
             .where(transaction => transaction.id, transactionId)
             .where(transaction => transaction.userId, userId)
             .first(),
         loadCategoriesById(db, userId),
-        loadMerchantsById(db, userId)
+        loadVendorsById(db, userId)
     ]);
     if (!row) {
         throw new TransactionNotFoundError('Transaction was not found.');
     }
-    return mapTransaction(row as TransactionDb, categoriesById, merchantsById);
+    return mapTransaction(row as TransactionDb, categoriesById, vendorsById);
 }
 
 export async function updateTransaction(
@@ -511,10 +508,8 @@ export async function updateTransaction(
     const current = await getTransaction(db, userId, transactionId);
     const next = {
         categoryId: body.categoryId ?? current.categoryId,
-        merchantId:
-            body.merchantId !== undefined
-                ? body.merchantId
-                : current.merchantId,
+        vendorId:
+            body.vendorId !== undefined ? body.vendorId : current.vendorId,
         amount: body.amount ?? current.amount,
         currency: body.currency ?? current.currency,
         occurredAt: body.occurredAt ?? current.occurredAt,
@@ -539,8 +534,8 @@ export async function updateTransaction(
             'Archived categories cannot be used for new transactions.'
         );
     }
-    if (next.merchantId !== undefined && next.merchantId !== null) {
-        await validateMerchant(db, userId, next.merchantId);
+    if (next.vendorId !== undefined && next.vendorId !== null) {
+        await validateVendor(db, userId, next.vendorId);
     }
     const exchange = await getExchangeRate(
         db,
@@ -555,7 +550,7 @@ export async function updateTransaction(
         .where(transaction => transaction.userId, userId)
         .update({
             categoryId: next.categoryId,
-            merchantId: (next.merchantId ?? null) as never,
+            vendorId: (next.vendorId ?? null) as never,
             type: category.type,
             amount: next.amount,
             currency: next.currency,
@@ -1535,12 +1530,12 @@ export function summarizeDashboardRows(
     rows: readonly TransactionDb[],
     previousRows: readonly TransactionDb[],
     categoriesById: ReadonlyMap<number, CategoryDb>,
-    merchantsById: ReadonlyMap<number, MerchantDb>,
-    merchantLimit = dashboardMerchantLimit
+    vendorsById: ReadonlyMap<number, VendorDb>,
+    vendorLimit = dashboardVendorLimit
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
-    const totalsByMerchant = new Map<number, DashboardMerchant>();
+    const totalsByVendor = new Map<number, DashboardVendor>();
     const previousTotalsByCategory = new Map<string, number>();
 
     for (const row of previousRows) {
@@ -1582,29 +1577,29 @@ export function summarizeDashboardRows(
         }
         totalsByCategory.set(key, current);
 
-        if (fields.type === 'expense' && row.merchantId) {
-            const merchant = merchantsById.get(row.merchantId);
-            if (merchant) {
-                const currentMerchant = totalsByMerchant.get(merchant.id) ?? {
-                    merchantId: merchant.id,
-                    merchantName: merchant.brandName ?? merchant.name,
-                    merchantDomain: merchant.domain ?? undefined,
-                    merchantLogoUrl: merchant.logoUrl ?? undefined,
-                    merchantPrimaryColor: merchant.primaryColor ?? undefined,
+        if (fields.type === 'expense' && row.vendorId) {
+            const vendor = vendorsById.get(row.vendorId);
+            if (vendor) {
+                const currentVendor = totalsByVendor.get(vendor.id) ?? {
+                    vendorId: vendor.id,
+                    vendorName: vendor.resolvedName ?? vendor.name,
+                    vendorDomain: vendor.domain ?? undefined,
+                    vendorLogoUrl: vendor.logoUrl ?? undefined,
+                    vendorPrimaryColor: vendor.primaryColor ?? undefined,
                     expenseTotal: 0,
                     transactionCount: 0,
                     trend: Array.from({ length: bucketCount }, () => 0)
                 };
-                currentMerchant.expenseTotal += total;
-                currentMerchant.transactionCount += 1;
+                currentVendor.expenseTotal += total;
+                currentVendor.transactionCount += 1;
                 if (
                     bucketIndex >= 0 &&
-                    bucketIndex < currentMerchant.trend.length
+                    bucketIndex < currentVendor.trend.length
                 ) {
-                    currentMerchant.trend[bucketIndex] =
-                        (currentMerchant.trend[bucketIndex] ?? 0) + total;
+                    currentVendor.trend[bucketIndex] =
+                        (currentVendor.trend[bucketIndex] ?? 0) + total;
                 }
-                totalsByMerchant.set(merchant.id, currentMerchant);
+                totalsByVendor.set(vendor.id, currentVendor);
             }
         }
     }
@@ -1626,14 +1621,14 @@ export function summarizeDashboardRows(
         bucketCount,
         categoriesById
     );
-    const topMerchants = Array.from(totalsByMerchant.values())
+    const topVendors = Array.from(totalsByVendor.values())
         .sort(
             (left, right) =>
                 right.transactionCount - left.transactionCount ||
                 right.expenseTotal - left.expenseTotal ||
-                left.merchantName.localeCompare(right.merchantName)
+                left.vendorName.localeCompare(right.vendorName)
         )
-        .slice(0, Math.max(0, merchantLimit));
+        .slice(0, Math.max(0, vendorLimit));
 
     return {
         period,
@@ -1646,8 +1641,8 @@ export function summarizeDashboardRows(
         incomeTotal: byCategory
             .filter(item => item.type === 'income')
             .reduce((sum, item) => sum + item.total, 0),
-        merchantCount: totalsByMerchant.size,
-        topMerchants,
+        vendorCount: totalsByVendor.size,
+        topVendors,
         byCategory,
         byParentCategory
     };
@@ -1658,7 +1653,7 @@ export async function dashboardSummary(
     userId: number,
     period: DashboardPeriod,
     date?: Date,
-    merchantLimit = dashboardMerchantLimit
+    vendorLimit = dashboardVendorLimit
 ): Promise<DashboardSummary> {
     const user = await getUser(db, userId);
     const range = resolveDashboardRange(
@@ -1672,13 +1667,14 @@ export async function dashboardSummary(
         range,
         user.timezone
     );
-    const [rows, previousRows, categoriesById, merchantsById] =
-        await Promise.all([
+    const [rows, previousRows, categoriesById, vendorsById] = await Promise.all(
+        [
             transactionsForRange(db, userId, range),
             transactionsForRange(db, userId, comparisonRange),
             loadCategoriesById(db, userId),
-            loadMerchantsById(db, userId)
-        ]);
+            loadVendorsById(db, userId)
+        ]
+    );
 
     return summarizeDashboardRows(
         user,
@@ -1687,8 +1683,8 @@ export async function dashboardSummary(
         rows,
         previousRows,
         categoriesById,
-        merchantsById,
-        merchantLimit
+        vendorsById,
+        vendorLimit
     );
 }
 
@@ -1720,7 +1716,7 @@ export async function dashboardWindow(
             )
         };
     });
-    const [allRows, categoriesById, merchantsById] = await Promise.all([
+    const [allRows, categoriesById, vendorsById] = await Promise.all([
         transactionsForRange(
             db,
             userId,
@@ -1729,7 +1725,7 @@ export async function dashboardWindow(
             )
         ),
         loadCategoriesById(db, userId),
-        loadMerchantsById(db, userId)
+        loadVendorsById(db, userId)
     ]);
 
     return {
@@ -1742,8 +1738,8 @@ export async function dashboardWindow(
                 rowsInRange(allRows, plan.range),
                 rowsInRange(allRows, plan.previousRange),
                 categoriesById,
-                merchantsById,
-                query.merchantLimit ?? dashboardMerchantLimit
+                vendorsById,
+                query.vendorLimit ?? dashboardVendorLimit
             )
         }))
     };

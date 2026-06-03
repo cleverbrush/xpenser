@@ -140,18 +140,18 @@ export const CategoryDbSchema = object({
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 }).hasTableName('categories');
 
-export const MerchantDbSchema = object({
+export const VendorDbSchema = object({
     id: number().primaryKey(),
     userId: number()
         .hasColumnName('user_id')
         .references('users', 'id')
         .onDelete('CASCADE')
-        .index('idx_merchants_user_id'),
+        .index('idx_vendors_user_id'),
     name: string(),
     normalizedName: string()
         .hasColumnName('normalized_name')
-        .index('idx_merchants_user_normalized_name'),
-    brandName: string().optional().hasColumnName('brand_name'),
+        .index('idx_vendors_user_normalized_name'),
+    resolvedName: string().optional().hasColumnName('resolved_name'),
     domain: string().optional(),
     description: string().optional(),
     logoUrl: string().optional().hasColumnName('logo_url'),
@@ -163,7 +163,7 @@ export const MerchantDbSchema = object({
     enrichedAt: date().optional().hasColumnName('enriched_at'),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
-}).hasTableName('merchants');
+}).hasTableName('vendors');
 
 export const TransactionDbSchema = object({
     id: number().primaryKey(),
@@ -177,11 +177,11 @@ export const TransactionDbSchema = object({
         .references('categories', 'id')
         .onDelete('RESTRICT')
         .index('idx_transactions_category_id'),
-    merchantId: number()
-        .hasColumnName('merchant_id')
-        .references('merchants', 'id')
+    vendorId: number()
+        .hasColumnName('vendor_id')
+        .references('vendors', 'id')
         .onDelete('SET NULL')
-        .index('idx_transactions_merchant_id')
+        .index('idx_transactions_vendor_id')
         .optional(),
     type: string(),
     amount: number(),
@@ -227,7 +227,7 @@ export const TelegramAccountEntity = defineEntity(TelegramAccountDbSchema);
 export const TelegramLinkTokenEntity = defineEntity(TelegramLinkTokenDbSchema);
 export const ApiKeyEntity = defineEntity(ApiKeyDbSchema);
 export const CategoryEntity = defineEntity(CategoryDbSchema);
-export const MerchantEntity = defineEntity(MerchantDbSchema);
+export const VendorEntity = defineEntity(VendorDbSchema);
 export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
     t => t.category,
     l => l.categoryId,
@@ -243,7 +243,7 @@ export const entityMap = {
     telegramLinkTokens: TelegramLinkTokenEntity,
     apiKeys: ApiKeyEntity,
     categories: CategoryEntity,
-    merchants: MerchantEntity,
+    vendors: VendorEntity,
     transactions: TransactionEntity,
     exchangeRates: ExchangeRateEntity
 };
@@ -289,12 +289,12 @@ export type CategoryDb = {
     readonly updatedAt: Date;
 };
 
-export type MerchantDb = {
+export type VendorDb = {
     readonly id: number;
     readonly userId: number;
     readonly name: string;
     readonly normalizedName: string;
-    readonly brandName?: string | null;
+    readonly resolvedName?: string | null;
     readonly domain?: string | null;
     readonly description?: string | null;
     readonly logoUrl?: string | null;
@@ -341,7 +341,7 @@ export type TransactionDb = {
     readonly id: number;
     readonly userId: number;
     readonly categoryId: number;
-    readonly merchantId?: number | null;
+    readonly vendorId?: number | null;
     readonly category?: CategoryDb | null;
     readonly type: 'expense' | 'income';
     readonly amount: string | number;

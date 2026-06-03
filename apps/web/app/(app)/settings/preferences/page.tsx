@@ -125,16 +125,16 @@ export default async function PreferencesPage() {
                 <CardHeader>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="space-y-1">
-                            <CardTitle>Merchants</CardTitle>
+                            <CardTitle>Vendors</CardTitle>
                             <CardDescription>
-                                Manage merchant details, enrichment status, and
+                                Manage vendor details, enrichment status, and
                                 transaction history.
                             </CardDescription>
                         </div>
                         <Button asChild className="w-full sm:w-auto">
-                            <Link href="/settings/merchants">
+                            <Link href="/settings/vendors">
                                 <StoreIcon aria-hidden className="size-4" />
-                                Manage merchants
+                                Manage vendors
                             </Link>
                         </Button>
                     </div>

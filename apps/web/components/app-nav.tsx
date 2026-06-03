@@ -8,6 +8,7 @@ import {
 import Link from 'next/link';
 import { logoutAction } from '@/lib/actions';
 import { MobileTabBar } from './mobile-tab-bar';
+import { PeriodStateLink } from './period-state-link';
 import { ThemeToggle } from './theme-toggle';
 
 export function AppNav() {
@@ -20,16 +21,15 @@ export function AppNav() {
                     </Link>
                     <nav className="hidden items-center gap-2 text-sm sm:flex">
                         <Button asChild size="sm" variant="ghost">
-                            <Link href="/dashboard">Dashboard</Link>
+                            <PeriodStateLink href="/dashboard">
+                                Dashboard
+                            </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <Link href="/transactions">Transactions</Link>
-                        </Button>
-                        <Button asChild size="sm" variant="ghost">
-                            <Link href="/merchants">
+                            <PeriodStateLink href="/vendors">
                                 <StoreIcon aria-hidden className="size-4" />
-                                Brands
-                            </Link>
+                                Vendors
+                            </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
                             <Link href="/capture">
@@ -37,8 +37,11 @@ export function AppNav() {
                                     aria-hidden
                                     className="size-4"
                                 />
-                                Capture
+                                Add
                             </Link>
+                        </Button>
+                        <Button asChild size="sm" variant="ghost">
+                            <Link href="/transactions">Transactions</Link>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
                             <Link href="/stats">Reports</Link>

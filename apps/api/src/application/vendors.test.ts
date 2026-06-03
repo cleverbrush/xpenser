@@ -3,19 +3,19 @@ import type { Config } from '../config.js';
 import type {
     AppDb,
     CategoryDb,
-    MerchantDb,
     TransactionDb,
-    UserDb
+    UserDb,
+    VendorDb
 } from '../db/schemas.js';
 import {
-    createMerchant,
-    getMerchantDetails,
-    listMerchants,
-    merchantNormalizedName,
-    retryMerchantEnrichment,
-    searchMerchantBrands,
-    updateMerchant
-} from './merchants.js';
+    createVendor,
+    getVendorDetails,
+    listVendors,
+    retryVendorEnrichment,
+    searchVendorCandidates,
+    updateVendor,
+    vendorNormalizedName
+} from './vendors.js';
 
 const timestamp = new Date('2026-06-01T00:00:00.000Z');
 
@@ -75,7 +75,7 @@ function category(overrides: Partial<CategoryDb> = {}): CategoryDb {
     };
 }
 
-function merchant(overrides: Partial<MerchantDb> = {}): MerchantDb {
+function vendor(overrides: Partial<VendorDb> = {}): VendorDb {
     return {
         id: 1,
         userId: 1,
@@ -92,7 +92,7 @@ function transaction(overrides: Partial<TransactionDb> = {}): TransactionDb {
         id: 1,
         userId: 1,
         categoryId: 1,
-        merchantId: 1,
+        vendorId: 1,
         type: 'expense',
         amount: 12,
         currency: 'USD',
@@ -109,12 +109,12 @@ function transaction(overrides: Partial<TransactionDb> = {}): TransactionDb {
 
 function testDb({
     categories = [],
-    merchants = [],
+    vendors = [],
     transactions = [],
     users = [user()]
 }: {
     readonly categories?: CategoryDb[];
-    readonly merchants?: MerchantDb[];
+    readonly vendors?: VendorDb[];
     readonly transactions?: TransactionDb[];
     readonly users?: UserDb[];
 }): AppDb {
@@ -132,21 +132,19 @@ function testDb({
                 ) => testQuery(categories).where(selector, value)
             )
         },
-        merchants: {
+        vendors: {
             where: vi.fn(
-                <TValue>(
-                    selector: (row: MerchantDb) => TValue,
-                    value: TValue
-                ) => testQuery(merchants).where(selector, value)
+                <TValue>(selector: (row: VendorDb) => TValue, value: TValue) =>
+                    testQuery(vendors).where(selector, value)
             ),
-            insert: vi.fn(async (value: Omit<MerchantDb, 'id'>) => {
+            insert: vi.fn(async (value: Omit<VendorDb, 'id'>) => {
                 const created = {
-                    id: merchants.length + 1,
+                    id: vendors.length + 1,
                     ...value,
                     createdAt: timestamp,
                     updatedAt: timestamp
-                } as MerchantDb;
-                merchants.push(created);
+                } as VendorDb;
+                vendors.push(created);
                 return created;
             })
         },
@@ -166,22 +164,22 @@ const config = {
         apiKey: 'brandfetch-key',
         clientId: 'brandfetch-client'
     },
-    merchantEnrichment: {
+    vendorEnrichment: {
         enabled: true,
         timeoutMs: 2000
     }
 } as Config;
 
-describe('merchant helpers', () => {
+describe('vendor helpers', () => {
     afterEach(() => {
         vi.restoreAllMocks();
     });
 
-    it('normalizes merchant names for user-scoped reuse', () => {
-        expect(merchantNormalizedName('  Coffee   Shop  ')).toBe('coffee shop');
+    it('normalizes vendor names for user-scoped reuse', () => {
+        expect(vendorNormalizedName('  Coffee   Shop  ')).toBe('coffee shop');
     });
 
-    it('searches Brandfetch brand candidates with the configured client ID', async () => {
+    it('searches Brandfetch vendor candidates with the configured client ID', async () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             status: 200,
@@ -197,7 +195,7 @@ describe('merchant helpers', () => {
                 ])
         } as Response);
 
-        const result = await searchMerchantBrands(config, {
+        const result = await searchVendorCandidates(config, {
             query: 'Bufet',
             limit: 3
         });
@@ -208,7 +206,7 @@ describe('merchant helpers', () => {
         );
         expect(result).toEqual([
             {
-                brandId: 'id_bufet',
+                brandfetchBrandId: 'id_bufet',
                 name: 'Bufet',
                 domain: 'bufet.ua',
                 logoUrl: 'https://cdn.brandfetch.io/bufet/icon.svg',
@@ -217,7 +215,7 @@ describe('merchant helpers', () => {
         ]);
     });
 
-    it('uses the user country when enriching a merchant', async () => {
+    it('uses the user country when enriching a vendor', async () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             status: 200,
@@ -236,12 +234,9 @@ describe('merchant helpers', () => {
                 })
         } as Response);
 
-        const result = await createMerchant(
-            testDb({ merchants: [] }),
-            config,
-            1,
-            { name: 'Silpo' }
-        );
+        const result = await createVendor(testDb({ vendors: [] }), config, 1, {
+            name: 'Silpo'
+        });
 
         expect(fetchSpy).toHaveBeenCalledWith(
             'https://api.brandfetch.io/v2/brands/transaction',
@@ -262,7 +257,7 @@ describe('merchant helpers', () => {
         });
     });
 
-    it('creates a merchant from a selected Brandfetch brand without transaction enrichment', async () => {
+    it('creates a vendor from a selected Brandfetch candidate without transaction enrichment', async () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,
             status: 200,
@@ -287,18 +282,13 @@ describe('merchant helpers', () => {
                 })
         } as Response);
 
-        const result = await createMerchant(
-            testDb({ merchants: [] }),
-            config,
-            1,
-            {
-                name: 'Bufet',
-                brandfetchBrandId: 'id_bufet',
-                brandName: 'Bufet',
-                domain: 'bufet.ua',
-                logoUrl: 'https://cdn.brandfetch.io/search-icon.svg'
-            }
-        );
+        const result = await createVendor(testDb({ vendors: [] }), config, 1, {
+            name: 'Bufet',
+            brandfetchBrandId: 'id_bufet',
+            resolvedName: 'Bufet',
+            domain: 'bufet.ua',
+            logoUrl: 'https://cdn.brandfetch.io/search-icon.svg'
+        });
 
         expect(fetchSpy).toHaveBeenCalledOnce();
         expect(fetchSpy).toHaveBeenCalledWith(
@@ -311,7 +301,7 @@ describe('merchant helpers', () => {
             })
         );
         expect(result).toMatchObject({
-            brandName: 'Bufet',
+            resolvedName: 'Bufet',
             description: 'Local cafe.',
             domain: 'bufet.ua',
             enrichmentProvider: 'brandfetch',
@@ -321,13 +311,13 @@ describe('merchant helpers', () => {
         });
     });
 
-    it('updates an unbranded existing merchant from a selected Brandfetch brand', async () => {
+    it('updates an unresolved existing vendor from a selected Brandfetch candidate', async () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: false,
             status: 404
         } as Response);
 
-        const existing = merchant({
+        const existing = vendor({
             name: 'Bufet',
             normalizedName: 'bufet',
             enrichmentProvider: 'brandfetch',
@@ -335,14 +325,14 @@ describe('merchant helpers', () => {
             enrichedAt: timestamp
         });
 
-        const result = await createMerchant(
-            testDb({ merchants: [existing] }),
+        const result = await createVendor(
+            testDb({ vendors: [existing] }),
             config,
             1,
             {
                 name: 'Bufet',
                 brandfetchBrandId: 'id_bufet',
-                brandName: 'Bufet',
+                resolvedName: 'Bufet',
                 domain: 'bufet.ua',
                 logoUrl: 'https://cdn.brandfetch.io/search-icon.svg'
             }
@@ -351,19 +341,19 @@ describe('merchant helpers', () => {
         expect(fetchSpy).toHaveBeenCalledOnce();
         expect(result).toMatchObject({
             id: existing.id,
-            brandName: 'Bufet',
+            resolvedName: 'Bufet',
             domain: 'bufet.ua',
             enrichmentStatus: 'success',
             logoUrl: 'https://cdn.brandfetch.io/search-icon.svg'
         });
     });
 
-    it('suggests the most used active category for a merchant', async () => {
+    it('suggests the most used active category for a vendor', async () => {
         const restaurants = category({ id: 2, name: 'Restaurants' });
-        const result = await listMerchants(
+        const result = await listVendors(
             testDb({
                 categories: [category(), restaurants],
-                merchants: [merchant()],
+                vendors: [vendor()],
                 transactions: [
                     transaction({ id: 1, categoryId: 2 }),
                     transaction({ id: 2, categoryId: 1 }),
@@ -383,12 +373,12 @@ describe('merchant helpers', () => {
     it('returns disabled enrichment status when enrichment is not configured', async () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
-        const result = await createMerchant(
-            testDb({ merchants: [] }),
+        const result = await createVendor(
+            testDb({ vendors: [] }),
             {
                 ...config,
                 brandfetch: { apiKey: undefined },
-                merchantEnrichment: { enabled: false, timeoutMs: 2000 }
+                vendorEnrichment: { enabled: false, timeoutMs: 2000 }
             } as Config,
             1,
             { name: 'Walmart' }
@@ -408,10 +398,10 @@ describe('merchant helpers', () => {
             status: 404
         } as Response);
 
-        const result = await retryMerchantEnrichment(
+        const result = await retryVendorEnrichment(
             testDb({
-                merchants: [
-                    merchant({
+                vendors: [
+                    vendor({
                         name: 'Bufet',
                         normalizedName: 'bufet',
                         enrichmentStatus: 'failed',
@@ -431,12 +421,12 @@ describe('merchant helpers', () => {
         });
     });
 
-    it('gets merchant details with stats and enrichment metadata', async () => {
-        const result = await getMerchantDetails(
+    it('gets vendor details with stats and enrichment metadata', async () => {
+        const result = await getVendorDetails(
             testDb({
                 categories: [category()],
-                merchants: [
-                    merchant({
+                vendors: [
+                    vendor({
                         enrichmentProvider: 'brandfetch',
                         enrichmentStatus: 'not_found',
                         enrichedAt: timestamp
@@ -455,12 +445,12 @@ describe('merchant helpers', () => {
         });
     });
 
-    it('updates editable merchant metadata', async () => {
-        const result = await updateMerchant(
+    it('updates editable vendor metadata', async () => {
+        const result = await updateVendor(
             testDb({
-                merchants: [
-                    merchant({
-                        brandName: 'Old brand',
+                vendors: [
+                    vendor({
+                        resolvedName: 'Old resolved name',
                         domain: 'old.example',
                         logoUrl: 'https://old.example/logo.svg'
                     })
@@ -470,7 +460,7 @@ describe('merchant helpers', () => {
             1,
             {
                 name: 'Walmart',
-                brandName: 'Walmart',
+                resolvedName: 'Walmart',
                 description: 'Retail stores.',
                 domain: 'https://www.walmart.com/store',
                 logoUrl: 'https://walmart.com/logo.svg',
@@ -481,7 +471,7 @@ describe('merchant helpers', () => {
         expect(result).toMatchObject({
             name: 'Walmart',
             displayName: 'Walmart',
-            brandName: 'Walmart',
+            resolvedName: 'Walmart',
             description: 'Retail stores.',
             domain: 'www.walmart.com',
             logoUrl: 'https://walmart.com/logo.svg',
@@ -489,13 +479,13 @@ describe('merchant helpers', () => {
         });
     });
 
-    it('rejects merchant rename collisions for the same user', async () => {
+    it('rejects vendor rename collisions for the same user', async () => {
         await expect(
-            updateMerchant(
+            updateVendor(
                 testDb({
-                    merchants: [
-                        merchant({ id: 1, name: 'Target' }),
-                        merchant({
+                    vendors: [
+                        vendor({ id: 1, name: 'Target' }),
+                        vendor({
                             id: 2,
                             name: 'Walmart',
                             normalizedName: 'walmart'
@@ -506,7 +496,7 @@ describe('merchant helpers', () => {
                 1,
                 { name: 'Walmart' }
             )
-        ).rejects.toThrow('A merchant with this name already exists.');
+        ).rejects.toThrow('A vendor with this name already exists.');
     });
 
     it('forces enrichment retry even inside the enrichment TTL', async () => {
@@ -531,10 +521,10 @@ describe('merchant helpers', () => {
                 })
         } as Response);
 
-        const result = await retryMerchantEnrichment(
+        const result = await retryVendorEnrichment(
             testDb({
-                merchants: [
-                    merchant({
+                vendors: [
+                    vendor({
                         name: 'Walmart',
                         normalizedName: 'walmart',
                         enrichedAt: new Date(),

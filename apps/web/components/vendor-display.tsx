@@ -1,24 +1,24 @@
-import type { Merchant } from '@xpenser/contracts';
+import type { Vendor } from '@xpenser/contracts';
 import { Avatar, AvatarFallback, AvatarImage, Badge } from '@xpenser/ui';
 
-export function merchantDisplayName(merchant: Merchant): string {
-    return merchant.displayName || merchant.brandName || merchant.name;
+export function vendorDisplayName(vendor: Vendor): string {
+    return vendor.displayName || vendor.resolvedName || vendor.name;
 }
 
 function classNames(...values: Array<string | undefined>) {
     return values.filter(Boolean).join(' ');
 }
 
-export function MerchantLogo({
+export function VendorLogo({
     className,
-    merchant,
+    vendor,
     size = 'md'
 }: {
     readonly className?: string;
-    readonly merchant: Pick<Merchant, 'displayName' | 'logoUrl' | 'name'>;
+    readonly vendor: Pick<Vendor, 'displayName' | 'logoUrl' | 'name'>;
     readonly size?: 'xs' | 'sm' | 'md' | 'lg';
 }) {
-    const label = merchant.displayName || merchant.name;
+    const label = vendor.displayName || vendor.name;
     const sizeClassName = {
         xs: 'size-4',
         sm: 'size-6',
@@ -44,7 +44,7 @@ export function MerchantLogo({
             <AvatarImage
                 alt=""
                 className="object-contain"
-                src={merchant.logoUrl ?? undefined}
+                src={vendor.logoUrl ?? undefined}
             />
             <AvatarFallback
                 className={classNames('rounded-sm', fallbackTextClassName)}
@@ -56,7 +56,7 @@ export function MerchantLogo({
 }
 
 export function enrichmentStatusLabel(
-    status: Merchant['enrichmentStatus']
+    status: Vendor['enrichmentStatus']
 ): string {
     switch (status) {
         case 'success':
@@ -75,7 +75,7 @@ export function enrichmentStatusLabel(
 export function EnrichmentStatusBadge({
     status
 }: {
-    readonly status: Merchant['enrichmentStatus'];
+    readonly status: Vendor['enrichmentStatus'];
 }) {
     const className =
         status === 'success'

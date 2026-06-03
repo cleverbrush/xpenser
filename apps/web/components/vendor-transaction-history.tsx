@@ -56,13 +56,13 @@ function TransactionTypeBadge({
     );
 }
 
-export function MerchantTransactionHistory({
-    merchantId,
+export function VendorTransactionHistory({
+    vendorId,
     timezone,
     total,
     transactions
 }: {
-    readonly merchantId: number;
+    readonly vendorId: number;
     readonly timezone: string;
     readonly total: number;
     readonly transactions: readonly Transaction[];
@@ -72,7 +72,7 @@ export function MerchantTransactionHistory({
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>Transaction history</CardTitle>
                 <Button asChild size="sm" variant="outline">
-                    <Link href={`/transactions?merchantId=${merchantId}`}>
+                    <Link href={`/transactions?vendorId=${vendorId}`}>
                         View all
                     </Link>
                 </Button>
@@ -155,7 +155,7 @@ export function MerchantTransactionHistory({
                     </>
                 ) : (
                     <p className="text-sm text-muted-foreground">
-                        No transactions are linked to this merchant yet.
+                        No transactions are linked to this vendor yet.
                     </p>
                 )}
             </CardContent>

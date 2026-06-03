@@ -1,11 +1,7 @@
 'use server';
 
 import { createHash, randomBytes } from 'node:crypto';
-import type {
-    Merchant,
-    MerchantBrandSuggestion,
-    Transaction
-} from '@xpenser/contracts';
+import type { Transaction, Vendor, VendorCandidate } from '@xpenser/contracts';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -61,10 +57,10 @@ function editableString(formData: FormData, key: string): string | undefined {
 }
 
 function transactionBody(formData: FormData, editableNote = false) {
-    const merchantId = optionalString(formData, 'merchantId');
+    const vendorId = optionalString(formData, 'vendorId');
     return {
         categoryId: Number(requiredString(formData, 'categoryId')),
-        merchantId: merchantId ? Number(merchantId) : null,
+        vendorId: vendorId ? Number(vendorId) : null,
         amount: Number(requiredString(formData, 'amount')),
         currency: requiredString(formData, 'currency'),
         occurredAt: new Date(requiredString(formData, 'occurredAt')),
@@ -74,20 +70,20 @@ function transactionBody(formData: FormData, editableNote = false) {
     };
 }
 
-function merchantBody(formData: FormData) {
+function vendorBody(formData: FormData) {
     return {
         name: requiredString(formData, 'name'),
         brandfetchBrandId: optionalString(formData, 'brandfetchBrandId'),
-        brandName: optionalString(formData, 'brandName'),
+        resolvedName: optionalString(formData, 'resolvedName'),
         domain: optionalString(formData, 'domain'),
         logoUrl: optionalString(formData, 'logoUrl')
     };
 }
 
-function merchantUpdateBody(formData: FormData) {
+function vendorUpdateBody(formData: FormData) {
     return {
         name: requiredString(formData, 'name'),
-        brandName: nullableString(formData, 'brandName'),
+        resolvedName: nullableString(formData, 'resolvedName'),
         domain: nullableString(formData, 'domain'),
         description: nullableString(formData, 'description'),
         logoUrl: nullableString(formData, 'logoUrl'),
@@ -283,8 +279,8 @@ export async function updateCategoryAction(formData: FormData) {
     revalidatePath('/setup/categories');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
-    revalidatePath('/merchants');
-    revalidatePath('/settings/merchants');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -344,27 +340,25 @@ export async function moveAndDeleteCategoryAction(formData: FormData) {
     revalidatePath('/stats');
 }
 
-export async function createMerchantAction(
-    formData: FormData
-): Promise<Merchant> {
+export async function createVendorAction(formData: FormData): Promise<Vendor> {
     const client = await getApiClient();
-    const merchant = await client.merchants.create({
-        body: merchantBody(formData)
+    const vendor = await client.vendors.create({
+        body: vendorBody(formData)
     });
-    revalidateTag('merchants', 'max');
+    revalidateTag('vendors', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
-    revalidatePath('/merchants');
-    revalidatePath('/settings/merchants');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
-    return merchant;
+    return vendor;
 }
 
-export async function searchMerchantBrandsAction(
+export async function searchVendorCandidatesAction(
     query: string
-): Promise<MerchantBrandSuggestion[]> {
+): Promise<VendorCandidate[]> {
     const client = await getApiClient();
-    return client.merchants.searchBrands({
+    return client.vendors.searchCandidates({
         query: {
             query,
             limit: 6
@@ -372,43 +366,41 @@ export async function searchMerchantBrandsAction(
     });
 }
 
-export async function updateMerchantAction(
-    formData: FormData
-): Promise<Merchant> {
+export async function updateVendorAction(formData: FormData): Promise<Vendor> {
     const id = Number(requiredString(formData, 'id'));
     const client = await getApiClient();
-    const merchant = await client.merchants.update({
+    const vendor = await client.vendors.update({
         params: { id },
-        body: merchantUpdateBody(formData)
+        body: vendorUpdateBody(formData)
     });
-    revalidateTag('merchants', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
-    revalidatePath('/merchants');
-    revalidatePath(`/settings/merchants/${id}`);
-    revalidatePath('/settings/merchants');
+    revalidatePath('/vendors');
+    revalidatePath(`/settings/vendors/${id}`);
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
-    return merchant;
+    return vendor;
 }
 
-export async function retryMerchantEnrichmentAction(
+export async function retryVendorEnrichmentAction(
     formData: FormData
-): Promise<Merchant> {
+): Promise<Vendor> {
     const id = Number(requiredString(formData, 'id'));
     const client = await getApiClient();
-    const merchant = await client.merchants.enrich({
+    const vendor = await client.vendors.enrich({
         params: { id }
     });
-    revalidateTag('merchants', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
-    revalidatePath('/merchants');
-    revalidatePath(`/settings/merchants/${id}`);
-    revalidatePath('/settings/merchants');
+    revalidatePath('/vendors');
+    revalidatePath(`/settings/vendors/${id}`);
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
-    return merchant;
+    return vendor;
 }
 
 export async function createTransactionAction(formData: FormData) {
@@ -417,13 +409,14 @@ export async function createTransactionAction(formData: FormData) {
         body: transactionBody(formData)
     });
     revalidateTag('categories', 'max');
-    revalidateTag('merchants', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
+    revalidatePath('/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -436,15 +429,15 @@ export async function createCaptureTransactionAction(
         body: transactionBody(formData)
     });
     revalidateTag('categories', 'max');
-    revalidateTag('merchants', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
-    revalidatePath('/merchants');
-    revalidatePath('/settings/merchants');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
     return transaction;
@@ -457,15 +450,15 @@ export async function updateTransactionAction(formData: FormData) {
         body: transactionBody(formData, true)
     });
     revalidateTag('categories', 'max');
-    revalidateTag('merchants', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
-    revalidatePath('/merchants');
-    revalidatePath('/settings/merchants');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -476,14 +469,14 @@ export async function deleteTransactionAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'id')) }
     });
     revalidateTag('categories', 'max');
-    revalidateTag('merchants', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/dashboard');
-    revalidatePath('/merchants');
-    revalidatePath('/settings/merchants');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }

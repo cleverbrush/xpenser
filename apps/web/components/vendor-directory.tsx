@@ -1,4 +1,4 @@
-import type { Merchant } from '@xpenser/contracts';
+import type { Vendor } from '@xpenser/contracts';
 import {
     Button,
     Card,
@@ -15,61 +15,57 @@ import { SearchIcon } from 'lucide-react';
 import Link from 'next/link';
 import {
     EnrichmentStatusBadge,
-    MerchantLogo,
-    merchantDisplayName
-} from './merchant-display';
+    VendorLogo,
+    vendorDisplayName
+} from './vendor-display';
 
-function merchantSubtitle(merchant: Merchant): string {
-    return merchant.domain || merchant.description || 'No merchant details';
+function vendorSubtitle(vendor: Vendor): string {
+    return vendor.domain || vendor.description || 'No vendor details';
 }
 
 function transactionCountLabel(count: number): string {
     return count === 1 ? '1 transaction' : `${count} transactions`;
 }
 
-function MerchantIdentity({ merchant }: { readonly merchant: Merchant }) {
+function VendorIdentity({ vendor }: { readonly vendor: Vendor }) {
     return (
         <div className="flex min-w-0 items-center gap-3">
-            <MerchantLogo merchant={merchant} />
+            <VendorLogo vendor={vendor} />
             <div className="min-w-0">
                 <Link
                     className="block truncate font-medium transition-colors hover:text-primary"
-                    href={`/settings/merchants/${merchant.id}`}
+                    href={`/settings/vendors/${vendor.id}`}
                 >
-                    {merchantDisplayName(merchant)}
+                    {vendorDisplayName(vendor)}
                 </Link>
                 <p className="truncate text-xs text-muted-foreground">
-                    {merchantSubtitle(merchant)}
+                    {vendorSubtitle(vendor)}
                 </p>
             </div>
         </div>
     );
 }
 
-function MerchantCards({
-    merchants
-}: {
-    readonly merchants: readonly Merchant[];
-}) {
+function VendorCards({ vendors }: { readonly vendors: readonly Vendor[] }) {
     return (
         <div className="flex flex-col gap-2 sm:hidden">
-            {merchants.map(merchant => (
+            {vendors.map(vendor => (
                 <article
                     className="rounded-md border bg-card p-3"
-                    key={merchant.id}
+                    key={vendor.id}
                 >
                     <div className="flex items-start justify-between gap-3">
-                        <MerchantIdentity merchant={merchant} />
+                        <VendorIdentity vendor={vendor} />
                         <EnrichmentStatusBadge
-                            status={merchant.enrichmentStatus}
+                            status={vendor.enrichmentStatus}
                         />
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span>
-                            {transactionCountLabel(merchant.transactionCount)}
+                            {transactionCountLabel(vendor.transactionCount)}
                         </span>
-                        {merchant.suggestedCategoryDisplayName ? (
-                            <span>{merchant.suggestedCategoryDisplayName}</span>
+                        {vendor.suggestedCategoryDisplayName ? (
+                            <span>{vendor.suggestedCategoryDisplayName}</span>
                         ) : null}
                     </div>
                     <Button
@@ -78,7 +74,7 @@ function MerchantCards({
                         size="sm"
                         variant="outline"
                     >
-                        <Link href={`/settings/merchants/${merchant.id}`}>
+                        <Link href={`/settings/vendors/${vendor.id}`}>
                             Open
                         </Link>
                     </Button>
@@ -88,18 +84,14 @@ function MerchantCards({
     );
 }
 
-function MerchantTable({
-    merchants
-}: {
-    readonly merchants: readonly Merchant[];
-}) {
+function VendorTable({ vendors }: { readonly vendors: readonly Vendor[] }) {
     return (
         <Card className="hidden sm:block">
             <CardContent className="p-0">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Merchant</TableHead>
+                            <TableHead>Vendor</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Suggested category</TableHead>
                             <TableHead>Transactions</TableHead>
@@ -107,19 +99,19 @@ function MerchantTable({
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {merchants.map(merchant => (
-                            <TableRow key={merchant.id}>
+                        {vendors.map(vendor => (
+                            <TableRow key={vendor.id}>
                                 <TableCell>
-                                    <MerchantIdentity merchant={merchant} />
+                                    <VendorIdentity vendor={vendor} />
                                 </TableCell>
                                 <TableCell>
                                     <EnrichmentStatusBadge
-                                        status={merchant.enrichmentStatus}
+                                        status={vendor.enrichmentStatus}
                                     />
                                 </TableCell>
                                 <TableCell>
-                                    {merchant.suggestedCategoryDisplayName ? (
-                                        merchant.suggestedCategoryDisplayName
+                                    {vendor.suggestedCategoryDisplayName ? (
+                                        vendor.suggestedCategoryDisplayName
                                     ) : (
                                         <span className="text-muted-foreground">
                                             -
@@ -128,13 +120,13 @@ function MerchantTable({
                                 </TableCell>
                                 <TableCell>
                                     {transactionCountLabel(
-                                        merchant.transactionCount
+                                        vendor.transactionCount
                                     )}
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <Button asChild size="sm" variant="ghost">
                                         <Link
-                                            href={`/settings/merchants/${merchant.id}`}
+                                            href={`/settings/vendors/${vendor.id}`}
                                         >
                                             Open
                                         </Link>
@@ -149,18 +141,18 @@ function MerchantTable({
     );
 }
 
-export function MerchantDirectory({
-    merchants,
+export function VendorDirectory({
+    vendors,
     search
 }: {
-    readonly merchants: readonly Merchant[];
+    readonly vendors: readonly Vendor[];
     readonly search: string;
 }) {
     return (
         <div className="flex flex-col gap-4">
             <form className="flex flex-col gap-2 sm:flex-row">
                 <Input
-                    aria-label="Search merchants"
+                    aria-label="Search vendors"
                     defaultValue={search}
                     name="search"
                     placeholder="Search by name, domain, or description"
@@ -170,17 +162,17 @@ export function MerchantDirectory({
                     Search
                 </Button>
             </form>
-            {merchants.length > 0 ? (
+            {vendors.length > 0 ? (
                 <>
-                    <MerchantCards merchants={merchants} />
-                    <MerchantTable merchants={merchants} />
+                    <VendorCards vendors={vendors} />
+                    <VendorTable vendors={vendors} />
                 </>
             ) : (
                 <Card>
                     <CardContent className="p-4 text-sm text-muted-foreground sm:p-6">
                         {search
-                            ? 'No merchants match this search.'
-                            : 'No merchants yet. Add a merchant while creating or editing a transaction.'}
+                            ? 'No vendors match this search.'
+                            : 'No vendors yet. Add a vendor while creating or editing a transaction.'}
                     </CardContent>
                 </Card>
             )}

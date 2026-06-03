@@ -1,20 +1,20 @@
-import { BrandsExplorer } from '@/components/brands-explorer';
+import { VendorsExplorer } from '@/components/vendors-explorer';
 import { getApiClient } from '@/lib/api';
-import { brandAnalyticsMerchantLimit } from '@/lib/brand-analytics';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
 import { initialDashboardWindowDate } from '@/lib/dashboard-window';
+import { vendorAnalyticsVendorLimit } from '@/lib/vendor-analytics';
 
-type BrandsSearchParams = {
+type VendorsSearchParams = {
     readonly date?: string;
     readonly period?: string;
 };
 
 export const dynamic = 'force-dynamic';
 
-export default async function BrandsPage({
+export default async function VendorsPage({
     searchParams
 }: {
-    readonly searchParams: Promise<BrandsSearchParams>;
+    readonly searchParams: Promise<VendorsSearchParams>;
 }) {
     const params = await searchParams;
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
@@ -26,14 +26,14 @@ export default async function BrandsPage({
         query: {
             after: 2,
             before: 2,
-            merchantLimit: brandAnalyticsMerchantLimit,
+            vendorLimit: vendorAnalyticsVendorLimit,
             period,
             ...(selectedDate ? { date: selectedDate } : {})
         }
     });
 
     return (
-        <BrandsExplorer
+        <VendorsExplorer
             initialDate={initialDashboardWindowDate(
                 window,
                 anchorDate,

@@ -3,18 +3,18 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import type { Merchant } from '@xpenser/contracts';
+import type { Vendor } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
-import { MerchantDirectory } from './merchant-directory';
+import { VendorDirectory } from './vendor-directory';
 
 const timestamp = new Date('2026-06-01T00:00:00.000Z');
 
-function merchant(overrides: Partial<Merchant> = {}): Merchant {
+function vendor(overrides: Partial<Vendor> = {}): Vendor {
     return {
         id: 42,
         name: 'Walmart',
         displayName: 'Walmart',
-        brandName: 'Walmart',
+        resolvedName: 'Walmart',
         description: 'Retail stores.',
         domain: 'walmart.com',
         enrichmentProvider: 'brandfetch',
@@ -31,9 +31,9 @@ function merchant(overrides: Partial<Merchant> = {}): Merchant {
     };
 }
 
-describe('MerchantDirectory', () => {
-    it('renders merchant enrichment status and detail links', () => {
-        render(<MerchantDirectory merchants={[merchant()]} search="" />);
+describe('VendorDirectory', () => {
+    it('renders vendor enrichment status and detail links', () => {
+        render(<VendorDirectory vendors={[vendor()]} search="" />);
 
         expect(screen.getAllByText('Enriched').length).toBeGreaterThan(0);
         expect(screen.getAllByText('Groceries').length).toBeGreaterThan(0);
@@ -42,17 +42,14 @@ describe('MerchantDirectory', () => {
             screen
                 .getAllByRole('link', { name: /walmart/i })
                 .some(
-                    link =>
-                        link.getAttribute('href') === '/settings/merchants/42'
+                    link => link.getAttribute('href') === '/settings/vendors/42'
                 )
         ).toBe(true);
     });
 
     it('renders the empty state for a filtered directory', () => {
-        render(<MerchantDirectory merchants={[]} search="Walmart" />);
+        render(<VendorDirectory vendors={[]} search="Walmart" />);
 
-        expect(
-            screen.getByText('No merchants match this search.')
-        ).toBeTruthy();
+        expect(screen.getByText('No vendors match this search.')).toBeTruthy();
     });
 });

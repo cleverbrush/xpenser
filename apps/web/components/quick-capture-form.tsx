@@ -5,8 +5,8 @@ import {
     type Category,
     CreateTransactionBodySchema,
     type Currency,
-    type Merchant,
-    type Transaction
+    type Transaction,
+    type Vendor
 } from '@xpenser/contracts';
 import {
     dateToLocalDateTimeInput,
@@ -43,7 +43,7 @@ import {
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { valuesToFormData } from './forms/form-utils';
-import { MerchantPicker } from './merchant-picker';
+import { VendorPicker } from './vendor-picker';
 
 type TransactionType = Category['type'];
 
@@ -85,10 +85,8 @@ function parseCaptureAmount(value: string): number | undefined {
 }
 
 function savedSummary(transaction: Transaction, timezone: string) {
-    const merchant = transaction.merchantName
-        ? `${transaction.merchantName} - `
-        : '';
-    return `${merchant}${transaction.categoryDisplayName} - ${formatTransactionMoney(
+    const vendor = transaction.vendorName ? `${transaction.vendorName} - ` : '';
+    return `${vendor}${transaction.categoryDisplayName} - ${formatTransactionMoney(
         transaction.amount,
         transaction.currency,
         transaction.type,
@@ -100,14 +98,14 @@ export function QuickCaptureForm({
     categories,
     currencies,
     defaultCurrency,
-    merchants,
+    vendors,
     timezone,
     transactionCurrencies
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
-    readonly merchants: readonly Merchant[];
+    readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
@@ -134,7 +132,7 @@ export function QuickCaptureForm({
     const [categoryId, setCategoryId] = useState<number | undefined>(() =>
         firstCategoryId(transactionCategories, startingType)
     );
-    const [merchantId, setMerchantId] = useState<number | null>(null);
+    const [vendorId, setVendorId] = useState<number | null>(null);
     const [amount, setAmount] = useState('');
     const [currency, setCurrency] = useState(() =>
         firstCurrency(currencyOptions, defaultCurrency)
@@ -173,15 +171,15 @@ export function QuickCaptureForm({
         setCategoryId(firstCategoryId(transactionCategories, nextType));
     }
 
-    function handleMerchantChange(merchant: Merchant | undefined) {
-        setMerchantId(merchant?.id ?? null);
+    function handleVendorChange(vendor: Vendor | undefined) {
+        setVendorId(vendor?.id ?? null);
 
-        if (!merchant?.suggestedCategoryId) {
+        if (!vendor?.suggestedCategoryId) {
             return;
         }
 
         const suggested = transactionCategories.find(
-            category => category.id === merchant.suggestedCategoryId
+            category => category.id === vendor.suggestedCategoryId
         );
         if (!suggested) {
             return;
@@ -200,7 +198,7 @@ export function QuickCaptureForm({
         form.reset({
             amount: undefined,
             categoryId: activeCategoryId,
-            merchantId,
+            vendorId,
             currency,
             occurredAt: nextOccurredAt,
             note: undefined
@@ -232,7 +230,7 @@ export function QuickCaptureForm({
         form.setValue({
             amount: amountValue,
             categoryId: activeCategoryId,
-            merchantId,
+            vendorId,
             currency,
             occurredAt
         });
@@ -357,10 +355,10 @@ export function QuickCaptureForm({
                                 </div>
                             </Field>
 
-                            <MerchantPicker
-                                merchants={merchants}
-                                onChange={handleMerchantChange}
-                                selectedMerchantId={merchantId}
+                            <VendorPicker
+                                vendors={vendors}
+                                onChange={handleVendorChange}
+                                selectedVendorId={vendorId}
                             />
 
                             <Field>

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { PeriodStateLink } from './period-state-link';
 
 const items = [
     {
@@ -18,9 +19,9 @@ const items = [
         icon: LayoutDashboardIcon
     },
     {
-        href: '/transactions',
-        label: 'Transactions',
-        icon: CreditCardIcon
+        href: '/vendors',
+        label: 'Vendors',
+        icon: StoreIcon
     },
     {
         href: '/capture',
@@ -28,9 +29,9 @@ const items = [
         icon: CirclePlusIcon
     },
     {
-        href: '/merchants',
-        label: 'Brands',
-        icon: StoreIcon
+        href: '/transactions',
+        label: 'Transactions',
+        icon: CreditCardIcon
     },
     {
         href: '/stats',
@@ -52,8 +53,12 @@ export function MobileTabBar() {
                 {items.map(item => {
                     const active = isActive(pathname, item.href);
                     const Icon = item.icon;
+                    const LinkComponent =
+                        item.href === '/dashboard' || item.href === '/vendors'
+                            ? PeriodStateLink
+                            : Link;
                     return (
-                        <Link
+                        <LinkComponent
                             aria-current={active ? 'page' : undefined}
                             className={cn(
                                 'flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium text-muted-foreground transition-colors',
@@ -66,7 +71,7 @@ export function MobileTabBar() {
                             <span className="max-w-full truncate">
                                 {item.label}
                             </span>
-                        </Link>
+                        </LinkComponent>
                     );
                 })}
             </div>

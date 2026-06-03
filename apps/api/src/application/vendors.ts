@@ -1,18 +1,18 @@
 import type {
-    CreateMerchantBody,
-    Merchant,
-    MerchantBrandSearchQuery,
-    MerchantBrandSuggestion,
-    MerchantListQuery,
-    UpdateMerchantBody
+    CreateVendorBody,
+    UpdateVendorBody,
+    Vendor,
+    VendorCandidate,
+    VendorCandidateSearchQuery,
+    VendorListQuery
 } from '@xpenser/contracts';
 import type { Config } from '../config.js';
 import type {
     AppDb,
     CategoryDb,
-    MerchantDb,
     TransactionDb,
-    UserDb
+    UserDb,
+    VendorDb
 } from '../db/schemas.js';
 import {
     categoryAvailableForTransactions,
@@ -25,16 +25,16 @@ const brandfetchBrandUrl = 'https://api.brandfetch.io/v2/brands';
 const brandfetchSearchUrl = 'https://api.brandfetch.io/v2/search';
 const enrichmentTtlMs = 30 * 24 * 60 * 60 * 1000;
 
-export class MerchantNameError extends Error {}
-export class MerchantNotFoundError extends Error {}
-export class MerchantMetadataError extends Error {}
+export class VendorNameError extends Error {}
+export class VendorNotFoundError extends Error {}
+export class VendorMetadataError extends Error {}
 
-type MerchantStats = {
+type VendorStats = {
     readonly latestAt?: Date;
     readonly transactionCount: number;
 };
 
-type MerchantSuggestion = {
+type VendorSuggestion = {
     readonly categoryDisplayName: string;
     readonly categoryId: number;
 };
@@ -72,12 +72,12 @@ type BrandfetchSearchResponse = {
     readonly name?: unknown;
 };
 
-function normalizeMerchantName(value: string): string {
+function normalizeVendorName(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
 }
 
-export function merchantNormalizedName(value: string): string {
-    return normalizeMerchantName(value).toLowerCase();
+export function vendorNormalizedName(value: string): string {
+    return normalizeVendorName(value).toLowerCase();
 }
 
 function nonemptyString(value: unknown): string | undefined {
@@ -167,7 +167,7 @@ async function brandfetchTransaction(
     config: Config,
     input: { readonly countryCode: string; readonly transactionLabel: string }
 ): Promise<BrandfetchResponse | undefined> {
-    if (!config.merchantEnrichment.enabled || !config.brandfetch.apiKey) {
+    if (!config.vendorEnrichment.enabled || !config.brandfetch.apiKey) {
         return undefined;
     }
 
@@ -196,7 +196,7 @@ async function brandfetchFetch(config: Config, url: string, init: RequestInit) {
     const controller = new AbortController();
     const timeout = setTimeout(
         () => controller.abort(),
-        config.merchantEnrichment.timeoutMs
+        config.vendorEnrichment.timeoutMs
     );
 
     try {
@@ -239,17 +239,17 @@ async function brandfetchBrandDetails(
 
 function mapBrandSearchResult(
     value: BrandfetchSearchResponse
-): MerchantBrandSuggestion | undefined {
+): VendorCandidate | undefined {
     const domain = domainText(nonemptyString(value.domain));
     if (!domain) {
         return undefined;
     }
 
     const name = truncate(nonemptyString(value.name), 160) ?? domain;
-    const brandId = truncate(nonemptyString(value.brandId), 100);
+    const brandfetchBrandId = truncate(nonemptyString(value.brandId), 100);
     const logoUrl = httpsUrl(nonemptyString(value.icon));
     return {
-        ...(brandId ? { brandId } : {}),
+        ...(brandfetchBrandId ? { brandfetchBrandId } : {}),
         name,
         domain,
         ...(logoUrl ? { logoUrl: truncate(logoUrl, 1000) } : {}),
@@ -259,11 +259,11 @@ function mapBrandSearchResult(
     };
 }
 
-export async function searchMerchantBrands(
+export async function searchVendorCandidates(
     config: Config,
-    query: Partial<MerchantBrandSearchQuery>
-): Promise<MerchantBrandSuggestion[]> {
-    const search = normalizeMerchantName(query.query ?? '');
+    query: Partial<VendorCandidateSearchQuery>
+): Promise<VendorCandidate[]> {
+    const search = normalizeVendorName(query.query ?? '');
     const limit = Math.min(10, Math.max(1, query.limit ?? 6));
     if (search.length < 2 || !config.brandfetch.clientId) {
         return [];
@@ -293,9 +293,7 @@ export async function searchMerchantBrands(
             .map(value =>
                 mapBrandSearchResult(value as BrandfetchSearchResponse)
             )
-            .filter(
-                (value): value is MerchantBrandSuggestion => value !== undefined
-            )
+            .filter((value): value is VendorCandidate => value !== undefined)
             .slice(0, limit);
     } catch {
         return [];
@@ -308,7 +306,7 @@ function brandfetchUpdate(json: BrandfetchResponse) {
         nonemptyString(json?.longDescription);
 
     const values = {
-        brandName: truncate(nonemptyString(json?.name), 160),
+        resolvedName: truncate(nonemptyString(json?.name), 160),
         domain: truncate(nonemptyString(json?.domain), 255),
         description: truncate(description, 1000),
         logoUrl: chooseLogoUrl(json?.logos),
@@ -316,30 +314,30 @@ function brandfetchUpdate(json: BrandfetchResponse) {
     };
     return Object.fromEntries(
         Object.entries(values).filter(([, value]) => value !== undefined)
-    ) as Partial<MerchantDb>;
+    ) as Partial<VendorDb>;
 }
 
-function shouldEnrich(merchant: MerchantDb, force = false): boolean {
+function shouldEnrich(vendor: VendorDb, force = false): boolean {
     if (force) {
         return true;
     }
-    if (merchant.enrichedAt) {
-        return Date.now() - merchant.enrichedAt.getTime() > enrichmentTtlMs;
+    if (vendor.enrichedAt) {
+        return Date.now() - vendor.enrichedAt.getTime() > enrichmentTtlMs;
     }
     return true;
 }
 
-async function enrichMerchant(
+async function enrichVendor(
     db: AppDb,
     config: Config,
     user: UserDb,
-    merchant: MerchantDb,
+    vendor: VendorDb,
     options: { readonly force?: boolean } = {}
 ): Promise<void> {
     const now = new Date();
-    if (!config.merchantEnrichment.enabled || !config.brandfetch.apiKey) {
-        await db.merchants
-            .where(candidate => candidate.id, merchant.id)
+    if (!config.vendorEnrichment.enabled || !config.brandfetch.apiKey) {
+        await db.vendors
+            .where(candidate => candidate.id, vendor.id)
             .where(candidate => candidate.userId, user.id)
             .update({
                 enrichedAt: now,
@@ -351,17 +349,17 @@ async function enrichMerchant(
             });
         return;
     }
-    if (!shouldEnrich(merchant, options.force)) {
+    if (!shouldEnrich(vendor, options.force)) {
         return;
     }
 
     try {
         const json = await brandfetchTransaction(config, {
-            transactionLabel: merchant.name,
+            transactionLabel: vendor.name,
             countryCode: user.countryCode
         });
-        await db.merchants
-            .where(candidate => candidate.id, merchant.id)
+        await db.vendors
+            .where(candidate => candidate.id, vendor.id)
             .where(candidate => candidate.userId, user.id)
             .update({
                 ...(json ? brandfetchUpdate(json) : {}),
@@ -371,8 +369,8 @@ async function enrichMerchant(
                 updatedAt: now
             } as never);
     } catch {
-        await db.merchants
-            .where(candidate => candidate.id, merchant.id)
+        await db.vendors
+            .where(candidate => candidate.id, vendor.id)
             .where(candidate => candidate.userId, user.id)
             .update({
                 enrichedAt: now,
@@ -397,7 +395,7 @@ async function loadCategoriesById(
     );
 }
 
-async function loadMerchantTransactions(
+async function loadVendorTransactions(
     db: AppDb,
     userId: number
 ): Promise<TransactionDb[]> {
@@ -407,14 +405,14 @@ async function loadMerchantTransactions(
     )) as TransactionDb[];
 }
 
-function merchantStats(transactions: readonly TransactionDb[]) {
-    const stats = new Map<number, MerchantStats>();
+function vendorStats(transactions: readonly TransactionDb[]) {
+    const stats = new Map<number, VendorStats>();
     for (const transaction of transactions) {
-        if (!transaction.merchantId) {
+        if (!transaction.vendorId) {
             continue;
         }
-        const current = stats.get(transaction.merchantId);
-        stats.set(transaction.merchantId, {
+        const current = stats.get(transaction.vendorId);
+        stats.set(transaction.vendorId, {
             transactionCount: (current?.transactionCount ?? 0) + 1,
             latestAt:
                 !current?.latestAt || transaction.occurredAt > current.latestAt
@@ -429,13 +427,13 @@ function categorySuggestions(
     transactions: readonly TransactionDb[],
     categoriesById: ReadonlyMap<number, CategoryDb>
 ) {
-    const byMerchant = new Map<
+    const byVendor = new Map<
         number,
         Map<number, { count: number; latestAt: Date }>
     >();
 
     for (const transaction of transactions) {
-        if (!transaction.merchantId) {
+        if (!transaction.vendorId) {
             continue;
         }
         const category = categoriesById.get(transaction.categoryId);
@@ -446,21 +444,21 @@ function categorySuggestions(
             continue;
         }
 
-        const merchantCategories =
-            byMerchant.get(transaction.merchantId) ?? new Map();
-        const current = merchantCategories.get(transaction.categoryId);
-        merchantCategories.set(transaction.categoryId, {
+        const vendorCategories =
+            byVendor.get(transaction.vendorId) ?? new Map();
+        const current = vendorCategories.get(transaction.categoryId);
+        vendorCategories.set(transaction.categoryId, {
             count: (current?.count ?? 0) + 1,
             latestAt:
                 !current?.latestAt || transaction.occurredAt > current.latestAt
                     ? transaction.occurredAt
                     : current.latestAt
         });
-        byMerchant.set(transaction.merchantId, merchantCategories);
+        byVendor.set(transaction.vendorId, vendorCategories);
     }
 
-    const suggestions = new Map<number, MerchantSuggestion>();
-    for (const [merchantId, categories] of byMerchant) {
+    const suggestions = new Map<number, VendorSuggestion>();
+    for (const [vendorId, categories] of byVendor) {
         const [categoryId] =
             [...categories.entries()].sort(
                 ([leftId, left], [rightId, right]) =>
@@ -472,7 +470,7 @@ function categorySuggestions(
             ? categoriesById.get(categoryId)
             : undefined;
         if (category) {
-            suggestions.set(merchantId, {
+            suggestions.set(vendorId, {
                 categoryId: category.id,
                 categoryDisplayName: categoryDisplayName(
                     category,
@@ -484,66 +482,66 @@ function categorySuggestions(
     return suggestions;
 }
 
-function mapMerchant(
-    merchant: MerchantDb,
-    stats: MerchantStats | undefined,
-    suggestion: MerchantSuggestion | undefined
-): Merchant {
+function mapVendor(
+    vendor: VendorDb,
+    stats: VendorStats | undefined,
+    suggestion: VendorSuggestion | undefined
+): Vendor {
     return {
-        id: merchant.id,
-        name: merchant.name,
-        displayName: merchant.brandName ?? merchant.name,
-        brandName: merchant.brandName ?? undefined,
-        domain: merchant.domain ?? undefined,
-        description: merchant.description ?? undefined,
-        logoUrl: merchant.logoUrl ?? undefined,
-        primaryColor: merchant.primaryColor ?? undefined,
-        enrichmentProvider: merchant.enrichmentProvider ?? undefined,
-        enrichmentStatus: merchant.enrichmentStatus
-            ? (merchant.enrichmentStatus as Merchant['enrichmentStatus'])
+        id: vendor.id,
+        name: vendor.name,
+        displayName: vendor.resolvedName ?? vendor.name,
+        resolvedName: vendor.resolvedName ?? undefined,
+        domain: vendor.domain ?? undefined,
+        description: vendor.description ?? undefined,
+        logoUrl: vendor.logoUrl ?? undefined,
+        primaryColor: vendor.primaryColor ?? undefined,
+        enrichmentProvider: vendor.enrichmentProvider ?? undefined,
+        enrichmentStatus: vendor.enrichmentStatus
+            ? (vendor.enrichmentStatus as Vendor['enrichmentStatus'])
             : undefined,
-        enrichedAt: merchant.enrichedAt ?? undefined,
+        enrichedAt: vendor.enrichedAt ?? undefined,
         suggestedCategoryId: suggestion?.categoryId,
         suggestedCategoryDisplayName: suggestion?.categoryDisplayName,
         transactionCount: stats?.transactionCount ?? 0,
-        createdAt: merchant.createdAt,
-        updatedAt: merchant.updatedAt
+        createdAt: vendor.createdAt,
+        updatedAt: vendor.updatedAt
     };
 }
 
-async function merchantReadContext(db: AppDb, userId: number) {
+async function vendorReadContext(db: AppDb, userId: number) {
     const [transactions, categoriesById] = await Promise.all([
-        loadMerchantTransactions(db, userId),
+        loadVendorTransactions(db, userId),
         loadCategoriesById(db, userId)
     ]);
     return {
-        stats: merchantStats(transactions),
+        stats: vendorStats(transactions),
         suggestions: categorySuggestions(transactions, categoriesById)
     };
 }
 
-export async function listMerchants(
+export async function listVendors(
     db: AppDb,
     userId: number,
-    query: Partial<MerchantListQuery> = {}
-): Promise<Merchant[]> {
+    query: Partial<VendorListQuery> = {}
+): Promise<Vendor[]> {
     const limit = Math.min(100, Math.max(1, query.limit ?? 25));
     const search = query.search?.trim().toLowerCase();
     const [rows, context] = await Promise.all([
-        db.merchants.where(merchant => merchant.userId, userId),
-        merchantReadContext(db, userId)
+        db.vendors.where(vendor => vendor.userId, userId),
+        vendorReadContext(db, userId)
     ]);
 
-    return (rows as MerchantDb[])
-        .filter(merchant => {
+    return (rows as VendorDb[])
+        .filter(vendor => {
             if (!search) {
                 return true;
             }
             return [
-                merchant.name,
-                merchant.brandName,
-                merchant.domain,
-                merchant.description
+                vendor.name,
+                vendor.resolvedName,
+                vendor.domain,
+                vendor.description
             ].some(value => value?.toLowerCase().includes(search));
         })
         .sort((left, right) => {
@@ -554,11 +552,11 @@ export async function listMerchants(
             return rightTime - leftTime || left.name.localeCompare(right.name);
         })
         .slice(0, limit)
-        .map(merchant =>
-            mapMerchant(
-                merchant,
-                context.stats.get(merchant.id),
-                context.suggestions.get(merchant.id)
+        .map(vendor =>
+            mapVendor(
+                vendor,
+                context.stats.get(vendor.id),
+                context.suggestions.get(vendor.id)
             )
         );
 }
@@ -566,31 +564,31 @@ export async function listMerchants(
 async function getUser(db: AppDb, userId: number): Promise<UserDb> {
     const user = (await db.users.find(userId)) as UserDb | undefined;
     if (!user) {
-        throw new MerchantNotFoundError('User was not found.');
+        throw new VendorNotFoundError('User was not found.');
     }
     return user;
 }
 
-async function merchantView(
+async function vendorView(
     db: AppDb,
     userId: number,
-    merchant: MerchantDb
-): Promise<Merchant> {
-    const context = await merchantReadContext(db, userId);
-    return mapMerchant(
-        merchant,
-        context.stats.get(merchant.id),
-        context.suggestions.get(merchant.id)
+    vendor: VendorDb
+): Promise<Vendor> {
+    const context = await vendorReadContext(db, userId);
+    return mapVendor(
+        vendor,
+        context.stats.get(vendor.id),
+        context.suggestions.get(vendor.id)
     );
 }
 
-function selectedMerchantMetadata(body: CreateMerchantBody) {
+function selectedVendorMetadata(body: CreateVendorBody) {
     return {
         brandfetchBrandId: truncate(
             nonemptyString(body.brandfetchBrandId),
             100
         ),
-        brandName: truncate(nonemptyString(body.brandName), 160),
+        resolvedName: truncate(nonemptyString(body.resolvedName), 160),
         domain: domainText(nonemptyString(body.domain)),
         logoUrl: truncate(httpsUrl(nonemptyString(body.logoUrl)), 1000)
     };
@@ -598,11 +596,11 @@ function selectedMerchantMetadata(body: CreateMerchantBody) {
 
 async function selectedBrandUpdate(
     config: Config,
-    body: CreateMerchantBody
-): Promise<Partial<MerchantDb>> {
-    const selected = selectedMerchantMetadata(body);
+    body: CreateVendorBody
+): Promise<Partial<VendorDb>> {
+    const selected = selectedVendorMetadata(body);
     const identifier = selected.brandfetchBrandId ?? selected.domain;
-    let detailUpdate: Partial<MerchantDb> = {};
+    let detailUpdate: Partial<VendorDb> = {};
 
     if (identifier) {
         try {
@@ -613,10 +611,10 @@ async function selectedBrandUpdate(
         }
     }
 
-    const values: Partial<MerchantDb> = {
+    const values: Partial<VendorDb> = {
         ...Object.fromEntries(
             Object.entries({
-                brandName: selected.brandName,
+                resolvedName: selected.resolvedName,
                 domain: selected.domain,
                 logoUrl: selected.logoUrl
             }).filter(([, value]) => value !== undefined)
@@ -636,57 +634,52 @@ async function selectedBrandUpdate(
     };
 }
 
-function findReusableMerchant(
-    merchants: readonly MerchantDb[],
+function findReusableVendor(
+    vendors: readonly VendorDb[],
     selectedDomain: string | undefined
 ) {
     if (!selectedDomain) {
-        return merchants[0];
+        return vendors[0];
     }
 
-    const exact = merchants.find(
-        merchant => merchant.domain === selectedDomain
-    );
+    const exact = vendors.find(vendor => vendor.domain === selectedDomain);
     if (exact) {
         return exact;
     }
 
-    return merchants.find(
-        merchant => !merchant.domain && !merchant.brandName && !merchant.logoUrl
+    return vendors.find(
+        vendor => !vendor.domain && !vendor.resolvedName && !vendor.logoUrl
     );
 }
 
-export async function createMerchant(
+export async function createVendor(
     db: AppDb,
     config: Config,
     userId: number,
-    body: CreateMerchantBody
-): Promise<Merchant> {
-    const name = normalizeMerchantName(body.name);
+    body: CreateVendorBody
+): Promise<Vendor> {
+    const name = normalizeVendorName(body.name);
     if (!name) {
-        throw new MerchantNameError('Merchant name is required.');
+        throw new VendorNameError('Vendor name is required.');
     }
 
-    const normalizedName = merchantNormalizedName(name);
+    const normalizedName = vendorNormalizedName(name);
     const user = await getUser(db, userId);
-    const selected = selectedMerchantMetadata(body);
+    const selected = selectedVendorMetadata(body);
     const selectedUpdate = await selectedBrandUpdate(config, body);
 
-    const matchingMerchants = (await db.merchants
-        .where(merchant => merchant.userId, userId)
-        .where(
-            merchant => merchant.normalizedName,
-            normalizedName
-        )) as MerchantDb[];
-    const existing = findReusableMerchant(matchingMerchants, selected.domain);
+    const matchingVendors = (await db.vendors
+        .where(vendor => vendor.userId, userId)
+        .where(vendor => vendor.normalizedName, normalizedName)) as VendorDb[];
+    const existing = findReusableVendor(matchingVendors, selected.domain);
 
-    const merchant =
+    const vendor =
         existing ??
-        ((await db.merchants.insert({
+        ((await db.vendors.insert({
             userId,
             name,
             normalizedName,
-            brandName: undefined,
+            resolvedName: undefined,
             domain: undefined,
             description: undefined,
             logoUrl: undefined,
@@ -695,10 +688,10 @@ export async function createMerchant(
             enrichmentStatus: undefined,
             enrichedAt: undefined,
             ...selectedUpdate
-        } as never)) as MerchantDb);
+        } as never)) as VendorDb);
 
     if (existing && Object.keys(selectedUpdate).length > 0) {
-        await db.merchants
+        await db.vendors
             .where(candidate => candidate.id, existing.id)
             .where(candidate => candidate.userId, userId)
             .update({
@@ -708,45 +701,45 @@ export async function createMerchant(
     }
 
     if (Object.keys(selectedUpdate).length === 0) {
-        await enrichMerchant(db, config, user, merchant);
+        await enrichVendor(db, config, user, vendor);
     }
 
     const [updated, context] = await Promise.all([
-        db.merchants
-            .where(candidate => candidate.id, merchant.id)
+        db.vendors
+            .where(candidate => candidate.id, vendor.id)
             .where(candidate => candidate.userId, userId)
             .first(),
-        merchantReadContext(db, userId)
+        vendorReadContext(db, userId)
     ]);
 
-    return mapMerchant(
-        (updated ?? merchant) as MerchantDb,
-        context.stats.get(merchant.id),
-        context.suggestions.get(merchant.id)
+    return mapVendor(
+        (updated ?? vendor) as VendorDb,
+        context.stats.get(vendor.id),
+        context.suggestions.get(vendor.id)
     );
 }
 
-export async function getMerchant(
+export async function getVendor(
     db: AppDb,
     userId: number,
-    merchantId: number
-): Promise<MerchantDb> {
-    const merchant = (await db.merchants
-        .where(candidate => candidate.id, merchantId)
+    vendorId: number
+): Promise<VendorDb> {
+    const vendor = (await db.vendors
+        .where(candidate => candidate.id, vendorId)
         .where(candidate => candidate.userId, userId)
-        .first()) as MerchantDb | undefined;
-    if (!merchant) {
-        throw new MerchantNotFoundError('Merchant was not found.');
+        .first()) as VendorDb | undefined;
+    if (!vendor) {
+        throw new VendorNotFoundError('Vendor was not found.');
     }
-    return merchant;
+    return vendor;
 }
 
-export async function getMerchantDetails(
+export async function getVendorDetails(
     db: AppDb,
     userId: number,
-    merchantId: number
-): Promise<Merchant> {
-    return merchantView(db, userId, await getMerchant(db, userId, merchantId));
+    vendorId: number
+): Promise<Vendor> {
+    return vendorView(db, userId, await getVendor(db, userId, vendorId));
 }
 
 function nullableText(
@@ -779,7 +772,7 @@ function nullableLogoUrl(value: string | null | undefined) {
     }
     const url = httpsUrl(text);
     if (!url) {
-        throw new MerchantMetadataError('Logo URL must be a valid HTTPS URL.');
+        throw new VendorMetadataError('Logo URL must be a valid HTTPS URL.');
     }
     return url;
 }
@@ -790,47 +783,45 @@ function nullablePrimaryColor(value: string | null | undefined) {
         return text;
     }
     if (!/^#[0-9a-f]{6}$/i.test(text)) {
-        throw new MerchantMetadataError(
+        throw new VendorMetadataError(
             'Primary color must be a six-digit hex color.'
         );
     }
     return text.toLowerCase();
 }
 
-export async function updateMerchant(
+export async function updateVendor(
     db: AppDb,
     userId: number,
-    merchantId: number,
-    body: UpdateMerchantBody
-): Promise<Merchant> {
-    const current = await getMerchant(db, userId, merchantId);
+    vendorId: number,
+    body: UpdateVendorBody
+): Promise<Vendor> {
+    const current = await getVendor(db, userId, vendorId);
     const name =
-        body.name === undefined
-            ? current.name
-            : normalizeMerchantName(body.name);
+        body.name === undefined ? current.name : normalizeVendorName(body.name);
     if (!name) {
-        throw new MerchantNameError('Merchant name is required.');
+        throw new VendorNameError('Vendor name is required.');
     }
 
-    const normalizedName = merchantNormalizedName(name);
+    const normalizedName = vendorNormalizedName(name);
     if (normalizedName !== current.normalizedName) {
-        const existing = (await db.merchants
-            .where(merchant => merchant.userId, userId)
-            .where(merchant => merchant.normalizedName, normalizedName)
-            .first()) as MerchantDb | undefined;
+        const existing = (await db.vendors
+            .where(vendor => vendor.userId, userId)
+            .where(vendor => vendor.normalizedName, normalizedName)
+            .first()) as VendorDb | undefined;
         if (existing && existing.id !== current.id) {
-            throw new MerchantNameError(
-                'A merchant with this name already exists.'
+            throw new VendorNameError(
+                'A vendor with this name already exists.'
             );
         }
     }
 
-    const update: Partial<MerchantDb> = {
+    const update: Partial<VendorDb> = {
         name,
         normalizedName,
         updatedAt: new Date(),
-        ...(body.brandName !== undefined
-            ? { brandName: nullableText(body.brandName, 160) }
+        ...(body.resolvedName !== undefined
+            ? { resolvedName: nullableText(body.resolvedName, 160) }
             : {}),
         ...(body.domain !== undefined
             ? { domain: nullableDomain(body.domain) }
@@ -846,25 +837,25 @@ export async function updateMerchant(
             : {})
     };
 
-    await db.merchants
+    await db.vendors
         .where(candidate => candidate.id, current.id)
         .where(candidate => candidate.userId, userId)
         .update(update as never);
 
-    return getMerchantDetails(db, userId, merchantId);
+    return getVendorDetails(db, userId, vendorId);
 }
 
-export async function retryMerchantEnrichment(
+export async function retryVendorEnrichment(
     db: AppDb,
     config: Config,
     userId: number,
-    merchantId: number
-): Promise<Merchant> {
-    const [user, merchant] = await Promise.all([
+    vendorId: number
+): Promise<Vendor> {
+    const [user, vendor] = await Promise.all([
         getUser(db, userId),
-        getMerchant(db, userId, merchantId)
+        getVendor(db, userId, vendorId)
     ]);
 
-    await enrichMerchant(db, config, user, merchant, { force: true });
-    return getMerchantDetails(db, userId, merchantId);
+    await enrichVendor(db, config, user, vendor, { force: true });
+    return getVendorDetails(db, userId, vendorId);
 }

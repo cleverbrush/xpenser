@@ -22,17 +22,17 @@ export default async function DashboardPage({
     const me = await client.auth.me();
     const selectedDate = parseDateParam(params.date, me.timezone);
     const anchorDate = selectedDate ?? new Date();
-    const [categories, currencies, merchants, window] = await Promise.all([
+    const [categories, currencies, vendors, window] = await Promise.all([
         client.categories.list({
             query: { activeOnly: true, sort: 'recent-transaction-count' }
         }),
         client.currencies.list(),
-        client.merchants.list({ query: { limit: 100 } }),
+        client.vendors.list({ query: { limit: 100 } }),
         client.dashboard.window({
             query: {
                 after: 2,
                 before: 2,
-                merchantLimit: 0,
+                vendorLimit: 0,
                 period,
                 ...(selectedDate ? { date: selectedDate } : {})
             }
@@ -55,7 +55,7 @@ export default async function DashboardPage({
             )}
             initialPeriod={period}
             initialWindow={window}
-            merchants={merchants}
+            vendors={vendors}
             timezone={me.timezone}
             transactionCurrencies={me.transactionCurrencies}
         />

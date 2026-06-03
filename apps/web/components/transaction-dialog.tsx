@@ -4,8 +4,8 @@ import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
 import type {
     Category,
     Currency,
-    Merchant,
-    Transaction
+    Transaction,
+    Vendor
 } from '@xpenser/contracts';
 import { CreateTransactionBodySchema } from '@xpenser/contracts';
 import {
@@ -48,11 +48,11 @@ import {
     transactionCategoryOptions
 } from '@/lib/category-display';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
-import { MerchantPicker } from './merchant-picker';
+import { VendorPicker } from './vendor-picker';
 
 type TransactionDialogValues = Pick<
     Transaction,
-    'amount' | 'categoryId' | 'currency' | 'merchantId' | 'note' | 'type'
+    'amount' | 'categoryId' | 'currency' | 'vendorId' | 'note' | 'type'
 > & {
     readonly categoryKind?: Transaction['categoryKind'];
     readonly occurredAt: Date | string | number;
@@ -68,7 +68,7 @@ export function TransactionDialog({
     description,
     errorMessage,
     initialValues,
-    merchants,
+    vendors,
     preferredCurrency,
     submitLabel = 'Save',
     submittingLabel = 'Saving...',
@@ -84,7 +84,7 @@ export function TransactionDialog({
     readonly description: string;
     readonly errorMessage: string;
     readonly initialValues?: TransactionDialogValues;
-    readonly merchants: readonly Merchant[];
+    readonly vendors: readonly Vendor[];
     readonly preferredCurrency?: string;
     readonly submitLabel?: string;
     readonly submittingLabel?: string;
@@ -104,7 +104,7 @@ export function TransactionDialog({
     const [selectedCategoryId, setSelectedCategoryId] = useState<
         number | undefined
     >();
-    const [selectedMerchantId, setSelectedMerchantId] = useState<
+    const [selectedVendorId, setSelectedVendorId] = useState<
         number | null | undefined
     >();
     const [selectedCurrency, setSelectedCurrency] = useState(defaultCurrency);
@@ -209,7 +209,7 @@ export function TransactionDialog({
 
         setSelectedType(initialType);
         setSelectedCategoryId(initialValues?.categoryId);
-        setSelectedMerchantId(initialValues?.merchantId ?? undefined);
+        setSelectedVendorId(initialValues?.vendorId ?? undefined);
         setSelectedCurrency(initialCurrency);
         setOccurredAtText(
             dateToLocalDateTimeInput(initialOccurredAt, timezone)
@@ -217,7 +217,7 @@ export function TransactionDialog({
         form.reset({
             amount: initialValues?.amount,
             categoryId: initialValues?.categoryId,
-            merchantId: initialValues?.merchantId ?? null,
+            vendorId: initialValues?.vendorId ?? null,
             currency: initialCurrency,
             occurredAt: initialOccurredAt,
             note: initialValues?.note ?? undefined
@@ -262,16 +262,16 @@ export function TransactionDialog({
         form.setValue({ categoryId: undefined });
     }
 
-    function handleMerchantChange(merchant: Merchant | undefined) {
-        setSelectedMerchantId(merchant?.id ?? null);
-        form.setValue({ merchantId: merchant?.id ?? null });
+    function handleVendorChange(vendor: Vendor | undefined) {
+        setSelectedVendorId(vendor?.id ?? null);
+        form.setValue({ vendorId: vendor?.id ?? null });
 
-        if (!merchant?.suggestedCategoryId) {
+        if (!vendor?.suggestedCategoryId) {
             return;
         }
 
         const suggested = selectableCategories.find(
-            category => category.id === merchant.suggestedCategoryId
+            category => category.id === vendor.suggestedCategoryId
         );
         if (!suggested) {
             return;
@@ -288,7 +288,7 @@ export function TransactionDialog({
 
         form.setValue({
             categoryId: activeCategoryId,
-            merchantId: selectedMerchantId ?? null,
+            vendorId: selectedVendorId ?? null,
             currency: selectedCurrency
         });
 
@@ -379,10 +379,10 @@ export function TransactionDialog({
                             label="Category"
                             variant="select"
                         />
-                        <MerchantPicker
-                            merchants={merchants}
-                            onChange={handleMerchantChange}
-                            selectedMerchantId={selectedMerchantId}
+                        <VendorPicker
+                            vendors={vendors}
+                            onChange={handleVendorChange}
+                            selectedVendorId={selectedVendorId}
                         />
                         <div className="grid gap-4 sm:grid-cols-2">
                             <SchemaField

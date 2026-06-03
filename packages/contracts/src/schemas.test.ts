@@ -6,8 +6,8 @@ import {
     ConfirmEmailBodySchema,
     CreateApiKeyBodySchema,
     CreateCategoryBodySchema,
-    CreateMerchantBodySchema,
     CreateTransactionBodySchema,
+    CreateVendorBodySchema,
     CurrencyCodeSchema,
     CurrencyConversionQuerySchema,
     DashboardSummarySchema,
@@ -15,9 +15,6 @@ import {
     EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
-    MerchantBrandSearchQuerySchema,
-    MerchantBrandSuggestionSchema,
-    MerchantSchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
@@ -29,9 +26,12 @@ import {
     TimeZoneSchema,
     TokenResponseSchema,
     UpdateCategoryBodySchema,
-    UpdateMerchantBodySchema,
     UpdateUserPreferenceBodySchema,
-    UserPreferenceSchema
+    UpdateVendorBodySchema,
+    UserPreferenceSchema,
+    VendorCandidateSchema,
+    VendorCandidateSearchQuerySchema,
+    VendorSchema
 } from './schemas.js';
 
 describe('shared schemas', () => {
@@ -177,29 +177,27 @@ describe('shared schemas', () => {
         expect(result.valid).toBe(true);
     });
 
-    it('validates merchant payloads', () => {
+    it('validates vendor payloads', () => {
         expect(
-            CreateMerchantBodySchema.validate({
+            CreateVendorBodySchema.validate({
                 name: 'Trader Joe',
                 brandfetchBrandId: 'id_trader_joe',
-                brandName: 'Trader Joe',
+                resolvedName: 'Trader Joe',
                 domain: 'traderjoes.com',
                 logoUrl: 'https://example.com/logo.svg'
             }).valid
         ).toBe(true);
-        expect(CreateMerchantBodySchema.validate({ name: '' }).valid).toBe(
-            false
-        );
+        expect(CreateVendorBodySchema.validate({ name: '' }).valid).toBe(false);
 
         expect(
-            MerchantBrandSearchQuerySchema.validate({
+            VendorCandidateSearchQuerySchema.validate({
                 query: 'Trader Joe',
                 limit: 3
             }).valid
         ).toBe(true);
         expect(
-            MerchantBrandSuggestionSchema.validate({
-                brandId: 'id_trader_joe',
+            VendorCandidateSchema.validate({
+                brandfetchBrandId: 'id_trader_joe',
                 name: 'Trader Joe',
                 domain: 'traderjoes.com',
                 logoUrl: 'https://example.com/logo.svg',
@@ -208,11 +206,11 @@ describe('shared schemas', () => {
         ).toBe(true);
 
         expect(
-            MerchantSchema.validate({
+            VendorSchema.validate({
                 id: 3,
                 name: 'Trader Joe',
                 displayName: 'Trader Joe',
-                brandName: 'Trader Joe',
+                resolvedName: 'Trader Joe',
                 domain: 'traderjoes.com',
                 logoUrl: 'https://example.com/logo.svg',
                 enrichmentProvider: 'brandfetch',
@@ -227,9 +225,9 @@ describe('shared schemas', () => {
         ).toBe(true);
 
         expect(
-            UpdateMerchantBodySchema.validate({
+            UpdateVendorBodySchema.validate({
                 name: 'Trader Joe',
-                brandName: null,
+                resolvedName: null,
                 description: null,
                 domain: 'traderjoes.com',
                 logoUrl: 'https://example.com/logo.svg',
@@ -404,26 +402,26 @@ describe('shared schemas', () => {
         ).toBe(false);
     });
 
-    it('validates dashboard merchant window limits separately from generic period windows', () => {
+    it('validates dashboard vendor window limits separately from generic period windows', () => {
         const dashboardResult = DashboardWindowQuerySchema.validate({
             after: 2,
             before: 2,
-            merchantLimit: 100,
+            vendorLimit: 100,
             period: 'month'
         });
         const genericResult = PeriodWindowQuerySchema.validate({
             after: 2,
             before: 2,
-            merchantLimit: 100,
+            vendorLimit: 100,
             period: 'month'
         } as never);
 
         expect(dashboardResult.valid).toBe(true);
-        expect(dashboardResult.object?.merchantLimit).toBe(100);
+        expect(dashboardResult.object?.vendorLimit).toBe(100);
         expect(genericResult.valid).toBe(false);
     });
 
-    it('validates dashboard merchant summaries', () => {
+    it('validates dashboard vendor summaries', () => {
         expect(
             DashboardSummarySchema.validate({
                 period: 'month',
@@ -432,14 +430,14 @@ describe('shared schemas', () => {
                 currency: 'USD',
                 expenseTotal: 100,
                 incomeTotal: 0,
-                merchantCount: 1,
-                topMerchants: [
+                vendorCount: 1,
+                topVendors: [
                     {
-                        merchantId: 7,
-                        merchantName: 'Walmart',
-                        merchantDomain: 'walmart.com',
-                        merchantLogoUrl: 'https://walmart.com/logo.svg',
-                        merchantPrimaryColor: '#0071ce',
+                        vendorId: 7,
+                        vendorName: 'Walmart',
+                        vendorDomain: 'walmart.com',
+                        vendorLogoUrl: 'https://walmart.com/logo.svg',
+                        vendorPrimaryColor: '#0071ce',
                         expenseTotal: 100,
                         transactionCount: 3,
                         trend: [20, 80]

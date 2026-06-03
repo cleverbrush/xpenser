@@ -9,8 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QuickCaptureForm } from './quick-capture-form';
 
 const refresh = vi.fn();
-const createMerchantAction = vi.fn();
-const searchMerchantBrandsAction = vi.fn();
+const createVendorAction = vi.fn();
+const searchVendorCandidatesAction = vi.fn();
 const createCaptureTransactionAction = vi.fn();
 const deleteTransactionAction = vi.fn();
 
@@ -19,10 +19,9 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/lib/actions', () => ({
-    createMerchantAction: (formData: FormData) =>
-        createMerchantAction(formData),
-    searchMerchantBrandsAction: (query: string) =>
-        searchMerchantBrandsAction(query),
+    createVendorAction: (formData: FormData) => createVendorAction(formData),
+    searchVendorCandidatesAction: (query: string) =>
+        searchVendorCandidatesAction(query),
     createCaptureTransactionAction: (formData: FormData) =>
         createCaptureTransactionAction(formData),
     deleteTransactionAction: (formData: FormData) =>
@@ -66,7 +65,7 @@ function savedTransaction(): Transaction {
     return {
         id: 42,
         categoryId: 7,
-        merchantId: null,
+        vendorId: null,
         categoryName: 'Groceries',
         categoryDisplayName: 'Groceries',
         categoryParentId: null,
@@ -97,7 +96,7 @@ function renderQuickCaptureForm({
                 categories={nextCategories}
                 currencies={currencies}
                 defaultCurrency="USD"
-                merchants={[]}
+                vendors={[]}
                 timezone="UTC"
                 transactionCurrencies={transactionCurrencies}
             />
@@ -107,8 +106,8 @@ function renderQuickCaptureForm({
 
 describe('QuickCaptureForm', () => {
     afterEach(() => {
-        createMerchantAction.mockReset();
-        searchMerchantBrandsAction.mockReset();
+        createVendorAction.mockReset();
+        searchVendorCandidatesAction.mockReset();
         createCaptureTransactionAction.mockReset();
         deleteTransactionAction.mockReset();
         refresh.mockReset();

@@ -23,14 +23,6 @@ import {
 } from './categories.js';
 import { convertCurrencyHandler, listCurrenciesHandler } from './currencies.js';
 import {
-    createMerchantHandler,
-    enrichMerchantHandler,
-    getMerchantHandler,
-    listMerchantsHandler,
-    searchMerchantBrandsHandler,
-    updateMerchantHandler
-} from './merchants.js';
-import {
     createTelegramLinkTokenHandler,
     disconnectTelegramHandler,
     linkTelegramHandler,
@@ -48,6 +40,14 @@ import {
     statsWindowHandler,
     updateTransactionHandler
 } from './transactions.js';
+import {
+    createVendorHandler,
+    enrichVendorHandler,
+    getVendorHandler,
+    listVendorsHandler,
+    searchVendorCandidatesHandler,
+    updateVendorHandler
+} from './vendors.js';
 
 export const handlers = {
     auth: {
@@ -84,13 +84,13 @@ export const handlers = {
         delete: deleteCategoryHandler,
         moveAndDelete: moveAndDeleteCategoryHandler
     },
-    merchants: {
-        searchBrands: searchMerchantBrandsHandler,
-        list: listMerchantsHandler,
-        get: getMerchantHandler,
-        create: createMerchantHandler,
-        update: updateMerchantHandler,
-        enrich: enrichMerchantHandler
+    vendors: {
+        searchCandidates: searchVendorCandidatesHandler,
+        list: listVendorsHandler,
+        get: getVendorHandler,
+        create: createVendorHandler,
+        update: updateVendorHandler,
+        enrich: enrichVendorHandler
     },
     transactions: {
         list: listTransactionsHandler,

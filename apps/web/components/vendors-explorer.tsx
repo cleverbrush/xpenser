@@ -4,20 +4,20 @@ import type {
     DashboardSummary,
     DashboardWindowResponse
 } from '@xpenser/contracts';
-import {
-    BrandAnalyticsPanel,
-    BrandAnalyticsPanelSkeleton
-} from '@/components/brand-analytics-panel';
 import { DashboardWindowExplorer } from '@/components/dashboard-window-explorer';
-import { brandAnalyticsMerchantLimit } from '@/lib/brand-analytics';
+import {
+    VendorAnalyticsPanel,
+    VendorAnalyticsPanelSkeleton
+} from '@/components/vendor-analytics-panel';
 import { formatDashboardRangeLabel } from '@/lib/dashboard-periods';
+import { vendorAnalyticsVendorLimit } from '@/lib/vendor-analytics';
 
 type DashboardPeriod = DashboardSummary['period'];
-const brandsWindowQueryParams = {
-    merchantLimit: brandAnalyticsMerchantLimit
+const vendorsWindowQueryParams = {
+    vendorLimit: vendorAnalyticsVendorLimit
 } as const;
 
-export function BrandsExplorer({
+export function VendorsExplorer({
     initialDate,
     initialPeriod,
     initialWindow,
@@ -30,19 +30,19 @@ export function BrandsExplorer({
 }) {
     return (
         <DashboardWindowExplorer
-            basePath="/merchants"
+            basePath="/vendors"
             initialDate={initialDate}
             initialPeriod={initialPeriod}
             initialWindow={initialWindow}
             renderBody={({ item }) => (
-                <BrandAnalyticsPanel
+                <VendorAnalyticsPanel
                     summary={item.summary}
                     timezone={timezone}
                 />
             )}
             renderHeader={({ item, period }) => (
                 <div>
-                    <h1 className="text-2xl font-semibold">Brands</h1>
+                    <h1 className="text-2xl font-semibold">Vendors</h1>
                     <p className="text-sm text-muted-foreground">
                         {formatDashboardRangeLabel({
                             from: item.summary.from,
@@ -54,9 +54,9 @@ export function BrandsExplorer({
                     </p>
                 </div>
             )}
-            skeleton={<BrandAnalyticsPanelSkeleton />}
+            skeleton={<VendorAnalyticsPanelSkeleton />}
             timezone={timezone}
-            windowQueryParams={brandsWindowQueryParams}
+            windowQueryParams={vendorsWindowQueryParams}
         />
     );
 }

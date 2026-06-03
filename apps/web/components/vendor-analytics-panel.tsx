@@ -17,7 +17,7 @@ import {
     datatypeExpression,
     datatypePieExpression
 } from '@/components/datatype-chart';
-import { MerchantLogo } from '@/components/merchant-display';
+import { VendorLogo } from '@/components/vendor-display';
 import { dateParam } from '@/lib/dashboard-periods';
 import {
     amountClassNameForCategoryTotal,
@@ -25,54 +25,54 @@ import {
     signedCategoryTotal
 } from '@/lib/format';
 
-type DashboardMerchant = DashboardSummary['topMerchants'][number];
+type DashboardVendor = DashboardSummary['topVendors'][number];
 
-function merchantHref(
+function vendorHref(
     summary: DashboardSummary,
-    merchant: Pick<DashboardMerchant, 'merchantId'>,
+    vendor: Pick<DashboardVendor, 'vendorId'>,
     timezone: string
 ): string {
     const params = new URLSearchParams({
         type: 'expense',
         from: dateParam(summary.from, timezone),
         to: dateParam(summary.to, timezone),
-        merchantId: String(merchant.merchantId)
+        vendorId: String(vendor.vendorId)
     });
     return `/transactions?${params.toString()}`;
 }
 
-function merchantPurchaseLabel(count: number): string {
+function vendorPurchaseLabel(count: number): string {
     return `${count} ${count === 1 ? 'purchase' : 'purchases'}`;
 }
 
-function merchantExpenseShare(
+function vendorExpenseShare(
     summary: Pick<DashboardSummary, 'expenseTotal'>,
-    merchant: Pick<DashboardMerchant, 'expenseTotal'>
+    vendor: Pick<DashboardVendor, 'expenseTotal'>
 ): number {
     const basis = Math.abs(summary.expenseTotal);
     if (basis <= 0) {
         return 0;
     }
 
-    const share = (Math.abs(merchant.expenseTotal) / basis) * 100;
+    const share = (Math.abs(vendor.expenseTotal) / basis) * 100;
     return Math.max(0, Math.min(100, share));
 }
 
-function BrandRow({
-    merchant,
+function VendorRow({
+    vendor,
     summary,
     timezone
 }: {
-    readonly merchant: DashboardMerchant;
+    readonly vendor: DashboardVendor;
     readonly summary: DashboardSummary;
     readonly timezone: string;
 }) {
-    const share = merchantExpenseShare(summary, merchant);
+    const share = vendorExpenseShare(summary, vendor);
     const shareLabel = formatPercent(share);
     const showPeriodDetails = summary.period !== 'day';
-    const href = merchantHref(summary, merchant, timezone);
+    const href = vendorHref(summary, vendor, timezone);
     const amountClassName = amountClassNameForCategoryTotal(
-        merchant.expenseTotal,
+        vendor.expenseTotal,
         'expense'
     );
     const rowClassName = `grid items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2 ${
@@ -102,24 +102,24 @@ function BrandRow({
                         {shareLabel}
                     </span>
                 </span>
-                <MerchantLogo
-                    merchant={{
-                        displayName: merchant.merchantName,
-                        logoUrl: merchant.merchantLogoUrl,
-                        name: merchant.merchantName
+                <VendorLogo
+                    vendor={{
+                        displayName: vendor.vendorName,
+                        logoUrl: vendor.vendorLogoUrl,
+                        name: vendor.vendorName
                     }}
                     size="sm"
                 />
                 <span className="min-w-0">
                     <span className="block truncate font-medium">
-                        {merchant.merchantName}
+                        {vendor.vendorName}
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
-                        {merchant.merchantDomain
-                            ? `${merchant.merchantDomain} · ${merchantPurchaseLabel(
-                                  merchant.transactionCount
+                        {vendor.vendorDomain
+                            ? `${vendor.vendorDomain} · ${vendorPurchaseLabel(
+                                  vendor.transactionCount
                               )}`
-                            : merchantPurchaseLabel(merchant.transactionCount)}
+                            : vendorPurchaseLabel(vendor.transactionCount)}
                     </span>
                 </span>
             </Link>
@@ -133,7 +133,7 @@ function BrandRow({
                     <AmountDisplay
                         currency={summary.currency}
                         value={signedCategoryTotal(
-                            merchant.expenseTotal,
+                            vendor.expenseTotal,
                             'expense'
                         )}
                     />
@@ -141,7 +141,7 @@ function BrandRow({
             </Link>
             {showPeriodDetails ? (
                 <Link
-                    aria-label={`${merchant.merchantName} transactions`}
+                    aria-label={`${vendor.vendorName} transactions`}
                     className="flex min-w-0 justify-end overflow-hidden"
                     draggable={false}
                     href={href}
@@ -149,7 +149,7 @@ function BrandRow({
                 >
                     <DatatypeChart
                         className={`text-xl ${amountClassName}`}
-                        expression={datatypeExpression('l', merchant.trend)}
+                        expression={datatypeExpression('l', vendor.trend)}
                     />
                 </Link>
             ) : null}
@@ -157,31 +157,31 @@ function BrandRow({
     );
 }
 
-function BrandsHeader({ summary }: { readonly summary: DashboardSummary }) {
+function VendorsHeader({ summary }: { readonly summary: DashboardSummary }) {
     return (
         <CardHeader>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <div className="flex items-center gap-2">
-                        <CardTitle>Brands</CardTitle>
+                        <CardTitle>Vendors</CardTitle>
                         <span
-                            aria-label="Brand grouping info"
+                            aria-label="Vendor grouping info"
                             className="inline-flex text-muted-foreground"
                             role="img"
-                            title="Only expenses linked to a merchant are grouped here."
+                            title="Only expenses linked to a vendor are grouped here."
                         >
                             <InfoIcon aria-hidden className="size-4" />
                         </span>
                     </div>
                     <CardDescription>
-                        {summary.merchantCount}{' '}
-                        {summary.merchantCount === 1 ? 'brand' : 'brands'} in
+                        {summary.vendorCount}{' '}
+                        {summary.vendorCount === 1 ? 'vendor' : 'vendors'} in
                         this period
                     </CardDescription>
                 </div>
-                {summary.merchantCount > summary.topMerchants.length ? (
+                {summary.vendorCount > summary.topVendors.length ? (
                     <p className="text-xs text-muted-foreground">
-                        Showing top {summary.topMerchants.length}
+                        Showing top {summary.topVendors.length}
                     </p>
                 ) : null}
             </div>
@@ -189,7 +189,7 @@ function BrandsHeader({ summary }: { readonly summary: DashboardSummary }) {
     );
 }
 
-export function BrandAnalyticsPanel({
+export function VendorAnalyticsPanel({
     summary,
     timezone
 }: {
@@ -200,14 +200,14 @@ export function BrandAnalyticsPanel({
         <div className="flex flex-col gap-5 sm:gap-6">
             <DashboardSummaryCards summary={summary} timezone={timezone} />
             <Card>
-                <BrandsHeader summary={summary} />
+                <VendorsHeader summary={summary} />
                 <CardContent>
-                    {summary.topMerchants.length > 0 ? (
+                    {summary.topVendors.length > 0 ? (
                         <div className="flex flex-col divide-y">
-                            {summary.topMerchants.map(merchant => (
-                                <BrandRow
-                                    key={merchant.merchantId}
-                                    merchant={merchant}
+                            {summary.topVendors.map(vendor => (
+                                <VendorRow
+                                    key={vendor.vendorId}
+                                    vendor={vendor}
                                     summary={summary}
                                     timezone={timezone}
                                 />
@@ -215,7 +215,7 @@ export function BrandAnalyticsPanel({
                         </div>
                     ) : (
                         <p className="text-sm text-muted-foreground">
-                            No brands in this period.
+                            No vendors in this period.
                         </p>
                     )}
                 </CardContent>
@@ -224,7 +224,7 @@ export function BrandAnalyticsPanel({
     );
 }
 
-export function BrandAnalyticsPanelSkeleton() {
+export function VendorAnalyticsPanelSkeleton() {
     return (
         <div className="flex flex-col gap-5 sm:gap-6" aria-hidden>
             <div className="grid grid-cols-3 gap-2 sm:gap-4">

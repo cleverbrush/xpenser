@@ -3,23 +3,22 @@
  */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { Merchant } from '@xpenser/contracts';
+import type { Vendor } from '@xpenser/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MerchantPicker } from './merchant-picker';
+import { VendorPicker } from './vendor-picker';
 
-const createMerchantAction = vi.fn();
-const searchMerchantBrandsAction = vi.fn();
+const createVendorAction = vi.fn();
+const searchVendorCandidatesAction = vi.fn();
 
 vi.mock('@/lib/actions', () => ({
-    createMerchantAction: (formData: FormData) =>
-        createMerchantAction(formData),
-    searchMerchantBrandsAction: (query: string) =>
-        searchMerchantBrandsAction(query)
+    createVendorAction: (formData: FormData) => createVendorAction(formData),
+    searchVendorCandidatesAction: (query: string) =>
+        searchVendorCandidatesAction(query)
 }));
 
 const timestamp = new Date('2026-06-01T00:00:00.000Z');
 
-function merchant(overrides: Partial<Merchant> = {}): Merchant {
+function vendor(overrides: Partial<Vendor> = {}): Vendor {
     return {
         id: 1,
         name: 'Bufet',
@@ -31,23 +30,23 @@ function merchant(overrides: Partial<Merchant> = {}): Merchant {
     };
 }
 
-describe('MerchantPicker', () => {
+describe('VendorPicker', () => {
     afterEach(() => {
-        createMerchantAction.mockReset();
-        searchMerchantBrandsAction.mockReset();
+        createVendorAction.mockReset();
+        searchVendorCandidatesAction.mockReset();
     });
 
-    it('creates a merchant from a Brandfetch search suggestion', async () => {
-        const selected = merchant({
+    it('creates a vendor from a Brandfetch search suggestion', async () => {
+        const selected = vendor({
             id: 9,
-            brandName: 'Bufet',
+            resolvedName: 'Bufet',
             domain: 'bufet.ua',
             logoUrl: 'https://cdn.brandfetch.io/bufet/icon.svg'
         });
-        createMerchantAction.mockResolvedValue(selected);
-        searchMerchantBrandsAction.mockResolvedValue([
+        createVendorAction.mockResolvedValue(selected);
+        searchVendorCandidatesAction.mockResolvedValue([
             {
-                brandId: 'id_bufet',
+                brandfetchBrandId: 'id_bufet',
                 name: 'Bufet',
                 domain: 'bufet.ua',
                 logoUrl: 'https://cdn.brandfetch.io/bufet/icon.svg',
@@ -57,19 +56,19 @@ describe('MerchantPicker', () => {
         const onChange = vi.fn();
 
         render(
-            <MerchantPicker
-                merchants={[]}
+            <VendorPicker
+                vendors={[]}
                 onChange={onChange}
-                selectedMerchantId={null}
+                selectedVendorId={null}
             />
         );
 
-        fireEvent.change(screen.getByLabelText('Merchant'), {
+        fireEvent.change(screen.getByLabelText('Vendor'), {
             target: { value: 'Bufet' }
         });
 
         await waitFor(() =>
-            expect(searchMerchantBrandsAction).toHaveBeenCalledWith('Bufet')
+            expect(searchVendorCandidatesAction).toHaveBeenCalledWith('Bufet')
         );
         const domain = await screen.findByText('bufet.ua');
         const button = domain.closest('button');
@@ -77,13 +76,11 @@ describe('MerchantPicker', () => {
 
         fireEvent.click(button as HTMLButtonElement);
 
-        await waitFor(() =>
-            expect(createMerchantAction).toHaveBeenCalledOnce()
-        );
+        await waitFor(() => expect(createVendorAction).toHaveBeenCalledOnce());
 
-        const formData = createMerchantAction.mock.calls[0]?.[0] as FormData;
+        const formData = createVendorAction.mock.calls[0]?.[0] as FormData;
         expect(formData.get('name')).toBe('Bufet');
-        expect(formData.get('brandName')).toBe('Bufet');
+        expect(formData.get('resolvedName')).toBe('Bufet');
         expect(formData.get('domain')).toBe('bufet.ua');
         expect(formData.get('brandfetchBrandId')).toBe('id_bufet');
         expect(formData.get('logoUrl')).toBe(

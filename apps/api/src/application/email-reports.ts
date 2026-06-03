@@ -13,7 +13,8 @@ import type {
     AppDb,
     CategoryDb,
     TransactionDb,
-    UserDb
+    UserDb,
+    VendorDb
 } from '../db/schemas.js';
 import { categoryDisplayName, categoryReportingType } from './categories.js';
 import { sendEmail as sendProviderEmail } from './email.js';
@@ -74,6 +75,16 @@ type CategorySummary = {
     readonly transactionCount: number;
 };
 
+type VendorSummary = {
+    readonly name: string;
+    readonly domain?: string;
+    readonly description?: string;
+    readonly expenseTotal: number;
+    readonly shareOfExpenses: number;
+    readonly transactionCount: number;
+    readonly topCategories: readonly string[];
+};
+
 type NotableTransaction = {
     readonly amount: number;
     readonly categoryImpact: number;
@@ -84,6 +95,8 @@ type NotableTransaction = {
     readonly netImpact: number;
     readonly note?: string;
     readonly type: 'expense' | 'income';
+    readonly vendorDomain?: string;
+    readonly vendorName?: string;
 };
 
 type NotedTransaction = NotableTransaction & {
@@ -110,6 +123,7 @@ type ReportAnalytics = {
     };
     readonly topExpenseCategories: readonly CategorySummary[];
     readonly topIncomeCategories: readonly CategorySummary[];
+    readonly vendors: readonly VendorSummary[];
     readonly trend: readonly {
         readonly label: string;
         readonly incomeTotal: number;
@@ -275,16 +289,24 @@ function transactionNote(transaction: Pick<TransactionDb, 'note'>) {
     return note ? note : undefined;
 }
 
+function vendorDisplayName(vendor: VendorDb): string {
+    return vendor.resolvedName ?? vendor.name;
+}
+
 function notableTransaction(
     transaction: TransactionDb,
     timeZone: string,
-    categoriesById: ReadonlyMap<number, CategoryDb>
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    vendorsById: ReadonlyMap<number, VendorDb>
 ): NotableTransaction {
     const category =
         categoriesById.get(transaction.categoryId) ??
         transaction.category ??
         undefined;
     const note = transactionNote(transaction);
+    const vendor = transaction.vendorId
+        ? vendorsById.get(transaction.vendorId)
+        : undefined;
 
     return {
         amount: Math.abs(Number(transaction.defaultCurrencyAmount)),
@@ -297,7 +319,13 @@ function notableTransaction(
         interpretation: transactionInterpretation(transaction, category),
         netImpact: transactionNetImpact(transaction, category),
         ...(note ? { note } : {}),
-        type: categoryReportingType(category, transaction.type)
+        type: categoryReportingType(category, transaction.type),
+        ...(vendor
+            ? {
+                  vendorName: vendorDisplayName(vendor),
+                  ...(vendor.domain ? { vendorDomain: vendor.domain } : {})
+              }
+            : {})
     };
 }
 
@@ -321,16 +349,106 @@ function compareTransactionsByImpactDesc(
 export function notedTransactionsForReport(
     transactions: readonly TransactionDb[],
     timeZone: string,
-    categoriesById: ReadonlyMap<number, CategoryDb>
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    vendorsById: ReadonlyMap<number, VendorDb> = new Map()
 ): readonly NotedTransaction[] {
     return [...transactions]
         .sort(compareTransactionsByImpactDesc)
         .filter(transaction => transactionNote(transaction))
         .slice(0, notedTransactionLimit)
         .map(transaction =>
-            notableTransaction(transaction, timeZone, categoriesById)
+            notableTransaction(
+                transaction,
+                timeZone,
+                categoriesById,
+                vendorsById
+            )
         )
         .filter(isNotedTransaction);
+}
+
+function vendorSummariesForReport(
+    transactions: readonly TransactionDb[],
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    vendorsById: ReadonlyMap<number, VendorDb>,
+    expenseTotal: number
+): readonly VendorSummary[] {
+    const byVendor = new Map<
+        number,
+        {
+            readonly vendor: VendorDb;
+            expenseTotal: number;
+            transactionCount: number;
+            categoryTotals: Map<string, number>;
+        }
+    >();
+
+    for (const transaction of transactions) {
+        if (!transaction.vendorId) {
+            continue;
+        }
+        const vendor = vendorsById.get(transaction.vendorId);
+        if (!vendor) {
+            continue;
+        }
+        const category =
+            categoriesById.get(transaction.categoryId) ??
+            transaction.category ??
+            undefined;
+        if (categoryReportingType(category, transaction.type) !== 'expense') {
+            continue;
+        }
+
+        const current = byVendor.get(vendor.id) ?? {
+            vendor,
+            expenseTotal: 0,
+            transactionCount: 0,
+            categoryTotals: new Map<string, number>()
+        };
+        const amount = transactionSignedDefaultAmount(transaction, category);
+        const categoryName = category
+            ? categoryDisplayName(category, categoriesById)
+            : '';
+
+        current.expenseTotal += amount;
+        current.transactionCount += 1;
+        if (categoryName) {
+            current.categoryTotals.set(
+                categoryName,
+                (current.categoryTotals.get(categoryName) ?? 0) + amount
+            );
+        }
+        byVendor.set(vendor.id, current);
+    }
+
+    const expenseBasis = Math.abs(expenseTotal);
+    return [...byVendor.values()]
+        .map(summary => ({
+            name: vendorDisplayName(summary.vendor),
+            ...(summary.vendor.domain ? { domain: summary.vendor.domain } : {}),
+            ...(summary.vendor.description
+                ? { description: summary.vendor.description }
+                : {}),
+            expenseTotal: summary.expenseTotal,
+            shareOfExpenses:
+                expenseBasis > 0
+                    ? (Math.abs(summary.expenseTotal) / expenseBasis) * 100
+                    : 0,
+            transactionCount: summary.transactionCount,
+            topCategories: [...summary.categoryTotals.entries()]
+                .sort(
+                    ([leftName, leftTotal], [rightName, rightTotal]) =>
+                        rightTotal - leftTotal ||
+                        leftName.localeCompare(rightName)
+                )
+                .slice(0, 5)
+                .map(([name]) => name)
+        }))
+        .sort(
+            (left, right) =>
+                right.expenseTotal - left.expenseTotal ||
+                left.name.localeCompare(right.name)
+        );
 }
 
 async function transactionsForPeriod(
@@ -361,22 +479,36 @@ async function categoriesForUser(
     );
 }
 
+async function vendorsForUser(
+    db: AppDb,
+    userId: number
+): Promise<Map<number, VendorDb>> {
+    const vendors = (await db.vendors.where(
+        vendor => vendor.userId,
+        userId
+    )) as VendorDb[];
+
+    return new Map(vendors.map(vendor => [vendor.id, vendor] as const));
+}
+
 async function buildReportAnalytics(
     db: AppDb,
     user: ReportUser,
     type: EmailReportType,
     period: ReportPeriod
 ): Promise<ReportAnalytics | undefined> {
-    const [overview, transactions, categoriesById] = await Promise.all([
-        statsOverview(db, user.id, {
-            date: period.from,
-            groupBy: type === 'weekly' ? 'day' : 'week',
-            period: type === 'weekly' ? 'week' : 'month',
-            timeframe: 'custom'
-        }),
-        transactionsForPeriod(db, user.id, period),
-        categoriesForUser(db, user.id)
-    ]);
+    const [overview, transactions, categoriesById, vendorsById] =
+        await Promise.all([
+            statsOverview(db, user.id, {
+                date: period.from,
+                groupBy: type === 'weekly' ? 'day' : 'week',
+                period: type === 'weekly' ? 'week' : 'month',
+                timeframe: 'custom'
+            }),
+            transactionsForPeriod(db, user.id, period),
+            categoriesForUser(db, user.id),
+            vendorsForUser(db, user.id)
+        ]);
 
     if (overview.transactionCount === 0) {
         return undefined;
@@ -398,12 +530,24 @@ async function buildReportAnalytics(
     const notableTransactions = sortedTransactions
         .slice(0, 5)
         .map(transaction =>
-            notableTransaction(transaction, user.timezone, categoriesById)
+            notableTransaction(
+                transaction,
+                user.timezone,
+                categoriesById,
+                vendorsById
+            )
         );
     const notedTransactions = notedTransactionsForReport(
         transactions,
         user.timezone,
-        categoriesById
+        categoriesById,
+        vendorsById
+    );
+    const vendors = vendorSummariesForReport(
+        transactions,
+        categoriesById,
+        vendorsById,
+        overview.expenseTotal
     );
 
     return {
@@ -427,6 +571,7 @@ async function buildReportAnalytics(
         },
         topExpenseCategories,
         topIncomeCategories,
+        vendors,
         trend: overview.trend.map(point => ({
             label: point.label,
             incomeTotal: point.incomeTotal,
@@ -459,7 +604,9 @@ export function emailReportOpenAiPayload(analytics: ReportAnalytics) {
                 },
                 notableTransactionFields:
                     'amount is the positive magnitude; categoryImpact is the positive contribution to the reported income or expense category; netImpact is the signed impact on net position.',
-                notes: 'Transaction notes are user-provided context. Use them when relevant, but do not invent merchants, purposes, or details beyond the note text.'
+                notes: 'Transaction notes are user-provided context. Use them when relevant, but do not invent vendors, purposes, or details beyond the note text.',
+                vendors:
+                    'Vendors include only linked expense transactions in this report period. Unlinked transactions are absent from vendor summaries. Vendor names, domains, and descriptions come from user records and enrichment data when available.'
             },
             totals: {
                 income: analytics.incomeTotal,
@@ -473,6 +620,7 @@ export function emailReportOpenAiPayload(analytics: ReportAnalytics) {
             previousPeriod: analytics.previousPeriod,
             topExpenseCategories: analytics.topExpenseCategories,
             topIncomeCategories: analytics.topIncomeCategories,
+            vendors: analytics.vendors,
             trend: analytics.trend,
             notableTransactions: analytics.notableTransactions,
             notedTransactions: analytics.notedTransactions
@@ -554,7 +702,8 @@ async function generateInsights(
             schemaName: 'email_report_insights',
             system: [
                 'You write concise personal finance report insights. Be specific, balanced, and practical.',
-                'Use only the provided aggregate data. Do not invent numbers, merchants, or facts.',
+                'Use only the provided aggregate data. Do not invent numbers, vendors, or facts.',
+                'Use vendor summaries and notable transaction vendor fields when they add concrete insight, but do not infer vendors for unlinked transactions.',
                 'Transaction notes are user-provided context. Use notes only when relevant, and do not infer details beyond the note text.',
                 'Treat offset categories carefully: an expense-parent offset is a return, refund, or credit counted as income. An income-parent offset is a correction counted as expense.',
                 'When notableTransactions include categoryKind=offset or interpretation text, describe them using that interpretation and do not call income-side returns new spending.'

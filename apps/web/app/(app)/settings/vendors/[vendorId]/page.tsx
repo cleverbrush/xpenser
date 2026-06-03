@@ -3,26 +3,26 @@ import { ArrowLeftIcon, ExternalLinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
-    EditMerchantButton,
-    RetryMerchantEnrichmentButton
-} from '@/components/merchant-actions';
+    EditVendorButton,
+    RetryVendorEnrichmentButton
+} from '@/components/vendor-actions';
 import {
     EnrichmentStatusBadge,
     enrichmentStatusLabel,
-    MerchantLogo,
-    merchantDisplayName
-} from '@/components/merchant-display';
-import { MerchantTransactionHistory } from '@/components/merchant-transaction-history';
+    VendorLogo,
+    vendorDisplayName
+} from '@/components/vendor-display';
+import { VendorTransactionHistory } from '@/components/vendor-transaction-history';
 import { getApiClient } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 
-type MerchantPageParams = {
-    readonly merchantId: string;
+type VendorPageParams = {
+    readonly vendorId: string;
 };
 
 export const dynamic = 'force-dynamic';
 
-function parseMerchantId(value: string): number | undefined {
+function parseVendorId(value: string): number | undefined {
     const id = Number(value);
     return Number.isInteger(id) && id > 0 ? id : undefined;
 }
@@ -57,22 +57,22 @@ function EmptyValue() {
     return <span className="text-muted-foreground">-</span>;
 }
 
-export default async function MerchantSettingsPage({
+export default async function VendorSettingsPage({
     params
 }: {
-    readonly params: Promise<MerchantPageParams>;
+    readonly params: Promise<VendorPageParams>;
 }) {
-    const { merchantId } = await params;
-    const selectedMerchantId = parseMerchantId(merchantId);
-    if (!selectedMerchantId) {
+    const { vendorId } = await params;
+    const selectedVendorId = parseVendorId(vendorId);
+    if (!selectedVendorId) {
         notFound();
     }
 
     const client = await getApiClient();
-    const [me, merchant, transactions] = await Promise.all([
+    const [me, vendor, transactions] = await Promise.all([
         client.auth.me(),
-        client.merchants
-            .get({ params: { id: selectedMerchantId } })
+        client.vendors
+            .get({ params: { id: selectedVendorId } })
             .catch(error => {
                 if (isNotFoundApiError(error)) {
                     notFound();
@@ -83,7 +83,7 @@ export default async function MerchantSettingsPage({
             query: {
                 direction: 'desc',
                 limit: 25,
-                merchantId: selectedMerchantId,
+                vendorId: selectedVendorId,
                 page: 1
             }
         })
@@ -98,39 +98,39 @@ export default async function MerchantSettingsPage({
                     size="sm"
                     variant="ghost"
                 >
-                    <Link href="/settings/merchants">
+                    <Link href="/settings/vendors">
                         <ArrowLeftIcon aria-hidden className="size-4" />
-                        Merchants
+                        Vendors
                     </Link>
                 </Button>
                 <div className="flex flex-col gap-4 rounded-md border bg-card p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
                     <div className="flex min-w-0 items-start gap-4">
-                        <MerchantLogo merchant={merchant} size="lg" />
+                        <VendorLogo vendor={vendor} size="lg" />
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h1 className="truncate text-2xl font-semibold">
-                                    {merchantDisplayName(merchant)}
+                                    {vendorDisplayName(vendor)}
                                 </h1>
                                 <EnrichmentStatusBadge
-                                    status={merchant.enrichmentStatus}
+                                    status={vendor.enrichmentStatus}
                                 />
                             </div>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                {merchant.transactionCount === 1
+                                {vendor.transactionCount === 1
                                     ? '1 linked transaction'
-                                    : `${merchant.transactionCount} linked transactions`}
+                                    : `${vendor.transactionCount} linked transactions`}
                             </p>
-                            {merchant.suggestedCategoryDisplayName ? (
+                            {vendor.suggestedCategoryDisplayName ? (
                                 <p className="mt-1 text-sm text-muted-foreground">
                                     Suggested category:{' '}
-                                    {merchant.suggestedCategoryDisplayName}
+                                    {vendor.suggestedCategoryDisplayName}
                                 </p>
                             ) : null}
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                        <EditMerchantButton merchant={merchant} />
-                        <RetryMerchantEnrichmentButton merchant={merchant} />
+                        <EditVendorButton vendor={vendor} />
+                        <RetryVendorEnrichmentButton vendor={vendor} />
                     </div>
                 </div>
             </div>
@@ -143,21 +143,21 @@ export default async function MerchantSettingsPage({
                     <CardContent>
                         <dl className="grid gap-4 sm:grid-cols-2">
                             <FieldValue label="Entered name">
-                                {merchant.name}
+                                {vendor.name}
                             </FieldValue>
-                            <FieldValue label="Brand name">
-                                {merchant.brandName ?? <EmptyValue />}
+                            <FieldValue label="Resolved name">
+                                {vendor.resolvedName ?? <EmptyValue />}
                             </FieldValue>
                             <FieldValue label="Domain">
-                                {merchant.domain ? (
+                                {vendor.domain ? (
                                     <a
                                         className="inline-flex max-w-full items-center gap-1 truncate text-primary hover:underline"
-                                        href={`https://${merchant.domain}`}
+                                        href={`https://${vendor.domain}`}
                                         rel="noreferrer"
                                         target="_blank"
                                     >
                                         <span className="truncate">
-                                            {merchant.domain}
+                                            {vendor.domain}
                                         </span>
                                         <ExternalLinkIcon
                                             aria-hidden
@@ -169,45 +169,42 @@ export default async function MerchantSettingsPage({
                                 )}
                             </FieldValue>
                             <FieldValue label="Logo">
-                                {merchant.logoUrl ? (
+                                {vendor.logoUrl ? (
                                     <a
                                         className="break-all text-primary hover:underline"
-                                        href={merchant.logoUrl}
+                                        href={vendor.logoUrl}
                                         rel="noreferrer"
                                         target="_blank"
                                     >
-                                        {merchant.logoUrl}
+                                        {vendor.logoUrl}
                                     </a>
                                 ) : (
                                     <EmptyValue />
                                 )}
                             </FieldValue>
                             <FieldValue label="Primary color">
-                                {merchant.primaryColor ? (
+                                {vendor.primaryColor ? (
                                     <span className="inline-flex items-center gap-2">
                                         <span
                                             aria-hidden
                                             className="size-4 rounded-sm border"
                                             style={{
                                                 backgroundColor:
-                                                    merchant.primaryColor
+                                                    vendor.primaryColor
                                             }}
                                         />
-                                        {merchant.primaryColor}
+                                        {vendor.primaryColor}
                                     </span>
                                 ) : (
                                     <EmptyValue />
                                 )}
                             </FieldValue>
                             <FieldValue label="Updated">
-                                {formatDateTime(
-                                    merchant.updatedAt,
-                                    me.timezone
-                                )}
+                                {formatDateTime(vendor.updatedAt, me.timezone)}
                             </FieldValue>
                             <div className="sm:col-span-2">
                                 <FieldValue label="Description">
-                                    {merchant.description ?? <EmptyValue />}
+                                    {vendor.description ?? <EmptyValue />}
                                 </FieldValue>
                             </div>
                         </dl>
@@ -221,17 +218,15 @@ export default async function MerchantSettingsPage({
                     <CardContent>
                         <dl className="grid gap-4">
                             <FieldValue label="Status">
-                                {enrichmentStatusLabel(
-                                    merchant.enrichmentStatus
-                                )}
+                                {enrichmentStatusLabel(vendor.enrichmentStatus)}
                             </FieldValue>
                             <FieldValue label="Provider">
-                                {merchant.enrichmentProvider ?? <EmptyValue />}
+                                {vendor.enrichmentProvider ?? <EmptyValue />}
                             </FieldValue>
                             <FieldValue label="Last attempt">
-                                {merchant.enrichedAt ? (
+                                {vendor.enrichedAt ? (
                                     formatDateTime(
-                                        merchant.enrichedAt,
+                                        vendor.enrichedAt,
                                         me.timezone
                                     )
                                 ) : (
@@ -243,8 +238,8 @@ export default async function MerchantSettingsPage({
                 </Card>
             </div>
 
-            <MerchantTransactionHistory
-                merchantId={merchant.id}
+            <VendorTransactionHistory
+                vendorId={vendor.id}
                 timezone={me.timezone}
                 total={transactions.total}
                 transactions={transactions.items}

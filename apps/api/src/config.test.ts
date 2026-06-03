@@ -49,22 +49,22 @@ describe('API config', () => {
         expect(config.openai.reportModel).toBe('gpt-5-mini');
     });
 
-    it('normalizes merchant enrichment feature flags', async () => {
+    it('normalizes vendor enrichment feature flags', async () => {
         vi.stubEnv('NODE_ENV', 'development');
         vi.stubEnv('JWT_SECRET', 'x'.repeat(32));
         vi.stubEnv('WEB_API_SERVICE_SECRET', 'x'.repeat(32));
         vi.stubEnv('TELEGRAM_BOT_SERVICE_SECRET', 'x'.repeat(32));
         vi.stubEnv('BRANDFETCH_API_KEY', 'brandfetch-key');
         vi.stubEnv('BRANDFETCH_CLIENT_ID', 'brandfetch-client');
-        vi.stubEnv('MERCHANT_ENRICHMENT_ENABLED', 'yes');
-        vi.stubEnv('MERCHANT_ENRICHMENT_TIMEOUT_MS', '1234');
+        vi.stubEnv('VENDOR_ENRICHMENT_ENABLED', 'yes');
+        vi.stubEnv('VENDOR_ENRICHMENT_TIMEOUT_MS', '1234');
         vi.resetModules();
 
         const { config } = await import('./config.js');
 
         expect(config.brandfetch.apiKey).toBe('brandfetch-key');
         expect(config.brandfetch.clientId).toBe('brandfetch-client');
-        expect(config.merchantEnrichment.enabled).toBe(true);
-        expect(config.merchantEnrichment.timeoutMs).toBe(1234);
+        expect(config.vendorEnrichment.enabled).toBe(true);
+        expect(config.vendorEnrichment.timeoutMs).toBe(1234);
     });
 });

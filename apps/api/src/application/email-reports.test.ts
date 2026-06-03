@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CategoryDb, TransactionDb } from '../db/schemas.js';
+import type { CategoryDb, TransactionDb, VendorDb } from '../db/schemas.js';
 import {
     dueEmailReportTypes,
     emailReportOpenAiPayload,
@@ -18,6 +18,22 @@ const groceries = {
     createdAt: timestamp,
     updatedAt: timestamp
 } satisfies CategoryDb;
+const walmart = {
+    id: 7,
+    userId: 1,
+    name: 'Walmart',
+    normalizedName: 'walmart',
+    resolvedName: 'Walmart',
+    domain: 'walmart.com',
+    description: 'Retail store',
+    logoUrl: null,
+    primaryColor: null,
+    enrichmentProvider: 'brandfetch',
+    enrichmentStatus: 'success',
+    enrichedAt: timestamp,
+    createdAt: timestamp,
+    updatedAt: timestamp
+} satisfies VendorDb;
 
 function transaction({
     amount,
@@ -25,12 +41,14 @@ function transaction({
     note,
     occurredAt = new Date(
         `2026-05-${String(id).padStart(2, '0')}T12:00:00.000Z`
-    )
+    ),
+    vendorId
 }: {
     readonly amount: number;
     readonly id: number;
     readonly note?: string | null;
     readonly occurredAt?: Date;
+    readonly vendorId?: number;
 }): TransactionDb {
     return {
         id,
@@ -45,6 +63,7 @@ function transaction({
         exchangeRate: 1,
         exchangeRateDate: '2026-05-01',
         occurredAt,
+        vendorId,
         ...(note === undefined ? {} : { note }),
         createdAt: timestamp,
         updatedAt: timestamp
@@ -144,6 +163,17 @@ describe('email report OpenAI payload', () => {
             },
             topExpenseCategories: [],
             topIncomeCategories: [],
+            vendors: [
+                {
+                    name: 'Walmart',
+                    domain: 'walmart.com',
+                    description: 'Retail store',
+                    expenseTotal: 50,
+                    shareOfExpenses: 66.66666666666666,
+                    transactionCount: 1,
+                    topCategories: ['Groceries']
+                }
+            ],
             trend: [],
             notableTransactions: [
                 {
@@ -156,7 +186,9 @@ describe('email report OpenAI payload', () => {
                         'Return or refund category. It counts as income and improves net position; do not describe it as new spending.',
                     netImpact: 25,
                     note: 'Refund from delayed baggage claim.',
-                    type: 'income'
+                    type: 'income',
+                    vendorDomain: 'walmart.com',
+                    vendorName: 'Walmart'
                 }
             ],
             notedTransactions: [
@@ -170,7 +202,9 @@ describe('email report OpenAI payload', () => {
                         'Return or refund category. It counts as income and improves net position; do not describe it as new spending.',
                     netImpact: 25,
                     note: 'Refund from delayed baggage claim.',
-                    type: 'income'
+                    type: 'income',
+                    vendorDomain: 'walmart.com',
+                    vendorName: 'Walmart'
                 }
             ]
         });
@@ -188,6 +222,14 @@ describe('email report OpenAI payload', () => {
         expect(payload.report.notedTransactions[0]?.note).toBe(
             'Refund from delayed baggage claim.'
         );
+        expect(payload.report.vendors).toEqual([
+            expect.objectContaining({
+                name: 'Walmart',
+                domain: 'walmart.com',
+                topCategories: ['Groceries']
+            })
+        ]);
+        expect(transaction?.vendorName).toBe('Walmart');
         expect(transaction?.interpretation).toContain(
             'do not describe it as new spending'
         );
@@ -205,7 +247,8 @@ describe('email report OpenAI payload', () => {
                 transaction({
                     amount: 30,
                     id: 1,
-                    note: 'Lower impact'
+                    note: 'Lower impact',
+                    vendorId: walmart.id
                 }),
                 transaction({
                     amount: 50,
@@ -233,7 +276,8 @@ describe('email report OpenAI payload', () => {
                 )
             ],
             'UTC',
-            new Map([[groceries.id, groceries]])
+            new Map([[groceries.id, groceries]]),
+            new Map([[walmart.id, walmart]])
         );
 
         expect(notedTransactions).toHaveLength(10);
@@ -248,5 +292,10 @@ describe('email report OpenAI payload', () => {
         expect(notedTransactions).not.toContainEqual(
             expect.objectContaining({ note: '   ' })
         );
+        expect(notedTransactions[2]).toMatchObject({
+            note: 'Lower impact',
+            vendorDomain: 'walmart.com',
+            vendorName: 'Walmart'
+        });
     });
 });

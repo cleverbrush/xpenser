@@ -32,16 +32,16 @@ export function dashboardPeriodWindowQuery(
     params: URLSearchParams,
     timezone: string
 ): ReturnType<typeof periodWindowQuery> & {
-    readonly merchantLimit?: number;
+    readonly vendorLimit?: number;
 } {
     const base = periodWindowQuery(params, timezone);
-    const merchantLimitParam = params.get('merchantLimit') ?? undefined;
-    const merchantLimit = merchantLimitParam
-        ? Number(merchantLimitParam)
+    const vendorLimitParam = params.get('vendorLimit') ?? undefined;
+    const vendorLimit = vendorLimitParam
+        ? Number(vendorLimitParam)
         : Number.NaN;
 
     return {
         ...base,
-        ...(Number.isFinite(merchantLimit) ? { merchantLimit } : undefined)
+        ...(Number.isFinite(vendorLimit) ? { vendorLimit } : undefined)
     };
 }

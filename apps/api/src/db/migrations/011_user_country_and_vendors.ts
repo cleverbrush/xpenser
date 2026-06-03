@@ -18,9 +18,9 @@ export async function up(knex: Knex): Promise<void> {
         );
     }
 
-    const hasMerchants = await knex.schema.hasTable('merchants');
-    if (!hasMerchants) {
-        await knex.schema.createTable('merchants', table => {
+    const hasVendors = await knex.schema.hasTable('vendors');
+    if (!hasVendors) {
+        await knex.schema.createTable('vendors', table => {
             table.increments('id').primary();
             table
                 .integer('user_id')
@@ -30,7 +30,7 @@ export async function up(knex: Knex): Promise<void> {
                 .onDelete('CASCADE');
             table.string('name', 160).notNullable();
             table.string('normalized_name', 160).notNullable();
-            table.string('brand_name', 160).nullable();
+            table.string('resolved_name', 160).nullable();
             table.string('domain', 255).nullable();
             table.string('description', 1000).nullable();
             table.string('logo_url', 1000).nullable();
@@ -46,51 +46,51 @@ export async function up(knex: Knex): Promise<void> {
                 .timestamp('updated_at', { useTz: true })
                 .notNullable()
                 .defaultTo(knex.fn.now());
-            table.index(['user_id'], 'idx_merchants_user_id');
+            table.index(['user_id'], 'idx_vendors_user_id');
         });
         await knex.raw(`
-            create unique index if not exists uq_merchants_user_normalized_name_without_domain
-            on merchants (user_id, normalized_name)
+            create unique index if not exists uq_vendors_user_normalized_name_without_domain
+            on vendors (user_id, normalized_name)
             where domain is null
         `);
         await knex.raw(`
-            create unique index if not exists uq_merchants_user_normalized_name_domain
-            on merchants (user_id, normalized_name, domain)
+            create unique index if not exists uq_vendors_user_normalized_name_domain
+            on vendors (user_id, normalized_name, domain)
             where domain is not null
         `);
     }
 
-    const hasMerchantId = await knex.schema.hasColumn(
+    const hasVendorId = await knex.schema.hasColumn(
         'transactions',
-        'merchant_id'
+        'vendor_id'
     );
 
-    if (!hasMerchantId) {
+    if (!hasVendorId) {
         await knex.schema.alterTable('transactions', table => {
             table
-                .integer('merchant_id')
+                .integer('vendor_id')
                 .nullable()
                 .references('id')
-                .inTable('merchants')
+                .inTable('vendors')
                 .onDelete('SET NULL');
-            table.index(['merchant_id'], 'idx_transactions_merchant_id');
+            table.index(['vendor_id'], 'idx_transactions_vendor_id');
         });
     }
 }
 
 export async function down(knex: Knex): Promise<void> {
-    const hasMerchantId = await knex.schema.hasColumn(
+    const hasVendorId = await knex.schema.hasColumn(
         'transactions',
-        'merchant_id'
+        'vendor_id'
     );
-    if (hasMerchantId) {
+    if (hasVendorId) {
         await knex.schema.alterTable('transactions', table => {
-            table.dropIndex(['merchant_id'], 'idx_transactions_merchant_id');
-            table.dropColumn('merchant_id');
+            table.dropIndex(['vendor_id'], 'idx_transactions_vendor_id');
+            table.dropColumn('vendor_id');
         });
     }
 
-    await knex.schema.dropTableIfExists('merchants');
+    await knex.schema.dropTableIfExists('vendors');
 
     const hasCountryCode = await knex.schema.hasColumn('users', 'country_code');
     if (hasCountryCode) {

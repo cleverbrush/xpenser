@@ -1,6 +1,6 @@
 'use client';
 
-import type { Merchant } from '@xpenser/contracts';
+import type { Vendor } from '@xpenser/contracts';
 import {
     Button,
     Dialog,
@@ -17,10 +17,7 @@ import {
 import { PencilIcon, RefreshCwIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
-import {
-    retryMerchantEnrichmentAction,
-    updateMerchantAction
-} from '@/lib/actions';
+import { retryVendorEnrichmentAction, updateVendorAction } from '@/lib/actions';
 import { isNextRedirectError } from './forms/form-utils';
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -39,11 +36,7 @@ function errorMessage(error: unknown, fallback: string): string {
     return fallback;
 }
 
-export function EditMerchantButton({
-    merchant
-}: {
-    readonly merchant: Merchant;
-}) {
+export function EditVendorButton({ vendor }: { readonly vendor: Vendor }) {
     const router = useRouter();
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState(false);
@@ -55,14 +48,14 @@ export function EditMerchantButton({
         setPending(true);
         setError(null);
         try {
-            await updateMerchantAction(formData);
+            await updateVendorAction(formData);
             router.refresh();
             setOpen(false);
         } catch (caught) {
             if (isNextRedirectError(caught)) {
                 throw caught;
             }
-            setError(errorMessage(caught, 'Could not save merchant.'));
+            setError(errorMessage(caught, 'Could not save vendor.'));
         } finally {
             setPending(false);
         }
@@ -85,79 +78,77 @@ export function EditMerchantButton({
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Edit merchant</DialogTitle>
+                    <DialogTitle>Edit vendor</DialogTitle>
                 </DialogHeader>
                 <form
                     className="flex flex-col gap-4"
                     noValidate
                     onSubmit={handleSubmit}
                 >
-                    <input name="id" type="hidden" value={merchant.id} />
+                    <input name="id" type="hidden" value={vendor.id} />
                     <Field>
-                        <FieldLabel htmlFor="merchant-name">Name</FieldLabel>
+                        <FieldLabel htmlFor="vendor-name">Name</FieldLabel>
                         <Input
-                            defaultValue={merchant.name}
-                            id="merchant-name"
+                            defaultValue={vendor.name}
+                            id="vendor-name"
                             maxLength={160}
                             name="name"
                             required
                         />
                     </Field>
                     <Field>
-                        <FieldLabel htmlFor="merchant-brand-name">
-                            Brand name
+                        <FieldLabel htmlFor="vendor-resolved-name">
+                            Resolved name
                         </FieldLabel>
                         <Input
-                            defaultValue={merchant.brandName ?? ''}
-                            id="merchant-brand-name"
+                            defaultValue={vendor.resolvedName ?? ''}
+                            id="vendor-resolved-name"
                             maxLength={160}
-                            name="brandName"
+                            name="resolvedName"
                         />
                     </Field>
                     <Field>
-                        <FieldLabel htmlFor="merchant-domain">
-                            Domain
-                        </FieldLabel>
+                        <FieldLabel htmlFor="vendor-domain">Domain</FieldLabel>
                         <Input
-                            defaultValue={merchant.domain ?? ''}
-                            id="merchant-domain"
+                            defaultValue={vendor.domain ?? ''}
+                            id="vendor-domain"
                             maxLength={255}
                             name="domain"
                             placeholder="walmart.com"
                         />
                     </Field>
                     <Field>
-                        <FieldLabel htmlFor="merchant-logo-url">
+                        <FieldLabel htmlFor="vendor-logo-url">
                             Logo URL
                         </FieldLabel>
                         <Input
-                            defaultValue={merchant.logoUrl ?? ''}
-                            id="merchant-logo-url"
+                            defaultValue={vendor.logoUrl ?? ''}
+                            id="vendor-logo-url"
                             maxLength={1000}
                             name="logoUrl"
                             placeholder="https://example.com/logo.svg"
                         />
                     </Field>
                     <Field>
-                        <FieldLabel htmlFor="merchant-primary-color">
+                        <FieldLabel htmlFor="vendor-primary-color">
                             Primary color
                         </FieldLabel>
                         <Input
-                            defaultValue={merchant.primaryColor ?? ''}
-                            id="merchant-primary-color"
+                            defaultValue={vendor.primaryColor ?? ''}
+                            id="vendor-primary-color"
                             maxLength={7}
                             name="primaryColor"
                             placeholder="#2563eb"
                         />
                     </Field>
                     <Field>
-                        <FieldLabel htmlFor="merchant-description">
+                        <FieldLabel htmlFor="vendor-description">
                             Description
                         </FieldLabel>
                         <textarea
                             className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                            defaultValue={merchant.description ?? ''}
-                            id="merchant-description"
+                            defaultValue={vendor.description ?? ''}
+                            id="vendor-description"
                             maxLength={1000}
                             name="description"
                         />
@@ -167,7 +158,7 @@ export function EditMerchantButton({
                     ) : null}
                     <DialogFooter>
                         <Button disabled={pending} type="submit">
-                            {pending ? 'Saving...' : 'Save merchant'}
+                            {pending ? 'Saving...' : 'Save vendor'}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -176,10 +167,10 @@ export function EditMerchantButton({
     );
 }
 
-export function RetryMerchantEnrichmentButton({
-    merchant
+export function RetryVendorEnrichmentButton({
+    vendor
 }: {
-    readonly merchant: Merchant;
+    readonly vendor: Vendor;
 }) {
     const router = useRouter();
     const [pending, setPending] = useState(false);
@@ -187,11 +178,11 @@ export function RetryMerchantEnrichmentButton({
 
     async function handleClick() {
         const formData = new FormData();
-        formData.set('id', String(merchant.id));
+        formData.set('id', String(vendor.id));
         setPending(true);
         setError(null);
         try {
-            await retryMerchantEnrichmentAction(formData);
+            await retryVendorEnrichmentAction(formData);
             router.refresh();
         } catch (caught) {
             if (isNextRedirectError(caught)) {

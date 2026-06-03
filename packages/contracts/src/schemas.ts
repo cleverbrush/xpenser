@@ -146,9 +146,9 @@ export const RegisterBodySchema = object({
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for dashboards and reports.'
     ),
-    /** Country used to localize merchant enrichment. */
+    /** Country used to localize vendor enrichment. */
     countryCode: CountryCodeSchema.describe(
-        'Country used to localize merchant enrichment.'
+        'Country used to localize vendor enrichment.'
     ),
     /** Favorite currencies shown first when creating transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema)
@@ -315,9 +315,9 @@ export const TokenResponseSchema = object({
         defaultCurrency: CurrencyCodeSchema.describe(
             'Default currency used for reports.'
         ),
-        /** Country used to localize merchant enrichment. */
+        /** Country used to localize vendor enrichment. */
         countryCode: CountryCodeSchema.describe(
-            'Country used to localize merchant enrichment.'
+            'Country used to localize vendor enrichment.'
         ),
         /** Time zone used for transaction display and reporting periods. */
         timezone: TimeZoneSchema.describe(
@@ -339,9 +339,9 @@ export const UserPreferenceSchema = object({
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for reports and new transactions.'
     ),
-    /** Country used to localize merchant enrichment. */
+    /** Country used to localize vendor enrichment. */
     countryCode: CountryCodeSchema.describe(
-        'Country used to localize merchant enrichment.'
+        'Country used to localize vendor enrichment.'
     ),
     /** Favorite currencies offered when entering transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
@@ -424,9 +424,9 @@ export const UpdateUserPreferenceBodySchema = object({
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for reports and new transactions.'
     ),
-    /** Country used to localize merchant enrichment. */
+    /** Country used to localize vendor enrichment. */
     countryCode: CountryCodeSchema.optional().describe(
-        'Country used to localize merchant enrichment.'
+        'Country used to localize vendor enrichment.'
     ),
     /** Favorite currencies offered when entering transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
@@ -710,34 +710,34 @@ export const MoveAndDeleteCategoryBodySchema = object({
     )
 }).schemaName('MoveAndDeleteCategoryBody');
 
-export const MerchantEnrichmentStatusSchema = enumOf(
+export const VendorEnrichmentStatusSchema = enumOf(
     'disabled',
     'success',
     'not_found',
     'failed'
-).schemaName('MerchantEnrichmentStatus');
+).schemaName('VendorEnrichmentStatus');
 
-export const MerchantSchema = object({
-    /** Unique merchant identifier. */
-    id: number().describe('Unique merchant identifier.'),
-    /** User-entered merchant name. */
-    name: string().describe('User-entered merchant name.'),
-    /** Merchant name shown in transaction forms and reports. */
+export const VendorSchema = object({
+    /** Unique vendor identifier. */
+    id: number().describe('Unique vendor identifier.'),
+    /** User-entered vendor name. */
+    name: string().describe('User-entered vendor name.'),
+    /** Vendor name shown in transaction forms and reports. */
     displayName: string().describe(
-        'Merchant name shown in transaction forms and reports.'
+        'Vendor name shown in transaction forms and reports.'
     ),
-    /** Provider-resolved brand name, when available. */
-    brandName: string()
+    /** Provider-resolved vendor name, when available. */
+    resolvedName: string()
         .optional()
-        .describe('Provider-resolved brand name, when available.'),
-    /** Provider-resolved brand domain, when available. */
+        .describe('Provider-resolved vendor name, when available.'),
+    /** Provider-resolved vendor domain, when available. */
     domain: string()
         .optional()
-        .describe('Provider-resolved brand domain, when available.'),
-    /** Provider-resolved brand description, when available. */
+        .describe('Provider-resolved vendor domain, when available.'),
+    /** Provider-resolved vendor description, when available. */
     description: string()
         .optional()
-        .describe('Provider-resolved brand description, when available.'),
+        .describe('Provider-resolved vendor description, when available.'),
     /** Provider-resolved logo URL, when available. */
     logoUrl: string()
         .optional()
@@ -746,138 +746,140 @@ export const MerchantSchema = object({
     primaryColor: string()
         .optional()
         .describe('Provider-resolved primary color hex code, when available.'),
-    /** Merchant enrichment provider, when enrichment has been attempted. */
+    /** Vendor enrichment provider, when enrichment has been attempted. */
     enrichmentProvider: string()
         .optional()
         .describe(
-            'Merchant enrichment provider, when enrichment has been attempted.'
+            'Vendor enrichment provider, when enrichment has been attempted.'
         ),
-    /** Latest merchant enrichment status, when enrichment has been attempted. */
-    enrichmentStatus: MerchantEnrichmentStatusSchema.optional().describe(
-        'Latest merchant enrichment status, when enrichment has been attempted.'
+    /** Latest vendor enrichment status, when enrichment has been attempted. */
+    enrichmentStatus: VendorEnrichmentStatusSchema.optional().describe(
+        'Latest vendor enrichment status, when enrichment has been attempted.'
     ),
     /** Timestamp for the latest enrichment attempt. */
     enrichedAt: date()
         .coerce()
         .optional()
         .describe('Timestamp for the latest enrichment attempt.'),
-    /** Suggested category for this user and merchant, when history exists. */
+    /** Suggested category for this user and vendor, when history exists. */
     suggestedCategoryId: number()
         .optional()
         .describe(
-            'Suggested category for this user and merchant, when history exists.'
+            'Suggested category for this user and vendor, when history exists.'
         ),
     /** Suggested category display name, when history exists. */
     suggestedCategoryDisplayName: string()
         .optional()
         .describe('Suggested category display name, when history exists.'),
-    /** Number of transactions linked to this merchant. */
+    /** Number of transactions linked to this vendor. */
     transactionCount: number().describe(
-        'Number of transactions linked to this merchant.'
+        'Number of transactions linked to this vendor.'
     ),
     /** Creation timestamp. */
     createdAt: date().coerce().describe('Creation timestamp.'),
     /** Last update timestamp. */
     updatedAt: date().coerce().describe('Last update timestamp.')
-}).schemaName('Merchant');
+}).schemaName('Vendor');
 
-export const MerchantListQuerySchema = object({
-    /** Text search applied to merchant names and domains. */
+export const VendorListQuerySchema = object({
+    /** Text search applied to vendor names and domains. */
     search: string()
         .optional()
-        .describe('Text search applied to merchant names and domains.'),
-    /** Maximum number of merchants to return. */
+        .describe('Text search applied to vendor names and domains.'),
+    /** Maximum number of vendors to return. */
     limit: number()
         .coerce()
         .default(25)
-        .describe('Maximum number of merchants to return.')
-}).schemaName('MerchantListQuery');
+        .describe('Maximum number of vendors to return.')
+}).schemaName('VendorListQuery');
 
-export const MerchantBrandSearchQuerySchema = object({
-    /** Brand name text to search through Brandfetch. */
+export const VendorCandidateSearchQuerySchema = object({
+    /** Vendor name text to search through Brandfetch. */
     query: string()
-        .required('brand search query is required')
-        .nonempty('brand search query is required')
-        .maxLength(160, 'brand search query is too long')
-        .describe('Brand name text to search through Brandfetch.'),
+        .required('vendor search query is required')
+        .nonempty('vendor search query is required')
+        .maxLength(160, 'vendor search query is too long')
+        .describe('Vendor name text to search through Brandfetch.'),
     /** Maximum number of Brandfetch suggestions to return. */
     limit: number()
         .coerce()
         .default(6)
         .describe('Maximum number of Brandfetch suggestions to return.')
-}).schemaName('MerchantBrandSearchQuery');
+}).schemaName('VendorCandidateSearchQuery');
 
-export const MerchantBrandSuggestionSchema = object({
+export const VendorCandidateSchema = object({
     /** Brandfetch brand identifier. */
-    brandId: string().optional().describe('Brandfetch brand identifier.'),
-    /** Brand name returned by Brandfetch. */
-    name: string().describe('Brand name returned by Brandfetch.'),
-    /** Brand domain returned by Brandfetch. */
-    domain: string().describe('Brand domain returned by Brandfetch.'),
-    /** Brandfetch icon URL for the brand search result. */
+    brandfetchBrandId: string()
+        .optional()
+        .describe('Brandfetch brand identifier.'),
+    /** Vendor name returned by Brandfetch. */
+    name: string().describe('Vendor name returned by Brandfetch.'),
+    /** Vendor domain returned by Brandfetch. */
+    domain: string().describe('Vendor domain returned by Brandfetch.'),
+    /** Brandfetch icon URL for the vendor search result. */
     logoUrl: string()
         .optional()
-        .describe('Brandfetch icon URL for the brand search result.'),
+        .describe('Brandfetch icon URL for the vendor search result.'),
     /** Whether the brand has been claimed in Brandfetch. */
     claimed: boolean()
         .optional()
         .describe('Whether the brand has been claimed in Brandfetch.')
-}).schemaName('MerchantBrandSuggestion');
+}).schemaName('VendorCandidate');
 
-export const CreateMerchantBodySchema = object({
-    /** User-entered merchant name. */
+export const CreateVendorBodySchema = object({
+    /** User-entered vendor name. */
     name: string()
-        .required('merchant name is required')
-        .nonempty('merchant name is required')
-        .maxLength(160, 'merchant name is too long')
-        .describe('User-entered merchant name.'),
+        .required('vendor name is required')
+        .nonempty('vendor name is required')
+        .maxLength(160, 'vendor name is too long')
+        .describe('User-entered vendor name.'),
     /** Brandfetch brand identifier selected from search results. */
     brandfetchBrandId: string()
         .optional()
         .maxLength(100, 'Brandfetch brand identifier is too long')
         .describe('Brandfetch brand identifier selected from search results.'),
-    /** Brand name selected from Brandfetch search results. */
-    brandName: string()
+    /** Resolved name selected from Brandfetch search results. */
+    resolvedName: string()
         .optional()
-        .maxLength(160, 'brand name is too long')
-        .describe('Brand name selected from Brandfetch search results.'),
-    /** Brand domain selected from Brandfetch search results. */
+        .maxLength(160, 'resolved name is too long')
+        .describe('Resolved name selected from Brandfetch search results.'),
+    /** Vendor domain selected from Brandfetch search results. */
     domain: string()
         .optional()
         .maxLength(255, 'domain is too long')
-        .describe('Brand domain selected from Brandfetch search results.'),
-    /** Brand logo URL selected from Brandfetch search results. */
+        .describe('Vendor domain selected from Brandfetch search results.'),
+    /** Vendor logo URL selected from Brandfetch search results. */
     logoUrl: string()
         .optional()
         .maxLength(1000, 'logo URL is too long')
-        .describe('Brand logo URL selected from Brandfetch search results.')
-}).schemaName('CreateMerchantBody');
+        .describe('Vendor logo URL selected from Brandfetch search results.')
+}).schemaName('CreateVendorBody');
 
-export const UpdateMerchantBodySchema = object({
-    /** User-entered merchant name. */
+export const UpdateVendorBodySchema = object({
+    /** User-entered vendor name. */
     name: string()
         .optional()
-        .nonempty('merchant name is required')
-        .maxLength(160, 'merchant name is too long')
-        .describe('User-entered merchant name.'),
-    /** Manually adjusted brand name. */
-    brandName: string()
+        .nonempty('vendor name is required')
+        .maxLength(160, 'vendor name is too long')
+        .describe('User-entered vendor name.'),
+    /** Manually adjusted resolved name. */
+    resolvedName: string()
         .nullable()
         .optional()
-        .maxLength(160, 'brand name is too long')
-        .describe('Manually adjusted brand name.'),
-    /** Manually adjusted merchant domain. */
+        .maxLength(160, 'resolved name is too long')
+        .describe('Manually adjusted resolved name.'),
+    /** Manually adjusted vendor domain. */
     domain: string()
         .nullable()
         .optional()
         .maxLength(255, 'domain is too long')
-        .describe('Manually adjusted merchant domain.'),
-    /** Manually adjusted merchant description. */
+        .describe('Manually adjusted vendor domain.'),
+    /** Manually adjusted vendor description. */
     description: string()
         .nullable()
         .optional()
         .maxLength(1000, 'description is too long')
-        .describe('Manually adjusted merchant description.'),
+        .describe('Manually adjusted vendor description.'),
     /** Manually adjusted logo URL. */
     logoUrl: string()
         .nullable()
@@ -890,7 +892,7 @@ export const UpdateMerchantBodySchema = object({
         .optional()
         .matches(/^#[0-9a-f]{6}$/i, 'primary color must be a hex color')
         .describe('Manually adjusted primary color hex code.')
-}).schemaName('UpdateMerchantBody');
+}).schemaName('UpdateVendorBody');
 
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
@@ -899,20 +901,20 @@ export const TransactionSchema = object({
     categoryId: number().describe(
         'Category identifier selected for the transaction.'
     ),
-    /** Merchant identifier selected for the transaction, when available. */
-    merchantId: number()
+    /** Vendor identifier selected for the transaction, when available. */
+    vendorId: number()
         .nullable()
         .describe(
-            'Merchant identifier selected for the transaction, when available.'
+            'Vendor identifier selected for the transaction, when available.'
         ),
-    /** Merchant name at read time, when available. */
-    merchantName: string()
+    /** Vendor name at read time, when available. */
+    vendorName: string()
         .optional()
-        .describe('Merchant name at read time, when available.'),
-    /** Merchant logo URL at read time, when available. */
-    merchantLogoUrl: string()
+        .describe('Vendor name at read time, when available.'),
+    /** Vendor logo URL at read time, when available. */
+    vendorLogoUrl: string()
         .optional()
-        .describe('Merchant logo URL at read time, when available.'),
+        .describe('Vendor logo URL at read time, when available.'),
     /** Category name at read time. */
     categoryName: string().describe('Category name at read time.'),
     /** Category path at read time. */
@@ -972,11 +974,11 @@ export const CreateTransactionBodySchema = object({
     categoryId: number()
         .required('category is required')
         .describe('Category identifier selected for the transaction.'),
-    /** Optional merchant identifier selected for the transaction. */
-    merchantId: number()
+    /** Optional vendor identifier selected for the transaction. */
+    vendorId: number()
         .nullable()
         .optional()
-        .describe('Optional merchant identifier selected for the transaction.'),
+        .describe('Optional vendor identifier selected for the transaction.'),
     /** Amount entered by the user in the original currency. */
     amount: decimalNumber()
         .required('amount is required')
@@ -1057,11 +1059,11 @@ export const TransactionListQuerySchema = object({
         .coerce()
         .optional()
         .describe('Filter by a parent category and its direct children.'),
-    /** Filter by merchant identifier. */
-    merchantId: number()
+    /** Filter by vendor identifier. */
+    vendorId: number()
         .coerce()
         .optional()
-        .describe('Filter by merchant identifier.'),
+        .describe('Filter by vendor identifier.'),
     /** Inclusive start date for transaction occurrence. */
     from: date()
         .coerce()
@@ -1104,11 +1106,11 @@ export const DashboardQuerySchema = object({
         .coerce()
         .optional()
         .describe('Date used to choose the reporting period.'),
-    /** Maximum number of merchant groups to include. */
-    merchantLimit: number()
+    /** Maximum number of vendor groups to include. */
+    vendorLimit: number()
         .coerce()
         .optional()
-        .describe('Maximum number of merchant groups to include.')
+        .describe('Maximum number of vendor groups to include.')
 }).schemaName('DashboardQuery');
 
 export const PeriodWindowQuerySchema = object({
@@ -1149,13 +1151,11 @@ export const DashboardWindowQuerySchema = object({
         .coerce()
         .default(2)
         .describe('Number of following periods to include.'),
-    /** Maximum number of merchant groups to include in each summary. */
-    merchantLimit: number()
+    /** Maximum number of vendor groups to include in each summary. */
+    vendorLimit: number()
         .coerce()
         .optional()
-        .describe(
-            'Maximum number of merchant groups to include in each summary.'
-        )
+        .describe('Maximum number of vendor groups to include in each summary.')
 }).schemaName('DashboardWindowQuery');
 
 export const StatsQuerySchema = object({
@@ -1212,36 +1212,36 @@ export const CategoryTrendQuerySchema = object({
     })
     .schemaName('CategoryTrendQuery');
 
-export const DashboardMerchantTotalSchema = object({
-    /** Merchant identifier. */
-    merchantId: number().describe('Merchant identifier.'),
-    /** Merchant display name. */
-    merchantName: string().describe('Merchant display name.'),
-    /** Merchant domain, when available. */
-    merchantDomain: string()
+export const DashboardVendorTotalSchema = object({
+    /** Vendor identifier. */
+    vendorId: number().describe('Vendor identifier.'),
+    /** Vendor display name. */
+    vendorName: string().describe('Vendor display name.'),
+    /** Vendor domain, when available. */
+    vendorDomain: string()
         .optional()
-        .describe('Merchant domain, when available.'),
-    /** Merchant logo URL, when available. */
-    merchantLogoUrl: string()
+        .describe('Vendor domain, when available.'),
+    /** Vendor logo URL, when available. */
+    vendorLogoUrl: string()
         .optional()
-        .describe('Merchant logo URL, when available.'),
-    /** Merchant primary brand color, when available. */
-    merchantPrimaryColor: string()
+        .describe('Vendor logo URL, when available.'),
+    /** Vendor primary vendors color, when available. */
+    vendorPrimaryColor: string()
         .optional()
-        .describe('Merchant primary brand color, when available.'),
+        .describe('Vendor primary vendors color, when available.'),
     /** Expense total in the user's default currency. */
     expenseTotal: decimalNumber().describe(
         "Expense total in the user's default currency."
     ),
-    /** Number of expense transactions linked to this merchant. */
+    /** Number of expense transactions linked to this vendor. */
     transactionCount: number().describe(
-        'Number of expense transactions linked to this merchant.'
+        'Number of expense transactions linked to this vendor.'
     ),
-    /** Selected-period bucket totals for lightweight merchant charts. */
+    /** Selected-period bucket totals for lightweight vendor charts. */
     trend: array(decimalNumber()).describe(
-        'Selected-period bucket totals for lightweight merchant charts.'
+        'Selected-period bucket totals for lightweight vendor charts.'
     )
-}).schemaName('DashboardMerchantTotal');
+}).schemaName('DashboardVendorTotal');
 
 export const DashboardCategoryTotalSchema = object({
     /** Category identifier. */
@@ -1468,13 +1468,13 @@ export const DashboardSummarySchema = object({
     expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
     /** Income in the default currency. */
     incomeTotal: decimalNumber().describe('Income in the default currency.'),
-    /** Number of distinct expense merchants in the selected period. */
-    merchantCount: number().describe(
-        'Number of distinct expense merchants in the selected period.'
+    /** Number of distinct expense vendors in the selected period. */
+    vendorCount: number().describe(
+        'Number of distinct expense vendors in the selected period.'
     ),
-    /** Top expense merchants for the selected period. */
-    topMerchants: array(DashboardMerchantTotalSchema).describe(
-        'Top expense merchants for the selected period.'
+    /** Top expense vendors for the selected period. */
+    topVendors: array(DashboardVendorTotalSchema).describe(
+        'Top expense vendors for the selected period.'
     ),
     /** Category totals for the selected period. */
     byCategory: array(DashboardCategoryTotalSchema).describe(
@@ -1640,16 +1640,14 @@ export type CategoryKind = InferType<typeof CategoryKindSchema>;
 export type Category = InferType<typeof CategorySchema>;
 export type CategoryListQuery = InferType<typeof CategoryListQuerySchema>;
 export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;
-export type Merchant = InferType<typeof MerchantSchema>;
-export type MerchantListQuery = InferType<typeof MerchantListQuerySchema>;
-export type MerchantBrandSearchQuery = InferType<
-    typeof MerchantBrandSearchQuerySchema
+export type Vendor = InferType<typeof VendorSchema>;
+export type VendorListQuery = InferType<typeof VendorListQuerySchema>;
+export type VendorCandidateSearchQuery = InferType<
+    typeof VendorCandidateSearchQuerySchema
 >;
-export type MerchantBrandSuggestion = InferType<
-    typeof MerchantBrandSuggestionSchema
->;
-export type CreateMerchantBody = InferType<typeof CreateMerchantBodySchema>;
-export type UpdateMerchantBody = InferType<typeof UpdateMerchantBodySchema>;
+export type VendorCandidate = InferType<typeof VendorCandidateSchema>;
+export type CreateVendorBody = InferType<typeof CreateVendorBodySchema>;
+export type UpdateVendorBody = InferType<typeof UpdateVendorBodySchema>;
 export type Transaction = InferType<typeof TransactionSchema>;
 export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema

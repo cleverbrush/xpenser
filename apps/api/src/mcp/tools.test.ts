@@ -78,8 +78,8 @@ function dashboardSummary(): DashboardSummary {
         currency: 'USD',
         expenseTotal: 50,
         incomeTotal: 100,
-        merchantCount: 0,
-        topMerchants: [],
+        vendorCount: 0,
+        topVendors: [],
         byCategory: [],
         byParentCategory: []
     };
@@ -124,7 +124,7 @@ describe('MCP tool helpers', () => {
                         {
                             id: 100,
                             categoryId: 1,
-                            merchantId: null,
+                            vendorId: null,
                             categoryName: 'Food',
                             categoryDisplayName: 'Food',
                             categoryParentId: null,
@@ -163,13 +163,13 @@ describe('MCP tool helpers', () => {
         const query = normalizeTransactionListInput({
             search: '  food  ',
             from: '2026-05-01T00:00:00.000Z',
-            merchantId: 12,
+            vendorId: 12,
             limit: 250
         });
 
         expect(query).toMatchObject({
             search: 'food',
-            merchantId: 12,
+            vendorId: 12,
             page: 1,
             limit: 100,
             direction: 'desc'

@@ -1,6 +1,6 @@
 'use client';
 
-import type { Merchant, MerchantBrandSuggestion } from '@xpenser/contracts';
+import type { Vendor, VendorCandidate } from '@xpenser/contracts';
 import {
     Button,
     Field,
@@ -12,78 +12,78 @@ import {
 import { StoreIcon, XIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
-    createMerchantAction,
-    searchMerchantBrandsAction
+    createVendorAction,
+    searchVendorCandidatesAction
 } from '@/lib/actions';
-import { MerchantLogo, merchantDisplayName } from './merchant-display';
+import { VendorLogo, vendorDisplayName } from './vendor-display';
 
-function merchantMatches(merchant: Merchant, query: string): boolean {
+function vendorMatches(vendor: Vendor, query: string): boolean {
     const search = query.trim().toLowerCase();
     if (!search) {
         return true;
     }
     return [
-        merchant.name,
-        merchant.displayName,
-        merchant.brandName,
-        merchant.domain,
-        merchant.description
+        vendor.name,
+        vendor.displayName,
+        vendor.resolvedName,
+        vendor.domain,
+        vendor.description
     ].some(value => value?.toLowerCase().includes(search));
 }
 
-export function MerchantPicker({
-    merchants,
+export function VendorPicker({
+    vendors,
     onChange,
-    selectedMerchantId
+    selectedVendorId
 }: {
-    readonly merchants: readonly Merchant[];
-    readonly onChange: (merchant: Merchant | undefined) => void;
-    readonly selectedMerchantId?: number | null;
+    readonly vendors: readonly Vendor[];
+    readonly onChange: (vendor: Vendor | undefined) => void;
+    readonly selectedVendorId?: number | null;
 }) {
-    const [items, setItems] = useState<readonly Merchant[]>(merchants);
+    const [items, setItems] = useState<readonly Vendor[]>(vendors);
     const [query, setQuery] = useState('');
     const [pending, setPending] = useState(false);
-    const [brandSearchPending, setBrandSearchPending] = useState(false);
-    const [brandSuggestions, setBrandSuggestions] = useState<
-        readonly MerchantBrandSuggestion[]
+    const [candidateSearchPending, setCandidateSearchPending] = useState(false);
+    const [candidateSuggestions, setCandidateSuggestions] = useState<
+        readonly VendorCandidate[]
     >([]);
     const [error, setError] = useState<string | null>(null);
-    const [brandSearchError, setBrandSearchError] = useState<string | null>(
-        null
-    );
+    const [candidateSearchError, setCandidateSearchError] = useState<
+        string | null
+    >(null);
 
     useEffect(() => {
-        setItems(merchants);
-    }, [merchants]);
+        setItems(vendors);
+    }, [vendors]);
 
     useEffect(() => {
         const search = query.trim();
         if (search.length < 2) {
-            setBrandSuggestions([]);
-            setBrandSearchPending(false);
-            setBrandSearchError(null);
+            setCandidateSuggestions([]);
+            setCandidateSearchPending(false);
+            setCandidateSearchError(null);
             return;
         }
 
         let active = true;
-        setBrandSearchError(null);
+        setCandidateSearchError(null);
         const timeout = setTimeout(() => {
-            setBrandSearchPending(true);
-            searchMerchantBrandsAction(search)
+            setCandidateSearchPending(true);
+            searchVendorCandidatesAction(search)
                 .then(results => {
                     if (active) {
-                        setBrandSuggestions(results);
+                        setCandidateSuggestions(results);
                     }
                 })
                 .catch(() => {
                     if (active) {
-                        setBrandSuggestions([]);
-                        setBrandSearchError('Could not search brands.');
+                        setCandidateSuggestions([]);
+                        setCandidateSearchError('Could not search vendors.');
                     }
                 })
                 .finally(() => {
                     if (active) {
-                        setBrandSearchPending(false);
+                        setCandidateSearchPending(false);
                     }
                 });
         }, 300);
@@ -95,61 +95,58 @@ export function MerchantPicker({
     }, [query]);
 
     const selected = useMemo(
-        () => items.find(merchant => merchant.id === selectedMerchantId),
-        [items, selectedMerchantId]
+        () => items.find(vendor => vendor.id === selectedVendorId),
+        [items, selectedVendorId]
     );
     const visible = useMemo(
-        () =>
-            items
-                .filter(merchant => merchantMatches(merchant, query))
-                .slice(0, 6),
+        () => items.filter(vendor => vendorMatches(vendor, query)).slice(0, 6),
         [items, query]
     );
-    const visibleBrandSuggestions = useMemo(
+    const visibleCandidateSuggestions = useMemo(
         () =>
-            brandSuggestions
+            candidateSuggestions
                 .filter(
                     suggestion =>
                         !items.some(
-                            merchant =>
-                                merchant.domain === suggestion.domain ||
-                                merchant.logoUrl === suggestion.logoUrl
+                            vendor =>
+                                vendor.domain === suggestion.domain ||
+                                vendor.logoUrl === suggestion.logoUrl
                         )
                 )
                 .slice(0, 4),
-        [brandSuggestions, items]
+        [candidateSuggestions, items]
     );
     const normalizedQuery = query.trim().toLowerCase();
     const canCreate =
         query.trim() !== '' &&
         !items.some(
-            merchant =>
-                merchant.name.trim().toLowerCase() === normalizedQuery ||
-                merchant.displayName.trim().toLowerCase() === normalizedQuery
+            vendor =>
+                vendor.name.trim().toLowerCase() === normalizedQuery ||
+                vendor.displayName.trim().toLowerCase() === normalizedQuery
         );
 
-    async function saveMerchant(formData: FormData) {
+    async function saveVendor(formData: FormData) {
         setPending(true);
         setError(null);
         try {
-            const merchant = await createMerchantAction(formData);
+            const vendor = await createVendorAction(formData);
             setItems(current => {
                 const withoutDuplicate = current.filter(
-                    item => item.id !== merchant.id
+                    item => item.id !== vendor.id
                 );
-                return [merchant, ...withoutDuplicate];
+                return [vendor, ...withoutDuplicate];
             });
             setQuery('');
-            setBrandSuggestions([]);
-            onChange(merchant);
+            setCandidateSuggestions([]);
+            onChange(vendor);
         } catch {
-            setError('Could not save merchant.');
+            setError('Could not save vendor.');
         } finally {
             setPending(false);
         }
     }
 
-    async function createMerchant() {
+    async function createVendor() {
         const name = query.trim();
         if (!name || pending) {
             return;
@@ -157,31 +154,31 @@ export function MerchantPicker({
 
         const formData = new FormData();
         formData.set('name', name);
-        await saveMerchant(formData);
+        await saveVendor(formData);
     }
 
-    async function createBrandMerchant(suggestion: MerchantBrandSuggestion) {
+    async function createVendorFromCandidate(suggestion: VendorCandidate) {
         if (pending) {
             return;
         }
 
         const formData = new FormData();
         formData.set('name', suggestion.name);
-        formData.set('brandName', suggestion.name);
+        formData.set('resolvedName', suggestion.name);
         formData.set('domain', suggestion.domain);
-        if (suggestion.brandId) {
-            formData.set('brandfetchBrandId', suggestion.brandId);
+        if (suggestion.brandfetchBrandId) {
+            formData.set('brandfetchBrandId', suggestion.brandfetchBrandId);
         }
         if (suggestion.logoUrl) {
             formData.set('logoUrl', suggestion.logoUrl);
         }
-        await saveMerchant(formData);
+        await saveVendor(formData);
     }
 
     return (
         <Field>
             <div className="flex items-center justify-between gap-2">
-                <FieldLabel htmlFor="merchant-search">Merchant</FieldLabel>
+                <FieldLabel htmlFor="vendor-search">Vendor</FieldLabel>
                 {selected ? (
                     <Button
                         className="h-7 px-2"
@@ -197,10 +194,10 @@ export function MerchantPicker({
             </div>
             {selected ? (
                 <div className="flex items-center gap-2 rounded-md border border-input px-3 py-2 text-sm">
-                    <MerchantLogo merchant={selected} size="sm" />
+                    <VendorLogo vendor={selected} size="sm" />
                     <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">
-                            {merchantDisplayName(selected)}
+                            {vendorDisplayName(selected)}
                         </p>
                         {selected.domain ? (
                             <p className="truncate text-xs text-muted-foreground">
@@ -212,54 +209,56 @@ export function MerchantPicker({
             ) : null}
             <Input
                 autoComplete="off"
-                id="merchant-search"
+                id="vendor-search"
                 onChange={event => setQuery(event.target.value)}
                 placeholder={
-                    selected ? 'Search another merchant' : 'Search merchant'
+                    selected ? 'Search another vendor' : 'Search vendor'
                 }
                 value={query}
             />
             {query.trim() || !selected ? (
                 <div className="flex flex-col gap-1">
-                    {visible.map(merchant => (
+                    {visible.map(vendor => (
                         <Button
                             className="h-auto justify-start gap-2 px-2 py-2"
-                            key={merchant.id}
+                            key={vendor.id}
                             onClick={() => {
                                 setQuery('');
-                                onChange(merchant);
+                                onChange(vendor);
                             }}
                             type="button"
                             variant="outline"
                         >
-                            <MerchantLogo merchant={merchant} size="sm" />
+                            <VendorLogo vendor={vendor} size="sm" />
                             <span className="min-w-0 text-left">
                                 <span className="block truncate">
-                                    {merchantDisplayName(merchant)}
+                                    {vendorDisplayName(vendor)}
                                 </span>
-                                {merchant.suggestedCategoryDisplayName ? (
+                                {vendor.suggestedCategoryDisplayName ? (
                                     <span className="block truncate text-xs text-muted-foreground">
-                                        {merchant.suggestedCategoryDisplayName}
+                                        {vendor.suggestedCategoryDisplayName}
                                     </span>
                                 ) : null}
                             </span>
                         </Button>
                     ))}
-                    {visibleBrandSuggestions.length > 0 ? (
+                    {visibleCandidateSuggestions.length > 0 ? (
                         <div className="flex flex-col gap-1">
-                            {visibleBrandSuggestions.map(suggestion => (
+                            {visibleCandidateSuggestions.map(suggestion => (
                                 <Button
                                     className="h-auto justify-start gap-2 px-2 py-2"
                                     disabled={pending}
-                                    key={`${suggestion.brandId ?? suggestion.domain}-${suggestion.domain}`}
+                                    key={`${suggestion.brandfetchBrandId ?? suggestion.domain}-${suggestion.domain}`}
                                     onClick={() =>
-                                        void createBrandMerchant(suggestion)
+                                        void createVendorFromCandidate(
+                                            suggestion
+                                        )
                                     }
                                     type="button"
                                     variant="outline"
                                 >
-                                    <MerchantLogo
-                                        merchant={{
+                                    <VendorLogo
+                                        vendor={{
                                             displayName: suggestion.name,
                                             logoUrl: suggestion.logoUrl,
                                             name: suggestion.name
@@ -282,26 +281,30 @@ export function MerchantPicker({
                         <Button
                             className="justify-start gap-2"
                             disabled={pending}
-                            onClick={createMerchant}
+                            onClick={createVendor}
                             type="button"
                             variant="outline"
                         >
                             <StoreIcon aria-hidden className="size-4" />
                             {pending
-                                ? 'Saving merchant...'
+                                ? 'Saving vendor...'
                                 : `Add ${query.trim()}`}
                         </Button>
                     ) : null}
                     {!canCreate && visible.length === 0 ? (
                         <FieldDescription>
-                            No matching merchants.
+                            No matching vendors.
                         </FieldDescription>
                     ) : null}
-                    {brandSearchPending ? (
-                        <FieldDescription>Searching brands...</FieldDescription>
+                    {candidateSearchPending ? (
+                        <FieldDescription>
+                            Searching vendors...
+                        </FieldDescription>
                     ) : null}
-                    {brandSearchError ? (
-                        <FieldDescription>{brandSearchError}</FieldDescription>
+                    {candidateSearchError ? (
+                        <FieldDescription>
+                            {candidateSearchError}
+                        </FieldDescription>
                     ) : null}
                 </div>
             ) : null}

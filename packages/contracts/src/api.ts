@@ -10,9 +10,9 @@ import {
     CreateApiKeyBodySchema,
     CreateApiKeyResponseSchema,
     CreateCategoryBodySchema,
-    CreateMerchantBodySchema,
     CreateTelegramLinkTokenResponseSchema,
     CreateTransactionBodySchema,
+    CreateVendorBodySchema,
     CurrencyConversionQuerySchema,
     CurrencyConversionSchema,
     CurrencySchema,
@@ -26,10 +26,6 @@ import {
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
     LoginBodySchema,
-    MerchantBrandSearchQuerySchema,
-    MerchantBrandSuggestionSchema,
-    MerchantListQuerySchema,
-    MerchantSchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
@@ -49,26 +45,28 @@ import {
     TransactionListResponseSchema,
     TransactionSchema,
     UpdateCategoryBodySchema,
-    UpdateMerchantBodySchema,
     UpdateTransactionBodySchema,
     UpdateUserPreferenceBodySchema,
-    UserPreferenceSchema
+    UpdateVendorBodySchema,
+    UserPreferenceSchema,
+    VendorCandidateSchema,
+    VendorCandidateSearchQuerySchema,
+    VendorListQuerySchema,
+    VendorSchema
 } from './schemas.js';
 
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
 const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
     t.id}/move-and-delete`;
-const MerchantEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
+const VendorEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
 const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
 const categories = endpoint
     .resource('/api/categories')
     .authorize(PrincipalSchema);
-const merchants = endpoint
-    .resource('/api/merchants')
-    .authorize(PrincipalSchema);
-const merchantBrandSearch = endpoint
-    .resource('/api/merchants/brand-search')
+const vendors = endpoint.resource('/api/vendors').authorize(PrincipalSchema);
+const vendorCandidateSearch = endpoint
+    .resource('/api/vendors/candidates')
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
@@ -286,41 +284,41 @@ export const api = defineApi({
                 404: ErrorResponseSchema
             })
     },
-    merchants: {
-        searchBrands: merchantBrandSearch
+    vendors: {
+        searchCandidates: vendorCandidateSearch
             .get()
-            .query(MerchantBrandSearchQuerySchema)
-            .responses({ 200: array(MerchantBrandSuggestionSchema) }),
-        list: merchants
+            .query(VendorCandidateSearchQuerySchema)
+            .responses({ 200: array(VendorCandidateSchema) }),
+        list: vendors
             .get()
-            .query(MerchantListQuerySchema)
-            .cacheTag('merchants')
-            .responses({ 200: array(MerchantSchema) }),
-        get: merchants.get(ById).cacheTag('merchants').responses({
-            200: MerchantSchema,
+            .query(VendorListQuerySchema)
+            .cacheTag('vendors')
+            .responses({ 200: array(VendorSchema) }),
+        get: vendors.get(ById).cacheTag('vendors').responses({
+            200: VendorSchema,
             404: ErrorResponseSchema
         }),
-        create: merchants
+        create: vendors
             .post()
-            .body(CreateMerchantBodySchema)
-            .clearsCacheTag('merchants')
-            .responses({ 201: MerchantSchema, 400: ErrorResponseSchema }),
-        update: merchants
+            .body(CreateVendorBodySchema)
+            .clearsCacheTag('vendors')
+            .responses({ 201: VendorSchema, 400: ErrorResponseSchema }),
+        update: vendors
             .patch(ById)
-            .body(UpdateMerchantBodySchema)
-            .clearsCacheTag('merchants')
+            .body(UpdateVendorBodySchema)
+            .clearsCacheTag('vendors')
             .clearsCacheTag('transactions')
             .responses({
-                200: MerchantSchema,
+                200: VendorSchema,
                 400: ErrorResponseSchema,
                 404: ErrorResponseSchema
             }),
-        enrich: merchants
-            .post(MerchantEnrich)
-            .clearsCacheTag('merchants')
+        enrich: vendors
+            .post(VendorEnrich)
+            .clearsCacheTag('vendors')
             .clearsCacheTag('transactions')
             .responses({
-                200: MerchantSchema,
+                200: VendorSchema,
                 404: ErrorResponseSchema
             })
     },
@@ -334,7 +332,7 @@ export const api = defineApi({
             .post()
             .body(CreateTransactionBodySchema)
             .clearsCacheTag('categories')
-            .clearsCacheTag('merchants')
+            .clearsCacheTag('vendors')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -344,7 +342,7 @@ export const api = defineApi({
             .patch(ById)
             .body(UpdateTransactionBodySchema)
             .clearsCacheTag('categories')
-            .clearsCacheTag('merchants')
+            .clearsCacheTag('vendors')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -357,7 +355,7 @@ export const api = defineApi({
         delete: transactions
             .delete(ById)
             .clearsCacheTag('categories')
-            .clearsCacheTag('merchants')
+            .clearsCacheTag('vendors')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -371,7 +369,7 @@ export const api = defineApi({
             .query(DashboardQuerySchema)
             .cacheTag('dashboard', request => ({
                 date: request.query.date,
-                merchantLimit: request.query.merchantLimit,
+                vendorLimit: request.query.vendorLimit,
                 period: request.query.period
             }))
             .responses({ 200: DashboardSummarySchema }),
@@ -383,7 +381,7 @@ export const api = defineApi({
                 after: request.query.after,
                 before: request.query.before,
                 date: request.query.date,
-                merchantLimit: request.query.merchantLimit,
+                vendorLimit: request.query.vendorLimit,
                 period: request.query.period
             }))
             .responses({ 200: DashboardWindowResponseSchema })
