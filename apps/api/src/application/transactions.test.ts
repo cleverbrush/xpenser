@@ -342,7 +342,8 @@ describe('transaction category signs', () => {
                 merchantLogoUrl: 'https://big.example/logo.svg',
                 merchantPrimaryColor: '#0066cc',
                 expenseTotal: 50,
-                transactionCount: 2
+                transactionCount: 2,
+                trend: [0, 50, 0, 0, 0]
             },
             {
                 merchantId: 2,
@@ -351,7 +352,8 @@ describe('transaction category signs', () => {
                 merchantLogoUrl: undefined,
                 merchantPrimaryColor: undefined,
                 expenseTotal: 100,
-                transactionCount: 1
+                transactionCount: 1,
+                trend: [0, 100, 0, 0, 0]
             },
             {
                 merchantId: 10,
@@ -360,7 +362,8 @@ describe('transaction category signs', () => {
                 merchantLogoUrl: undefined,
                 merchantPrimaryColor: undefined,
                 expenseTotal: 1,
-                transactionCount: 1
+                transactionCount: 1,
+                trend: [0, 1, 0, 0, 0]
             }
         ]);
         expect(summary.topMerchants.some(item => item.merchantId === 3)).toBe(

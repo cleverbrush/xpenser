@@ -420,7 +420,8 @@ describe('shared schemas', () => {
                         merchantLogoUrl: 'https://walmart.com/logo.svg',
                         merchantPrimaryColor: '#0071ce',
                         expenseTotal: 100,
-                        transactionCount: 3
+                        transactionCount: 3,
+                        trend: [20, 80]
                     }
                 ],
                 byCategory: [],

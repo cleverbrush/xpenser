@@ -1590,10 +1590,18 @@ export function summarizeDashboardRows(
                     merchantLogoUrl: merchant.logoUrl ?? undefined,
                     merchantPrimaryColor: merchant.primaryColor ?? undefined,
                     expenseTotal: 0,
-                    transactionCount: 0
+                    transactionCount: 0,
+                    trend: Array.from({ length: bucketCount }, () => 0)
                 };
                 currentMerchant.expenseTotal += total;
                 currentMerchant.transactionCount += 1;
+                if (
+                    bucketIndex >= 0 &&
+                    bucketIndex < currentMerchant.trend.length
+                ) {
+                    currentMerchant.trend[bucketIndex] =
+                        (currentMerchant.trend[bucketIndex] ?? 0) + total;
+                }
                 totalsByMerchant.set(merchant.id, currentMerchant);
             }
         }

@@ -1204,6 +1204,10 @@ export const DashboardMerchantTotalSchema = object({
     /** Number of expense transactions linked to this merchant. */
     transactionCount: number().describe(
         'Number of expense transactions linked to this merchant.'
+    ),
+    /** Selected-period bucket totals for lightweight merchant charts. */
+    trend: array(decimalNumber()).describe(
+        'Selected-period bucket totals for lightweight merchant charts.'
     )
 }).schemaName('DashboardMerchantTotal');
 

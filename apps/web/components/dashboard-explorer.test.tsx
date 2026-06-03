@@ -21,6 +21,7 @@ function merchant(
         merchantPrimaryColor: '#3366cc',
         expenseTotal: id * 10,
         transactionCount: id,
+        trend: [id * 5, id * 10],
         ...overrides
     };
 }
@@ -114,6 +115,7 @@ describe('DashboardMerchantPanel', () => {
         expect(screen.getByText(/merchant-1\.example/)).toBeTruthy();
         expect(screen.getByText(/1 purchase/)).toBeTruthy();
         expect(screen.getByText('2.5%')).toBeTruthy();
+        expect(screen.getAllByText('{l:50,100}').length).toBeGreaterThan(0);
         expect(screen.getByText('Merchant 8')).toBeTruthy();
         expect(screen.queryByText('Merchant 9')).toBeNull();
         expect(

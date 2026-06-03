@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { AmountDisplay } from '@/components/amount-display';
 import {
     DatatypeChart,
+    datatypeExpression,
     datatypePieExpression
 } from '@/components/datatype-chart';
 import { MerchantLogo } from '@/components/merchant-display';
@@ -78,28 +79,39 @@ function DashboardMerchantRow({
 }) {
     const share = merchantExpenseShare(summary, merchant);
     const shareLabel = formatPercent(share);
+    const showPeriodDetails = summary.period !== 'day';
+    const href = merchantHref(summary, merchant, timezone);
+    const amountClassName = amountClassNameForCategoryTotal(
+        merchant.expenseTotal,
+        'expense'
+    );
+    const rowClassName = `grid items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2 ${
+        showPeriodDetails
+            ? 'grid-cols-[minmax(0,1fr)_auto_74px] sm:grid-cols-[minmax(0,1fr)_auto_104px]'
+            : 'grid-cols-[minmax(0,1fr)_auto]'
+    }`;
 
     return (
-        <Link
-            className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2"
-            draggable={false}
-            href={merchantHref(summary, merchant, timezone)}
-            prefetch={false}
-        >
-            <span
-                className="flex w-10 shrink-0 flex-col items-center justify-center text-rose-700 dark:text-rose-400"
-                title={`Share of expenses: ${shareLabel}`}
+        <div className={rowClassName}>
+            <Link
+                className="flex min-w-0 items-center gap-3"
+                draggable={false}
+                href={href}
+                prefetch={false}
             >
-                <DatatypeChart
-                    className="text-2xl"
-                    expression={datatypePieExpression(share)}
-                />
-                <span className="mt-0.5 text-[0.65rem] font-medium leading-none tabular-nums">
-                    <span className="sr-only">Share of expenses: </span>
-                    {shareLabel}
+                <span
+                    className="flex w-10 shrink-0 flex-col items-center justify-center text-rose-700 dark:text-rose-400"
+                    title={`Share of expenses: ${shareLabel}`}
+                >
+                    <DatatypeChart
+                        className="text-2xl"
+                        expression={datatypePieExpression(share)}
+                    />
+                    <span className="mt-0.5 text-[0.65rem] font-medium leading-none tabular-nums">
+                        <span className="sr-only">Share of expenses: </span>
+                        {shareLabel}
+                    </span>
                 </span>
-            </span>
-            <span className="flex min-w-0 items-center gap-3">
                 <MerchantLogo
                     merchant={{
                         displayName: merchant.merchantName,
@@ -120,22 +132,38 @@ function DashboardMerchantRow({
                             : merchantPurchaseLabel(merchant.transactionCount)}
                     </span>
                 </span>
-            </span>
-            <span
-                className={`font-semibold ${amountClassNameForCategoryTotal(
-                    merchant.expenseTotal,
-                    'expense'
-                )}`}
+            </Link>
+            <Link
+                className="min-w-0 text-right"
+                draggable={false}
+                href={href}
+                prefetch={false}
             >
-                <AmountDisplay
-                    currency={summary.currency}
-                    value={signedCategoryTotal(
-                        merchant.expenseTotal,
-                        'expense'
-                    )}
-                />
-            </span>
-        </Link>
+                <span className={`font-semibold ${amountClassName}`}>
+                    <AmountDisplay
+                        currency={summary.currency}
+                        value={signedCategoryTotal(
+                            merchant.expenseTotal,
+                            'expense'
+                        )}
+                    />
+                </span>
+            </Link>
+            {showPeriodDetails ? (
+                <Link
+                    aria-label={`${merchant.merchantName} transactions`}
+                    className="flex min-w-0 justify-end overflow-hidden"
+                    draggable={false}
+                    href={href}
+                    prefetch={false}
+                >
+                    <DatatypeChart
+                        className={`text-xl ${amountClassName}`}
+                        expression={datatypeExpression('l', merchant.trend)}
+                    />
+                </Link>
+            ) : null}
+        </div>
     );
 }
 
