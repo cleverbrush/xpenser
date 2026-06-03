@@ -1,6 +1,7 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
 import {
     createVendor,
+    getVendorCandidateDetails,
     getVendorDetails,
     listVendors,
     retryVendorEnrichment,
@@ -16,13 +17,26 @@ import type {
     GetVendorEndpoint,
     ListVendorsEndpoint,
     SearchVendorCandidatesEndpoint,
-    UpdateVendorEndpoint
+    UpdateVendorEndpoint,
+    VendorCandidateDetailsEndpoint
 } from '../endpoints.js';
 
 export const searchVendorCandidatesHandler: Handler<
     typeof SearchVendorCandidatesEndpoint
 > = async ({ query }, { config }) => {
     return searchVendorCandidates(config, query);
+};
+
+export const getVendorCandidateDetailsHandler: Handler<
+    typeof VendorCandidateDetailsEndpoint
+> = async ({ query }, { config }) => {
+    const details = await getVendorCandidateDetails(config, query);
+    if (!details) {
+        return ActionResult.notFound({
+            message: 'Vendor candidate details were not found.'
+        });
+    }
+    return details;
 };
 
 export const listVendorsHandler: Handler<typeof ListVendorsEndpoint> = async (

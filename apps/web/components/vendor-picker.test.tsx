@@ -88,4 +88,30 @@ describe('VendorPicker', () => {
         );
         expect(onChange).toHaveBeenCalledWith(selected);
     });
+
+    it('hides search while a vendor is selected until cleared', () => {
+        const selected = vendor({
+            id: 9,
+            name: 'Walmart',
+            displayName: 'Walmart',
+            domain: 'walmart.com'
+        });
+        const onChange = vi.fn();
+
+        render(
+            <VendorPicker
+                vendors={[selected]}
+                onChange={onChange}
+                selectedVendorId={selected.id}
+            />
+        );
+
+        expect(screen.getByText('Walmart')).toBeTruthy();
+        expect(screen.getByText('walmart.com')).toBeTruthy();
+        expect(screen.queryByLabelText('Vendor')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+
+        expect(onChange).toHaveBeenCalledWith(undefined);
+    });
 });

@@ -36,6 +36,7 @@ describe('api contract authorization metadata', () => {
             api.categories.delete,
             api.categories.moveAndDelete,
             api.vendors.searchCandidates,
+            api.vendors.candidateDetails,
             api.vendors.list,
             api.vendors.get,
             api.vendors.create,

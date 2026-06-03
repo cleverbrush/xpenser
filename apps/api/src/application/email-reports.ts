@@ -290,7 +290,7 @@ function transactionNote(transaction: Pick<TransactionDb, 'note'>) {
 }
 
 function vendorDisplayName(vendor: VendorDb): string {
-    return vendor.resolvedName ?? vendor.name;
+    return vendor.name;
 }
 
 function notableTransaction(

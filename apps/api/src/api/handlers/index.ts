@@ -43,6 +43,7 @@ import {
 import {
     createVendorHandler,
     enrichVendorHandler,
+    getVendorCandidateDetailsHandler,
     getVendorHandler,
     listVendorsHandler,
     searchVendorCandidatesHandler,
@@ -86,6 +87,7 @@ export const handlers = {
     },
     vendors: {
         searchCandidates: searchVendorCandidatesHandler,
+        candidateDetails: getVendorCandidateDetailsHandler,
         list: listVendorsHandler,
         get: getVendorHandler,
         create: createVendorHandler,

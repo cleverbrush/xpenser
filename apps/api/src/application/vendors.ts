@@ -3,6 +3,7 @@ import type {
     UpdateVendorBody,
     Vendor,
     VendorCandidate,
+    VendorCandidateDetailsQuery,
     VendorCandidateSearchQuery,
     VendorListQuery
 } from '@xpenser/contracts';
@@ -300,6 +301,50 @@ export async function searchVendorCandidates(
     }
 }
 
+export async function getVendorCandidateDetails(
+    config: Config,
+    query: Partial<VendorCandidateDetailsQuery>
+): Promise<VendorCandidate | undefined> {
+    const brandfetchBrandId = truncate(
+        nonemptyString(query.brandfetchBrandId),
+        100
+    );
+    const domain = domainText(nonemptyString(query.domain));
+    const identifier = brandfetchBrandId ?? domain;
+    if (!identifier || !config.brandfetch.apiKey) {
+        return undefined;
+    }
+
+    let details: BrandfetchResponse | undefined;
+    try {
+        details = await brandfetchBrandDetails(config, identifier);
+    } catch {
+        return undefined;
+    }
+    if (!details) {
+        return undefined;
+    }
+
+    const update = brandfetchUpdate(details);
+    const resolvedDomain = domainText(
+        nonemptyString(update.domain) ?? nonemptyString(domain)
+    );
+    if (!resolvedDomain) {
+        return undefined;
+    }
+
+    const name =
+        truncate(nonemptyString(update.resolvedName), 160) ?? resolvedDomain;
+    return {
+        ...(brandfetchBrandId ? { brandfetchBrandId } : {}),
+        name,
+        domain: resolvedDomain,
+        ...(update.logoUrl ? { logoUrl: update.logoUrl } : {}),
+        ...(update.description ? { description: update.description } : {}),
+        ...(update.primaryColor ? { primaryColor: update.primaryColor } : {})
+    };
+}
+
 function brandfetchUpdate(json: BrandfetchResponse) {
     const description =
         nonemptyString(json?.description) ??
@@ -490,7 +535,7 @@ function mapVendor(
     return {
         id: vendor.id,
         name: vendor.name,
-        displayName: vendor.resolvedName ?? vendor.name,
+        displayName: vendor.name,
         resolvedName: vendor.resolvedName ?? undefined,
         domain: vendor.domain ?? undefined,
         description: vendor.description ?? undefined,

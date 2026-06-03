@@ -175,14 +175,23 @@ export function VendorPicker({
         await saveVendor(formData);
     }
 
+    function clearSelection() {
+        setQuery('');
+        setCandidateSuggestions([]);
+        setCandidateSearchError(null);
+        onChange(undefined);
+    }
+
     return (
         <Field>
             <div className="flex items-center justify-between gap-2">
-                <FieldLabel htmlFor="vendor-search">Vendor</FieldLabel>
+                <FieldLabel htmlFor={selected ? undefined : 'vendor-search'}>
+                    Vendor
+                </FieldLabel>
                 {selected ? (
                     <Button
                         className="h-7 px-2"
-                        onClick={() => onChange(undefined)}
+                        onClick={clearSelection}
                         size="sm"
                         type="button"
                         variant="ghost"
@@ -206,17 +215,16 @@ export function VendorPicker({
                         ) : null}
                     </div>
                 </div>
-            ) : null}
-            <Input
-                autoComplete="off"
-                id="vendor-search"
-                onChange={event => setQuery(event.target.value)}
-                placeholder={
-                    selected ? 'Search another vendor' : 'Search vendor'
-                }
-                value={query}
-            />
-            {query.trim() || !selected ? (
+            ) : (
+                <Input
+                    autoComplete="off"
+                    id="vendor-search"
+                    onChange={event => setQuery(event.target.value)}
+                    placeholder="Search vendor"
+                    value={query}
+                />
+            )}
+            {!selected ? (
                 <div className="flex flex-col gap-1">
                     {visible.map(vendor => (
                         <Button

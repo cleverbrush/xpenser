@@ -194,11 +194,12 @@ export function QuickCaptureForm({
     function resetAfterSave() {
         const nextOccurredAt = new Date();
         setAmount('');
+        setVendorId(null);
         setOccurredAtText(dateToLocalDateTimeInput(nextOccurredAt, timezone));
         form.reset({
             amount: undefined,
             categoryId: activeCategoryId,
-            vendorId,
+            vendorId: null,
             currency,
             occurredAt: nextOccurredAt,
             note: undefined

@@ -39,6 +39,13 @@ function nullableString(
     return trimmed ? trimmed : null;
 }
 
+function nullableStringIfPresent(
+    formData: FormData,
+    key: string
+): string | null | undefined {
+    return formData.has(key) ? nullableString(formData, key) : undefined;
+}
+
 function booleanString(
     formData: FormData,
     key: string,
@@ -83,11 +90,11 @@ function vendorBody(formData: FormData) {
 function vendorUpdateBody(formData: FormData) {
     return {
         name: requiredString(formData, 'name'),
-        resolvedName: nullableString(formData, 'resolvedName'),
-        domain: nullableString(formData, 'domain'),
-        description: nullableString(formData, 'description'),
-        logoUrl: nullableString(formData, 'logoUrl'),
-        primaryColor: nullableString(formData, 'primaryColor')
+        resolvedName: nullableStringIfPresent(formData, 'resolvedName'),
+        domain: nullableStringIfPresent(formData, 'domain'),
+        description: nullableStringIfPresent(formData, 'description'),
+        logoUrl: nullableStringIfPresent(formData, 'logoUrl'),
+        primaryColor: nullableStringIfPresent(formData, 'primaryColor')
     };
 }
 
@@ -364,6 +371,29 @@ export async function searchVendorCandidatesAction(
             limit: 6
         }
     });
+}
+
+export async function getVendorCandidateDetailsAction({
+    brandfetchBrandId,
+    domain
+}: {
+    readonly brandfetchBrandId?: string;
+    readonly domain?: string;
+}): Promise<VendorCandidate | undefined> {
+    const client = await getApiClient();
+    try {
+        return await client.vendors.candidateDetails({
+            query: {
+                ...(brandfetchBrandId ? { brandfetchBrandId } : {}),
+                ...(domain ? { domain } : {})
+            }
+        });
+    } catch (err) {
+        if (apiErrorStatus(err) === 404) {
+            return undefined;
+        }
+        throw err;
+    }
 }
 
 export async function updateVendorAction(formData: FormData): Promise<Vendor> {

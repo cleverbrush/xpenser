@@ -29,6 +29,7 @@ import {
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
     UserPreferenceSchema,
+    VendorCandidateDetailsQuerySchema,
     VendorCandidateSchema,
     VendorCandidateSearchQuerySchema,
     VendorSchema
@@ -196,11 +197,21 @@ describe('shared schemas', () => {
             }).valid
         ).toBe(true);
         expect(
+            VendorCandidateDetailsQuerySchema.validate({
+                brandfetchBrandId: 'id_trader_joe'
+            }).valid
+        ).toBe(true);
+        expect(VendorCandidateDetailsQuerySchema.validate({}).valid).toBe(
+            false
+        );
+        expect(
             VendorCandidateSchema.validate({
                 brandfetchBrandId: 'id_trader_joe',
                 name: 'Trader Joe',
                 domain: 'traderjoes.com',
                 logoUrl: 'https://example.com/logo.svg',
+                description: 'Neighborhood grocery store.',
+                primaryColor: '#cc0000',
                 claimed: true
             }).valid
         ).toBe(true);

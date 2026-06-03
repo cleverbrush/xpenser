@@ -807,6 +807,35 @@ export const VendorCandidateSearchQuerySchema = object({
         .describe('Maximum number of Brandfetch suggestions to return.')
 }).schemaName('VendorCandidateSearchQuery');
 
+export const VendorCandidateDetailsQuerySchema = object({
+    /** Brandfetch brand identifier. */
+    brandfetchBrandId: string()
+        .optional()
+        .maxLength(100, 'Brandfetch brand identifier is too long')
+        .describe('Brandfetch brand identifier.'),
+    /** Vendor domain returned by Brandfetch. */
+    domain: string()
+        .optional()
+        .maxLength(255, 'domain is too long')
+        .describe('Vendor domain returned by Brandfetch.')
+})
+    .addValidator(value => {
+        if (value.brandfetchBrandId || value.domain) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message:
+                        'vendor candidate details require a brand ID or domain'
+                }
+            ]
+        };
+    })
+    .schemaName('VendorCandidateDetailsQuery');
+
 export const VendorCandidateSchema = object({
     /** Brandfetch brand identifier. */
     brandfetchBrandId: string()
@@ -820,6 +849,14 @@ export const VendorCandidateSchema = object({
     logoUrl: string()
         .optional()
         .describe('Brandfetch icon URL for the vendor search result.'),
+    /** Brandfetch description for the vendor candidate, when available. */
+    description: string()
+        .optional()
+        .describe('Brandfetch description for the vendor candidate.'),
+    /** Brandfetch primary color hex code, when available. */
+    primaryColor: string()
+        .optional()
+        .describe('Brandfetch primary color hex code.'),
     /** Whether the brand has been claimed in Brandfetch. */
     claimed: boolean()
         .optional()
@@ -1644,6 +1681,9 @@ export type Vendor = InferType<typeof VendorSchema>;
 export type VendorListQuery = InferType<typeof VendorListQuerySchema>;
 export type VendorCandidateSearchQuery = InferType<
     typeof VendorCandidateSearchQuerySchema
+>;
+export type VendorCandidateDetailsQuery = InferType<
+    typeof VendorCandidateDetailsQuerySchema
 >;
 export type VendorCandidate = InferType<typeof VendorCandidateSchema>;
 export type CreateVendorBody = InferType<typeof CreateVendorBodySchema>;

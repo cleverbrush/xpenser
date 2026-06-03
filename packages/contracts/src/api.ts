@@ -49,6 +49,7 @@ import {
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
     UserPreferenceSchema,
+    VendorCandidateDetailsQuerySchema,
     VendorCandidateSchema,
     VendorCandidateSearchQuerySchema,
     VendorListQuerySchema,
@@ -67,6 +68,9 @@ const categories = endpoint
 const vendors = endpoint.resource('/api/vendors').authorize(PrincipalSchema);
 const vendorCandidateSearch = endpoint
     .resource('/api/vendors/candidates')
+    .authorize(PrincipalSchema);
+const vendorCandidateDetails = endpoint
+    .resource('/api/vendors/candidates/details')
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
@@ -289,6 +293,13 @@ export const api = defineApi({
             .get()
             .query(VendorCandidateSearchQuerySchema)
             .responses({ 200: array(VendorCandidateSchema) }),
+        candidateDetails: vendorCandidateDetails
+            .get()
+            .query(VendorCandidateDetailsQuerySchema)
+            .responses({
+                200: VendorCandidateSchema,
+                404: ErrorResponseSchema
+            }),
         list: vendors
             .get()
             .query(VendorListQuerySchema)

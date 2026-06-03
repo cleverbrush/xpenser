@@ -3,7 +3,12 @@
  */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { Category, Currency, Transaction } from '@xpenser/contracts';
+import type {
+    Category,
+    Currency,
+    Transaction,
+    Vendor
+} from '@xpenser/contracts';
 import { XpenserFormProvider } from '@xpenser/ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QuickCaptureForm } from './quick-capture-form';
@@ -83,12 +88,27 @@ function savedTransaction(): Transaction {
     };
 }
 
+function vendor(overrides: Partial<Vendor> = {}): Vendor {
+    return {
+        id: 5,
+        name: 'Walmart',
+        displayName: 'Walmart',
+        domain: 'walmart.com',
+        transactionCount: 0,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...overrides
+    };
+}
+
 function renderQuickCaptureForm({
     categories: nextCategories = categories,
-    transactionCurrencies = ['USD', 'EUR']
+    transactionCurrencies = ['USD', 'EUR'],
+    vendors = []
 }: {
     readonly categories?: readonly Category[];
     readonly transactionCurrencies?: readonly string[];
+    readonly vendors?: readonly Vendor[];
 } = {}) {
     return render(
         <XpenserFormProvider>
@@ -96,7 +116,7 @@ function renderQuickCaptureForm({
                 categories={nextCategories}
                 currencies={currencies}
                 defaultCurrency="USD"
-                vendors={[]}
+                vendors={vendors}
                 timezone="UTC"
                 transactionCurrencies={transactionCurrencies}
             />
@@ -166,6 +186,55 @@ describe('QuickCaptureForm', () => {
             .calls[0]?.[0] as FormData;
         expect(undoFormData.get('id')).toBe('42');
         expect(refresh).toHaveBeenCalledTimes(2);
+    });
+
+    it('clears the selected vendor after saving a transaction', async () => {
+        createCaptureTransactionAction.mockResolvedValue(savedTransaction());
+        const walmart = vendor();
+
+        renderQuickCaptureForm({
+            transactionCurrencies: ['USD'],
+            vendors: [walmart]
+        });
+
+        fireEvent.change(screen.getByLabelText('Vendor'), {
+            target: { value: 'Walmart' }
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Walmart' }));
+        expect(screen.queryByLabelText('Vendor')).toBeNull();
+
+        fireEvent.change(screen.getByLabelText('Amount'), {
+            target: { value: '1.23' }
+        });
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Save transaction' })
+        );
+
+        await waitFor(() =>
+            expect(createCaptureTransactionAction).toHaveBeenCalledOnce()
+        );
+        expect(
+            (createCaptureTransactionAction.mock.calls[0]?.[0] as FormData).get(
+                'vendorId'
+            )
+        ).toBe('5');
+        expect(screen.getByLabelText('Vendor')).toBeTruthy();
+
+        fireEvent.change(screen.getByLabelText('Amount'), {
+            target: { value: '4.56' }
+        });
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Save transaction' })
+        );
+
+        await waitFor(() =>
+            expect(createCaptureTransactionAction).toHaveBeenCalledTimes(2)
+        );
+        expect(
+            (createCaptureTransactionAction.mock.calls[1]?.[0] as FormData).get(
+                'vendorId'
+            )
+        ).toBeNull();
     });
 
     it('wraps categories and reveals more on demand', () => {

@@ -9,6 +9,7 @@ import type {
 } from '../db/schemas.js';
 import {
     createVendor,
+    getVendorCandidateDetails,
     getVendorDetails,
     listVendors,
     retryVendorEnrichment,
@@ -311,6 +312,54 @@ describe('vendor helpers', () => {
         });
     });
 
+    it('gets rich Brandfetch candidate details for edit review', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: () =>
+                Promise.resolve({
+                    name: 'Walmart',
+                    domain: 'walmart.com',
+                    description: 'Retail stores.',
+                    logos: [
+                        {
+                            type: 'icon',
+                            formats: [
+                                {
+                                    format: 'svg',
+                                    src: 'https://cdn.brandfetch.io/walmart.svg'
+                                }
+                            ]
+                        }
+                    ],
+                    colors: [{ type: 'accent', hex: '#0071ce' }]
+                })
+        } as Response);
+
+        const result = await getVendorCandidateDetails(config, {
+            brandfetchBrandId: 'id_walmart',
+            domain: 'walmart.com'
+        });
+
+        expect(fetchSpy).toHaveBeenCalledWith(
+            'https://api.brandfetch.io/v2/brands/id_walmart',
+            expect.objectContaining({
+                headers: {
+                    Authorization: 'Bearer brandfetch-key'
+                },
+                method: 'GET'
+            })
+        );
+        expect(result).toEqual({
+            brandfetchBrandId: 'id_walmart',
+            name: 'Walmart',
+            domain: 'walmart.com',
+            description: 'Retail stores.',
+            logoUrl: 'https://cdn.brandfetch.io/walmart.svg',
+            primaryColor: '#0071ce'
+        });
+    });
+
     it('updates an unresolved existing vendor from a selected Brandfetch candidate', async () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: false,
@@ -442,6 +491,28 @@ describe('vendor helpers', () => {
             enrichmentProvider: 'brandfetch',
             enrichmentStatus: 'not_found',
             transactionCount: 1
+        });
+    });
+
+    it('uses the user-entered name as the display name', async () => {
+        const result = await getVendorDetails(
+            testDb({
+                vendors: [
+                    vendor({
+                        name: 'My Walmart',
+                        normalizedName: 'my walmart',
+                        resolvedName: 'Walmart'
+                    })
+                ]
+            }),
+            1,
+            1
+        );
+
+        expect(result).toMatchObject({
+            name: 'My Walmart',
+            displayName: 'My Walmart',
+            resolvedName: 'Walmart'
         });
     });
 

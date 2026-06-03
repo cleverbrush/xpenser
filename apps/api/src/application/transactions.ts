@@ -219,7 +219,7 @@ function mapTransaction(
         id: row.id,
         categoryId: fields.categoryId,
         vendorId: vendor?.id ?? row.vendorId ?? null,
-        vendorName: vendor?.resolvedName ?? vendor?.name,
+        vendorName: vendor?.name,
         vendorLogoUrl: vendor?.logoUrl ?? undefined,
         categoryName: fields.categoryName,
         categoryDisplayName: fields.categoryDisplayName,
@@ -399,11 +399,7 @@ export async function listTransactions(
                     : ''
                 ).includes(search) ||
                 (transaction.vendorId
-                    ? (
-                          vendorsById.get(transaction.vendorId)?.resolvedName ??
-                          vendorsById.get(transaction.vendorId)?.name ??
-                          ''
-                      )
+                    ? (vendorsById.get(transaction.vendorId)?.name ?? '')
                           .toLowerCase()
                           .includes(search)
                     : false) ||
@@ -1582,7 +1578,7 @@ export function summarizeDashboardRows(
             if (vendor) {
                 const currentVendor = totalsByVendor.get(vendor.id) ?? {
                     vendorId: vendor.id,
-                    vendorName: vendor.resolvedName ?? vendor.name,
+                    vendorName: vendor.name,
                     vendorDomain: vendor.domain ?? undefined,
                     vendorLogoUrl: vendor.logoUrl ?? undefined,
                     vendorPrimaryColor: vendor.primaryColor ?? undefined,

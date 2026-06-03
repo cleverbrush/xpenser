@@ -223,6 +223,14 @@ export const SearchVendorCandidatesEndpoint = api.vendors.searchCandidates
     .tags('vendors')
     .operationId('searchVendorCandidates');
 
+export const VendorCandidateDetailsEndpoint = api.vendors.candidateDetails
+    .authorize(PrincipalSchema)
+    .inject({ config: ConfigToken })
+    .summary('Get vendor candidate details')
+    .description('Gets Brandfetch details for a selected vendor candidate.')
+    .tags('vendors')
+    .operationId('getVendorCandidateDetails');
+
 export const GetVendorEndpoint = api.vendors.get
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -366,6 +374,7 @@ export const endpoints = {
     },
     vendors: {
         searchCandidates: SearchVendorCandidatesEndpoint,
+        candidateDetails: VendorCandidateDetailsEndpoint,
         list: ListVendorsEndpoint,
         get: GetVendorEndpoint,
         create: CreateVendorEndpoint,
