@@ -13,6 +13,7 @@ import {
     listMerchants,
     merchantNormalizedName,
     retryMerchantEnrichment,
+    searchMerchantBrands,
     updateMerchant
 } from './merchants.js';
 
@@ -162,7 +163,8 @@ function testDb({
 
 const config = {
     brandfetch: {
-        apiKey: 'brandfetch-key'
+        apiKey: 'brandfetch-key',
+        clientId: 'brandfetch-client'
     },
     merchantEnrichment: {
         enabled: true,
@@ -177,6 +179,42 @@ describe('merchant helpers', () => {
 
     it('normalizes merchant names for user-scoped reuse', () => {
         expect(merchantNormalizedName('  Coffee   Shop  ')).toBe('coffee shop');
+    });
+
+    it('searches Brandfetch brand candidates with the configured client ID', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: () =>
+                Promise.resolve([
+                    {
+                        brandId: 'id_bufet',
+                        name: 'Bufet',
+                        domain: 'bufet.ua',
+                        icon: 'https://cdn.brandfetch.io/bufet/icon.svg',
+                        claimed: true
+                    }
+                ])
+        } as Response);
+
+        const result = await searchMerchantBrands(config, {
+            query: 'Bufet',
+            limit: 3
+        });
+
+        expect(fetchSpy).toHaveBeenCalledWith(
+            'https://api.brandfetch.io/v2/search/Bufet?c=brandfetch-client',
+            expect.objectContaining({ method: 'GET' })
+        );
+        expect(result).toEqual([
+            {
+                brandId: 'id_bufet',
+                name: 'Bufet',
+                domain: 'bufet.ua',
+                logoUrl: 'https://cdn.brandfetch.io/bufet/icon.svg',
+                claimed: true
+            }
+        ]);
     });
 
     it('uses the user country when enriching a merchant', async () => {
@@ -224,6 +262,102 @@ describe('merchant helpers', () => {
         });
     });
 
+    it('creates a merchant from a selected Brandfetch brand without transaction enrichment', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: () =>
+                Promise.resolve({
+                    id: 'id_bufet',
+                    name: 'Bufet',
+                    domain: 'bufet.ua',
+                    description: 'Local cafe.',
+                    logos: [
+                        {
+                            type: 'icon',
+                            formats: [
+                                {
+                                    format: 'svg',
+                                    src: 'https://cdn.brandfetch.io/bufet.svg'
+                                }
+                            ]
+                        }
+                    ],
+                    colors: [{ type: 'accent', hex: '#224466' }]
+                })
+        } as Response);
+
+        const result = await createMerchant(
+            testDb({ merchants: [] }),
+            config,
+            1,
+            {
+                name: 'Bufet',
+                brandfetchBrandId: 'id_bufet',
+                brandName: 'Bufet',
+                domain: 'bufet.ua',
+                logoUrl: 'https://cdn.brandfetch.io/search-icon.svg'
+            }
+        );
+
+        expect(fetchSpy).toHaveBeenCalledOnce();
+        expect(fetchSpy).toHaveBeenCalledWith(
+            'https://api.brandfetch.io/v2/brands/id_bufet',
+            expect.objectContaining({
+                headers: {
+                    Authorization: 'Bearer brandfetch-key'
+                },
+                method: 'GET'
+            })
+        );
+        expect(result).toMatchObject({
+            brandName: 'Bufet',
+            description: 'Local cafe.',
+            domain: 'bufet.ua',
+            enrichmentProvider: 'brandfetch',
+            enrichmentStatus: 'success',
+            logoUrl: 'https://cdn.brandfetch.io/bufet.svg',
+            primaryColor: '#224466'
+        });
+    });
+
+    it('updates an unbranded existing merchant from a selected Brandfetch brand', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            status: 404
+        } as Response);
+
+        const existing = merchant({
+            name: 'Bufet',
+            normalizedName: 'bufet',
+            enrichmentProvider: 'brandfetch',
+            enrichmentStatus: 'failed',
+            enrichedAt: timestamp
+        });
+
+        const result = await createMerchant(
+            testDb({ merchants: [existing] }),
+            config,
+            1,
+            {
+                name: 'Bufet',
+                brandfetchBrandId: 'id_bufet',
+                brandName: 'Bufet',
+                domain: 'bufet.ua',
+                logoUrl: 'https://cdn.brandfetch.io/search-icon.svg'
+            }
+        );
+
+        expect(fetchSpy).toHaveBeenCalledOnce();
+        expect(result).toMatchObject({
+            id: existing.id,
+            brandName: 'Bufet',
+            domain: 'bufet.ua',
+            enrichmentStatus: 'success',
+            logoUrl: 'https://cdn.brandfetch.io/search-icon.svg'
+        });
+    });
+
     it('suggests the most used active category for a merchant', async () => {
         const restaurants = category({ id: 2, name: 'Restaurants' });
         const result = await listMerchants(
@@ -266,6 +400,35 @@ describe('merchant helpers', () => {
             enrichmentStatus: 'disabled'
         });
         expect(result.enrichedAt).toBeInstanceOf(Date);
+    });
+
+    it('marks Brandfetch transaction 404 responses as not found', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: false,
+            status: 404
+        } as Response);
+
+        const result = await retryMerchantEnrichment(
+            testDb({
+                merchants: [
+                    merchant({
+                        name: 'Bufet',
+                        normalizedName: 'bufet',
+                        enrichmentStatus: 'failed',
+                        enrichedAt: timestamp
+                    })
+                ]
+            }),
+            config,
+            1,
+            1
+        );
+
+        expect(result).toMatchObject({
+            displayName: 'Bufet',
+            enrichmentProvider: 'brandfetch',
+            enrichmentStatus: 'not_found'
+        });
     });
 
     it('gets merchant details with stats and enrichment metadata', async () => {

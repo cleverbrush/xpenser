@@ -1,7 +1,11 @@
 'use server';
 
 import { createHash, randomBytes } from 'node:crypto';
-import type { Merchant, Transaction } from '@xpenser/contracts';
+import type {
+    Merchant,
+    MerchantBrandSuggestion,
+    Transaction
+} from '@xpenser/contracts';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -72,7 +76,11 @@ function transactionBody(formData: FormData, editableNote = false) {
 
 function merchantBody(formData: FormData) {
     return {
-        name: requiredString(formData, 'name')
+        name: requiredString(formData, 'name'),
+        brandfetchBrandId: optionalString(formData, 'brandfetchBrandId'),
+        brandName: optionalString(formData, 'brandName'),
+        domain: optionalString(formData, 'domain'),
+        logoUrl: optionalString(formData, 'logoUrl')
     };
 }
 
@@ -347,6 +355,18 @@ export async function createMerchantAction(
     revalidatePath('/merchants');
     revalidatePath('/transactions');
     return merchant;
+}
+
+export async function searchMerchantBrandsAction(
+    query: string
+): Promise<MerchantBrandSuggestion[]> {
+    const client = await getApiClient();
+    return client.merchants.searchBrands({
+        query: {
+            query,
+            limit: 6
+        }
+    });
 }
 
 export async function updateMerchantAction(

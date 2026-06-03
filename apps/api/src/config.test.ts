@@ -55,6 +55,7 @@ describe('API config', () => {
         vi.stubEnv('WEB_API_SERVICE_SECRET', 'x'.repeat(32));
         vi.stubEnv('TELEGRAM_BOT_SERVICE_SECRET', 'x'.repeat(32));
         vi.stubEnv('BRANDFETCH_API_KEY', 'brandfetch-key');
+        vi.stubEnv('BRANDFETCH_CLIENT_ID', 'brandfetch-client');
         vi.stubEnv('MERCHANT_ENRICHMENT_ENABLED', 'yes');
         vi.stubEnv('MERCHANT_ENRICHMENT_TIMEOUT_MS', '1234');
         vi.resetModules();
@@ -62,6 +63,7 @@ describe('API config', () => {
         const { config } = await import('./config.js');
 
         expect(config.brandfetch.apiKey).toBe('brandfetch-key');
+        expect(config.brandfetch.clientId).toBe('brandfetch-client');
         expect(config.merchantEnrichment.enabled).toBe(true);
         expect(config.merchantEnrichment.timeoutMs).toBe(1234);
     });

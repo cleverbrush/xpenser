@@ -99,6 +99,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID || vars.CLOUDFLARE_ZONE_ID }}
           BRANDFETCH_API_KEY: ${{ secrets.BRANDFETCH_API_KEY }}
+          BRANDFETCH_CLIENT_ID: ${{ vars.BRANDFETCH_CLIENT_ID }}
           GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || format('git@github.com:{0}.git', github.repository) }}
           MERCHANT_ENRICHMENT_ENABLED: ${{ vars.MERCHANT_ENRICHMENT_ENABLED || '0' }}
           MERCHANT_ENRICHMENT_TIMEOUT_MS: ${{ vars.MERCHANT_ENRICHMENT_TIMEOUT_MS || '2000' }}
@@ -164,6 +165,7 @@ jobs:
             b64 "$PR_ENV_DNS_RECORD_PROXIED"
             b64 "$PR_ENV_DNS_RECORD_TTL"
             b64 "$BRANDFETCH_API_KEY"
+            b64 "$BRANDFETCH_CLIENT_ID"
             b64 "$MERCHANT_ENRICHMENT_ENABLED"
             b64 "$MERCHANT_ENRICHMENT_TIMEOUT_MS"
             b64 "$OPENAI_API_KEY"

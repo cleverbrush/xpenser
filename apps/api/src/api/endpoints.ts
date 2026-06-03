@@ -215,6 +215,14 @@ export const ListMerchantsEndpoint = api.merchants.list
     .tags('merchants')
     .operationId('listMerchants');
 
+export const SearchMerchantBrandsEndpoint = api.merchants.searchBrands
+    .authorize(PrincipalSchema)
+    .inject({ config: ConfigToken })
+    .summary('Search merchant brands')
+    .description('Searches Brandfetch for merchant brand candidates.')
+    .tags('merchants')
+    .operationId('searchMerchantBrands');
+
 export const GetMerchantEndpoint = api.merchants.get
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -357,6 +365,7 @@ export const endpoints = {
         moveAndDelete: MoveAndDeleteCategoryEndpoint
     },
     merchants: {
+        searchBrands: SearchMerchantBrandsEndpoint,
         list: ListMerchantsEndpoint,
         get: GetMerchantEndpoint,
         create: CreateMerchantEndpoint,

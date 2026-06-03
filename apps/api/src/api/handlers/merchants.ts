@@ -7,6 +7,7 @@ import {
     MerchantNameError,
     MerchantNotFoundError,
     retryMerchantEnrichment,
+    searchMerchantBrands,
     updateMerchant
 } from '../../application/merchants.js';
 import type {
@@ -14,8 +15,15 @@ import type {
     EnrichMerchantEndpoint,
     GetMerchantEndpoint,
     ListMerchantsEndpoint,
+    SearchMerchantBrandsEndpoint,
     UpdateMerchantEndpoint
 } from '../endpoints.js';
+
+export const searchMerchantBrandsHandler: Handler<
+    typeof SearchMerchantBrandsEndpoint
+> = async ({ query }, { config }) => {
+    return searchMerchantBrands(config, query);
+};
 
 export const listMerchantsHandler: Handler<
     typeof ListMerchantsEndpoint

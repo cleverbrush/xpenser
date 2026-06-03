@@ -1,6 +1,6 @@
 'use client';
 
-import type { Merchant } from '@xpenser/contracts';
+import type { Merchant, MerchantBrandSuggestion } from '@xpenser/contracts';
 import {
     Button,
     Field,
@@ -11,7 +11,10 @@ import {
 } from '@xpenser/ui';
 import { StoreIcon, XIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { createMerchantAction } from '@/lib/actions';
+import {
+    createMerchantAction,
+    searchMerchantBrandsAction
+} from '@/lib/actions';
 import { MerchantLogo, merchantDisplayName } from './merchant-display';
 
 function merchantMatches(merchant: Merchant, query: string): boolean {
@@ -40,11 +43,56 @@ export function MerchantPicker({
     const [items, setItems] = useState<readonly Merchant[]>(merchants);
     const [query, setQuery] = useState('');
     const [pending, setPending] = useState(false);
+    const [brandSearchPending, setBrandSearchPending] = useState(false);
+    const [brandSuggestions, setBrandSuggestions] = useState<
+        readonly MerchantBrandSuggestion[]
+    >([]);
     const [error, setError] = useState<string | null>(null);
+    const [brandSearchError, setBrandSearchError] = useState<string | null>(
+        null
+    );
 
     useEffect(() => {
         setItems(merchants);
     }, [merchants]);
+
+    useEffect(() => {
+        const search = query.trim();
+        if (search.length < 2) {
+            setBrandSuggestions([]);
+            setBrandSearchPending(false);
+            setBrandSearchError(null);
+            return;
+        }
+
+        let active = true;
+        setBrandSearchError(null);
+        const timeout = setTimeout(() => {
+            setBrandSearchPending(true);
+            searchMerchantBrandsAction(search)
+                .then(results => {
+                    if (active) {
+                        setBrandSuggestions(results);
+                    }
+                })
+                .catch(() => {
+                    if (active) {
+                        setBrandSuggestions([]);
+                        setBrandSearchError('Could not search brands.');
+                    }
+                })
+                .finally(() => {
+                    if (active) {
+                        setBrandSearchPending(false);
+                    }
+                });
+        }, 300);
+
+        return () => {
+            active = false;
+            clearTimeout(timeout);
+        };
+    }, [query]);
 
     const selected = useMemo(
         () => items.find(merchant => merchant.id === selectedMerchantId),
@@ -57,6 +105,20 @@ export function MerchantPicker({
                 .slice(0, 6),
         [items, query]
     );
+    const visibleBrandSuggestions = useMemo(
+        () =>
+            brandSuggestions
+                .filter(
+                    suggestion =>
+                        !items.some(
+                            merchant =>
+                                merchant.domain === suggestion.domain ||
+                                merchant.logoUrl === suggestion.logoUrl
+                        )
+                )
+                .slice(0, 4),
+        [brandSuggestions, items]
+    );
     const normalizedQuery = query.trim().toLowerCase();
     const canCreate =
         query.trim() !== '' &&
@@ -66,14 +128,7 @@ export function MerchantPicker({
                 merchant.displayName.trim().toLowerCase() === normalizedQuery
         );
 
-    async function createMerchant() {
-        const name = query.trim();
-        if (!name) {
-            return;
-        }
-
-        const formData = new FormData();
-        formData.set('name', name);
+    async function saveMerchant(formData: FormData) {
         setPending(true);
         setError(null);
         try {
@@ -85,12 +140,42 @@ export function MerchantPicker({
                 return [merchant, ...withoutDuplicate];
             });
             setQuery('');
+            setBrandSuggestions([]);
             onChange(merchant);
         } catch {
             setError('Could not save merchant.');
         } finally {
             setPending(false);
         }
+    }
+
+    async function createMerchant() {
+        const name = query.trim();
+        if (!name || pending) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('name', name);
+        await saveMerchant(formData);
+    }
+
+    async function createBrandMerchant(suggestion: MerchantBrandSuggestion) {
+        if (pending) {
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('name', suggestion.name);
+        formData.set('brandName', suggestion.name);
+        formData.set('domain', suggestion.domain);
+        if (suggestion.brandId) {
+            formData.set('brandfetchBrandId', suggestion.brandId);
+        }
+        if (suggestion.logoUrl) {
+            formData.set('logoUrl', suggestion.logoUrl);
+        }
+        await saveMerchant(formData);
     }
 
     return (
@@ -160,6 +245,39 @@ export function MerchantPicker({
                             </span>
                         </Button>
                     ))}
+                    {visibleBrandSuggestions.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                            {visibleBrandSuggestions.map(suggestion => (
+                                <Button
+                                    className="h-auto justify-start gap-2 px-2 py-2"
+                                    disabled={pending}
+                                    key={`${suggestion.brandId ?? suggestion.domain}-${suggestion.domain}`}
+                                    onClick={() =>
+                                        void createBrandMerchant(suggestion)
+                                    }
+                                    type="button"
+                                    variant="outline"
+                                >
+                                    <MerchantLogo
+                                        merchant={{
+                                            displayName: suggestion.name,
+                                            logoUrl: suggestion.logoUrl,
+                                            name: suggestion.name
+                                        }}
+                                        size="sm"
+                                    />
+                                    <span className="min-w-0 text-left">
+                                        <span className="block truncate">
+                                            {suggestion.name}
+                                        </span>
+                                        <span className="block truncate text-xs text-muted-foreground">
+                                            {suggestion.domain}
+                                        </span>
+                                    </span>
+                                </Button>
+                            ))}
+                        </div>
+                    ) : null}
                     {canCreate ? (
                         <Button
                             className="justify-start gap-2"
@@ -178,6 +296,12 @@ export function MerchantPicker({
                         <FieldDescription>
                             No matching merchants.
                         </FieldDescription>
+                    ) : null}
+                    {brandSearchPending ? (
+                        <FieldDescription>Searching brands...</FieldDescription>
+                    ) : null}
+                    {brandSearchError ? (
+                        <FieldDescription>{brandSearchError}</FieldDescription>
                     ) : null}
                 </div>
             ) : null}

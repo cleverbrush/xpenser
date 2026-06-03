@@ -79,6 +79,7 @@ export const config = parseEnv(
         },
         brandfetch: {
             apiKey: env('BRANDFETCH_API_KEY', string().optional()),
+            clientId: env('BRANDFETCH_CLIENT_ID', string().optional()),
             merchantEnrichmentEnabled: env(
                 'MERCHANT_ENRICHMENT_ENABLED',
                 string().default('0')

@@ -13,6 +13,8 @@ import {
     EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
+    MerchantBrandSearchQuerySchema,
+    MerchantBrandSuggestionSchema,
     MerchantSchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
@@ -174,11 +176,33 @@ describe('shared schemas', () => {
 
     it('validates merchant payloads', () => {
         expect(
-            CreateMerchantBodySchema.validate({ name: 'Trader Joe' }).valid
+            CreateMerchantBodySchema.validate({
+                name: 'Trader Joe',
+                brandfetchBrandId: 'id_trader_joe',
+                brandName: 'Trader Joe',
+                domain: 'traderjoes.com',
+                logoUrl: 'https://example.com/logo.svg'
+            }).valid
         ).toBe(true);
         expect(CreateMerchantBodySchema.validate({ name: '' }).valid).toBe(
             false
         );
+
+        expect(
+            MerchantBrandSearchQuerySchema.validate({
+                query: 'Trader Joe',
+                limit: 3
+            }).valid
+        ).toBe(true);
+        expect(
+            MerchantBrandSuggestionSchema.validate({
+                brandId: 'id_trader_joe',
+                name: 'Trader Joe',
+                domain: 'traderjoes.com',
+                logoUrl: 'https://example.com/logo.svg',
+                claimed: true
+            }).valid
+        ).toBe(true);
 
         expect(
             MerchantSchema.validate({

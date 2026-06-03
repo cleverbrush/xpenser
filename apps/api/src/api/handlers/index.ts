@@ -27,6 +27,7 @@ import {
     enrichMerchantHandler,
     getMerchantHandler,
     listMerchantsHandler,
+    searchMerchantBrandsHandler,
     updateMerchantHandler
 } from './merchants.js';
 import {
@@ -84,6 +85,7 @@ export const handlers = {
         moveAndDelete: moveAndDeleteCategoryHandler
     },
     merchants: {
+        searchBrands: searchMerchantBrandsHandler,
         list: listMerchantsHandler,
         get: getMerchantHandler,
         create: createMerchantHandler,

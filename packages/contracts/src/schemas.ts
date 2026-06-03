@@ -793,13 +793,64 @@ export const MerchantListQuerySchema = object({
         .describe('Maximum number of merchants to return.')
 }).schemaName('MerchantListQuery');
 
+export const MerchantBrandSearchQuerySchema = object({
+    /** Brand name text to search through Brandfetch. */
+    query: string()
+        .required('brand search query is required')
+        .nonempty('brand search query is required')
+        .maxLength(160, 'brand search query is too long')
+        .describe('Brand name text to search through Brandfetch.'),
+    /** Maximum number of Brandfetch suggestions to return. */
+    limit: number()
+        .coerce()
+        .default(6)
+        .describe('Maximum number of Brandfetch suggestions to return.')
+}).schemaName('MerchantBrandSearchQuery');
+
+export const MerchantBrandSuggestionSchema = object({
+    /** Brandfetch brand identifier. */
+    brandId: string().optional().describe('Brandfetch brand identifier.'),
+    /** Brand name returned by Brandfetch. */
+    name: string().describe('Brand name returned by Brandfetch.'),
+    /** Brand domain returned by Brandfetch. */
+    domain: string().describe('Brand domain returned by Brandfetch.'),
+    /** Brandfetch icon URL for the brand search result. */
+    logoUrl: string()
+        .optional()
+        .describe('Brandfetch icon URL for the brand search result.'),
+    /** Whether the brand has been claimed in Brandfetch. */
+    claimed: boolean()
+        .optional()
+        .describe('Whether the brand has been claimed in Brandfetch.')
+}).schemaName('MerchantBrandSuggestion');
+
 export const CreateMerchantBodySchema = object({
     /** User-entered merchant name. */
     name: string()
         .required('merchant name is required')
         .nonempty('merchant name is required')
         .maxLength(160, 'merchant name is too long')
-        .describe('User-entered merchant name.')
+        .describe('User-entered merchant name.'),
+    /** Brandfetch brand identifier selected from search results. */
+    brandfetchBrandId: string()
+        .optional()
+        .maxLength(100, 'Brandfetch brand identifier is too long')
+        .describe('Brandfetch brand identifier selected from search results.'),
+    /** Brand name selected from Brandfetch search results. */
+    brandName: string()
+        .optional()
+        .maxLength(160, 'brand name is too long')
+        .describe('Brand name selected from Brandfetch search results.'),
+    /** Brand domain selected from Brandfetch search results. */
+    domain: string()
+        .optional()
+        .maxLength(255, 'domain is too long')
+        .describe('Brand domain selected from Brandfetch search results.'),
+    /** Brand logo URL selected from Brandfetch search results. */
+    logoUrl: string()
+        .optional()
+        .maxLength(1000, 'logo URL is too long')
+        .describe('Brand logo URL selected from Brandfetch search results.')
 }).schemaName('CreateMerchantBody');
 
 export const UpdateMerchantBodySchema = object({
@@ -1520,6 +1571,12 @@ export type CategoryListQuery = InferType<typeof CategoryListQuerySchema>;
 export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;
 export type Merchant = InferType<typeof MerchantSchema>;
 export type MerchantListQuery = InferType<typeof MerchantListQuerySchema>;
+export type MerchantBrandSearchQuery = InferType<
+    typeof MerchantBrandSearchQuerySchema
+>;
+export type MerchantBrandSuggestion = InferType<
+    typeof MerchantBrandSuggestionSchema
+>;
 export type CreateMerchantBody = InferType<typeof CreateMerchantBodySchema>;
 export type UpdateMerchantBody = InferType<typeof UpdateMerchantBodySchema>;
 export type Transaction = InferType<typeof TransactionSchema>;

@@ -9,13 +9,17 @@ import { TransactionDialog } from './transaction-dialog';
 
 const refresh = vi.fn();
 const createMerchantAction = vi.fn();
+const searchMerchantBrandsAction = vi.fn();
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ refresh })
 }));
 
 vi.mock('@/lib/actions', () => ({
-    createMerchantAction: (formData: FormData) => createMerchantAction(formData)
+    createMerchantAction: (formData: FormData) =>
+        createMerchantAction(formData),
+    searchMerchantBrandsAction: (query: string) =>
+        searchMerchantBrandsAction(query)
 }));
 
 describe('TransactionDialog', () => {

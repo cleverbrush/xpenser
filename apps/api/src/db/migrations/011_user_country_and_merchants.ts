@@ -46,11 +46,18 @@ export async function up(knex: Knex): Promise<void> {
                 .timestamp('updated_at', { useTz: true })
                 .notNullable()
                 .defaultTo(knex.fn.now());
-            table.unique(['user_id', 'normalized_name'], {
-                indexName: 'uq_merchants_user_normalized_name'
-            });
             table.index(['user_id'], 'idx_merchants_user_id');
         });
+        await knex.raw(`
+            create unique index if not exists uq_merchants_user_normalized_name_without_domain
+            on merchants (user_id, normalized_name)
+            where domain is null
+        `);
+        await knex.raw(`
+            create unique index if not exists uq_merchants_user_normalized_name_domain
+            on merchants (user_id, normalized_name, domain)
+            where domain is not null
+        `);
     }
 
     const hasMerchantId = await knex.schema.hasColumn(

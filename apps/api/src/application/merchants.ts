@@ -1,6 +1,8 @@
 import type {
     CreateMerchantBody,
     Merchant,
+    MerchantBrandSearchQuery,
+    MerchantBrandSuggestion,
     MerchantListQuery,
     UpdateMerchantBody
 } from '@xpenser/contracts';
@@ -19,6 +21,8 @@ import {
 
 const brandfetchTransactionUrl =
     'https://api.brandfetch.io/v2/brands/transaction';
+const brandfetchBrandUrl = 'https://api.brandfetch.io/v2/brands';
+const brandfetchSearchUrl = 'https://api.brandfetch.io/v2/search';
 const enrichmentTtlMs = 30 * 24 * 60 * 60 * 1000;
 
 export class MerchantNameError extends Error {}
@@ -51,12 +55,21 @@ type BrandfetchColor = {
 };
 
 type BrandfetchResponse = {
+    readonly id?: unknown;
     readonly name?: unknown;
     readonly domain?: unknown;
     readonly description?: unknown;
     readonly longDescription?: unknown;
     readonly logos?: unknown;
     readonly colors?: unknown;
+};
+
+type BrandfetchSearchResponse = {
+    readonly brandId?: unknown;
+    readonly claimed?: unknown;
+    readonly domain?: unknown;
+    readonly icon?: unknown;
+    readonly name?: unknown;
 };
 
 function normalizeMerchantName(value: string): string {
@@ -90,6 +103,23 @@ function httpsUrl(value: string | undefined): string | undefined {
     } catch {
         return undefined;
     }
+}
+
+function domainText(value: string | undefined): string | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    const text = value.trim();
+    if (!text) {
+        return undefined;
+    }
+
+    const withoutProtocol = text.replace(/^https?:\/\//i, '');
+    return truncate(
+        withoutProtocol.split('/')[0]?.toLowerCase() ?? text.toLowerCase(),
+        255
+    );
 }
 
 function chooseLogoUrl(logos: unknown): string | undefined {
@@ -141,6 +171,28 @@ async function brandfetchTransaction(
         return undefined;
     }
 
+    const response = await brandfetchFetch(config, brandfetchTransactionUrl, {
+        body: JSON.stringify(input),
+        headers: {
+            Authorization: `Bearer ${config.brandfetch.apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        method: 'POST'
+    });
+
+    if (response.status === 404) {
+        return undefined;
+    }
+    if (!response.ok) {
+        throw new Error(
+            `Brandfetch API error ${response.status}: ${await response.text()}`
+        );
+    }
+
+    return (await response.json()) as BrandfetchResponse;
+}
+
+async function brandfetchFetch(config: Config, url: string, init: RequestInit) {
     const controller = new AbortController();
     const timeout = setTimeout(
         () => controller.abort(),
@@ -148,28 +200,105 @@ async function brandfetchTransaction(
     );
 
     try {
-        const response = await fetch(brandfetchTransactionUrl, {
-            body: JSON.stringify(input),
+        return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function brandfetchBrandDetails(
+    config: Config,
+    identifier: string
+): Promise<BrandfetchResponse | undefined> {
+    if (!config.brandfetch.apiKey) {
+        return undefined;
+    }
+
+    const response = await brandfetchFetch(
+        config,
+        `${brandfetchBrandUrl}/${encodeURIComponent(identifier)}`,
+        {
             headers: {
-                Authorization: `Bearer ${config.brandfetch.apiKey}`,
-                'Content-Type': 'application/json'
+                Authorization: `Bearer ${config.brandfetch.apiKey}`
             },
-            method: 'POST',
-            signal: controller.signal
+            method: 'GET'
+        }
+    );
+
+    if (response.status === 404) {
+        return undefined;
+    }
+    if (!response.ok) {
+        throw new Error(
+            `Brandfetch API error ${response.status}: ${await response.text()}`
+        );
+    }
+
+    return (await response.json()) as BrandfetchResponse;
+}
+
+function mapBrandSearchResult(
+    value: BrandfetchSearchResponse
+): MerchantBrandSuggestion | undefined {
+    const domain = domainText(nonemptyString(value.domain));
+    if (!domain) {
+        return undefined;
+    }
+
+    const name = truncate(nonemptyString(value.name), 160) ?? domain;
+    const brandId = truncate(nonemptyString(value.brandId), 100);
+    const logoUrl = httpsUrl(nonemptyString(value.icon));
+    return {
+        ...(brandId ? { brandId } : {}),
+        name,
+        domain,
+        ...(logoUrl ? { logoUrl: truncate(logoUrl, 1000) } : {}),
+        ...(typeof value.claimed === 'boolean'
+            ? { claimed: value.claimed }
+            : {})
+    };
+}
+
+export async function searchMerchantBrands(
+    config: Config,
+    query: Partial<MerchantBrandSearchQuery>
+): Promise<MerchantBrandSuggestion[]> {
+    const search = normalizeMerchantName(query.query ?? '');
+    const limit = Math.min(10, Math.max(1, query.limit ?? 6));
+    if (search.length < 2 || !config.brandfetch.clientId) {
+        return [];
+    }
+
+    const url = new URL(`${brandfetchSearchUrl}/${encodeURIComponent(search)}`);
+    url.searchParams.set('c', config.brandfetch.clientId);
+
+    try {
+        const response = await brandfetchFetch(config, url.toString(), {
+            method: 'GET'
         });
 
         if (response.status === 404) {
-            return undefined;
+            return [];
         }
         if (!response.ok) {
-            throw new Error(
-                `Brandfetch API error ${response.status}: ${await response.text()}`
-            );
+            return [];
         }
 
-        return (await response.json()) as BrandfetchResponse;
-    } finally {
-        clearTimeout(timeout);
+        const json = await response.json();
+        if (!Array.isArray(json)) {
+            return [];
+        }
+
+        return json
+            .map(value =>
+                mapBrandSearchResult(value as BrandfetchSearchResponse)
+            )
+            .filter(
+                (value): value is MerchantBrandSuggestion => value !== undefined
+            )
+            .slice(0, limit);
+    } catch {
+        return [];
     }
 }
 
@@ -370,9 +499,9 @@ function mapMerchant(
         logoUrl: merchant.logoUrl ?? undefined,
         primaryColor: merchant.primaryColor ?? undefined,
         enrichmentProvider: merchant.enrichmentProvider ?? undefined,
-        enrichmentStatus: merchant.enrichmentStatus as
-            | Merchant['enrichmentStatus']
-            | undefined,
+        enrichmentStatus: merchant.enrichmentStatus
+            ? (merchant.enrichmentStatus as Merchant['enrichmentStatus'])
+            : undefined,
         enrichedAt: merchant.enrichedAt ?? undefined,
         suggestedCategoryId: suggestion?.categoryId,
         suggestedCategoryDisplayName: suggestion?.categoryDisplayName,
@@ -455,6 +584,78 @@ async function merchantView(
     );
 }
 
+function selectedMerchantMetadata(body: CreateMerchantBody) {
+    return {
+        brandfetchBrandId: truncate(
+            nonemptyString(body.brandfetchBrandId),
+            100
+        ),
+        brandName: truncate(nonemptyString(body.brandName), 160),
+        domain: domainText(nonemptyString(body.domain)),
+        logoUrl: truncate(httpsUrl(nonemptyString(body.logoUrl)), 1000)
+    };
+}
+
+async function selectedBrandUpdate(
+    config: Config,
+    body: CreateMerchantBody
+): Promise<Partial<MerchantDb>> {
+    const selected = selectedMerchantMetadata(body);
+    const identifier = selected.brandfetchBrandId ?? selected.domain;
+    let detailUpdate: Partial<MerchantDb> = {};
+
+    if (identifier) {
+        try {
+            const details = await brandfetchBrandDetails(config, identifier);
+            detailUpdate = details ? brandfetchUpdate(details) : {};
+        } catch {
+            detailUpdate = {};
+        }
+    }
+
+    const values: Partial<MerchantDb> = {
+        ...Object.fromEntries(
+            Object.entries({
+                brandName: selected.brandName,
+                domain: selected.domain,
+                logoUrl: selected.logoUrl
+            }).filter(([, value]) => value !== undefined)
+        ),
+        ...detailUpdate
+    };
+
+    if (Object.keys(values).length === 0) {
+        return {};
+    }
+
+    return {
+        ...values,
+        enrichmentProvider: 'brandfetch',
+        enrichmentStatus: 'success',
+        enrichedAt: new Date()
+    };
+}
+
+function findReusableMerchant(
+    merchants: readonly MerchantDb[],
+    selectedDomain: string | undefined
+) {
+    if (!selectedDomain) {
+        return merchants[0];
+    }
+
+    const exact = merchants.find(
+        merchant => merchant.domain === selectedDomain
+    );
+    if (exact) {
+        return exact;
+    }
+
+    return merchants.find(
+        merchant => !merchant.domain && !merchant.brandName && !merchant.logoUrl
+    );
+}
+
 export async function createMerchant(
     db: AppDb,
     config: Config,
@@ -468,11 +669,16 @@ export async function createMerchant(
 
     const normalizedName = merchantNormalizedName(name);
     const user = await getUser(db, userId);
+    const selected = selectedMerchantMetadata(body);
+    const selectedUpdate = await selectedBrandUpdate(config, body);
 
-    const existing = (await db.merchants
+    const matchingMerchants = (await db.merchants
         .where(merchant => merchant.userId, userId)
-        .where(merchant => merchant.normalizedName, normalizedName)
-        .first()) as MerchantDb | undefined;
+        .where(
+            merchant => merchant.normalizedName,
+            normalizedName
+        )) as MerchantDb[];
+    const existing = findReusableMerchant(matchingMerchants, selected.domain);
 
     const merchant =
         existing ??
@@ -487,10 +693,23 @@ export async function createMerchant(
             primaryColor: undefined,
             enrichmentProvider: undefined,
             enrichmentStatus: undefined,
-            enrichedAt: undefined
-        })) as MerchantDb);
+            enrichedAt: undefined,
+            ...selectedUpdate
+        } as never)) as MerchantDb);
 
-    await enrichMerchant(db, config, user, merchant);
+    if (existing && Object.keys(selectedUpdate).length > 0) {
+        await db.merchants
+            .where(candidate => candidate.id, existing.id)
+            .where(candidate => candidate.userId, userId)
+            .update({
+                ...selectedUpdate,
+                updatedAt: new Date()
+            } as never);
+    }
+
+    if (Object.keys(selectedUpdate).length === 0) {
+        await enrichMerchant(db, config, user, merchant);
+    }
 
     const [updated, context] = await Promise.all([
         db.merchants
@@ -550,8 +769,7 @@ function nullableDomain(value: string | null | undefined) {
         return text;
     }
 
-    const withoutProtocol = text.replace(/^https?:\/\//i, '');
-    return withoutProtocol.split('/')[0]?.toLowerCase() ?? text.toLowerCase();
+    return domainText(text);
 }
 
 function nullableLogoUrl(value: string | null | undefined) {

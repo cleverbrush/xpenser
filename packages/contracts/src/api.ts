@@ -25,6 +25,8 @@ import {
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
     LoginBodySchema,
+    MerchantBrandSearchQuerySchema,
+    MerchantBrandSuggestionSchema,
     MerchantListQuerySchema,
     MerchantSchema,
     MoveAndDeleteCategoryBodySchema,
@@ -63,6 +65,9 @@ const categories = endpoint
     .authorize(PrincipalSchema);
 const merchants = endpoint
     .resource('/api/merchants')
+    .authorize(PrincipalSchema);
+const merchantBrandSearch = endpoint
+    .resource('/api/merchants/brand-search')
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
@@ -281,6 +286,10 @@ export const api = defineApi({
             })
     },
     merchants: {
+        searchBrands: merchantBrandSearch
+            .get()
+            .query(MerchantBrandSearchQuerySchema)
+            .responses({ 200: array(MerchantBrandSuggestionSchema) }),
         list: merchants
             .get()
             .query(MerchantListQuerySchema)

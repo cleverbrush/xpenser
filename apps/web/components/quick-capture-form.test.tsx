@@ -10,6 +10,7 @@ import { QuickCaptureForm } from './quick-capture-form';
 
 const refresh = vi.fn();
 const createMerchantAction = vi.fn();
+const searchMerchantBrandsAction = vi.fn();
 const createCaptureTransactionAction = vi.fn();
 const deleteTransactionAction = vi.fn();
 
@@ -20,6 +21,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/actions', () => ({
     createMerchantAction: (formData: FormData) =>
         createMerchantAction(formData),
+    searchMerchantBrandsAction: (query: string) =>
+        searchMerchantBrandsAction(query),
     createCaptureTransactionAction: (formData: FormData) =>
         createCaptureTransactionAction(formData),
     deleteTransactionAction: (formData: FormData) =>
@@ -105,6 +108,7 @@ function renderQuickCaptureForm({
 describe('QuickCaptureForm', () => {
     afterEach(() => {
         createMerchantAction.mockReset();
+        searchMerchantBrandsAction.mockReset();
         createCaptureTransactionAction.mockReset();
         deleteTransactionAction.mockReset();
         refresh.mockReset();
