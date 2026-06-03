@@ -1,7 +1,8 @@
 import type {
     CreateMerchantBody,
     Merchant,
-    MerchantListQuery
+    MerchantListQuery,
+    UpdateMerchantBody
 } from '@xpenser/contracts';
 import type { Config } from '../config.js';
 import type {
@@ -22,6 +23,7 @@ const enrichmentTtlMs = 30 * 24 * 60 * 60 * 1000;
 
 export class MerchantNameError extends Error {}
 export class MerchantNotFoundError extends Error {}
+export class MerchantMetadataError extends Error {}
 
 type MerchantStats = {
     readonly latestAt?: Date;
@@ -171,21 +173,27 @@ async function brandfetchTransaction(
     }
 }
 
-function brandfetchUpdate(json: BrandfetchResponse | undefined) {
+function brandfetchUpdate(json: BrandfetchResponse) {
     const description =
         nonemptyString(json?.description) ??
         nonemptyString(json?.longDescription);
 
-    return {
+    const values = {
         brandName: truncate(nonemptyString(json?.name), 160),
         domain: truncate(nonemptyString(json?.domain), 255),
         description: truncate(description, 1000),
         logoUrl: chooseLogoUrl(json?.logos),
         primaryColor: choosePrimaryColor(json?.colors)
     };
+    return Object.fromEntries(
+        Object.entries(values).filter(([, value]) => value !== undefined)
+    ) as Partial<MerchantDb>;
 }
 
-function shouldEnrich(merchant: MerchantDb): boolean {
+function shouldEnrich(merchant: MerchantDb, force = false): boolean {
+    if (force) {
+        return true;
+    }
     if (merchant.enrichedAt) {
         return Date.now() - merchant.enrichedAt.getTime() > enrichmentTtlMs;
     }
@@ -196,32 +204,43 @@ async function enrichMerchant(
     db: AppDb,
     config: Config,
     user: UserDb,
-    merchant: MerchantDb
+    merchant: MerchantDb,
+    options: { readonly force?: boolean } = {}
 ): Promise<void> {
+    const now = new Date();
     if (!config.merchantEnrichment.enabled || !config.brandfetch.apiKey) {
+        await db.merchants
+            .where(candidate => candidate.id, merchant.id)
+            .where(candidate => candidate.userId, user.id)
+            .update({
+                enrichedAt: now,
+                enrichmentProvider: config.brandfetch.apiKey
+                    ? 'brandfetch'
+                    : undefined,
+                enrichmentStatus: 'disabled',
+                updatedAt: now
+            });
         return;
     }
-    if (!shouldEnrich(merchant)) {
+    if (!shouldEnrich(merchant, options.force)) {
         return;
     }
 
-    const now = new Date();
     try {
         const json = await brandfetchTransaction(config, {
             transactionLabel: merchant.name,
             countryCode: user.countryCode
         });
-        const update = brandfetchUpdate(json);
         await db.merchants
             .where(candidate => candidate.id, merchant.id)
             .where(candidate => candidate.userId, user.id)
             .update({
-                ...update,
+                ...(json ? brandfetchUpdate(json) : {}),
                 enrichedAt: now,
                 enrichmentProvider: 'brandfetch',
                 enrichmentStatus: json ? 'success' : 'not_found',
                 updatedAt: now
-            });
+            } as never);
     } catch {
         await db.merchants
             .where(candidate => candidate.id, merchant.id)
@@ -350,6 +369,11 @@ function mapMerchant(
         description: merchant.description ?? undefined,
         logoUrl: merchant.logoUrl ?? undefined,
         primaryColor: merchant.primaryColor ?? undefined,
+        enrichmentProvider: merchant.enrichmentProvider ?? undefined,
+        enrichmentStatus: merchant.enrichmentStatus as
+            | Merchant['enrichmentStatus']
+            | undefined,
+        enrichedAt: merchant.enrichedAt ?? undefined,
         suggestedCategoryId: suggestion?.categoryId,
         suggestedCategoryDisplayName: suggestion?.categoryDisplayName,
         transactionCount: stats?.transactionCount ?? 0,
@@ -410,6 +434,27 @@ export async function listMerchants(
         );
 }
 
+async function getUser(db: AppDb, userId: number): Promise<UserDb> {
+    const user = (await db.users.find(userId)) as UserDb | undefined;
+    if (!user) {
+        throw new MerchantNotFoundError('User was not found.');
+    }
+    return user;
+}
+
+async function merchantView(
+    db: AppDb,
+    userId: number,
+    merchant: MerchantDb
+): Promise<Merchant> {
+    const context = await merchantReadContext(db, userId);
+    return mapMerchant(
+        merchant,
+        context.stats.get(merchant.id),
+        context.suggestions.get(merchant.id)
+    );
+}
+
 export async function createMerchant(
     db: AppDb,
     config: Config,
@@ -422,10 +467,7 @@ export async function createMerchant(
     }
 
     const normalizedName = merchantNormalizedName(name);
-    const user = (await db.users.find(userId)) as UserDb | undefined;
-    if (!user) {
-        throw new MerchantNotFoundError('User was not found.');
-    }
+    const user = await getUser(db, userId);
 
     const existing = (await db.merchants
         .where(merchant => merchant.userId, userId)
@@ -478,4 +520,133 @@ export async function getMerchant(
         throw new MerchantNotFoundError('Merchant was not found.');
     }
     return merchant;
+}
+
+export async function getMerchantDetails(
+    db: AppDb,
+    userId: number,
+    merchantId: number
+): Promise<Merchant> {
+    return merchantView(db, userId, await getMerchant(db, userId, merchantId));
+}
+
+function nullableText(
+    value: string | null | undefined,
+    maxLength: number
+): string | null | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+    if (value === null) {
+        return null;
+    }
+    const text = value.trim();
+    return text ? truncate(text, maxLength) : null;
+}
+
+function nullableDomain(value: string | null | undefined) {
+    const text = nullableText(value, 255);
+    if (!text) {
+        return text;
+    }
+
+    const withoutProtocol = text.replace(/^https?:\/\//i, '');
+    return withoutProtocol.split('/')[0]?.toLowerCase() ?? text.toLowerCase();
+}
+
+function nullableLogoUrl(value: string | null | undefined) {
+    const text = nullableText(value, 1000);
+    if (!text) {
+        return text;
+    }
+    const url = httpsUrl(text);
+    if (!url) {
+        throw new MerchantMetadataError('Logo URL must be a valid HTTPS URL.');
+    }
+    return url;
+}
+
+function nullablePrimaryColor(value: string | null | undefined) {
+    const text = nullableText(value, 7);
+    if (!text) {
+        return text;
+    }
+    if (!/^#[0-9a-f]{6}$/i.test(text)) {
+        throw new MerchantMetadataError(
+            'Primary color must be a six-digit hex color.'
+        );
+    }
+    return text.toLowerCase();
+}
+
+export async function updateMerchant(
+    db: AppDb,
+    userId: number,
+    merchantId: number,
+    body: UpdateMerchantBody
+): Promise<Merchant> {
+    const current = await getMerchant(db, userId, merchantId);
+    const name =
+        body.name === undefined
+            ? current.name
+            : normalizeMerchantName(body.name);
+    if (!name) {
+        throw new MerchantNameError('Merchant name is required.');
+    }
+
+    const normalizedName = merchantNormalizedName(name);
+    if (normalizedName !== current.normalizedName) {
+        const existing = (await db.merchants
+            .where(merchant => merchant.userId, userId)
+            .where(merchant => merchant.normalizedName, normalizedName)
+            .first()) as MerchantDb | undefined;
+        if (existing && existing.id !== current.id) {
+            throw new MerchantNameError(
+                'A merchant with this name already exists.'
+            );
+        }
+    }
+
+    const update: Partial<MerchantDb> = {
+        name,
+        normalizedName,
+        updatedAt: new Date(),
+        ...(body.brandName !== undefined
+            ? { brandName: nullableText(body.brandName, 160) }
+            : {}),
+        ...(body.domain !== undefined
+            ? { domain: nullableDomain(body.domain) }
+            : {}),
+        ...(body.description !== undefined
+            ? { description: nullableText(body.description, 1000) }
+            : {}),
+        ...(body.logoUrl !== undefined
+            ? { logoUrl: nullableLogoUrl(body.logoUrl) }
+            : {}),
+        ...(body.primaryColor !== undefined
+            ? { primaryColor: nullablePrimaryColor(body.primaryColor) }
+            : {})
+    };
+
+    await db.merchants
+        .where(candidate => candidate.id, current.id)
+        .where(candidate => candidate.userId, userId)
+        .update(update as never);
+
+    return getMerchantDetails(db, userId, merchantId);
+}
+
+export async function retryMerchantEnrichment(
+    db: AppDb,
+    config: Config,
+    userId: number,
+    merchantId: number
+): Promise<Merchant> {
+    const [user, merchant] = await Promise.all([
+        getUser(db, userId),
+        getMerchant(db, userId, merchantId)
+    ]);
+
+    await enrichMerchant(db, config, user, merchant, { force: true });
+    return getMerchantDetails(db, userId, merchantId);
 }

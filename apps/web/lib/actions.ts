@@ -27,6 +27,18 @@ function optionalString(formData: FormData, key: string): string | undefined {
     return value.trim();
 }
 
+function nullableString(
+    formData: FormData,
+    key: string
+): string | null | undefined {
+    const value = formData.get(key);
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+}
+
 function booleanString(
     formData: FormData,
     key: string,
@@ -61,6 +73,17 @@ function transactionBody(formData: FormData, editableNote = false) {
 function merchantBody(formData: FormData) {
     return {
         name: requiredString(formData, 'name')
+    };
+}
+
+function merchantUpdateBody(formData: FormData) {
+    return {
+        name: requiredString(formData, 'name'),
+        brandName: nullableString(formData, 'brandName'),
+        domain: nullableString(formData, 'domain'),
+        description: nullableString(formData, 'description'),
+        logoUrl: nullableString(formData, 'logoUrl'),
+        primaryColor: nullableString(formData, 'primaryColor')
     };
 }
 
@@ -320,6 +343,45 @@ export async function createMerchantAction(
     });
     revalidateTag('merchants', 'max');
     revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/merchants');
+    revalidatePath('/transactions');
+    return merchant;
+}
+
+export async function updateMerchantAction(
+    formData: FormData
+): Promise<Merchant> {
+    const id = Number(requiredString(formData, 'id'));
+    const client = await getApiClient();
+    const merchant = await client.merchants.update({
+        params: { id },
+        body: merchantUpdateBody(formData)
+    });
+    revalidateTag('merchants', 'max');
+    revalidateTag('transactions', 'max');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/merchants');
+    revalidatePath(`/merchants/${id}`);
+    revalidatePath('/transactions');
+    return merchant;
+}
+
+export async function retryMerchantEnrichmentAction(
+    formData: FormData
+): Promise<Merchant> {
+    const id = Number(requiredString(formData, 'id'));
+    const client = await getApiClient();
+    const merchant = await client.merchants.enrich({
+        params: { id }
+    });
+    revalidateTag('merchants', 'max');
+    revalidateTag('transactions', 'max');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/merchants');
+    revalidatePath(`/merchants/${id}`);
     revalidatePath('/transactions');
     return merchant;
 }

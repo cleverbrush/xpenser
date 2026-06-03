@@ -22,7 +22,13 @@ import {
     updateCategoryHandler
 } from './categories.js';
 import { convertCurrencyHandler, listCurrenciesHandler } from './currencies.js';
-import { createMerchantHandler, listMerchantsHandler } from './merchants.js';
+import {
+    createMerchantHandler,
+    enrichMerchantHandler,
+    getMerchantHandler,
+    listMerchantsHandler,
+    updateMerchantHandler
+} from './merchants.js';
 import {
     createTelegramLinkTokenHandler,
     disconnectTelegramHandler,
@@ -79,7 +85,10 @@ export const handlers = {
     },
     merchants: {
         list: listMerchantsHandler,
-        create: createMerchantHandler
+        get: getMerchantHandler,
+        create: createMerchantHandler,
+        update: updateMerchantHandler,
+        enrich: enrichMerchantHandler
     },
     transactions: {
         list: listTransactionsHandler,

@@ -58,6 +58,7 @@ import {
 } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { transactionPageSize } from '@/lib/transaction-query';
+import { MerchantLogo } from './merchant-display';
 import { TransactionDialog } from './transaction-dialog';
 
 type TransactionFeedResponse = {
@@ -144,21 +145,31 @@ function transactionMerchant(transaction: Transaction) {
         return null;
     }
 
-    return (
-        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-            {transaction.merchantLogoUrl ? (
-                <span
-                    aria-hidden
-                    className="size-4 rounded-sm bg-contain bg-center bg-no-repeat"
-                    style={{
-                        backgroundImage: `url(${JSON.stringify(
-                            transaction.merchantLogoUrl
-                        )})`
-                    }}
-                />
-            ) : null}
+    const content = (
+        <>
+            <MerchantLogo
+                merchant={{
+                    displayName: transaction.merchantName,
+                    logoUrl: transaction.merchantLogoUrl,
+                    name: transaction.merchantName
+                }}
+                size="xs"
+            />
             <span className="truncate">{transaction.merchantName}</span>
-        </div>
+        </>
+    );
+    const className =
+        'mt-1 flex items-center gap-2 text-xs text-muted-foreground';
+
+    return transaction.merchantId ? (
+        <Link
+            className={`${className} transition-colors hover:text-foreground`}
+            href={`/merchants/${transaction.merchantId}`}
+        >
+            {content}
+        </Link>
+    ) : (
+        <div className={className}>{content}</div>
     );
 }
 

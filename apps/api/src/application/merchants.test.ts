@@ -9,8 +9,11 @@ import type {
 } from '../db/schemas.js';
 import {
     createMerchant,
+    getMerchantDetails,
     listMerchants,
-    merchantNormalizedName
+    merchantNormalizedName,
+    retryMerchantEnrichment,
+    updateMerchant
 } from './merchants.js';
 
 const timestamp = new Date('2026-06-01T00:00:00.000Z');
@@ -214,6 +217,8 @@ describe('merchant helpers', () => {
         expect(result).toMatchObject({
             displayName: 'Silpo',
             domain: 'silpo.ua',
+            enrichmentProvider: 'brandfetch',
+            enrichmentStatus: 'success',
             logoUrl: 'https://logo',
             primaryColor: '#00aa44'
         });
@@ -238,6 +243,152 @@ describe('merchant helpers', () => {
             suggestedCategoryId: 2,
             suggestedCategoryDisplayName: 'Restaurants',
             transactionCount: 3
+        });
+    });
+
+    it('returns disabled enrichment status when enrichment is not configured', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+        const result = await createMerchant(
+            testDb({ merchants: [] }),
+            {
+                ...config,
+                brandfetch: { apiKey: undefined },
+                merchantEnrichment: { enabled: false, timeoutMs: 2000 }
+            } as Config,
+            1,
+            { name: 'Walmart' }
+        );
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(result).toMatchObject({
+            displayName: 'Walmart',
+            enrichmentStatus: 'disabled'
+        });
+        expect(result.enrichedAt).toBeInstanceOf(Date);
+    });
+
+    it('gets merchant details with stats and enrichment metadata', async () => {
+        const result = await getMerchantDetails(
+            testDb({
+                categories: [category()],
+                merchants: [
+                    merchant({
+                        enrichmentProvider: 'brandfetch',
+                        enrichmentStatus: 'not_found',
+                        enrichedAt: timestamp
+                    })
+                ],
+                transactions: [transaction()]
+            }),
+            1,
+            1
+        );
+
+        expect(result).toMatchObject({
+            enrichmentProvider: 'brandfetch',
+            enrichmentStatus: 'not_found',
+            transactionCount: 1
+        });
+    });
+
+    it('updates editable merchant metadata', async () => {
+        const result = await updateMerchant(
+            testDb({
+                merchants: [
+                    merchant({
+                        brandName: 'Old brand',
+                        domain: 'old.example',
+                        logoUrl: 'https://old.example/logo.svg'
+                    })
+                ]
+            }),
+            1,
+            1,
+            {
+                name: 'Walmart',
+                brandName: 'Walmart',
+                description: 'Retail stores.',
+                domain: 'https://www.walmart.com/store',
+                logoUrl: 'https://walmart.com/logo.svg',
+                primaryColor: '#0071ce'
+            }
+        );
+
+        expect(result).toMatchObject({
+            name: 'Walmart',
+            displayName: 'Walmart',
+            brandName: 'Walmart',
+            description: 'Retail stores.',
+            domain: 'www.walmart.com',
+            logoUrl: 'https://walmart.com/logo.svg',
+            primaryColor: '#0071ce'
+        });
+    });
+
+    it('rejects merchant rename collisions for the same user', async () => {
+        await expect(
+            updateMerchant(
+                testDb({
+                    merchants: [
+                        merchant({ id: 1, name: 'Target' }),
+                        merchant({
+                            id: 2,
+                            name: 'Walmart',
+                            normalizedName: 'walmart'
+                        })
+                    ]
+                }),
+                1,
+                1,
+                { name: 'Walmart' }
+            )
+        ).rejects.toThrow('A merchant with this name already exists.');
+    });
+
+    it('forces enrichment retry even inside the enrichment TTL', async () => {
+        const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: () =>
+                Promise.resolve({
+                    name: 'Walmart',
+                    domain: 'walmart.com',
+                    logos: [
+                        {
+                            type: 'icon',
+                            formats: [
+                                {
+                                    format: 'svg',
+                                    src: 'https://walmart.com/logo.svg'
+                                }
+                            ]
+                        }
+                    ]
+                })
+        } as Response);
+
+        const result = await retryMerchantEnrichment(
+            testDb({
+                merchants: [
+                    merchant({
+                        name: 'Walmart',
+                        normalizedName: 'walmart',
+                        enrichedAt: new Date(),
+                        enrichmentStatus: 'failed'
+                    })
+                ]
+            }),
+            config,
+            1,
+            1
+        );
+
+        expect(fetchSpy).toHaveBeenCalledOnce();
+        expect(result).toMatchObject({
+            domain: 'walmart.com',
+            enrichmentStatus: 'success',
+            logoUrl: 'https://walmart.com/logo.svg'
         });
     });
 });

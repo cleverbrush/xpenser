@@ -6,7 +6,7 @@ import {
     CirclePlusIcon,
     CreditCardIcon,
     LayoutDashboardIcon,
-    SettingsIcon
+    StoreIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -28,14 +28,14 @@ const items = [
         icon: CirclePlusIcon
     },
     {
+        href: '/merchants',
+        label: 'Merchants',
+        icon: StoreIcon
+    },
+    {
         href: '/stats',
         label: 'Reports',
         icon: ChartSplineIcon
-    },
-    {
-        href: '/settings/preferences',
-        label: 'Preferences',
-        icon: SettingsIcon
     }
 ] as const;
 

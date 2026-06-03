@@ -1,5 +1,10 @@
 import { Button } from '@xpenser/ui';
-import { CirclePlusIcon, LogOutIcon } from 'lucide-react';
+import {
+    CirclePlusIcon,
+    LogOutIcon,
+    SettingsIcon,
+    StoreIcon
+} from 'lucide-react';
 import Link from 'next/link';
 import { logoutAction } from '@/lib/actions';
 import { MobileTabBar } from './mobile-tab-bar';
@@ -19,6 +24,12 @@ export function AppNav() {
                         </Button>
                         <Button asChild size="sm" variant="ghost">
                             <Link href="/transactions">Transactions</Link>
+                        </Button>
+                        <Button asChild size="sm" variant="ghost">
+                            <Link href="/merchants">
+                                <StoreIcon aria-hidden className="size-4" />
+                                Merchants
+                            </Link>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
                             <Link href="/capture">
@@ -46,6 +57,16 @@ export function AppNav() {
                     </nav>
                     <div className="flex items-center gap-1 sm:hidden">
                         <ThemeToggle />
+                        <Button
+                            aria-label="Preferences"
+                            asChild
+                            size="icon-sm"
+                            variant="ghost"
+                        >
+                            <Link href="/settings/preferences">
+                                <SettingsIcon aria-hidden className="size-4" />
+                            </Link>
+                        </Button>
                         <form action={logoutAction}>
                             <Button
                                 aria-label="Sign out"

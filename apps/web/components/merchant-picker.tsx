@@ -12,10 +12,7 @@ import {
 import { StoreIcon, XIcon } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createMerchantAction } from '@/lib/actions';
-
-function merchantLabel(merchant: Merchant): string {
-    return merchant.displayName || merchant.brandName || merchant.name;
-}
+import { MerchantLogo, merchantDisplayName } from './merchant-display';
 
 function merchantMatches(merchant: Merchant, query: string): boolean {
     const search = query.trim().toLowerCase();
@@ -29,27 +26,6 @@ function merchantMatches(merchant: Merchant, query: string): boolean {
         merchant.domain,
         merchant.description
     ].some(value => value?.toLowerCase().includes(search));
-}
-
-function MerchantLogo({ merchant }: { readonly merchant: Merchant }) {
-    const label = merchantLabel(merchant);
-    if (merchant.logoUrl) {
-        return (
-            <span
-                aria-hidden
-                className="size-6 rounded-sm bg-contain bg-center bg-no-repeat"
-                style={{
-                    backgroundImage: `url(${JSON.stringify(merchant.logoUrl)})`
-                }}
-            />
-        );
-    }
-
-    return (
-        <span className="flex size-6 items-center justify-center rounded-sm bg-muted text-xs font-medium">
-            {label.slice(0, 1).toUpperCase()}
-        </span>
-    );
 }
 
 export function MerchantPicker({
@@ -136,10 +112,10 @@ export function MerchantPicker({
             </div>
             {selected ? (
                 <div className="flex items-center gap-2 rounded-md border border-input px-3 py-2 text-sm">
-                    <MerchantLogo merchant={selected} />
+                    <MerchantLogo merchant={selected} size="sm" />
                     <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">
-                            {merchantLabel(selected)}
+                            {merchantDisplayName(selected)}
                         </p>
                         {selected.domain ? (
                             <p className="truncate text-xs text-muted-foreground">
@@ -171,10 +147,10 @@ export function MerchantPicker({
                             type="button"
                             variant="outline"
                         >
-                            <MerchantLogo merchant={merchant} />
+                            <MerchantLogo merchant={merchant} size="sm" />
                             <span className="min-w-0 text-left">
                                 <span className="block truncate">
-                                    {merchantLabel(merchant)}
+                                    {merchantDisplayName(merchant)}
                                 </span>
                                 {merchant.suggestedCategoryDisplayName ? (
                                     <span className="block truncate text-xs text-muted-foreground">

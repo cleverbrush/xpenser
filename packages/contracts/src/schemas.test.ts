@@ -24,6 +24,7 @@ import {
     TimeZoneSchema,
     TokenResponseSchema,
     UpdateCategoryBodySchema,
+    UpdateMerchantBodySchema,
     UpdateUserPreferenceBodySchema,
     UserPreferenceSchema
 } from './schemas.js';
@@ -187,11 +188,25 @@ describe('shared schemas', () => {
                 brandName: 'Trader Joe',
                 domain: 'traderjoes.com',
                 logoUrl: 'https://example.com/logo.svg',
+                enrichmentProvider: 'brandfetch',
+                enrichmentStatus: 'success',
+                enrichedAt: new Date(),
                 suggestedCategoryId: 1,
                 suggestedCategoryDisplayName: 'Groceries',
                 transactionCount: 2,
                 createdAt: new Date(),
                 updatedAt: new Date()
+            }).valid
+        ).toBe(true);
+
+        expect(
+            UpdateMerchantBodySchema.validate({
+                name: 'Trader Joe',
+                brandName: null,
+                description: null,
+                domain: 'traderjoes.com',
+                logoUrl: 'https://example.com/logo.svg',
+                primaryColor: '#cc0000'
             }).valid
         ).toBe(true);
     });

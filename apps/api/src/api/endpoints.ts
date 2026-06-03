@@ -215,6 +215,14 @@ export const ListMerchantsEndpoint = api.merchants.list
     .tags('merchants')
     .operationId('listMerchants');
 
+export const GetMerchantEndpoint = api.merchants.get
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Get merchant')
+    .description('Gets one merchant owned by the authenticated user.')
+    .tags('merchants')
+    .operationId('getMerchant');
+
 export const CreateMerchantEndpoint = api.merchants.create
     .authorize(PrincipalSchema)
     .inject({ db: DbToken, config: ConfigToken })
@@ -222,6 +230,22 @@ export const CreateMerchantEndpoint = api.merchants.create
     .description('Creates or reuses a user-owned merchant.')
     .tags('merchants')
     .operationId('createMerchant');
+
+export const UpdateMerchantEndpoint = api.merchants.update
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Update merchant')
+    .description('Updates editable merchant metadata.')
+    .tags('merchants')
+    .operationId('updateMerchant');
+
+export const EnrichMerchantEndpoint = api.merchants.enrich
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Retry merchant enrichment')
+    .description('Retries merchant enrichment for a user-owned merchant.')
+    .tags('merchants')
+    .operationId('enrichMerchant');
 
 export const ListTransactionsEndpoint = api.transactions.list
     .authorize(PrincipalSchema)
@@ -334,7 +358,10 @@ export const endpoints = {
     },
     merchants: {
         list: ListMerchantsEndpoint,
-        create: CreateMerchantEndpoint
+        get: GetMerchantEndpoint,
+        create: CreateMerchantEndpoint,
+        update: UpdateMerchantEndpoint,
+        enrich: EnrichMerchantEndpoint
     },
     transactions: {
         list: ListTransactionsEndpoint,

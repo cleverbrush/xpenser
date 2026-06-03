@@ -710,6 +710,13 @@ export const MoveAndDeleteCategoryBodySchema = object({
     )
 }).schemaName('MoveAndDeleteCategoryBody');
 
+export const MerchantEnrichmentStatusSchema = enumOf(
+    'disabled',
+    'success',
+    'not_found',
+    'failed'
+).schemaName('MerchantEnrichmentStatus');
+
 export const MerchantSchema = object({
     /** Unique merchant identifier. */
     id: number().describe('Unique merchant identifier.'),
@@ -739,6 +746,21 @@ export const MerchantSchema = object({
     primaryColor: string()
         .optional()
         .describe('Provider-resolved primary color hex code, when available.'),
+    /** Merchant enrichment provider, when enrichment has been attempted. */
+    enrichmentProvider: string()
+        .optional()
+        .describe(
+            'Merchant enrichment provider, when enrichment has been attempted.'
+        ),
+    /** Latest merchant enrichment status, when enrichment has been attempted. */
+    enrichmentStatus: MerchantEnrichmentStatusSchema.optional().describe(
+        'Latest merchant enrichment status, when enrichment has been attempted.'
+    ),
+    /** Timestamp for the latest enrichment attempt. */
+    enrichedAt: date()
+        .coerce()
+        .optional()
+        .describe('Timestamp for the latest enrichment attempt.'),
     /** Suggested category for this user and merchant, when history exists. */
     suggestedCategoryId: number()
         .optional()
@@ -779,6 +801,45 @@ export const CreateMerchantBodySchema = object({
         .maxLength(160, 'merchant name is too long')
         .describe('User-entered merchant name.')
 }).schemaName('CreateMerchantBody');
+
+export const UpdateMerchantBodySchema = object({
+    /** User-entered merchant name. */
+    name: string()
+        .optional()
+        .nonempty('merchant name is required')
+        .maxLength(160, 'merchant name is too long')
+        .describe('User-entered merchant name.'),
+    /** Manually adjusted brand name. */
+    brandName: string()
+        .nullable()
+        .optional()
+        .maxLength(160, 'brand name is too long')
+        .describe('Manually adjusted brand name.'),
+    /** Manually adjusted merchant domain. */
+    domain: string()
+        .nullable()
+        .optional()
+        .maxLength(255, 'domain is too long')
+        .describe('Manually adjusted merchant domain.'),
+    /** Manually adjusted merchant description. */
+    description: string()
+        .nullable()
+        .optional()
+        .maxLength(1000, 'description is too long')
+        .describe('Manually adjusted merchant description.'),
+    /** Manually adjusted logo URL. */
+    logoUrl: string()
+        .nullable()
+        .optional()
+        .maxLength(1000, 'logo URL is too long')
+        .describe('Manually adjusted logo URL.'),
+    /** Manually adjusted primary color hex code. */
+    primaryColor: string()
+        .nullable()
+        .optional()
+        .matches(/^#[0-9a-f]{6}$/i, 'primary color must be a hex color')
+        .describe('Manually adjusted primary color hex code.')
+}).schemaName('UpdateMerchantBody');
 
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
@@ -1460,6 +1521,7 @@ export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;
 export type Merchant = InferType<typeof MerchantSchema>;
 export type MerchantListQuery = InferType<typeof MerchantListQuerySchema>;
 export type CreateMerchantBody = InferType<typeof CreateMerchantBodySchema>;
+export type UpdateMerchantBody = InferType<typeof UpdateMerchantBodySchema>;
 export type Transaction = InferType<typeof TransactionSchema>;
 export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema

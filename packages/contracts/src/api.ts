@@ -46,6 +46,7 @@ import {
     TransactionListResponseSchema,
     TransactionSchema,
     UpdateCategoryBodySchema,
+    UpdateMerchantBodySchema,
     UpdateTransactionBodySchema,
     UpdateUserPreferenceBodySchema,
     UserPreferenceSchema
@@ -54,6 +55,7 @@ import {
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
 const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
     t.id}/move-and-delete`;
+const MerchantEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
 const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
 const categories = endpoint
@@ -284,11 +286,33 @@ export const api = defineApi({
             .query(MerchantListQuerySchema)
             .cacheTag('merchants')
             .responses({ 200: array(MerchantSchema) }),
+        get: merchants.get(ById).cacheTag('merchants').responses({
+            200: MerchantSchema,
+            404: ErrorResponseSchema
+        }),
         create: merchants
             .post()
             .body(CreateMerchantBodySchema)
             .clearsCacheTag('merchants')
-            .responses({ 201: MerchantSchema, 400: ErrorResponseSchema })
+            .responses({ 201: MerchantSchema, 400: ErrorResponseSchema }),
+        update: merchants
+            .patch(ById)
+            .body(UpdateMerchantBodySchema)
+            .clearsCacheTag('merchants')
+            .clearsCacheTag('transactions')
+            .responses({
+                200: MerchantSchema,
+                400: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        enrich: merchants
+            .post(MerchantEnrich)
+            .clearsCacheTag('merchants')
+            .clearsCacheTag('transactions')
+            .responses({
+                200: MerchantSchema,
+                404: ErrorResponseSchema
+            })
     },
     transactions: {
         list: transactions
