@@ -1,6 +1,6 @@
-import { brandAnalyticsMerchantLimit } from '@/components/brand-analytics-panel';
 import { BrandsExplorer } from '@/components/brands-explorer';
 import { getApiClient } from '@/lib/api';
+import { brandAnalyticsMerchantLimit } from '@/lib/brand-analytics';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
 import { initialDashboardWindowDate } from '@/lib/dashboard-window';
 

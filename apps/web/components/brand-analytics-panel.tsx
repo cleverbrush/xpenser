@@ -25,8 +25,6 @@ import {
     signedCategoryTotal
 } from '@/lib/format';
 
-export const brandAnalyticsMerchantLimit = 100;
-
 type DashboardMerchant = DashboardSummary['topMerchants'][number];
 
 function merchantHref(

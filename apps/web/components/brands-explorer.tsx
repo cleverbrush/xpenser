@@ -6,10 +6,10 @@ import type {
 } from '@xpenser/contracts';
 import {
     BrandAnalyticsPanel,
-    BrandAnalyticsPanelSkeleton,
-    brandAnalyticsMerchantLimit
+    BrandAnalyticsPanelSkeleton
 } from '@/components/brand-analytics-panel';
 import { DashboardWindowExplorer } from '@/components/dashboard-window-explorer';
+import { brandAnalyticsMerchantLimit } from '@/lib/brand-analytics';
 import { formatDashboardRangeLabel } from '@/lib/dashboard-periods';
 
 type DashboardPeriod = DashboardSummary['period'];
