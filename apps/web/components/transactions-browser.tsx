@@ -4,7 +4,6 @@ import type {
     Category,
     Currency,
     Transaction,
-    TransactionScanImageResponse,
     Vendor
 } from '@xpenser/contracts';
 import { FieldLimits } from '@xpenser/contracts';
@@ -51,7 +50,6 @@ import {
 } from 'react';
 import {
     deleteTransactionAction,
-    getTransactionScanImageAction,
     updateTransactionAction
 } from '@/lib/actions';
 import { expiredSessionPath } from '@/lib/auth-routes';
@@ -148,48 +146,22 @@ function ScanImageReviewButton({
     readonly transaction: Transaction;
 }) {
     const [open, setOpen] = useState(false);
-    const [image, setImage] = useState<TransactionScanImageResponse | null>(
-        null
-    );
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [loaded, setLoaded] = useState(false);
+    const [failed, setFailed] = useState(false);
     const attachment = transaction.scanAttachment;
 
     useEffect(() => {
-        if (!open || image || pending || !attachment) {
+        if (!open) {
             return;
         }
-
-        let active = true;
-        setPending(true);
-        setError(null);
-        getTransactionScanImageAction(transaction.id)
-            .then(result => {
-                if (active) {
-                    setImage(result);
-                }
-            })
-            .catch(() => {
-                if (active) {
-                    setError('Could not load scanned image.');
-                }
-            })
-            .finally(() => {
-                if (active) {
-                    setPending(false);
-                }
-            });
-
-        return () => {
-            active = false;
-        };
-    }, [attachment, image, open, pending, transaction.id]);
+        setLoaded(false);
+        setFailed(false);
+    }, [open]);
 
     if (!attachment) {
         return null;
     }
-
-    const visibleImage = image ?? attachment;
+    const imageSrc = `/api/transactions/${transaction.id}/scan-image`;
 
     return (
         <Dialog onOpenChange={setOpen} open={open}>
@@ -208,28 +180,30 @@ function ScanImageReviewButton({
                 <DialogHeader>
                     <DialogTitle>Scanned image</DialogTitle>
                     <DialogDescription>
-                        {visibleImage.fileName ?? 'Uploaded image'} -{' '}
-                        {imageSizeLabel(visibleImage.sizeBytes)}
+                        {attachment.fileName ?? 'Uploaded image'} -{' '}
+                        {imageSizeLabel(attachment.sizeBytes)}
                     </DialogDescription>
                 </DialogHeader>
-                {pending ? (
+                {!loaded && !failed ? (
                     <p className="text-sm text-muted-foreground">
                         Loading image...
                     </p>
                 ) : null}
-                {error ? (
-                    <p className="text-sm text-destructive">{error}</p>
+                {failed ? (
+                    <p className="text-sm text-destructive">
+                        Could not load scanned image.
+                    </p>
                 ) : null}
-                {image ? (
-                    <Image
-                        alt={image.fileName ?? 'Scanned transaction source'}
-                        className="max-h-[70vh] w-full rounded-md border object-contain"
-                        height={900}
-                        src={`data:${image.mimeType};base64,${image.imageBase64}`}
-                        unoptimized
-                        width={1200}
-                    />
-                ) : null}
+                <Image
+                    alt={attachment.fileName ?? 'Scanned transaction source'}
+                    className="max-h-[70vh] w-full rounded-md border object-contain"
+                    height={900}
+                    onError={() => setFailed(true)}
+                    onLoad={() => setLoaded(true)}
+                    src={imageSrc}
+                    unoptimized
+                    width={1200}
+                />
             </DialogContent>
         </Dialog>
     );
