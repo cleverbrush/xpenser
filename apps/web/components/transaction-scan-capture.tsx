@@ -66,16 +66,28 @@ import { VendorPicker } from './vendor-picker';
 
 type CaptureMode = 'manual' | 'scan';
 type Decision = 'confirmed' | 'discarded';
-type ScanAttachment = NonNullable<TransactionScanDecisionBody['attachment']>;
+type ScanAttachment = {
+    readonly fileName?: string;
+    readonly mimeType: NonNullable<
+        TransactionScanDecisionBody['attachment']
+    >['mimeType'];
+    readonly uploadId: string;
+};
 type TransactionType = Category['type'];
 
 const maxImageBytes = TransactionScanLimits.maxImageBytes;
+const uploadChunkBytes = TransactionScanLimits.uploadChunkBytes;
 
 type ScanRouteResponse =
     | { readonly error: string; readonly scan?: undefined }
-    | { readonly error?: undefined; readonly scan: TransactionScanResponse };
+    | { readonly error?: undefined; readonly uploaded: true }
+    | {
+          readonly attachment: ScanAttachment;
+          readonly error?: undefined;
+          readonly scan: TransactionScanResponse;
+      };
 
-function fileImageBase64(file: File): Promise<string> {
+function blobBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onerror = () => reject(new Error('Could not read image.'));
@@ -88,33 +100,53 @@ function fileImageBase64(file: File): Promise<string> {
             const commaIndex = value.indexOf(',');
             resolve(commaIndex >= 0 ? value.slice(commaIndex + 1) : value);
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(blob);
     });
 }
 
 async function scanImageFile(file: File): Promise<ScanRouteResponse> {
-    const formData = new FormData();
-    formData.set('image', file);
+    const uploadId = crypto.randomUUID();
+    const totalChunks = Math.ceil(file.size / uploadChunkBytes);
 
-    const response = await fetch('/api/transaction-scans', {
-        method: 'POST',
-        body: formData
-    });
-    const result = (await response
-        .json()
-        .catch(() => null)) as ScanRouteResponse | null;
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
+        const start = chunkIndex * uploadChunkBytes;
+        const response = await fetch('/api/transaction-scans', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chunkBase64: await blobBase64(
+                    file.slice(start, start + uploadChunkBytes)
+                ),
+                chunkIndex,
+                fileName: file.name,
+                fileSize: file.size,
+                mimeType: file.type,
+                totalChunks,
+                uploadId
+            })
+        });
+        const result = (await response
+            .json()
+            .catch(() => null)) as ScanRouteResponse | null;
 
-    if (!response.ok) {
-        return {
-            error:
-                result?.error ??
-                (response.status === 413
-                    ? 'Image must be 10 MB or smaller.'
-                    : 'Could not scan the image. Try again.')
-        };
+        if (!response.ok) {
+            return {
+                error:
+                    result?.error ??
+                    (response.status === 413
+                        ? 'Image must be 10 MB or smaller.'
+                        : 'Could not scan the image. Try again.')
+            };
+        }
+        if (result?.error) {
+            return result;
+        }
+        if (result && 'scan' in result) {
+            return result;
+        }
     }
 
-    return result ?? { error: 'Could not scan the image. Try again.' };
+    return { error: 'Could not scan the image. Try again.' };
 }
 
 function parseAmount(value: string): number | undefined {
@@ -233,15 +265,11 @@ function ScanUpload({
                 setError(result.error);
                 return;
             }
-            if (!result.scan) {
+            if (!('attachment' in result)) {
                 setError('Could not scan the image. Try again.');
                 return;
             }
-            onScanned(result.scan, {
-                imageBase64: await fileImageBase64(file),
-                mimeType: file.type as ScanAttachment['mimeType'],
-                fileName: file.name
-            });
+            onScanned(result.scan, result.attachment);
         } catch {
             setError('Could not scan the image. Try again.');
         } finally {

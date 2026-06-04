@@ -14,13 +14,32 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { signIn, signOut } from '../auth';
-import { getAnonymousApiClient, getApiClient } from './api';
+import {
+    getAnonymousApiClient,
+    getApiClient,
+    getSessionOrRedirect
+} from './api';
 import { webConfig } from './config';
 import { VendorUpdateActionRejected } from './log-templates';
 import { loggerFor } from './logger';
+import {
+    deleteScanUpload,
+    readScanUploadAttachment
+} from './transaction-scan-upload-store';
 
 const passportPkceCookie = 'xpenser_passport_pkce';
 const vendorActionLogger = loggerFor('Vendor actions');
+
+type ScanDecisionAttachment =
+    | NonNullable<TransactionScanDecisionBody['attachment']>
+    | { readonly uploadId: string };
+
+type TransactionScanDecisionActionBody = Omit<
+    TransactionScanDecisionBody,
+    'attachment'
+> & {
+    readonly attachment?: ScanDecisionAttachment;
+};
 
 function normalizeFormText(value: string): string {
     return value.replace(/\r\n?/g, '\n').trim();
@@ -606,15 +625,34 @@ export async function recordTransactionScanDecisionAction({
     itemId,
     scanId
 }: {
-    readonly body: TransactionScanDecisionBody;
+    readonly body: TransactionScanDecisionActionBody;
     readonly itemId: number;
     readonly scanId: number;
 }): Promise<void> {
+    const { attachment: requestedAttachment, ...decisionBody } = body;
+    const uploadId =
+        requestedAttachment &&
+        'uploadId' in requestedAttachment &&
+        typeof requestedAttachment.uploadId === 'string'
+            ? requestedAttachment.uploadId
+            : undefined;
+    const session = uploadId ? await getSessionOrRedirect() : null;
+    const attachment: TransactionScanDecisionBody['attachment'] = uploadId
+        ? await readScanUploadAttachment(session?.user.id, uploadId)
+        : requestedAttachment && !('uploadId' in requestedAttachment)
+          ? requestedAttachment
+          : undefined;
     const client = await getApiClient();
     await client.transactionScans.decide({
         params: { scanId, itemId },
-        body
+        body: {
+            ...decisionBody,
+            attachment
+        }
     });
+    if (uploadId) {
+        await deleteScanUpload(session?.user.id, uploadId);
+    }
 }
 
 export async function getTransactionScanImageAction(

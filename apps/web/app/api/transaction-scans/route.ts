@@ -1,39 +1,43 @@
 import { createXpenserClient } from '@xpenser/client';
-import {
-    TransactionScanLimits,
-    type TransactionScanResponse
-} from '@xpenser/contracts';
+import type { TransactionScanResponse } from '@xpenser/contracts';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { webConfig } from '@/lib/config';
+import {
+    assembleScanUploadChunks,
+    cleanupStaleScanUploads,
+    createScanUploadId,
+    isAllowedScanImageType,
+    isScanUploadId,
+    type StoredScanAttachment,
+    scanUploadChunkCountError,
+    scanUploadFileSizeError,
+    storeScanUpload,
+    transactionScanTimeoutMs,
+    writeScanUploadChunk
+} from '@/lib/transaction-scan-upload-store';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'] as const;
-const transactionScanTimeoutMs = 60_000;
-
-type AllowedImageType = (typeof allowedImageTypes)[number];
 type ScanRouteResponse =
     | { readonly error: string; readonly scan?: undefined }
-    | { readonly error?: undefined; readonly scan: TransactionScanResponse };
+    | { readonly error?: undefined; readonly uploaded: true }
+    | {
+          readonly attachment: StoredScanAttachment;
+          readonly error?: undefined;
+          readonly scan: TransactionScanResponse;
+      };
 
-function uploadedFile(value: FormDataEntryValue | null): File | undefined {
-    if (
-        typeof value === 'object' &&
-        value !== null &&
-        'arrayBuffer' in value &&
-        'name' in value &&
-        'size' in value &&
-        'type' in value
-    ) {
-        return value as File;
-    }
-    return undefined;
-}
-
-function isAllowedImageType(value: string): value is AllowedImageType {
-    return allowedImageTypes.includes(value as AllowedImageType);
-}
+type ScanChunkBody = {
+    readonly chunkBase64: string;
+    readonly chunkIndex: number;
+    readonly fileName?: string;
+    readonly fileSize: number;
+    readonly mimeType: string;
+    readonly totalChunks: number;
+    readonly uploadId: string;
+};
 
 function apiErrorStatus(err: unknown): number | undefined {
     return typeof err === 'object' &&
@@ -61,28 +65,118 @@ function errorResponse(message: string, status: number) {
     return NextResponse.json<ScanRouteResponse>({ error: message }, { status });
 }
 
+function scanChunkBody(value: unknown): ScanChunkBody | undefined {
+    if (typeof value !== 'object' || value === null) {
+        return undefined;
+    }
+
+    const record = value as Record<string, unknown>;
+    if (
+        typeof record.chunkBase64 !== 'string' ||
+        typeof record.chunkIndex !== 'number' ||
+        typeof record.fileSize !== 'number' ||
+        typeof record.mimeType !== 'string' ||
+        typeof record.totalChunks !== 'number' ||
+        typeof record.uploadId !== 'string'
+    ) {
+        return undefined;
+    }
+
+    if (record.fileName !== undefined && typeof record.fileName !== 'string') {
+        return undefined;
+    }
+
+    return {
+        chunkBase64: record.chunkBase64,
+        chunkIndex: record.chunkIndex,
+        fileName: record.fileName,
+        fileSize: record.fileSize,
+        mimeType: record.mimeType,
+        totalChunks: record.totalChunks,
+        uploadId: record.uploadId
+    };
+}
+
+function validChunkIndex(chunkIndex: number, totalChunks: number): boolean {
+    return (
+        Number.isSafeInteger(chunkIndex) &&
+        chunkIndex >= 0 &&
+        chunkIndex < totalChunks
+    );
+}
+
+function bodyValidationError(body: ScanChunkBody): string | undefined {
+    if (!isScanUploadId(body.uploadId)) {
+        return 'Could not scan the image. Try again.';
+    }
+    if (!isAllowedScanImageType(body.mimeType)) {
+        return 'Upload a PNG, JPEG, or WebP image.';
+    }
+    if (!validChunkIndex(body.chunkIndex, body.totalChunks)) {
+        return 'Could not scan the image. Try again.';
+    }
+    return (
+        scanUploadFileSizeError(body.fileSize) ??
+        scanUploadChunkCountError(body.totalChunks)
+    );
+}
+
 export async function POST(request: Request) {
     const session = await auth();
     if (!session?.apiToken) {
         return errorResponse('Unauthorized', 401);
     }
 
-    let formData: FormData;
+    let body: ScanChunkBody | undefined;
     try {
-        formData = await request.formData();
+        body = scanChunkBody(await request.json());
     } catch {
+        return errorResponse('Could not scan the image. Try again.', 400);
+    }
+    if (!body) {
+        return errorResponse('Could not scan the image. Try again.', 400);
+    }
+
+    const bodyError = bodyValidationError(body);
+    if (bodyError) {
+        return errorResponse(
+            bodyError,
+            bodyError.includes('10 MB') ? 413 : 400
+        );
+    }
+    if (!isAllowedScanImageType(body.mimeType)) {
         return errorResponse('Upload a PNG, JPEG, or WebP image.', 400);
     }
 
-    const file = uploadedFile(formData.get('image'));
-    if (!file || file.size === 0) {
-        return errorResponse('Choose an image to scan.', 400);
+    const userId = session.user.id;
+    const mimeType = body.mimeType;
+    await cleanupStaleScanUploads();
+
+    try {
+        await writeScanUploadChunk({
+            chunkBase64: body.chunkBase64,
+            chunkIndex: body.chunkIndex,
+            uploadId: body.uploadId,
+            userId
+        });
+    } catch {
+        return errorResponse('Could not scan the image. Try again.', 400);
     }
-    if (!isAllowedImageType(file.type)) {
-        return errorResponse('Upload a PNG, JPEG, or WebP image.', 400);
+
+    if (body.chunkIndex < body.totalChunks - 1) {
+        return NextResponse.json<ScanRouteResponse>({ uploaded: true });
     }
-    if (file.size > TransactionScanLimits.maxImageBytes) {
-        return errorResponse('Image must be 10 MB or smaller.', 413);
+
+    let image: Buffer;
+    try {
+        image = await assembleScanUploadChunks({
+            expectedSize: body.fileSize,
+            totalChunks: body.totalChunks,
+            uploadId: body.uploadId,
+            userId
+        });
+    } catch {
+        return errorResponse('Could not scan the image. Try again.', 400);
     }
 
     const client = createXpenserClient({
@@ -93,17 +187,22 @@ export async function POST(request: Request) {
     });
 
     try {
-        const imageBase64 = Buffer.from(await file.arrayBuffer()).toString(
-            'base64'
-        );
+        const imageBase64 = image.toString('base64');
         const scan = await client.transactionScans.create({
             body: {
                 imageBase64,
-                mimeType: file.type,
-                fileName: file.name
+                mimeType,
+                fileName: body.fileName
             }
         });
-        return NextResponse.json<ScanRouteResponse>({ scan });
+        const attachment = await storeScanUpload({
+            buffer: image,
+            fileName: body.fileName,
+            mimeType,
+            uploadId: body.uploadId,
+            userId
+        });
+        return NextResponse.json<ScanRouteResponse>({ attachment, scan });
     } catch (err) {
         const status = apiErrorStatus(err);
         if (status === 400) {
@@ -118,4 +217,8 @@ export async function POST(request: Request) {
         }
         throw err;
     }
+}
+
+export async function GET() {
+    return NextResponse.json({ uploadId: createScanUploadId() });
 }

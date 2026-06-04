@@ -1,5 +1,6 @@
 import { TransactionScanLimits } from '@xpenser/contracts';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { deleteScanUpload } from '@/lib/transaction-scan-upload-store';
 
 const mocks = vi.hoisted(() => ({
     auth: vi.fn(),
@@ -21,19 +22,38 @@ vi.mock('@xpenser/client', () => ({
 
 import { POST } from './route';
 
-function scanRequest(file: File) {
-    const formData = new FormData();
-    formData.set('image', file);
+const uploadId = '00000000-0000-4000-8000-000000000001';
+const userId = '1';
+
+function scanRequest(body: Record<string, unknown>) {
     return new Request('https://app.example.test/api/transaction-scans', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
     });
+}
+
+function chunkBody(overrides: Partial<Record<string, unknown>> = {}) {
+    const bytes = Buffer.from('receipt bytes');
+    return {
+        chunkBase64: bytes.toString('base64'),
+        chunkIndex: 0,
+        fileName: 'receipt.jpg',
+        fileSize: bytes.length,
+        mimeType: 'image/jpeg',
+        totalChunks: 1,
+        uploadId,
+        ...overrides
+    };
 }
 
 describe('transaction scan route', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.auth.mockResolvedValue({ apiToken: 'api-token' });
+        mocks.auth.mockResolvedValue({
+            apiToken: 'api-token',
+            user: { id: userId }
+        });
         mocks.createXpenserClient.mockReturnValue({
             transactionScans: { create: mocks.transactionScanCreate }
         });
@@ -45,14 +65,19 @@ describe('transaction scan route', () => {
         });
     });
 
-    it('forwards a valid image to the scanner API', async () => {
-        const file = new File(['receipt bytes'], 'receipt.jpg', {
-            type: 'image/jpeg'
-        });
+    afterEach(async () => {
+        await deleteScanUpload(userId, uploadId);
+    });
 
-        const response = await POST(scanRequest(file));
+    it('forwards a valid image to the scanner API', async () => {
+        const response = await POST(scanRequest(chunkBody()));
 
         await expect(response.json()).resolves.toEqual({
+            attachment: {
+                fileName: 'receipt.jpg',
+                mimeType: 'image/jpeg',
+                uploadId
+            },
             scan: {
                 scanId: 42,
                 documentKind: 'receipt',
@@ -77,13 +102,13 @@ describe('transaction scan route', () => {
     });
 
     it('rejects oversized images before calling the scanner API', async () => {
-        const file = new File(
-            [new Uint8Array(TransactionScanLimits.maxImageBytes + 1)],
-            'large.jpg',
-            { type: 'image/jpeg' }
+        const response = await POST(
+            scanRequest(
+                chunkBody({
+                    fileSize: TransactionScanLimits.maxImageBytes + 1
+                })
+            )
         );
-
-        const response = await POST(scanRequest(file));
 
         await expect(response.json()).resolves.toEqual({
             error: 'Image must be 10 MB or smaller.'

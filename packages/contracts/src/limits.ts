@@ -27,5 +27,6 @@ export const FieldLimits = {
 } as const;
 
 export const TransactionScanLimits = {
-    maxImageBytes: 10 * 1024 * 1024
+    maxImageBytes: 10 * 1024 * 1024,
+    uploadChunkBytes: 384 * 1024
 } as const;
