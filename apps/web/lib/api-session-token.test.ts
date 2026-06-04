@@ -58,6 +58,7 @@ describe('API session token helpers', () => {
                     email: 'jane@example.com',
                     role: 'user',
                     defaultCurrency: 'USD',
+                    countryCode: 'US',
                     timezone: 'UTC',
                     hasCategories: true
                 }
@@ -71,6 +72,7 @@ describe('API session token helpers', () => {
             email: 'jane@example.com',
             role: 'user',
             defaultCurrency: 'USD',
+            countryCode: 'US',
             timezone: 'UTC',
             hasCategories: true
         });

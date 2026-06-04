@@ -40,6 +40,15 @@ import {
     statsWindowHandler,
     updateTransactionHandler
 } from './transactions.js';
+import {
+    createVendorHandler,
+    enrichVendorHandler,
+    getVendorCandidateDetailsHandler,
+    getVendorHandler,
+    listVendorsHandler,
+    searchVendorCandidatesHandler,
+    updateVendorHandler
+} from './vendors.js';
 
 export const handlers = {
     auth: {
@@ -75,6 +84,15 @@ export const handlers = {
         update: updateCategoryHandler,
         delete: deleteCategoryHandler,
         moveAndDelete: moveAndDeleteCategoryHandler
+    },
+    vendors: {
+        searchCandidates: searchVendorCandidatesHandler,
+        candidateDetails: getVendorCandidateDetailsHandler,
+        list: listVendorsHandler,
+        get: getVendorHandler,
+        create: createVendorHandler,
+        update: updateVendorHandler,
+        enrich: enrichVendorHandler
     },
     transactions: {
         list: listTransactionsHandler,

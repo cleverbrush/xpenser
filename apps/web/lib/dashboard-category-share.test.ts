@@ -11,7 +11,9 @@ const baseSummary: DashboardSummary = {
     expenseTotal: 400,
     from: new Date('2026-05-01T00:00:00.000Z'),
     incomeTotal: 800,
+    vendorCount: 0,
     period: 'month',
+    topVendors: [],
     to: new Date('2026-05-31T23:59:59.999Z')
 };
 

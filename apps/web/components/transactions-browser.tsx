@@ -1,6 +1,11 @@
 'use client';
 
-import type { Category, Currency, Transaction } from '@xpenser/contracts';
+import type {
+    Category,
+    Currency,
+    Transaction,
+    Vendor
+} from '@xpenser/contracts';
 import {
     Badge,
     Button,
@@ -54,6 +59,7 @@ import {
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { transactionPageSize } from '@/lib/transaction-query';
 import { TransactionDialog } from './transaction-dialog';
+import { VendorLogo } from './vendor-display';
 
 type TransactionFeedResponse = {
     readonly items: readonly Transaction[];
@@ -69,6 +75,7 @@ function activeFilterCount(searchParams: URLSearchParams): number {
         'type',
         'categoryId',
         'parentCategoryId',
+        'vendorId',
         'from',
         'to'
     ].filter(key => Boolean(searchParams.get(key))).length;
@@ -133,16 +140,51 @@ function transactionBadges(transaction: Transaction) {
     );
 }
 
+function transactionVendor(transaction: Transaction) {
+    if (!transaction.vendorName) {
+        return null;
+    }
+
+    const content = (
+        <>
+            <VendorLogo
+                vendor={{
+                    displayName: transaction.vendorName,
+                    logoUrl: transaction.vendorLogoUrl,
+                    name: transaction.vendorName
+                }}
+                size="xs"
+            />
+            <span className="truncate">{transaction.vendorName}</span>
+        </>
+    );
+    const className =
+        'mt-1 flex items-center gap-2 text-xs text-muted-foreground';
+
+    return transaction.vendorId ? (
+        <Link
+            className={`${className} transition-colors hover:text-foreground`}
+            href={`/settings/vendors/${transaction.vendorId}`}
+        >
+            {content}
+        </Link>
+    ) : (
+        <div className={className}>{content}</div>
+    );
+}
+
 function EditTransactionButton({
     categories,
     currencies,
     defaultCurrency,
+    vendors,
     timezone,
     transaction
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transaction: Transaction;
 }) {
@@ -155,6 +197,7 @@ function EditTransactionButton({
             description="Update the transaction details and converted report values."
             errorMessage="Could not update the transaction."
             initialValues={transaction}
+            vendors={vendors}
             submitLabel="Save changes"
             title="Edit transaction"
             transactionId={transaction.id}
@@ -233,12 +276,14 @@ function TransactionActions({
     categories,
     currencies,
     defaultCurrency,
+    vendors,
     timezone,
     transaction
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transaction: Transaction;
 }) {
@@ -248,6 +293,7 @@ function TransactionActions({
                 categories={categories}
                 currencies={currencies}
                 defaultCurrency={defaultCurrency}
+                vendors={vendors}
                 timezone={timezone}
                 transaction={transaction}
             />
@@ -263,12 +309,14 @@ function TransactionCards({
     categories,
     currencies,
     defaultCurrency,
+    vendors,
     timezone,
     transactions
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactions: readonly Transaction[];
 }) {
@@ -298,10 +346,12 @@ function TransactionCards({
                             categories={categories}
                             currencies={currencies}
                             defaultCurrency={defaultCurrency}
+                            vendors={vendors}
                             timezone={timezone}
                             transaction={transaction}
                         />
                     </div>
+                    {transactionVendor(transaction)}
                     <div className="mt-3">{transactionAmount(transaction)}</div>
                 </article>
             ))}
@@ -313,12 +363,14 @@ function TransactionTable({
     categories,
     currencies,
     defaultCurrency,
+    vendors,
     timezone,
     transactions
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactions: readonly Transaction[];
 }) {
@@ -329,6 +381,7 @@ function TransactionTable({
                     <TableHeader>
                         <TableRow>
                             <TableHead>Category</TableHead>
+                            <TableHead>Vendor</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>When</TableHead>
@@ -340,6 +393,13 @@ function TransactionTable({
                             <TableRow key={transaction.id}>
                                 <TableCell>
                                     {transaction.categoryDisplayName}
+                                </TableCell>
+                                <TableCell>
+                                    {transactionVendor(transaction) ?? (
+                                        <span className="text-xs text-muted-foreground">
+                                            -
+                                        </span>
+                                    )}
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex flex-wrap gap-2">
@@ -360,6 +420,7 @@ function TransactionTable({
                                         categories={categories}
                                         currencies={currencies}
                                         defaultCurrency={defaultCurrency}
+                                        vendors={vendors}
                                         timezone={timezone}
                                         transaction={transaction}
                                     />
@@ -378,6 +439,7 @@ export function TransactionsBrowser({
     currencies,
     defaultCurrency,
     hasInitialFilters,
+    vendors,
     initialResponse,
     transactionCurrencies,
     timezone
@@ -386,6 +448,7 @@ export function TransactionsBrowser({
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
     readonly hasInitialFilters: boolean;
+    readonly vendors: readonly Vendor[];
     readonly initialResponse: TransactionFeedResponse;
     readonly transactionCurrencies: readonly string[];
     readonly timezone: string;
@@ -440,7 +503,14 @@ export function TransactionsBrowser({
 
         const formData = new FormData(event.currentTarget);
         const params = new URLSearchParams();
-        for (const key of ['search', 'type', 'categoryId', 'from', 'to']) {
+        for (const key of [
+            'search',
+            'type',
+            'categoryId',
+            'vendorId',
+            'from',
+            'to'
+        ]) {
             const value = fieldValue(formData, key);
             if (value) {
                 params.set(key, value);
@@ -604,6 +674,25 @@ export function TransactionsBrowser({
                                 ))}
                             </select>
                         </Field>
+                        <Field className="md:col-span-2">
+                            <FieldLabel htmlFor="vendorId">Vendor</FieldLabel>
+                            <select
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                defaultValue={
+                                    searchParams.get('vendorId') ?? ''
+                                }
+                                id="vendorId"
+                                name="vendorId"
+                            >
+                                <option value="">All vendors</option>
+                                <option value="none">No vendor</option>
+                                {vendors.map(vendor => (
+                                    <option key={vendor.id} value={vendor.id}>
+                                        {vendor.displayName}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
                         <Field>
                             <FieldLabel htmlFor="from">From</FieldLabel>
                             <Input
@@ -644,6 +733,7 @@ export function TransactionsBrowser({
                         categories={categories}
                         currencies={dialogCurrencies}
                         defaultCurrency={defaultCurrency}
+                        vendors={vendors}
                         timezone={timezone}
                         transactions={items}
                     />
@@ -651,6 +741,7 @@ export function TransactionsBrowser({
                         categories={categories}
                         currencies={dialogCurrencies}
                         defaultCurrency={defaultCurrency}
+                        vendors={vendors}
                         timezone={timezone}
                         transactions={items}
                     />

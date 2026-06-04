@@ -78,6 +78,7 @@ describe('session token handler', () => {
                     email: 'jane@example.com',
                     role: 'user',
                     defaultCurrency: 'USD',
+                    countryCode: 'US',
                     timezone: 'UTC'
                 }),
                 config
@@ -119,6 +120,7 @@ describe('login handler', () => {
                                     authProvider: 'local',
                                     role: 'user',
                                     defaultCurrency: 'USD',
+                                    countryCode: 'US',
                                     timezone: 'UTC'
                                 }))
                             }))

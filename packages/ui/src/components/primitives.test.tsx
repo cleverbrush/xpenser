@@ -2,8 +2,9 @@
  * @vitest-environment jsdom
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { Avatar, AvatarFallback, AvatarImage } from './avatar.js';
 import { Badge } from './badge.js';
 import {
     Card,
@@ -102,5 +103,33 @@ describe('ui primitives', () => {
 
         expect(spinner?.getAttribute('aria-hidden')).toBe('true');
         expect(spinner?.getAttribute('class')).toContain('animate-spin');
+    });
+
+    it('renders avatar images with a fallback', () => {
+        const { container } = render(
+            <Avatar data-testid="avatar">
+                <AvatarImage
+                    alt=""
+                    data-testid="avatar-image"
+                    src="/vendor-logo.svg"
+                />
+                <AvatarFallback>WM</AvatarFallback>
+            </Avatar>
+        );
+
+        expect(screen.getByTestId('avatar').className).toContain(
+            'rounded-full'
+        );
+        expect(container.querySelector('img')?.getAttribute('src')).toBe(
+            '/vendor-logo.svg'
+        );
+        expect(
+            screen.getByTestId('avatar-image').getAttribute('class')
+        ).not.toContain('opacity-0');
+
+        fireEvent.error(screen.getByTestId('avatar-image'));
+
+        expect(container.querySelector('img')).toBeNull();
+        expect(screen.getByText('WM')).toBeTruthy();
     });
 });

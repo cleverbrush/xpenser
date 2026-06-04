@@ -38,7 +38,8 @@ import type {
     AppDb,
     CategoryDb,
     TransactionDb,
-    UserDb
+    UserDb,
+    VendorDb
 } from '../db/schemas.js';
 import {
     categoryAvailableForTransactions,
@@ -51,6 +52,7 @@ import {
     getExchangeRate,
     transactionDate
 } from './currencies.js';
+import { getVendor, VendorNotFoundError } from './vendors.js';
 
 export class TransactionNotFoundError extends Error {}
 export class TransactionCategoryError extends Error {}
@@ -58,6 +60,8 @@ export class TransactionCategoryError extends Error {}
 type DashboardPeriod = NonNullable<DashboardSummary['period']>;
 
 type DashboardCategory = DashboardSummary['byCategory'][number];
+
+type DashboardVendor = DashboardSummary['topVendors'][number];
 
 type StatsBucket = StatsOverview['trend'][number];
 
@@ -85,6 +89,7 @@ type PeriodWindowQuery = {
     readonly date?: Date;
     readonly before?: number;
     readonly after?: number;
+    readonly vendorLimit?: number;
 };
 
 type CategoryTrendRangeOptions = {
@@ -106,6 +111,8 @@ type CategoryComparison = {
 };
 
 export const categoryTrendMaxBuckets = 500;
+const dashboardVendorLimit = 24;
+const noVendorName = 'No vendor';
 
 export function transactionSignedDefaultAmount(
     transaction: Pick<TransactionDb, 'defaultCurrencyAmount'> & {
@@ -129,6 +136,18 @@ async function loadCategoriesById(
     return new Map(
         categories.map(category => [category.id, category] as const)
     );
+}
+
+async function loadVendorsById(
+    db: AppDb,
+    userId: number
+): Promise<Map<number, VendorDb>> {
+    const vendors = (await db.vendors.where(
+        vendor => vendor.userId,
+        userId
+    )) as VendorDb[];
+
+    return new Map(vendors.map(vendor => [vendor.id, vendor] as const));
 }
 
 function categoryFields(
@@ -190,14 +209,19 @@ function categoryForTransaction(
 
 function mapTransaction(
     row: TransactionDb,
-    categoriesById: ReadonlyMap<number, CategoryDb>
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    vendorsById: ReadonlyMap<number, VendorDb>
 ): Transaction {
     const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
+    const vendor = row.vendorId ? vendorsById.get(row.vendorId) : undefined;
 
     return {
         id: row.id,
         categoryId: fields.categoryId,
+        vendorId: vendor?.id ?? row.vendorId ?? null,
+        vendorName: vendor?.name,
+        vendorLogoUrl: vendor?.logoUrl ?? undefined,
         categoryName: fields.categoryName,
         categoryDisplayName: fields.categoryDisplayName,
         categoryParentId: fields.categoryParentId,
@@ -260,6 +284,21 @@ async function getCategory(
     return category as CategoryDb;
 }
 
+async function validateVendor(
+    db: AppDb,
+    userId: number,
+    vendorId: number
+): Promise<void> {
+    try {
+        await getVendor(db, userId, vendorId);
+    } catch (err) {
+        if (err instanceof VendorNotFoundError) {
+            throw new TransactionCategoryError(err.message);
+        }
+        throw err;
+    }
+}
+
 export async function listTransactions(
     db: AppDb,
     userId: number,
@@ -293,11 +332,12 @@ export async function listTransactions(
     }
 
     const direction = query.direction ?? 'desc';
-    const [rows, categoriesById] = await Promise.all([
+    const [rows, categoriesById, vendorsById] = await Promise.all([
         builder
             .orderBy(transaction => transaction.occurredAt, direction)
             .orderBy(transaction => transaction.id, direction),
-        loadCategoriesById(db, userId)
+        loadCategoriesById(db, userId),
+        loadVendorsById(db, userId)
     ]);
     const sortedRows = [...rows].sort(
         direction === 'asc'
@@ -307,6 +347,16 @@ export async function listTransactions(
 
     const search = query.search?.trim().toLowerCase();
     const filtered = sortedRows
+        .filter(transaction => {
+            if (query.vendorId === 'none') {
+                return transaction.vendorId == null;
+            }
+            if (!query.vendorId) {
+                return true;
+            }
+
+            return transaction.vendorId === query.vendorId;
+        })
         .filter(transaction => {
             if (!query.type) {
                 return true;
@@ -352,6 +402,16 @@ export async function listTransactions(
                       ).toLowerCase()
                     : ''
                 ).includes(search) ||
+                (transaction.vendorId
+                    ? (vendorsById.get(transaction.vendorId)?.name ?? '')
+                          .toLowerCase()
+                          .includes(search)
+                    : false) ||
+                (transaction.vendorId
+                    ? (vendorsById.get(transaction.vendorId)?.domain ?? '')
+                          .toLowerCase()
+                          .includes(search)
+                    : false) ||
                 transaction.note?.toLowerCase().includes(search)
             );
         });
@@ -360,7 +420,9 @@ export async function listTransactions(
     return {
         items: filtered
             .slice(offset, offset + limit)
-            .map(transaction => mapTransaction(transaction, categoriesById)),
+            .map(transaction =>
+                mapTransaction(transaction, categoriesById, vendorsById)
+            ),
         total: filtered.length,
         page,
         limit
@@ -386,6 +448,9 @@ export async function createTransaction(
             'Archived categories cannot be used for new transactions.'
         );
     }
+    if (body.vendorId !== undefined && body.vendorId !== null) {
+        await validateVendor(db, userId, body.vendorId);
+    }
     const date = transactionDate(body.occurredAt, user.timezone);
     const exchange = await getExchangeRate(
         db,
@@ -398,6 +463,7 @@ export async function createTransaction(
     const created = await db.transactions.insert({
         userId,
         categoryId: body.categoryId,
+        vendorId: body.vendorId ?? undefined,
         type: category.type,
         amount: body.amount,
         currency: body.currency,
@@ -417,18 +483,19 @@ export async function getTransaction(
     userId: number,
     transactionId: number
 ): Promise<Transaction> {
-    const [row, categoriesById] = await Promise.all([
+    const [row, categoriesById, vendorsById] = await Promise.all([
         db.transactions
             .include(transaction => transaction.category)
             .where(transaction => transaction.id, transactionId)
             .where(transaction => transaction.userId, userId)
             .first(),
-        loadCategoriesById(db, userId)
+        loadCategoriesById(db, userId),
+        loadVendorsById(db, userId)
     ]);
     if (!row) {
         throw new TransactionNotFoundError('Transaction was not found.');
     }
-    return mapTransaction(row as TransactionDb, categoriesById);
+    return mapTransaction(row as TransactionDb, categoriesById, vendorsById);
 }
 
 export async function updateTransaction(
@@ -441,6 +508,8 @@ export async function updateTransaction(
     const current = await getTransaction(db, userId, transactionId);
     const next = {
         categoryId: body.categoryId ?? current.categoryId,
+        vendorId:
+            body.vendorId !== undefined ? body.vendorId : current.vendorId,
         amount: body.amount ?? current.amount,
         currency: body.currency ?? current.currency,
         occurredAt: body.occurredAt ?? current.occurredAt,
@@ -465,6 +534,9 @@ export async function updateTransaction(
             'Archived categories cannot be used for new transactions.'
         );
     }
+    if (next.vendorId !== undefined && next.vendorId !== null) {
+        await validateVendor(db, userId, next.vendorId);
+    }
     const exchange = await getExchangeRate(
         db,
         config,
@@ -478,6 +550,7 @@ export async function updateTransaction(
         .where(transaction => transaction.userId, userId)
         .update({
             categoryId: next.categoryId,
+            vendorId: (next.vendorId ?? null) as never,
             type: category.type,
             amount: next.amount,
             currency: next.currency,
@@ -1456,10 +1529,13 @@ export function summarizeDashboardRows(
     range: StatsRange,
     rows: readonly TransactionDb[],
     previousRows: readonly TransactionDb[],
-    categoriesById: ReadonlyMap<number, CategoryDb>
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    vendorsById: ReadonlyMap<number, VendorDb>,
+    vendorLimit = dashboardVendorLimit
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
+    const totalsByVendor = new Map<string, DashboardVendor>();
     const previousTotalsByCategory = new Map<string, number>();
 
     for (const row of previousRows) {
@@ -1500,6 +1576,54 @@ export function summarizeDashboardRows(
                 (current.trend[bucketIndex] ?? 0) + total;
         }
         totalsByCategory.set(key, current);
+
+        if (row.vendorId) {
+            const vendor = vendorsById.get(row.vendorId);
+            if (vendor) {
+                const vendorKey = `${fields.type}:${vendor.id}`;
+                const currentVendor = totalsByVendor.get(vendorKey) ?? {
+                    vendorId: vendor.id,
+                    vendorName: vendor.name,
+                    vendorDomain: vendor.domain ?? undefined,
+                    vendorLogoUrl: vendor.logoUrl ?? undefined,
+                    vendorPrimaryColor: vendor.primaryColor ?? undefined,
+                    type: fields.type,
+                    total: 0,
+                    transactionCount: 0,
+                    trend: Array.from({ length: bucketCount }, () => 0)
+                };
+                currentVendor.total += total;
+                currentVendor.transactionCount += 1;
+                if (
+                    bucketIndex >= 0 &&
+                    bucketIndex < currentVendor.trend.length
+                ) {
+                    currentVendor.trend[bucketIndex] =
+                        (currentVendor.trend[bucketIndex] ?? 0) + total;
+                }
+                totalsByVendor.set(vendorKey, currentVendor);
+            }
+        } else {
+            const vendorKey = `${fields.type}:none`;
+            const currentVendor = totalsByVendor.get(vendorKey) ?? {
+                vendorId: null,
+                vendorName: noVendorName,
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: fields.type,
+                total: 0,
+                transactionCount: 0,
+                trend: Array.from({ length: bucketCount }, () => 0)
+            };
+            currentVendor.total += total;
+            currentVendor.transactionCount += 1;
+            if (bucketIndex >= 0 && bucketIndex < currentVendor.trend.length) {
+                currentVendor.trend[bucketIndex] =
+                    (currentVendor.trend[bucketIndex] ?? 0) + total;
+            }
+            totalsByVendor.set(vendorKey, currentVendor);
+        }
     }
 
     for (const [key, category] of totalsByCategory) {
@@ -1519,6 +1643,15 @@ export function summarizeDashboardRows(
         bucketCount,
         categoriesById
     );
+    const topVendors = Array.from(totalsByVendor.values())
+        .sort(
+            (left, right) =>
+                left.type.localeCompare(right.type) ||
+                right.transactionCount - left.transactionCount ||
+                right.total - left.total ||
+                left.vendorName.localeCompare(right.vendorName)
+        )
+        .slice(0, Math.max(0, vendorLimit));
 
     return {
         period,
@@ -1531,6 +1664,8 @@ export function summarizeDashboardRows(
         incomeTotal: byCategory
             .filter(item => item.type === 'income')
             .reduce((sum, item) => sum + item.total, 0),
+        vendorCount: totalsByVendor.size,
+        topVendors,
         byCategory,
         byParentCategory
     };
@@ -1540,7 +1675,8 @@ export async function dashboardSummary(
     db: AppDb,
     userId: number,
     period: DashboardPeriod,
-    date?: Date
+    date?: Date,
+    vendorLimit = dashboardVendorLimit
 ): Promise<DashboardSummary> {
     const user = await getUser(db, userId);
     const range = resolveDashboardRange(
@@ -1554,11 +1690,14 @@ export async function dashboardSummary(
         range,
         user.timezone
     );
-    const [rows, previousRows, categoriesById] = await Promise.all([
-        transactionsForRange(db, userId, range),
-        transactionsForRange(db, userId, comparisonRange),
-        loadCategoriesById(db, userId)
-    ]);
+    const [rows, previousRows, categoriesById, vendorsById] = await Promise.all(
+        [
+            transactionsForRange(db, userId, range),
+            transactionsForRange(db, userId, comparisonRange),
+            loadCategoriesById(db, userId),
+            loadVendorsById(db, userId)
+        ]
+    );
 
     return summarizeDashboardRows(
         user,
@@ -1566,7 +1705,9 @@ export async function dashboardSummary(
         range,
         rows,
         previousRows,
-        categoriesById
+        categoriesById,
+        vendorsById,
+        vendorLimit
     );
 }
 
@@ -1598,7 +1739,7 @@ export async function dashboardWindow(
             )
         };
     });
-    const [allRows, categoriesById] = await Promise.all([
+    const [allRows, categoriesById, vendorsById] = await Promise.all([
         transactionsForRange(
             db,
             userId,
@@ -1606,7 +1747,8 @@ export async function dashboardWindow(
                 plans.flatMap(plan => [plan.range, plan.previousRange])
             )
         ),
-        loadCategoriesById(db, userId)
+        loadCategoriesById(db, userId),
+        loadVendorsById(db, userId)
     ]);
 
     return {
@@ -1618,7 +1760,9 @@ export async function dashboardWindow(
                 plan.range,
                 rowsInRange(allRows, plan.range),
                 rowsInRange(allRows, plan.previousRange),
-                categoriesById
+                categoriesById,
+                vendorsById,
+                query.vendorLimit ?? dashboardVendorLimit
             )
         }))
     };

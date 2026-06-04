@@ -5,7 +5,8 @@ import {
     type Category,
     CreateTransactionBodySchema,
     type Currency,
-    type Transaction
+    type Transaction,
+    type Vendor
 } from '@xpenser/contracts';
 import {
     dateToLocalDateTimeInput,
@@ -42,6 +43,7 @@ import {
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { valuesToFormData } from './forms/form-utils';
+import { VendorPicker } from './vendor-picker';
 
 type TransactionType = Category['type'];
 
@@ -83,7 +85,8 @@ function parseCaptureAmount(value: string): number | undefined {
 }
 
 function savedSummary(transaction: Transaction, timezone: string) {
-    return `${transaction.categoryDisplayName} - ${formatTransactionMoney(
+    const vendor = transaction.vendorName ? `${transaction.vendorName} - ` : '';
+    return `${vendor}${transaction.categoryDisplayName} - ${formatTransactionMoney(
         transaction.amount,
         transaction.currency,
         transaction.type,
@@ -95,12 +98,14 @@ export function QuickCaptureForm({
     categories,
     currencies,
     defaultCurrency,
+    vendors,
     timezone,
     transactionCurrencies
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
@@ -127,6 +132,7 @@ export function QuickCaptureForm({
     const [categoryId, setCategoryId] = useState<number | undefined>(() =>
         firstCategoryId(transactionCategories, startingType)
     );
+    const [vendorId, setVendorId] = useState<number | null>(null);
     const [amount, setAmount] = useState('');
     const [currency, setCurrency] = useState(() =>
         firstCurrency(currencyOptions, defaultCurrency)
@@ -165,13 +171,35 @@ export function QuickCaptureForm({
         setCategoryId(firstCategoryId(transactionCategories, nextType));
     }
 
+    function handleVendorChange(vendor: Vendor | undefined) {
+        setVendorId(vendor?.id ?? null);
+
+        if (!vendor?.suggestedCategoryId) {
+            return;
+        }
+
+        const suggested = transactionCategories.find(
+            category => category.id === vendor.suggestedCategoryId
+        );
+        if (!suggested) {
+            return;
+        }
+
+        setType(categoryEffectiveType(suggested));
+        setCategoryId(suggested.id);
+        setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
+        form.setValue({ categoryId: suggested.id });
+    }
+
     function resetAfterSave() {
         const nextOccurredAt = new Date();
         setAmount('');
+        setVendorId(null);
         setOccurredAtText(dateToLocalDateTimeInput(nextOccurredAt, timezone));
         form.reset({
             amount: undefined,
             categoryId: activeCategoryId,
+            vendorId: null,
             currency,
             occurredAt: nextOccurredAt,
             note: undefined
@@ -203,6 +231,7 @@ export function QuickCaptureForm({
         form.setValue({
             amount: amountValue,
             categoryId: activeCategoryId,
+            vendorId,
             currency,
             occurredAt
         });
@@ -326,6 +355,12 @@ export function QuickCaptureForm({
                                     </Select>
                                 </div>
                             </Field>
+
+                            <VendorPicker
+                                vendors={vendors}
+                                onChange={handleVendorChange}
+                                selectedVendorId={vendorId}
+                            />
 
                             <Field>
                                 <FieldLabel>Type</FieldLabel>

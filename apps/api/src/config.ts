@@ -77,6 +77,18 @@ export const config = parseEnv(
                 string().default('https://api.frankfurter.dev/v2')
             )
         },
+        brandfetch: {
+            apiKey: env('BRANDFETCH_API_KEY', string().optional()),
+            clientId: env('BRANDFETCH_CLIENT_ID', string().optional()),
+            vendorEnrichmentEnabled: env(
+                'VENDOR_ENRICHMENT_ENABLED',
+                string().default('0')
+            ),
+            vendorEnrichmentTimeoutMs: env(
+                'VENDOR_ENRICHMENT_TIMEOUT_MS',
+                number().coerce().default(2000)
+            )
+        },
         openai: {
             apiKey: env('OPENAI_API_KEY', string().optional()),
             reportModel: env(
@@ -137,6 +149,13 @@ export const config = parseEnv(
                 schedulerEnabled,
                 deliveryHourLocal: base.emailReportsEnv.deliveryHourLocal,
                 maxAttempts: base.emailReportsEnv.maxAttempts
+            },
+            vendorEnrichment: {
+                enabled:
+                    ['1', 'true', 'yes'].includes(
+                        base.brandfetch.vendorEnrichmentEnabled.toLowerCase()
+                    ) && Boolean(base.brandfetch.apiKey),
+                timeoutMs: base.brandfetch.vendorEnrichmentTimeoutMs
             }
         };
     }

@@ -67,8 +67,6 @@ jobs:
     environment:
       name: pr-${{ github.event.number }}
       url: ${{ steps.preview-url.outputs.url }}
-    outputs:
-      preview-url: ${{ steps.preview-url.outputs.url }}
 
     steps:
       - name: Preview URL
@@ -100,7 +98,11 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID || vars.CLOUDFLARE_ZONE_ID }}
+          BRANDFETCH_API_KEY: ${{ secrets.BRANDFETCH_API_KEY }}
+          BRANDFETCH_CLIENT_ID: ${{ vars.BRANDFETCH_CLIENT_ID }}
           GIT_REPOSITORY_URL: ${{ vars.GIT_REPOSITORY_URL || format('git@github.com:{0}.git', github.repository) }}
+          VENDOR_ENRICHMENT_ENABLED: ${{ vars.VENDOR_ENRICHMENT_ENABLED || '0' }}
+          VENDOR_ENRICHMENT_TIMEOUT_MS: ${{ vars.VENDOR_ENRICHMENT_TIMEOUT_MS || '2000' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_REPORT_MODEL: ${{ vars.OPENAI_REPORT_MODEL || 'gpt-5-mini' }}
           PASSPORT_BASE_URL: ${{ vars.PASSPORT_BASE_URL || 'https://auth.cleverbrush.com' }}
@@ -162,6 +164,10 @@ jobs:
             b64 "$PR_ENV_DNS_RECORD_CONTENT"
             b64 "$PR_ENV_DNS_RECORD_PROXIED"
             b64 "$PR_ENV_DNS_RECORD_TTL"
+            b64 "$BRANDFETCH_API_KEY"
+            b64 "$BRANDFETCH_CLIENT_ID"
+            b64 "$VENDOR_ENRICHMENT_ENABLED"
+            b64 "$VENDOR_ENRICHMENT_TIMEOUT_MS"
             b64 "$OPENAI_API_KEY"
             b64 "$OPENAI_REPORT_MODEL"
             b64 "$RESEND_API_KEY"
@@ -202,8 +208,17 @@ jobs:
 
       - name: Run Playwright
         env:
-          PLAYWRIGHT_BASE_URL: ${{ needs.deploy.outputs.preview-url }}
-        run: npm run test:e2e
+          PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
+          PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          set -euo pipefail
+          printf -v PLAYWRIGHT_BASE_URL 'https://%s-pr-%03d.%s' \
+            "$PR_ENV_DOMAIN_PROJECT" \
+            "$PR_NUMBER" \
+            "$PR_ENV_DOMAIN_SUFFIX"
+          export PLAYWRIGHT_BASE_URL
+          npm run test:e2e
 
       - name: Upload Playwright report
         if: always()

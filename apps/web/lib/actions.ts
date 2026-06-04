@@ -1,7 +1,7 @@
 'use server';
 
 import { createHash, randomBytes } from 'node:crypto';
-import type { Transaction } from '@xpenser/contracts';
+import type { Transaction, Vendor, VendorCandidate } from '@xpenser/contracts';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -27,6 +27,25 @@ function optionalString(formData: FormData, key: string): string | undefined {
     return value.trim();
 }
 
+function nullableString(
+    formData: FormData,
+    key: string
+): string | null | undefined {
+    const value = formData.get(key);
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+}
+
+function nullableStringIfPresent(
+    formData: FormData,
+    key: string
+): string | null | undefined {
+    return formData.has(key) ? nullableString(formData, key) : undefined;
+}
+
 function booleanString(
     formData: FormData,
     key: string,
@@ -45,14 +64,37 @@ function editableString(formData: FormData, key: string): string | undefined {
 }
 
 function transactionBody(formData: FormData, editableNote = false) {
+    const vendorId = optionalString(formData, 'vendorId');
     return {
         categoryId: Number(requiredString(formData, 'categoryId')),
+        vendorId: vendorId ? Number(vendorId) : null,
         amount: Number(requiredString(formData, 'amount')),
         currency: requiredString(formData, 'currency'),
         occurredAt: new Date(requiredString(formData, 'occurredAt')),
         note: editableNote
             ? editableString(formData, 'note')
             : optionalString(formData, 'note')
+    };
+}
+
+function vendorBody(formData: FormData) {
+    return {
+        name: requiredString(formData, 'name'),
+        brandfetchBrandId: optionalString(formData, 'brandfetchBrandId'),
+        resolvedName: optionalString(formData, 'resolvedName'),
+        domain: optionalString(formData, 'domain'),
+        logoUrl: optionalString(formData, 'logoUrl')
+    };
+}
+
+function vendorUpdateBody(formData: FormData) {
+    return {
+        name: requiredString(formData, 'name'),
+        resolvedName: nullableStringIfPresent(formData, 'resolvedName'),
+        domain: nullableStringIfPresent(formData, 'domain'),
+        description: nullableStringIfPresent(formData, 'description'),
+        logoUrl: nullableStringIfPresent(formData, 'logoUrl'),
+        primaryColor: nullableStringIfPresent(formData, 'primaryColor')
     };
 }
 
@@ -158,6 +200,9 @@ export async function registerAction(formData: FormData) {
                 password,
                 confirmPassword: requiredString(formData, 'confirmPassword'),
                 defaultCurrency,
+                countryCode: requiredString(formData, 'countryCode')
+                    .trim()
+                    .toUpperCase(),
                 favoriteCurrencies: favoriteCurrencies(
                     formData,
                     defaultCurrency
@@ -241,6 +286,8 @@ export async function updateCategoryAction(formData: FormData) {
     revalidatePath('/setup/categories');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -300,18 +347,106 @@ export async function moveAndDeleteCategoryAction(formData: FormData) {
     revalidatePath('/stats');
 }
 
+export async function createVendorAction(formData: FormData): Promise<Vendor> {
+    const client = await getApiClient();
+    const vendor = await client.vendors.create({
+        body: vendorBody(formData)
+    });
+    revalidateTag('vendors', 'max');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
+    revalidatePath('/transactions');
+    return vendor;
+}
+
+export async function searchVendorCandidatesAction(
+    query: string
+): Promise<VendorCandidate[]> {
+    const client = await getApiClient();
+    return client.vendors.searchCandidates({
+        query: {
+            query,
+            limit: 6
+        }
+    });
+}
+
+export async function getVendorCandidateDetailsAction({
+    brandfetchBrandId,
+    domain
+}: {
+    readonly brandfetchBrandId?: string;
+    readonly domain?: string;
+}): Promise<VendorCandidate | undefined> {
+    const client = await getApiClient();
+    try {
+        return await client.vendors.candidateDetails({
+            query: {
+                ...(brandfetchBrandId ? { brandfetchBrandId } : {}),
+                ...(domain ? { domain } : {})
+            }
+        });
+    } catch (err) {
+        if (apiErrorStatus(err) === 404) {
+            return undefined;
+        }
+        throw err;
+    }
+}
+
+export async function updateVendorAction(formData: FormData): Promise<Vendor> {
+    const id = Number(requiredString(formData, 'id'));
+    const client = await getApiClient();
+    const vendor = await client.vendors.update({
+        params: { id },
+        body: vendorUpdateBody(formData)
+    });
+    revalidateTag('vendors', 'max');
+    revalidateTag('transactions', 'max');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath(`/settings/vendors/${id}`);
+    revalidatePath('/settings/vendors');
+    revalidatePath('/transactions');
+    return vendor;
+}
+
+export async function retryVendorEnrichmentAction(
+    formData: FormData
+): Promise<Vendor> {
+    const id = Number(requiredString(formData, 'id'));
+    const client = await getApiClient();
+    const vendor = await client.vendors.enrich({
+        params: { id }
+    });
+    revalidateTag('vendors', 'max');
+    revalidateTag('transactions', 'max');
+    revalidatePath('/capture');
+    revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath(`/settings/vendors/${id}`);
+    revalidatePath('/settings/vendors');
+    revalidatePath('/transactions');
+    return vendor;
+}
+
 export async function createTransactionAction(formData: FormData) {
     const client = await getApiClient();
     await client.transactions.create({
         body: transactionBody(formData)
     });
     revalidateTag('categories', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
+    revalidatePath('/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -324,12 +459,15 @@ export async function createCaptureTransactionAction(
         body: transactionBody(formData)
     });
     revalidateTag('categories', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
     return transaction;
@@ -342,12 +480,15 @@ export async function updateTransactionAction(formData: FormData) {
         body: transactionBody(formData, true)
     });
     revalidateTag('categories', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -358,11 +499,14 @@ export async function deleteTransactionAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'id')) }
     });
     revalidateTag('categories', 'max');
+    revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
     revalidateTag('stats', 'max');
     revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
     revalidatePath('/stats');
 }
@@ -373,6 +517,8 @@ export async function updatePreferencesAction(formData: FormData) {
     await client.users.updatePreferences({
         body: {
             defaultCurrency,
+            countryCode:
+                optionalString(formData, 'countryCode')?.toUpperCase() ?? 'US',
             favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency),
             timezone: optionalString(formData, 'timezone') ?? 'UTC',
             weeklyEmailReportEnabled: booleanString(

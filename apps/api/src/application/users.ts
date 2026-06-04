@@ -34,6 +34,11 @@ const emailConfirmationPendingMessage =
 const emailConfirmationResendMessage =
     'If that email needs confirmation, a new link has been sent.';
 
+function normalizeCountryCode(value: string | undefined): string {
+    const countryCode = (value ?? 'US').trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(countryCode) ? countryCode : 'US';
+}
+
 export function hashEmailConfirmationToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
 }
@@ -230,6 +235,7 @@ function toTokenResponse(
         | 'email'
         | 'id'
         | 'role'
+        | 'countryCode'
         | 'timezone'
         | 'weeklyEmailReportEnabled'
         | 'monthlyEmailReportEnabled'
@@ -252,6 +258,7 @@ function toTokenResponse(
             email: user.email,
             role: user.role,
             defaultCurrency: user.defaultCurrency,
+            countryCode: normalizeCountryCode(user.countryCode),
             timezone: normalizeTimeZone(user.timezone),
             hasCategories: categories
         }
@@ -322,6 +329,7 @@ export async function registerUser(
             role: 'user',
             authProvider: 'local',
             defaultCurrency: body.defaultCurrency,
+            countryCode: normalizeCountryCode(body.countryCode),
             timezone: normalizeTimeZone(body.timezone)
         });
 
@@ -483,6 +491,7 @@ export async function resolvePassportGoogleUser(
                 role: 'user',
                 authProvider: 'google',
                 defaultCurrency: 'USD',
+                countryCode: 'US',
                 timezone: defaultTimeZone
             }));
 
@@ -546,6 +555,7 @@ export async function getUserPreference(
         id: user.id,
         email: user.email,
         defaultCurrency: user.defaultCurrency,
+        countryCode: normalizeCountryCode(user.countryCode),
         favoriteCurrencies: favorites,
         transactionCurrencies,
         timezone: normalizeTimeZone(user.timezone),
@@ -560,6 +570,7 @@ export async function updateUserPreference(
     userId: number,
     defaultCurrency: string,
     currencies: readonly string[],
+    countryCode?: string,
     timezone?: string,
     weeklyEmailReportEnabled = true,
     monthlyEmailReportEnabled = true
@@ -574,6 +585,9 @@ export async function updateUserPreference(
             .where(candidate => candidate.id, userId)
             .update({
                 defaultCurrency,
+                countryCode: normalizeCountryCode(
+                    countryCode ?? user.countryCode
+                ),
                 timezone: normalizeTimeZone(timezone ?? user.timezone),
                 weeklyEmailReportEnabled,
                 monthlyEmailReportEnabled,

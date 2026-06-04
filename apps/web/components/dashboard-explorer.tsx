@@ -4,27 +4,16 @@ import type {
     Category,
     Currency,
     DashboardSummary,
-    DashboardWindowResponse
+    DashboardWindowResponse,
+    Vendor
 } from '@xpenser/contracts';
-import {
-    Button,
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle
-} from '@xpenser/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@xpenser/ui';
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
-import {
-    DashboardPeriodNav,
-    type DashboardPeriodSelection
-} from '@/components/dashboard-period-nav';
-import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
+import { DashboardSummaryCards } from '@/components/dashboard-summary-cards';
+import { DashboardWindowExplorer } from '@/components/dashboard-window-explorer';
 import {
     DatatypeChart,
     datatypeExpression,
@@ -33,16 +22,10 @@ import {
 import { CollapsibleReportCategoryGroup } from '@/components/report-category-group';
 import { categoryTypeLabel } from '@/lib/category-display';
 import { dashboardCategoryShare } from '@/lib/dashboard-category-share';
-import {
-    dateParam,
-    formatDashboardRangeLabel,
-    parseDateParam,
-    periodHref
-} from '@/lib/dashboard-periods';
+import { dateParam, formatDashboardRangeLabel } from '@/lib/dashboard-periods';
 import {
     amountClassNameForCategoryTotal,
     amountClassNameForType,
-    amountClassNameForValue,
     formatPercent,
     formatSignedPercent,
     percentChangeClassNameForCategory,
@@ -54,25 +37,9 @@ import {
 } from '@/lib/report-category-tree';
 
 type DashboardPeriod = DashboardSummary['period'];
-type DashboardWindowItem = DashboardWindowResponse['items'][number];
 type DashboardCategory = DashboardSummary['byCategory'][number];
 type AggregateType = DashboardCategory['type'];
-type DashboardCache = Partial<
-    Record<DashboardPeriod, Record<string, DashboardWindowItem>>
->;
-
-function aggregateHref(
-    summary: DashboardSummary,
-    type: AggregateType,
-    timezone: string
-): string {
-    const params = new URLSearchParams({
-        type,
-        from: dateParam(summary.from, timezone),
-        to: dateParam(summary.to, timezone)
-    });
-    return `/transactions?${params.toString()}`;
-}
+const dashboardWindowQueryParams = { vendorLimit: 0 } as const;
 
 function categoryHref(
     summary: DashboardSummary,
@@ -341,88 +308,6 @@ function CategoryRow({
     );
 }
 
-function AggregateCard({
-    summary,
-    timezone,
-    title,
-    type,
-    value
-}: {
-    readonly summary: DashboardSummary;
-    readonly timezone: string;
-    readonly title: string;
-    readonly type: AggregateType;
-    readonly value: number;
-}) {
-    return (
-        <Link
-            aria-label={`View ${title.toLowerCase()} transactions for this period`}
-            className="block min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            draggable={false}
-            href={aggregateHref(summary, type, timezone)}
-            prefetch={false}
-        >
-            <Card className="h-full min-w-0 transition-colors hover:bg-muted/40">
-                <CardHeader className="min-w-0 p-3 sm:p-4">
-                    <CardDescription className="text-xs">
-                        {title}
-                    </CardDescription>
-                    <CardTitle
-                        className={`truncate text-sm sm:text-lg ${amountClassNameForCategoryTotal(value, type)}`}
-                    >
-                        <AmountDisplay
-                            currency={summary.currency}
-                            value={signedCategoryTotal(value, type)}
-                        />
-                    </CardTitle>
-                </CardHeader>
-            </Card>
-        </Link>
-    );
-}
-
-function SummaryCards({
-    summary,
-    timezone
-}: {
-    readonly summary: DashboardSummary;
-    readonly timezone: string;
-}) {
-    return (
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
-            <AggregateCard
-                summary={summary}
-                timezone={timezone}
-                title="Income"
-                type="income"
-                value={summary.incomeTotal}
-            />
-            <AggregateCard
-                summary={summary}
-                timezone={timezone}
-                title="Expenses"
-                type="expense"
-                value={summary.expenseTotal}
-            />
-            <Card className="min-w-0">
-                <CardHeader className="min-w-0 p-3 sm:p-4">
-                    <CardDescription className="text-xs">Net</CardDescription>
-                    <CardTitle
-                        className={`truncate text-sm sm:text-lg ${amountClassNameForValue(
-                            summary.incomeTotal - summary.expenseTotal
-                        )}`}
-                    >
-                        <AmountDisplay
-                            currency={summary.currency}
-                            value={summary.incomeTotal - summary.expenseTotal}
-                        />
-                    </CardTitle>
-                </CardHeader>
-            </Card>
-        </div>
-    );
-}
-
 function CategoryGroup({
     nodes,
     summary,
@@ -521,7 +406,7 @@ function DashboardPeriodPanel({
 }) {
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
-            <SummaryCards summary={summary} timezone={timezone} />
+            <DashboardSummaryCards summary={summary} timezone={timezone} />
             <CategoryPanel summary={summary} timezone={timezone} />
         </div>
     );
@@ -584,64 +469,6 @@ function DashboardPeriodPanelSkeleton() {
     );
 }
 
-function mergeDashboardItems(
-    cache: DashboardCache,
-    period: DashboardPeriod,
-    items: readonly DashboardWindowItem[],
-    replaceExisting = false
-): DashboardCache {
-    const current = cache[period] ?? {};
-    let changed = false;
-    const nextPeriod = { ...current };
-
-    for (const item of items) {
-        if (replaceExisting || !nextPeriod[item.date]) {
-            nextPeriod[item.date] = item;
-            changed = true;
-        }
-    }
-
-    return changed ? { ...cache, [period]: nextPeriod } : cache;
-}
-
-function initialCache(
-    period: DashboardPeriod,
-    items: readonly DashboardWindowItem[]
-): DashboardCache {
-    return mergeDashboardItems({}, period, items, true);
-}
-
-function itemDateForAnchor(
-    items: readonly DashboardWindowItem[],
-    date: string,
-    timezone: string
-): string | undefined {
-    const anchor = parseDateParam(date, timezone);
-    if (!anchor) {
-        return items.find(item => item.date === date)?.date;
-    }
-
-    return (
-        items.find(item => {
-            const from = new Date(item.summary.from);
-            const to = new Date(item.summary.to);
-            return anchor >= from && anchor <= to;
-        })?.date ?? items.find(item => item.date === date)?.date
-    );
-}
-
-function itemForSelection(
-    cache: DashboardCache,
-    period: DashboardPeriod,
-    date: string,
-    timezone: string
-): DashboardWindowItem | undefined {
-    const periodItems = cache[period] ?? {};
-    return periodItems[
-        itemDateForAnchor(Object.values(periodItems), date, timezone) ?? date
-    ];
-}
-
 export function DashboardExplorer({
     categories,
     currencies,
@@ -649,6 +476,7 @@ export function DashboardExplorer({
     initialDate,
     initialPeriod,
     initialWindow,
+    vendors,
     timezone,
     transactionCurrencies
 }: {
@@ -658,290 +486,51 @@ export function DashboardExplorer({
     readonly initialDate: string;
     readonly initialPeriod: DashboardPeriod;
     readonly initialWindow: DashboardWindowResponse;
+    readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
-    const router = useRouter();
-    const pendingFetches = useRef(new Set<string>());
-    const [cache, setCache] = useState(() =>
-        initialCache(initialPeriod, initialWindow.items)
-    );
-    const [selection, setSelection] = useState({
-        date: initialDate,
-        period: initialPeriod
-    });
-    const currentItem = itemForSelection(
-        cache,
-        selection.period,
-        selection.date,
-        timezone
-    );
-    const currentDate = currentItem?.date ?? selection.date;
-
-    useEffect(() => {
-        setCache(current =>
-            mergeDashboardItems(
-                current,
-                initialPeriod,
-                initialWindow.items,
-                true
-            )
-        );
-        setSelection({ date: initialDate, period: initialPeriod });
-    }, [initialDate, initialPeriod, initialWindow]);
-
-    const commitSelection = useCallback(
-        (period: DashboardPeriod, date: string, pushHistory = true) => {
-            const anchor = parseDateParam(date, timezone) ?? new Date();
-            const href = periodHref('/dashboard', period, anchor, {
-                cleanDefault: true,
-                timeZone: timezone
-            });
-            setSelection({ date, period });
-            if (pushHistory) {
-                window.history.pushState(null, '', href);
-            }
-        },
-        [timezone]
-    );
-
-    const fetchWindow = useCallback(
-        async (
-            period: DashboardPeriod,
-            date: string,
-            before = 2,
-            after = 2
-        ): Promise<readonly DashboardWindowItem[]> => {
-            const requestKey = `${period}:${date}:${before}:${after}`;
-            if (pendingFetches.current.has(requestKey)) {
-                return [];
-            }
-
-            pendingFetches.current.add(requestKey);
-            const params = new URLSearchParams({
-                after: String(after),
-                before: String(before),
-                date,
-                period
-            });
-
-            try {
-                const response = await fetch(
-                    `/api/dashboard/window?${params.toString()}`,
-                    { headers: { Accept: 'application/json' } }
-                );
-                if (response.status === 401) {
-                    router.push('/auth/session-expired');
-                    return [];
-                }
-                if (!response.ok) {
-                    throw new Error('Could not load dashboard periods.');
-                }
-
-                const periodWindow =
-                    (await response.json()) as DashboardWindowResponse;
-                setCache(current =>
-                    mergeDashboardItems(current, period, periodWindow.items)
-                );
-                return periodWindow.items;
-            } finally {
-                pendingFetches.current.delete(requestKey);
-            }
-        },
-        [router]
-    );
-
-    const navigateTo = useCallback(
-        async (next: DashboardPeriodSelection, pushHistory = true) => {
-            const cached = itemForSelection(
-                cache,
-                next.period,
-                next.date,
-                timezone
-            );
-            if (cached) {
-                commitSelection(next.period, cached.date, pushHistory);
-                return;
-            }
-
-            let items: readonly DashboardWindowItem[];
-            try {
-                items = await fetchWindow(next.period, next.date);
-            } catch {
-                router.push(next.href, { scroll: false });
-                return;
-            }
-
-            const loadedDate = itemDateForAnchor(items, next.date, timezone);
-            if (loadedDate) {
-                commitSelection(next.period, loadedDate, pushHistory);
-            } else {
-                router.push(next.href, { scroll: false });
-            }
-        },
-        [cache, commitSelection, fetchWindow, router, timezone]
-    );
-
-    const navigateSwipe = useCallback(
-        (next: { readonly date: string; readonly href: string }) => {
-            const cached = itemForSelection(
-                cache,
-                selection.period,
-                next.date,
-                timezone
-            );
-            if (cached) {
-                commitSelection(selection.period, cached.date);
-                return;
-            }
-
-            router.push(next.href, { scroll: false });
-        },
-        [cache, commitSelection, router, selection.period, timezone]
-    );
-
-    const previewDate = useCallback(
-        (date: string) => {
-            const cached = itemForSelection(
-                cache,
-                selection.period,
-                date,
-                timezone
-            );
-            if (!cached) {
-                void fetchWindow(selection.period, date).catch(() => undefined);
-            }
-        },
-        [cache, fetchWindow, selection.period, timezone]
-    );
-
-    useEffect(() => {
-        const periodItems = cache[selection.period] ?? {};
-        const dates = Object.keys(periodItems).sort();
-        const index = dates.indexOf(currentDate);
-        if (index === -1) {
-            return;
-        }
-
-        if (index <= 1) {
-            void fetchWindow(selection.period, currentDate, 2, 0).catch(
-                () => undefined
-            );
-        }
-        if (dates.length - index <= 2) {
-            void fetchWindow(selection.period, currentDate, 0, 2).catch(
-                () => undefined
-            );
-        }
-    }, [cache, currentDate, fetchWindow, selection.period]);
-
-    useEffect(() => {
-        function handlePopState() {
-            const params = new URLSearchParams(window.location.search);
-            const period = params.get('period') as DashboardPeriod | null;
-            const date = params.get('date');
-            if (period && date) {
-                void navigateTo(
-                    { date, href: window.location.href, period },
-                    false
-                );
-            } else {
-                void navigateTo(
-                    {
-                        date: dateParam(new Date(), timezone),
-                        href: '/dashboard',
-                        period: 'day'
-                    },
-                    false
-                );
-            }
-        }
-
-        window.addEventListener('popstate', handlePopState);
-        return () => {
-            window.removeEventListener('popstate', handlePopState);
-        };
-    }, [navigateTo, timezone]);
-
-    const panelForDate = useCallback(
-        (date: string) => {
-            const item = itemForSelection(
-                cache,
-                selection.period,
-                date,
-                timezone
-            );
-            return item ? (
+    return (
+        <DashboardWindowExplorer
+            basePath="/dashboard"
+            initialDate={initialDate}
+            initialPeriod={initialPeriod}
+            initialWindow={initialWindow}
+            renderBody={({ item }) => (
                 <DashboardPeriodPanel
                     summary={item.summary}
                     timezone={timezone}
                 />
-            ) : undefined;
-        },
-        [cache, selection.period, timezone]
-    );
-
-    const dashboardPanel = useMemo(
-        () =>
-            currentItem ? (
-                <DashboardPeriodPanel
-                    summary={currentItem.summary}
-                    timezone={timezone}
-                />
-            ) : null,
-        [currentItem, timezone]
-    );
-
-    if (!currentItem || !dashboardPanel) {
-        return null;
-    }
-
-    const summary = currentItem.summary;
-
-    return (
-        <div className="flex flex-col gap-5 sm:gap-6">
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <h1 className="text-2xl font-semibold">Dashboard</h1>
-                    <p className="text-sm text-muted-foreground">
-                        {formatDashboardRangeLabel({
-                            from: summary.from,
-                            period: selection.period,
-                            to: summary.to,
-                            timeZone: timezone
-                        })}{' '}
-                        in {summary.currency}.
-                    </p>
+            )}
+            renderHeader={({ item, period }) => (
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-semibold">Dashboard</h1>
+                        <p className="text-sm text-muted-foreground">
+                            {formatDashboardRangeLabel({
+                                from: item.summary.from,
+                                period,
+                                to: item.summary.to,
+                                timeZone: timezone
+                            })}{' '}
+                            in {item.summary.currency}.
+                        </p>
+                    </div>
+                    <div className="shrink-0">
+                        <AddTransactionDialog
+                            categories={categories}
+                            currencies={currencies}
+                            defaultCurrency={defaultCurrency}
+                            vendors={vendors}
+                            transactionCurrencies={transactionCurrencies}
+                            timezone={timezone}
+                        />
+                    </div>
                 </div>
-                <div className="shrink-0">
-                    <AddTransactionDialog
-                        categories={categories}
-                        currencies={currencies}
-                        defaultCurrency={defaultCurrency}
-                        transactionCurrencies={transactionCurrencies}
-                        timezone={timezone}
-                    />
-                </div>
-            </div>
-            <DashboardPeriodNav
-                date={currentDate}
-                onNavigate={selection => {
-                    void navigateTo(selection);
-                }}
-                period={selection.period}
-                timezone={timezone}
-            />
-            <DashboardSwipeArea
-                date={currentDate}
-                onNavigate={navigateSwipe}
-                onPreview={previewDate}
-                panelForDate={panelForDate}
-                period={selection.period}
-                skeleton={<DashboardPeriodPanelSkeleton />}
-                timezone={timezone}
-            >
-                {dashboardPanel}
-            </DashboardSwipeArea>
-        </div>
+            )}
+            skeleton={<DashboardPeriodPanelSkeleton />}
+            timezone={timezone}
+            windowQueryParams={dashboardWindowQueryParams}
+        />
     );
 }

@@ -9,6 +9,7 @@ type ApiSessionToken = {
     email?: string | null;
     role?: string;
     defaultCurrency?: string;
+    countryCode?: string;
     timezone?: string;
     hasCategories?: boolean;
 };
@@ -47,6 +48,7 @@ export function applyTokenResponse<T extends ApiSessionToken>(
     token.email = response.user.email;
     token.role = response.user.role;
     token.defaultCurrency = response.user.defaultCurrency;
+    token.countryCode = response.user.countryCode;
     token.timezone = response.user.timezone;
     token.hasCategories = response.user.hasCategories;
     return token;

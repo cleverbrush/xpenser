@@ -207,6 +207,62 @@ export const MoveAndDeleteCategoryEndpoint = api.categories.moveAndDelete
     .tags('categories')
     .operationId('moveAndDeleteCategory');
 
+export const ListVendorsEndpoint = api.vendors.list
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List vendors')
+    .description('Lists vendors owned by the authenticated user.')
+    .tags('vendors')
+    .operationId('listVendors');
+
+export const SearchVendorCandidatesEndpoint = api.vendors.searchCandidates
+    .authorize(PrincipalSchema)
+    .inject({ config: ConfigToken })
+    .summary('Search vendors')
+    .description('Searches Brandfetch for vendor candidates.')
+    .tags('vendors')
+    .operationId('searchVendorCandidates');
+
+export const VendorCandidateDetailsEndpoint = api.vendors.candidateDetails
+    .authorize(PrincipalSchema)
+    .inject({ config: ConfigToken })
+    .summary('Get vendor candidate details')
+    .description('Gets Brandfetch details for a selected vendor candidate.')
+    .tags('vendors')
+    .operationId('getVendorCandidateDetails');
+
+export const GetVendorEndpoint = api.vendors.get
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Get vendor')
+    .description('Gets one vendor owned by the authenticated user.')
+    .tags('vendors')
+    .operationId('getVendor');
+
+export const CreateVendorEndpoint = api.vendors.create
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Create vendor')
+    .description('Creates or reuses a user-owned vendor.')
+    .tags('vendors')
+    .operationId('createVendor');
+
+export const UpdateVendorEndpoint = api.vendors.update
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Update vendor')
+    .description('Updates editable vendor metadata.')
+    .tags('vendors')
+    .operationId('updateVendor');
+
+export const EnrichVendorEndpoint = api.vendors.enrich
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Retry vendor enrichment')
+    .description('Retries vendor enrichment for a user-owned vendor.')
+    .tags('vendors')
+    .operationId('enrichVendor');
+
 export const ListTransactionsEndpoint = api.transactions.list
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -315,6 +371,15 @@ export const endpoints = {
         update: UpdateCategoryEndpoint,
         delete: DeleteCategoryEndpoint,
         moveAndDelete: MoveAndDeleteCategoryEndpoint
+    },
+    vendors: {
+        searchCandidates: SearchVendorCandidatesEndpoint,
+        candidateDetails: VendorCandidateDetailsEndpoint,
+        list: ListVendorsEndpoint,
+        get: GetVendorEndpoint,
+        create: CreateVendorEndpoint,
+        update: UpdateVendorEndpoint,
+        enrich: EnrichVendorEndpoint
     },
     transactions: {
         list: ListTransactionsEndpoint,

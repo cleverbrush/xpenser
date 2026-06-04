@@ -2,7 +2,7 @@ import { createXpenserClient } from '@xpenser/client';
 import { type NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { webConfig } from '@/lib/config';
-import { periodWindowQuery } from '@/lib/period-window-query';
+import { dashboardPeriodWindowQuery } from '@/lib/period-window-query';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     try {
         return NextResponse.json(
             await client.dashboard.window({
-                query: periodWindowQuery(
+                query: dashboardPeriodWindowQuery(
                     request.nextUrl.searchParams,
                     session.user.timezone
                 )

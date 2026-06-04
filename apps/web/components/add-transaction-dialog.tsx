@@ -1,6 +1,6 @@
 'use client';
 
-import type { Category, Currency } from '@xpenser/contracts';
+import type { Category, Currency, Vendor } from '@xpenser/contracts';
 import { Button } from '@xpenser/ui';
 import { PlusIcon } from 'lucide-react';
 import Link from 'next/link';
@@ -13,12 +13,14 @@ export function AddTransactionDialog({
     categories,
     currencies,
     defaultCurrency,
+    vendors,
     transactionCurrencies,
     timezone
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly vendors: readonly Vendor[];
     readonly transactionCurrencies: readonly string[];
     readonly timezone: string;
 }) {
@@ -58,6 +60,7 @@ export function AddTransactionDialog({
                     defaultCurrency={defaultCurrency}
                     description="Amounts are stored in the original currency and converted for reports."
                     errorMessage="Could not save the transaction."
+                    vendors={vendors}
                     preferredCurrency={
                         currencyOptions[0]?.code ?? defaultCurrency
                     }

@@ -18,9 +18,10 @@ export default async function TransactionsPage({
     const params = await searchParams;
     const client = await getApiClient();
     const me = await client.auth.me();
-    const [categories, currencies, transactions] = await Promise.all([
+    const [categories, currencies, vendors, transactions] = await Promise.all([
         client.categories.list({ query: {} }),
         client.currencies.list(),
+        client.vendors.list({ query: { limit: 100 } }),
         client.transactions.list({
             query: buildTransactionListQuery(
                 params,
@@ -47,6 +48,7 @@ export default async function TransactionsPage({
                 currencies={currencies}
                 defaultCurrency={me.defaultCurrency}
                 hasInitialFilters={hasFilters}
+                vendors={vendors}
                 initialResponse={{
                     ...transactions,
                     hasMore: transactionHasMore(transactions)

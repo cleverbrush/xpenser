@@ -1,7 +1,12 @@
 'use client';
 
 import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
-import type { Category, Currency, Transaction } from '@xpenser/contracts';
+import type {
+    Category,
+    Currency,
+    Transaction,
+    Vendor
+} from '@xpenser/contracts';
 import { CreateTransactionBodySchema } from '@xpenser/contracts';
 import {
     dateToLocalDateTimeInput,
@@ -43,10 +48,11 @@ import {
     transactionCategoryOptions
 } from '@/lib/category-display';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
+import { VendorPicker } from './vendor-picker';
 
 type TransactionDialogValues = Pick<
     Transaction,
-    'amount' | 'categoryId' | 'currency' | 'note' | 'type'
+    'amount' | 'categoryId' | 'currency' | 'vendorId' | 'note' | 'type'
 > & {
     readonly categoryKind?: Transaction['categoryKind'];
     readonly occurredAt: Date | string | number;
@@ -62,6 +68,7 @@ export function TransactionDialog({
     description,
     errorMessage,
     initialValues,
+    vendors,
     preferredCurrency,
     submitLabel = 'Save',
     submittingLabel = 'Saving...',
@@ -77,6 +84,7 @@ export function TransactionDialog({
     readonly description: string;
     readonly errorMessage: string;
     readonly initialValues?: TransactionDialogValues;
+    readonly vendors: readonly Vendor[];
     readonly preferredCurrency?: string;
     readonly submitLabel?: string;
     readonly submittingLabel?: string;
@@ -95,6 +103,9 @@ export function TransactionDialog({
         useState<TransactionType>('expense');
     const [selectedCategoryId, setSelectedCategoryId] = useState<
         number | undefined
+    >();
+    const [selectedVendorId, setSelectedVendorId] = useState<
+        number | null | undefined
     >();
     const [selectedCurrency, setSelectedCurrency] = useState(defaultCurrency);
     const [occurredAtText, setOccurredAtText] = useState('');
@@ -198,6 +209,7 @@ export function TransactionDialog({
 
         setSelectedType(initialType);
         setSelectedCategoryId(initialValues?.categoryId);
+        setSelectedVendorId(initialValues?.vendorId ?? undefined);
         setSelectedCurrency(initialCurrency);
         setOccurredAtText(
             dateToLocalDateTimeInput(initialOccurredAt, timezone)
@@ -205,6 +217,7 @@ export function TransactionDialog({
         form.reset({
             amount: initialValues?.amount,
             categoryId: initialValues?.categoryId,
+            vendorId: initialValues?.vendorId ?? null,
             currency: initialCurrency,
             occurredAt: initialOccurredAt,
             note: initialValues?.note ?? undefined
@@ -249,11 +262,33 @@ export function TransactionDialog({
         form.setValue({ categoryId: undefined });
     }
 
+    function handleVendorChange(vendor: Vendor | undefined) {
+        setSelectedVendorId(vendor?.id ?? null);
+        form.setValue({ vendorId: vendor?.id ?? null });
+
+        if (!vendor?.suggestedCategoryId) {
+            return;
+        }
+
+        const suggested = selectableCategories.find(
+            category => category.id === vendor.suggestedCategoryId
+        );
+        if (!suggested) {
+            return;
+        }
+
+        const suggestedType = categoryEffectiveType(suggested);
+        setSelectedType(suggestedType);
+        setSelectedCategoryId(suggested.id);
+        form.setValue({ categoryId: suggested.id });
+    }
+
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
 
         form.setValue({
             categoryId: activeCategoryId,
+            vendorId: selectedVendorId ?? null,
             currency: selectedCurrency
         });
 
@@ -343,6 +378,11 @@ export function TransactionDialog({
                             form={form}
                             label="Category"
                             variant="select"
+                        />
+                        <VendorPicker
+                            vendors={vendors}
+                            onChange={handleVendorChange}
+                            selectedVendorId={selectedVendorId}
                         />
                         <div className="grid gap-4 sm:grid-cols-2">
                             <SchemaField

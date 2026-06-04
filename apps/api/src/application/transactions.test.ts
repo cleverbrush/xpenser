@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CategoryDb } from '../db/schemas.js';
+import type { CategoryDb, VendorDb } from '../db/schemas.js';
 import {
     categoryTrendMaxBuckets,
     compareTransactionsByOccurrenceAsc,
@@ -121,7 +121,8 @@ describe('transaction category signs', () => {
             new Map<number, CategoryDb>([
                 [car.id, car],
                 [returns.id, returns]
-            ])
+            ]),
+            new Map<number, VendorDb>()
         );
 
         expect(summary.expenseTotal).toBe(100);
@@ -202,7 +203,8 @@ describe('transaction category signs', () => {
             new Map<number, CategoryDb>([
                 [car.id, car],
                 [returns.id, returns]
-            ])
+            ]),
+            new Map<number, VendorDb>()
         );
 
         expect(summary.expenseTotal).toBe(0);
@@ -232,6 +234,220 @@ describe('transaction category signs', () => {
                 total: category.total
             }))
         ).toEqual([{ id: car.id, name: 'Car', type: 'income', total: 25 }]);
+    });
+
+    it('summarizes vendor transaction groups for dashboard previews', () => {
+        const timestamp = new Date('2026-05-10T12:00:00.000Z');
+        const groceries = {
+            id: 1,
+            userId: 1,
+            name: 'Groceries',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        } as const;
+        const salary = {
+            ...groceries,
+            id: 2,
+            name: 'Salary',
+            type: 'income'
+        } as const;
+        const vendor = (
+            id: number,
+            name: string,
+            overrides: Partial<VendorDb> = {}
+        ) =>
+            ({
+                id,
+                userId: 1,
+                name,
+                normalizedName: name.toLowerCase(),
+                createdAt: timestamp,
+                updatedAt: timestamp,
+                ...overrides
+            }) as VendorDb;
+        const transaction = (
+            id: number,
+            categoryId: number,
+            amount: string,
+            vendorId?: number
+        ) =>
+            ({
+                id,
+                userId: 1,
+                categoryId,
+                vendorId,
+                type: categoryId === salary.id ? 'income' : 'expense',
+                amount,
+                currency: 'USD',
+                defaultCurrencyAmount: amount,
+                defaultCurrency: 'USD',
+                exchangeRate: '1',
+                exchangeRateDate: '2026-05-10',
+                occurredAt: timestamp,
+                createdAt: timestamp,
+                updatedAt: timestamp
+            }) as const;
+        const vendors = new Map<number, VendorDb>([
+            [
+                1,
+                vendor(1, 'Big Store', {
+                    resolvedName: 'Big Store',
+                    domain: 'big.example',
+                    logoUrl: 'https://big.example/logo.svg',
+                    primaryColor: '#0066cc'
+                })
+            ],
+            [2, vendor(2, 'Corner Shop')],
+            [3, vendor(3, 'Paycheck Inc')]
+        ]);
+        const extraVendors = Array.from({ length: 25 }, (_, index) => {
+            const id = index + 10;
+            return [id, vendor(id, `Vendor ${id}`)] as const;
+        });
+        const range = {
+            from: new Date('2026-05-01T00:00:00.000Z'),
+            to: new Date('2026-05-31T23:59:59.999Z')
+        };
+        const rows = [
+            transaction(1, groceries.id, '20', 1),
+            transaction(2, groceries.id, '30', 1),
+            transaction(3, groceries.id, '100', 2),
+            transaction(4, salary.id, '500', 3),
+            transaction(5, groceries.id, '10'),
+            transaction(6, salary.id, '25'),
+            ...extraVendors.map(([id]) =>
+                transaction(id, groceries.id, '1', id)
+            )
+        ];
+        const categoriesById = new Map<number, CategoryDb>([
+            [groceries.id, groceries],
+            [salary.id, salary]
+        ]);
+        const vendorsById = new Map<number, VendorDb>([
+            ...vendors,
+            ...extraVendors
+        ]);
+        const summary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            range,
+            rows,
+            [],
+            categoriesById,
+            vendorsById
+        );
+        const emptyVendorSummary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            range,
+            rows,
+            [],
+            categoriesById,
+            vendorsById,
+            0
+        );
+        const expandedVendorSummary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            range,
+            rows,
+            [],
+            categoriesById,
+            vendorsById,
+            100
+        );
+
+        expect(summary.vendorCount).toBe(30);
+        expect(summary.topVendors).toHaveLength(24);
+        expect(emptyVendorSummary.vendorCount).toBe(30);
+        expect(emptyVendorSummary.topVendors).toEqual([]);
+        expect(expandedVendorSummary.topVendors).toHaveLength(30);
+        expect(summary.topVendors.slice(0, 3)).toEqual([
+            {
+                vendorId: 1,
+                vendorName: 'Big Store',
+                vendorDomain: 'big.example',
+                vendorLogoUrl: 'https://big.example/logo.svg',
+                vendorPrimaryColor: '#0066cc',
+                type: 'expense',
+                total: 50,
+                transactionCount: 2,
+                trend: [0, 50, 0, 0, 0]
+            },
+            {
+                vendorId: 2,
+                vendorName: 'Corner Shop',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: 'expense',
+                total: 100,
+                transactionCount: 1,
+                trend: [0, 100, 0, 0, 0]
+            },
+            {
+                vendorId: null,
+                vendorName: 'No vendor',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: 'expense',
+                total: 10,
+                transactionCount: 1,
+                trend: [0, 10, 0, 0, 0]
+            }
+        ]);
+        expect(expandedVendorSummary.topVendors).toContainEqual({
+            vendorId: 3,
+            vendorName: 'Paycheck Inc',
+            vendorDomain: undefined,
+            vendorLogoUrl: undefined,
+            vendorPrimaryColor: undefined,
+            type: 'income',
+            total: 500,
+            transactionCount: 1,
+            trend: [0, 500, 0, 0, 0]
+        });
+        expect(expandedVendorSummary.topVendors).toContainEqual({
+            vendorId: null,
+            vendorName: 'No vendor',
+            vendorDomain: undefined,
+            vendorLogoUrl: undefined,
+            vendorPrimaryColor: undefined,
+            type: 'income',
+            total: 25,
+            transactionCount: 1,
+            trend: [0, 25, 0, 0, 0]
+        });
+        expect(summary.topVendors.slice(3, 4)).toEqual([
+            {
+                vendorId: 10,
+                vendorName: 'Vendor 10',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: 'expense',
+                total: 1,
+                transactionCount: 1,
+                trend: [0, 1, 0, 0, 0]
+            }
+        ]);
+        expect(
+            expandedVendorSummary.topVendors
+                .filter(vendor => vendor.type === 'expense')
+                .reduce((sum, vendor) => sum + vendor.total, 0)
+        ).toBe(expandedVendorSummary.expenseTotal);
+        expect(
+            expandedVendorSummary.topVendors
+                .filter(vendor => vendor.type === 'income')
+                .reduce((sum, vendor) => sum + vendor.total, 0)
+        ).toBe(expandedVendorSummary.incomeTotal);
+        expect(summary.topVendors.some(item => item.type === 'income')).toBe(
+            false
+        );
     });
 });
 

@@ -6,7 +6,8 @@ import {
     type InferType,
     number,
     object,
-    string
+    string,
+    union
 } from '@cleverbrush/schema';
 
 export const CurrencyCodeSchema = string()
@@ -15,6 +16,13 @@ export const CurrencyCodeSchema = string()
     .matches(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code')
     .describe('ISO 4217 currency code, for example USD or EUR.')
     .schemaName('CurrencyCode');
+
+export const CountryCodeSchema = string()
+    .required('country is required')
+    .nonempty('country is required')
+    .matches(/^[A-Z]{2}$/, 'country must be a 2-letter ISO 3166-1 code')
+    .describe('ISO 3166-1 alpha-2 country code, for example US or UA.')
+    .schemaName('CountryCode');
 
 export const TimeZoneSchema = string()
     .required('timezone is required')
@@ -138,6 +146,10 @@ export const RegisterBodySchema = object({
     /** Default currency used for dashboards and reports. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for dashboards and reports.'
+    ),
+    /** Country used to localize vendor enrichment. */
+    countryCode: CountryCodeSchema.describe(
+        'Country used to localize vendor enrichment.'
     ),
     /** Favorite currencies shown first when creating transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema)
@@ -304,6 +316,10 @@ export const TokenResponseSchema = object({
         defaultCurrency: CurrencyCodeSchema.describe(
             'Default currency used for reports.'
         ),
+        /** Country used to localize vendor enrichment. */
+        countryCode: CountryCodeSchema.describe(
+            'Country used to localize vendor enrichment.'
+        ),
         /** Time zone used for transaction display and reporting periods. */
         timezone: TimeZoneSchema.describe(
             'Time zone used for transaction display and reporting periods.'
@@ -323,6 +339,10 @@ export const UserPreferenceSchema = object({
     /** Default currency used for reports and new transactions. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for reports and new transactions.'
+    ),
+    /** Country used to localize vendor enrichment. */
+    countryCode: CountryCodeSchema.describe(
+        'Country used to localize vendor enrichment.'
     ),
     /** Favorite currencies offered when entering transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
@@ -404,6 +424,10 @@ export const UpdateUserPreferenceBodySchema = object({
     /** Default currency used for reports and new transactions. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for reports and new transactions.'
+    ),
+    /** Country used to localize vendor enrichment. */
+    countryCode: CountryCodeSchema.optional().describe(
+        'Country used to localize vendor enrichment.'
     ),
     /** Favorite currencies offered when entering transactions. */
     favoriteCurrencies: array(CurrencyCodeSchema).describe(
@@ -687,6 +711,227 @@ export const MoveAndDeleteCategoryBodySchema = object({
     )
 }).schemaName('MoveAndDeleteCategoryBody');
 
+export const VendorEnrichmentStatusSchema = enumOf(
+    'disabled',
+    'success',
+    'not_found',
+    'failed'
+).schemaName('VendorEnrichmentStatus');
+
+export const VendorSchema = object({
+    /** Unique vendor identifier. */
+    id: number().describe('Unique vendor identifier.'),
+    /** User-entered vendor name. */
+    name: string().describe('User-entered vendor name.'),
+    /** Vendor name shown in transaction forms and reports. */
+    displayName: string().describe(
+        'Vendor name shown in transaction forms and reports.'
+    ),
+    /** Provider-resolved vendor name, when available. */
+    resolvedName: string()
+        .optional()
+        .describe('Provider-resolved vendor name, when available.'),
+    /** Provider-resolved vendor domain, when available. */
+    domain: string()
+        .optional()
+        .describe('Provider-resolved vendor domain, when available.'),
+    /** Provider-resolved vendor description, when available. */
+    description: string()
+        .optional()
+        .describe('Provider-resolved vendor description, when available.'),
+    /** Provider-resolved logo URL, when available. */
+    logoUrl: string()
+        .optional()
+        .describe('Provider-resolved logo URL, when available.'),
+    /** Provider-resolved primary color hex code, when available. */
+    primaryColor: string()
+        .optional()
+        .describe('Provider-resolved primary color hex code, when available.'),
+    /** Vendor enrichment provider, when enrichment has been attempted. */
+    enrichmentProvider: string()
+        .optional()
+        .describe(
+            'Vendor enrichment provider, when enrichment has been attempted.'
+        ),
+    /** Latest vendor enrichment status, when enrichment has been attempted. */
+    enrichmentStatus: VendorEnrichmentStatusSchema.optional().describe(
+        'Latest vendor enrichment status, when enrichment has been attempted.'
+    ),
+    /** Timestamp for the latest enrichment attempt. */
+    enrichedAt: date()
+        .coerce()
+        .optional()
+        .describe('Timestamp for the latest enrichment attempt.'),
+    /** Suggested category for this user and vendor, when history exists. */
+    suggestedCategoryId: number()
+        .optional()
+        .describe(
+            'Suggested category for this user and vendor, when history exists.'
+        ),
+    /** Suggested category display name, when history exists. */
+    suggestedCategoryDisplayName: string()
+        .optional()
+        .describe('Suggested category display name, when history exists.'),
+    /** Number of transactions linked to this vendor. */
+    transactionCount: number().describe(
+        'Number of transactions linked to this vendor.'
+    ),
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last update timestamp. */
+    updatedAt: date().coerce().describe('Last update timestamp.')
+}).schemaName('Vendor');
+
+export const VendorListQuerySchema = object({
+    /** Text search applied to vendor names and domains. */
+    search: string()
+        .optional()
+        .describe('Text search applied to vendor names and domains.'),
+    /** Maximum number of vendors to return. */
+    limit: number()
+        .coerce()
+        .default(25)
+        .describe('Maximum number of vendors to return.')
+}).schemaName('VendorListQuery');
+
+export const VendorCandidateSearchQuerySchema = object({
+    /** Vendor name text to search through Brandfetch. */
+    query: string()
+        .required('vendor search query is required')
+        .nonempty('vendor search query is required')
+        .maxLength(160, 'vendor search query is too long')
+        .describe('Vendor name text to search through Brandfetch.'),
+    /** Maximum number of Brandfetch suggestions to return. */
+    limit: number()
+        .coerce()
+        .default(6)
+        .describe('Maximum number of Brandfetch suggestions to return.')
+}).schemaName('VendorCandidateSearchQuery');
+
+export const VendorCandidateDetailsQuerySchema = object({
+    /** Brandfetch brand identifier. */
+    brandfetchBrandId: string()
+        .optional()
+        .maxLength(100, 'Brandfetch brand identifier is too long')
+        .describe('Brandfetch brand identifier.'),
+    /** Vendor domain returned by Brandfetch. */
+    domain: string()
+        .optional()
+        .maxLength(255, 'domain is too long')
+        .describe('Vendor domain returned by Brandfetch.')
+})
+    .addValidator(value => {
+        if (value.brandfetchBrandId || value.domain) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message:
+                        'vendor candidate details require a brand ID or domain'
+                }
+            ]
+        };
+    })
+    .schemaName('VendorCandidateDetailsQuery');
+
+export const VendorCandidateSchema = object({
+    /** Brandfetch brand identifier. */
+    brandfetchBrandId: string()
+        .optional()
+        .describe('Brandfetch brand identifier.'),
+    /** Vendor name returned by Brandfetch. */
+    name: string().describe('Vendor name returned by Brandfetch.'),
+    /** Vendor domain returned by Brandfetch. */
+    domain: string().describe('Vendor domain returned by Brandfetch.'),
+    /** Brandfetch icon URL for the vendor search result. */
+    logoUrl: string()
+        .optional()
+        .describe('Brandfetch icon URL for the vendor search result.'),
+    /** Brandfetch description for the vendor candidate, when available. */
+    description: string()
+        .optional()
+        .describe('Brandfetch description for the vendor candidate.'),
+    /** Brandfetch primary color hex code, when available. */
+    primaryColor: string()
+        .optional()
+        .describe('Brandfetch primary color hex code.'),
+    /** Whether the brand has been claimed in Brandfetch. */
+    claimed: boolean()
+        .optional()
+        .describe('Whether the brand has been claimed in Brandfetch.')
+}).schemaName('VendorCandidate');
+
+export const CreateVendorBodySchema = object({
+    /** User-entered vendor name. */
+    name: string()
+        .required('vendor name is required')
+        .nonempty('vendor name is required')
+        .maxLength(160, 'vendor name is too long')
+        .describe('User-entered vendor name.'),
+    /** Brandfetch brand identifier selected from search results. */
+    brandfetchBrandId: string()
+        .optional()
+        .maxLength(100, 'Brandfetch brand identifier is too long')
+        .describe('Brandfetch brand identifier selected from search results.'),
+    /** Resolved name selected from Brandfetch search results. */
+    resolvedName: string()
+        .optional()
+        .maxLength(160, 'resolved name is too long')
+        .describe('Resolved name selected from Brandfetch search results.'),
+    /** Vendor domain selected from Brandfetch search results. */
+    domain: string()
+        .optional()
+        .maxLength(255, 'domain is too long')
+        .describe('Vendor domain selected from Brandfetch search results.'),
+    /** Vendor logo URL selected from Brandfetch search results. */
+    logoUrl: string()
+        .optional()
+        .maxLength(1000, 'logo URL is too long')
+        .describe('Vendor logo URL selected from Brandfetch search results.')
+}).schemaName('CreateVendorBody');
+
+export const UpdateVendorBodySchema = object({
+    /** User-entered vendor name. */
+    name: string()
+        .optional()
+        .nonempty('vendor name is required')
+        .maxLength(160, 'vendor name is too long')
+        .describe('User-entered vendor name.'),
+    /** Manually adjusted resolved name. */
+    resolvedName: string()
+        .nullable()
+        .optional()
+        .maxLength(160, 'resolved name is too long')
+        .describe('Manually adjusted resolved name.'),
+    /** Manually adjusted vendor domain. */
+    domain: string()
+        .nullable()
+        .optional()
+        .maxLength(255, 'domain is too long')
+        .describe('Manually adjusted vendor domain.'),
+    /** Manually adjusted vendor description. */
+    description: string()
+        .nullable()
+        .optional()
+        .maxLength(1000, 'description is too long')
+        .describe('Manually adjusted vendor description.'),
+    /** Manually adjusted logo URL. */
+    logoUrl: string()
+        .nullable()
+        .optional()
+        .maxLength(1000, 'logo URL is too long')
+        .describe('Manually adjusted logo URL.'),
+    /** Manually adjusted primary color hex code. */
+    primaryColor: string()
+        .nullable()
+        .optional()
+        .matches(/^#[0-9a-f]{6}$/i, 'primary color must be a hex color')
+        .describe('Manually adjusted primary color hex code.')
+}).schemaName('UpdateVendorBody');
+
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
     id: number().describe('Unique transaction identifier.'),
@@ -694,6 +939,20 @@ export const TransactionSchema = object({
     categoryId: number().describe(
         'Category identifier selected for the transaction.'
     ),
+    /** Vendor identifier selected for the transaction, when available. */
+    vendorId: number()
+        .nullable()
+        .describe(
+            'Vendor identifier selected for the transaction, when available.'
+        ),
+    /** Vendor name at read time, when available. */
+    vendorName: string()
+        .optional()
+        .describe('Vendor name at read time, when available.'),
+    /** Vendor logo URL at read time, when available. */
+    vendorLogoUrl: string()
+        .optional()
+        .describe('Vendor logo URL at read time, when available.'),
     /** Category name at read time. */
     categoryName: string().describe('Category name at read time.'),
     /** Category path at read time. */
@@ -753,6 +1012,11 @@ export const CreateTransactionBodySchema = object({
     categoryId: number()
         .required('category is required')
         .describe('Category identifier selected for the transaction.'),
+    /** Optional vendor identifier selected for the transaction. */
+    vendorId: number()
+        .nullable()
+        .optional()
+        .describe('Optional vendor identifier selected for the transaction.'),
     /** Amount entered by the user in the original currency. */
     amount: decimalNumber()
         .required('amount is required')
@@ -833,6 +1097,13 @@ export const TransactionListQuerySchema = object({
         .coerce()
         .optional()
         .describe('Filter by a parent category and its direct children.'),
+    /** Filter by vendor identifier, or "none" for transactions without a vendor. */
+    vendorId: union(number().coerce())
+        .or(string('none'))
+        .optional()
+        .describe(
+            'Filter by vendor identifier, or "none" for transactions without a vendor.'
+        ),
     /** Inclusive start date for transaction occurrence. */
     from: date()
         .coerce()
@@ -874,7 +1145,12 @@ export const DashboardQuerySchema = object({
     date: date()
         .coerce()
         .optional()
-        .describe('Date used to choose the reporting period.')
+        .describe('Date used to choose the reporting period.'),
+    /** Maximum number of vendor groups to include. */
+    vendorLimit: number()
+        .coerce()
+        .optional()
+        .describe('Maximum number of vendor groups to include.')
 }).schemaName('DashboardQuery');
 
 export const PeriodWindowQuerySchema = object({
@@ -896,6 +1172,31 @@ export const PeriodWindowQuerySchema = object({
         .default(2)
         .describe('Number of following periods to include.')
 }).schemaName('PeriodWindowQuery');
+
+export const DashboardWindowQuerySchema = object({
+    /** Reporting period. */
+    period: PeriodSchema.default('day').describe('Reporting period.'),
+    /** Date used to choose the center reporting period. */
+    date: date()
+        .coerce()
+        .optional()
+        .describe('Date used to choose the center reporting period.'),
+    /** Number of previous periods to include. */
+    before: number()
+        .coerce()
+        .default(2)
+        .describe('Number of previous periods to include.'),
+    /** Number of following periods to include. */
+    after: number()
+        .coerce()
+        .default(2)
+        .describe('Number of following periods to include.'),
+    /** Maximum number of vendor groups to include in each summary. */
+    vendorLimit: number()
+        .coerce()
+        .optional()
+        .describe('Maximum number of vendor groups to include in each summary.')
+}).schemaName('DashboardWindowQuery');
 
 export const StatsQuerySchema = object({
     /** Stats trend grouping. */
@@ -950,6 +1251,45 @@ export const CategoryTrendQuerySchema = object({
         };
     })
     .schemaName('CategoryTrendQuery');
+
+export const DashboardVendorTotalSchema = object({
+    /** Vendor identifier, or null for transactions without a vendor. */
+    vendorId: number()
+        .nullable()
+        .describe(
+            'Vendor identifier, or null for transactions without a vendor.'
+        ),
+    /** Vendor display name. */
+    vendorName: string().describe('Vendor display name.'),
+    /** Vendor domain, when available. */
+    vendorDomain: string()
+        .optional()
+        .describe('Vendor domain, when available.'),
+    /** Vendor logo URL, when available. */
+    vendorLogoUrl: string()
+        .optional()
+        .describe('Vendor logo URL, when available.'),
+    /** Vendor primary vendors color, when available. */
+    vendorPrimaryColor: string()
+        .optional()
+        .describe('Vendor primary vendors color, when available.'),
+    /** Transaction direction for this vendor group. */
+    type: CategoryTypeSchema.describe(
+        'Transaction direction for this vendor group.'
+    ),
+    /** Total in the user's default currency for this vendor group. */
+    total: decimalNumber().describe(
+        "Total in the user's default currency for this vendor group."
+    ),
+    /** Number of selected-period transactions in this vendor group. */
+    transactionCount: number().describe(
+        'Number of selected-period transactions in this vendor group.'
+    ),
+    /** Selected-period bucket totals for lightweight vendor charts. */
+    trend: array(decimalNumber()).describe(
+        'Selected-period bucket totals for lightweight vendor charts.'
+    )
+}).schemaName('DashboardVendorTotal');
 
 export const DashboardCategoryTotalSchema = object({
     /** Category identifier. */
@@ -1176,6 +1516,14 @@ export const DashboardSummarySchema = object({
     expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
     /** Income in the default currency. */
     incomeTotal: decimalNumber().describe('Income in the default currency.'),
+    /** Number of vendor groups in the selected period. */
+    vendorCount: number().describe(
+        'Number of vendor groups in the selected period.'
+    ),
+    /** Top vendor groups for the selected period. */
+    topVendors: array(DashboardVendorTotalSchema).describe(
+        'Top vendor groups for the selected period.'
+    ),
     /** Category totals for the selected period. */
     byCategory: array(DashboardCategoryTotalSchema).describe(
         'Category totals for the selected period.'
@@ -1340,6 +1688,17 @@ export type CategoryKind = InferType<typeof CategoryKindSchema>;
 export type Category = InferType<typeof CategorySchema>;
 export type CategoryListQuery = InferType<typeof CategoryListQuerySchema>;
 export type CreateCategoryBody = InferType<typeof CreateCategoryBodySchema>;
+export type Vendor = InferType<typeof VendorSchema>;
+export type VendorListQuery = InferType<typeof VendorListQuerySchema>;
+export type VendorCandidateSearchQuery = InferType<
+    typeof VendorCandidateSearchQuerySchema
+>;
+export type VendorCandidateDetailsQuery = InferType<
+    typeof VendorCandidateDetailsQuerySchema
+>;
+export type VendorCandidate = InferType<typeof VendorCandidateSchema>;
+export type CreateVendorBody = InferType<typeof CreateVendorBodySchema>;
+export type UpdateVendorBody = InferType<typeof UpdateVendorBodySchema>;
 export type Transaction = InferType<typeof TransactionSchema>;
 export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema

@@ -12,11 +12,13 @@ import {
     CreateCategoryBodySchema,
     CreateTelegramLinkTokenResponseSchema,
     CreateTransactionBodySchema,
+    CreateVendorBodySchema,
     CurrencyConversionQuerySchema,
     CurrencyConversionSchema,
     CurrencySchema,
     DashboardQuerySchema,
     DashboardSummarySchema,
+    DashboardWindowQuerySchema,
     DashboardWindowResponseSchema,
     EmailConfirmationMessageResponseSchema,
     EmailConfirmationPendingResponseSchema,
@@ -45,16 +47,30 @@ import {
     UpdateCategoryBodySchema,
     UpdateTransactionBodySchema,
     UpdateUserPreferenceBodySchema,
-    UserPreferenceSchema
+    UpdateVendorBodySchema,
+    UserPreferenceSchema,
+    VendorCandidateDetailsQuerySchema,
+    VendorCandidateSchema,
+    VendorCandidateSearchQuerySchema,
+    VendorListQuerySchema,
+    VendorSchema
 } from './schemas.js';
 
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
 const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
     t.id}/move-and-delete`;
+const VendorEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
 const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
 const categories = endpoint
     .resource('/api/categories')
+    .authorize(PrincipalSchema);
+const vendors = endpoint.resource('/api/vendors').authorize(PrincipalSchema);
+const vendorCandidateSearch = endpoint
+    .resource('/api/vendors/candidates')
+    .authorize(PrincipalSchema);
+const vendorCandidateDetails = endpoint
+    .resource('/api/vendors/candidates/details')
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
@@ -272,6 +288,51 @@ export const api = defineApi({
                 404: ErrorResponseSchema
             })
     },
+    vendors: {
+        searchCandidates: vendorCandidateSearch
+            .get()
+            .query(VendorCandidateSearchQuerySchema)
+            .responses({ 200: array(VendorCandidateSchema) }),
+        candidateDetails: vendorCandidateDetails
+            .get()
+            .query(VendorCandidateDetailsQuerySchema)
+            .responses({
+                200: VendorCandidateSchema,
+                404: ErrorResponseSchema
+            }),
+        list: vendors
+            .get()
+            .query(VendorListQuerySchema)
+            .cacheTag('vendors')
+            .responses({ 200: array(VendorSchema) }),
+        get: vendors.get(ById).cacheTag('vendors').responses({
+            200: VendorSchema,
+            404: ErrorResponseSchema
+        }),
+        create: vendors
+            .post()
+            .body(CreateVendorBodySchema)
+            .clearsCacheTag('vendors')
+            .responses({ 201: VendorSchema, 400: ErrorResponseSchema }),
+        update: vendors
+            .patch(ById)
+            .body(UpdateVendorBodySchema)
+            .clearsCacheTag('vendors')
+            .clearsCacheTag('transactions')
+            .responses({
+                200: VendorSchema,
+                400: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        enrich: vendors
+            .post(VendorEnrich)
+            .clearsCacheTag('vendors')
+            .clearsCacheTag('transactions')
+            .responses({
+                200: VendorSchema,
+                404: ErrorResponseSchema
+            })
+    },
     transactions: {
         list: transactions
             .get()
@@ -282,6 +343,7 @@ export const api = defineApi({
             .post()
             .body(CreateTransactionBodySchema)
             .clearsCacheTag('categories')
+            .clearsCacheTag('vendors')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -291,6 +353,7 @@ export const api = defineApi({
             .patch(ById)
             .body(UpdateTransactionBodySchema)
             .clearsCacheTag('categories')
+            .clearsCacheTag('vendors')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -303,6 +366,7 @@ export const api = defineApi({
         delete: transactions
             .delete(ById)
             .clearsCacheTag('categories')
+            .clearsCacheTag('vendors')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -316,17 +380,19 @@ export const api = defineApi({
             .query(DashboardQuerySchema)
             .cacheTag('dashboard', request => ({
                 date: request.query.date,
+                vendorLimit: request.query.vendorLimit,
                 period: request.query.period
             }))
             .responses({ 200: DashboardSummarySchema }),
         window: endpoint
             .get('/api/dashboard/window')
             .authorize(PrincipalSchema)
-            .query(PeriodWindowQuerySchema)
+            .query(DashboardWindowQuerySchema)
             .cacheTag('dashboard', request => ({
                 after: request.query.after,
                 before: request.query.before,
                 date: request.query.date,
+                vendorLimit: request.query.vendorLimit,
                 period: request.query.period
             }))
             .responses({ 200: DashboardWindowResponseSchema })

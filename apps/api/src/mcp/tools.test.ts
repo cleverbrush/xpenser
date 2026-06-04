@@ -78,6 +78,8 @@ function dashboardSummary(): DashboardSummary {
         currency: 'USD',
         expenseTotal: 50,
         incomeTotal: 100,
+        vendorCount: 0,
+        topVendors: [],
         byCategory: [],
         byParentCategory: []
     };
@@ -93,6 +95,7 @@ describe('MCP tool helpers', () => {
                 id: 7,
                 email: 'jane@example.com',
                 defaultCurrency: 'USD',
+                countryCode: 'US',
                 favoriteCurrencies: ['EUR'],
                 transactionCurrencies: ['USD', 'EUR'],
                 timezone: 'UTC',
@@ -121,6 +124,7 @@ describe('MCP tool helpers', () => {
                         {
                             id: 100,
                             categoryId: 1,
+                            vendorId: null,
                             categoryName: 'Food',
                             categoryDisplayName: 'Food',
                             categoryParentId: null,
@@ -159,11 +163,13 @@ describe('MCP tool helpers', () => {
         const query = normalizeTransactionListInput({
             search: '  food  ',
             from: '2026-05-01T00:00:00.000Z',
+            vendorId: 12,
             limit: 250
         });
 
         expect(query).toMatchObject({
             search: 'food',
+            vendorId: 12,
             page: 1,
             limit: 100,
             direction: 'desc'

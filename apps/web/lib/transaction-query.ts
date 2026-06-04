@@ -7,6 +7,7 @@ export type TransactionSearchParams = {
     readonly search?: string | readonly string[];
     readonly type?: string | readonly string[];
     readonly categoryId?: string | readonly string[];
+    readonly vendorId?: string | readonly string[];
     readonly parentCategoryId?: string | readonly string[];
     readonly from?: string | readonly string[];
     readonly to?: string | readonly string[];
@@ -41,6 +42,13 @@ export function parseTransactionId(value?: string): number | undefined {
     return Number.isFinite(id) && id > 0 ? id : undefined;
 }
 
+export function parseVendorFilter(value?: string): number | 'none' | undefined {
+    if (value === 'none') {
+        return 'none';
+    }
+    return parseTransactionId(value);
+}
+
 export function parseTransactionDateFilter(
     value: string | undefined,
     boundary: 'end' | 'start',
@@ -66,6 +74,7 @@ export function hasTransactionFilters(params: QuerySource): boolean {
         readParam(params, 'search')?.trim() ||
             parseTransactionType(readParam(params, 'type')) ||
             parseTransactionId(readParam(params, 'categoryId')) ||
+            parseVendorFilter(readParam(params, 'vendorId')) ||
             parseTransactionId(readParam(params, 'parentCategoryId')) ||
             readParam(params, 'from') ||
             readParam(params, 'to')
@@ -87,6 +96,7 @@ export function buildTransactionListQuery(
         search: search || undefined,
         type: parseTransactionType(readParam(params, 'type')),
         categoryId: parseTransactionId(readParam(params, 'categoryId')),
+        vendorId: parseVendorFilter(readParam(params, 'vendorId')),
         parentCategoryId: parseTransactionId(
             readParam(params, 'parentCategoryId')
         ),

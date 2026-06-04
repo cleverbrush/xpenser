@@ -19,6 +19,7 @@ import {
 } from '@xpenser/ui';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { updatePreferencesAction } from '@/lib/actions';
+import { countryLabel, supportedCountries } from '@/lib/countries';
 import { sortCurrenciesForDisplay } from '@/lib/currency-display';
 import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
 import { CurrencyOption } from './currency-option';
@@ -35,6 +36,9 @@ export function PreferencesForm({
     const form = useSchemaForm(UpdateUserPreferenceBodySchema);
     const [selectedDefaultCurrency, setSelectedDefaultCurrency] = useState(
         me.defaultCurrency
+    );
+    const [selectedCountryCode, setSelectedCountryCode] = useState(
+        me.countryCode
     );
     const [selectedFavoriteCurrencies, setSelectedFavoriteCurrencies] =
         useState<string[]>(
@@ -59,6 +63,7 @@ export function PreferencesForm({
         [currencies]
     );
     const timeZones = useMemo(() => supportedTimeZones(), []);
+    const countries = useMemo(() => supportedCountries(), []);
 
     useEffect(() => {
         const nextFavoriteCurrencies = me.favoriteCurrencies.filter(
@@ -67,12 +72,14 @@ export function PreferencesForm({
 
         form.reset({
             defaultCurrency: me.defaultCurrency,
+            countryCode: me.countryCode,
             favoriteCurrencies: nextFavoriteCurrencies,
             timezone: me.timezone,
             weeklyEmailReportEnabled: me.weeklyEmailReportEnabled,
             monthlyEmailReportEnabled: me.monthlyEmailReportEnabled
         });
         setSelectedDefaultCurrency(me.defaultCurrency);
+        setSelectedCountryCode(me.countryCode);
         setSelectedFavoriteCurrencies(nextFavoriteCurrencies);
         setSelectedTimezone(me.timezone);
         setSelectedWeeklyEmailReportEnabled(me.weeklyEmailReportEnabled);
@@ -81,6 +88,7 @@ export function PreferencesForm({
     }, [
         form,
         me.defaultCurrency,
+        me.countryCode,
         me.favoriteCurrencies,
         me.monthlyEmailReportEnabled,
         me.timezone,
@@ -95,6 +103,7 @@ export function PreferencesForm({
         );
         form.setValue({
             defaultCurrency: selectedDefaultCurrency,
+            countryCode: selectedCountryCode,
             favoriteCurrencies,
             timezone: selectedTimezone,
             weeklyEmailReportEnabled: selectedWeeklyEmailReportEnabled,
@@ -156,6 +165,25 @@ export function PreferencesForm({
                     forProperty={field => field.defaultCurrency}
                     form={form}
                     label="Default currency"
+                    variant="select"
+                />
+                <SchemaField
+                    fieldProps={
+                        {
+                            onValueChange: (value, field) => {
+                                field.onChange(value);
+                                setSelectedCountryCode(value);
+                            },
+                            options: countries.map(country => ({
+                                label: countryLabel(country.code),
+                                value: country.code
+                            })),
+                            value: selectedCountryCode
+                        } satisfies SelectRendererFieldProps
+                    }
+                    forProperty={field => field.countryCode}
+                    form={form}
+                    label="Country"
                     variant="select"
                 />
                 <SchemaField

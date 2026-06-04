@@ -7,23 +7,33 @@ import {
     CreateApiKeyBodySchema,
     CreateCategoryBodySchema,
     CreateTransactionBodySchema,
+    CreateVendorBodySchema,
     CurrencyCodeSchema,
     CurrencyConversionQuerySchema,
+    DashboardSummarySchema,
+    DashboardWindowQuerySchema,
     EmailConfirmationPendingResponseSchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
+    PeriodWindowQuerySchema,
     RegisterBodySchema,
     ResendEmailConfirmationBodySchema,
     SessionTokenBodySchema,
     StatsQuerySchema,
     TimeZoneSchema,
     TokenResponseSchema,
+    TransactionListQuerySchema,
     UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
-    UserPreferenceSchema
+    UpdateVendorBodySchema,
+    UserPreferenceSchema,
+    VendorCandidateDetailsQuerySchema,
+    VendorCandidateSchema,
+    VendorCandidateSearchQuerySchema,
+    VendorSchema
 } from './schemas.js';
 
 describe('shared schemas', () => {
@@ -38,6 +48,7 @@ describe('shared schemas', () => {
             password: 'super-secret',
             confirmPassword: 'super-secret',
             defaultCurrency: 'USD',
+            countryCode: 'US',
             favoriteCurrencies: ['EUR', 'GBP']
         });
 
@@ -72,6 +83,7 @@ describe('shared schemas', () => {
         expect(
             UpdateUserPreferenceBodySchema.validate({
                 defaultCurrency: 'USD',
+                countryCode: 'US',
                 favoriteCurrencies: ['EUR'],
                 timezone: 'Europe/London'
             }).valid
@@ -83,6 +95,7 @@ describe('shared schemas', () => {
             id: 1,
             email: 'jane@example.com',
             defaultCurrency: 'USD',
+            countryCode: 'US',
             favoriteCurrencies: ['EUR'],
             transactionCurrencies: ['EUR', 'USD'],
             timezone: 'UTC',
@@ -115,6 +128,7 @@ describe('shared schemas', () => {
     it('defaults email report preferences to enabled when updating preferences', () => {
         const result = UpdateUserPreferenceBodySchema.validate({
             defaultCurrency: 'USD',
+            countryCode: 'US',
             favoriteCurrencies: ['EUR'],
             timezone: 'UTC'
         });
@@ -165,6 +179,75 @@ describe('shared schemas', () => {
         expect(result.valid).toBe(true);
     });
 
+    it('validates vendor payloads', () => {
+        expect(
+            CreateVendorBodySchema.validate({
+                name: 'Trader Joe',
+                brandfetchBrandId: 'id_trader_joe',
+                resolvedName: 'Trader Joe',
+                domain: 'traderjoes.com',
+                logoUrl: 'https://example.com/logo.svg'
+            }).valid
+        ).toBe(true);
+        expect(CreateVendorBodySchema.validate({ name: '' }).valid).toBe(false);
+
+        expect(
+            VendorCandidateSearchQuerySchema.validate({
+                query: 'Trader Joe',
+                limit: 3
+            }).valid
+        ).toBe(true);
+        expect(
+            VendorCandidateDetailsQuerySchema.validate({
+                brandfetchBrandId: 'id_trader_joe'
+            }).valid
+        ).toBe(true);
+        expect(VendorCandidateDetailsQuerySchema.validate({}).valid).toBe(
+            false
+        );
+        expect(
+            VendorCandidateSchema.validate({
+                brandfetchBrandId: 'id_trader_joe',
+                name: 'Trader Joe',
+                domain: 'traderjoes.com',
+                logoUrl: 'https://example.com/logo.svg',
+                description: 'Neighborhood grocery store.',
+                primaryColor: '#cc0000',
+                claimed: true
+            }).valid
+        ).toBe(true);
+
+        expect(
+            VendorSchema.validate({
+                id: 3,
+                name: 'Trader Joe',
+                displayName: 'Trader Joe',
+                resolvedName: 'Trader Joe',
+                domain: 'traderjoes.com',
+                logoUrl: 'https://example.com/logo.svg',
+                enrichmentProvider: 'brandfetch',
+                enrichmentStatus: 'success',
+                enrichedAt: new Date(),
+                suggestedCategoryId: 1,
+                suggestedCategoryDisplayName: 'Groceries',
+                transactionCount: 2,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            }).valid
+        ).toBe(true);
+
+        expect(
+            UpdateVendorBodySchema.validate({
+                name: 'Trader Joe',
+                resolvedName: null,
+                description: null,
+                domain: 'traderjoes.com',
+                logoUrl: 'https://example.com/logo.svg',
+                primaryColor: '#cc0000'
+            }).valid
+        ).toBe(true);
+    });
+
     it('returns required messages before format messages for empty login fields', () => {
         const result = LoginBodySchema.validate(
             { email: '', password: '' },
@@ -197,6 +280,7 @@ describe('shared schemas', () => {
                     email: 'jane@example.com',
                     role: 'user',
                     defaultCurrency: 'USD',
+                    countryCode: 'US',
                     timezone: 'UTC',
                     hasCategories: false
                 }
@@ -233,6 +317,7 @@ describe('shared schemas', () => {
             password: 'super-secret',
             confirmPassword: 'different-secret',
             defaultCurrency: 'USD',
+            countryCode: 'US',
             favoriteCurrencies: ['EUR', 'GBP']
         });
 
@@ -327,6 +412,73 @@ describe('shared schemas', () => {
                 timeframe: 'this-month'
             } as never).valid
         ).toBe(false);
+    });
+
+    it('validates dashboard vendor window limits separately from generic period windows', () => {
+        const dashboardResult = DashboardWindowQuerySchema.validate({
+            after: 2,
+            before: 2,
+            vendorLimit: 100,
+            period: 'month'
+        });
+        const genericResult = PeriodWindowQuerySchema.validate({
+            after: 2,
+            before: 2,
+            vendorLimit: 100,
+            period: 'month'
+        } as never);
+
+        expect(dashboardResult.valid).toBe(true);
+        expect(dashboardResult.object?.vendorLimit).toBe(100);
+        expect(genericResult.valid).toBe(false);
+    });
+
+    it('validates dashboard vendor summaries', () => {
+        expect(
+            DashboardSummarySchema.validate({
+                period: 'month',
+                from: new Date('2026-05-01T00:00:00.000Z'),
+                to: new Date('2026-05-31T23:59:59.999Z'),
+                currency: 'USD',
+                expenseTotal: 100,
+                incomeTotal: 0,
+                vendorCount: 1,
+                topVendors: [
+                    {
+                        vendorId: 7,
+                        vendorName: 'Walmart',
+                        vendorDomain: 'walmart.com',
+                        vendorLogoUrl: 'https://walmart.com/logo.svg',
+                        vendorPrimaryColor: '#0071ce',
+                        type: 'expense',
+                        total: 100,
+                        transactionCount: 3,
+                        trend: [20, 80]
+                    },
+                    {
+                        vendorId: null,
+                        vendorName: 'No vendor',
+                        type: 'income',
+                        total: 50,
+                        transactionCount: 1,
+                        trend: [0, 50]
+                    }
+                ],
+                byCategory: [],
+                byParentCategory: []
+            }).valid
+        ).toBe(true);
+    });
+
+    it('validates vendor-less transaction filters', () => {
+        expect(
+            TransactionListQuerySchema.validate({ vendorId: 'none' }).object
+                ?.vendorId
+        ).toBe('none');
+        expect(
+            TransactionListQuerySchema.validate({ vendorId: 42 }).object
+                ?.vendorId
+        ).toBe(42);
     });
 
     it('validates category trend controls', () => {
