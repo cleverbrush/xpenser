@@ -9,6 +9,7 @@ import {
     string,
     union
 } from '@cleverbrush/schema';
+import { FieldLimits } from './limits.js';
 
 export const CurrencyCodeSchema = string()
     .required('currency is required')
@@ -27,7 +28,12 @@ export const CountryCodeSchema = string()
 export const TimeZoneSchema = string()
     .required('timezone is required')
     .nonempty('timezone is required')
+    .maxLength(FieldLimits.timeZone, 'timezone is too long')
     .addValidator(value => {
+        if (value.length > FieldLimits.timeZone) {
+            return { valid: true };
+        }
+
         try {
             new Intl.DateTimeFormat('en-US', { timeZone: value });
             return { valid: true };
@@ -40,6 +46,14 @@ export const TimeZoneSchema = string()
     })
     .describe('IANA time zone identifier, for example UTC or America/New_York.')
     .schemaName('TimeZone');
+
+function isHttpsUrl(value: string): boolean {
+    try {
+        return new URL(value).protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
 
 export const CategoryTypeSchema = enumOf('expense', 'income')
     .required('category type is required')
@@ -129,6 +143,7 @@ export const RegisterBodySchema = object({
     email: string()
         .required('email is required')
         .nonempty('email is required')
+        .maxLength(FieldLimits.email, 'email is too long')
         .email('must be a valid email address')
         .describe('Email address used to sign in. Must be unique.'),
     /** Password for local sign-in. */
@@ -136,12 +151,14 @@ export const RegisterBodySchema = object({
         .required('password is required')
         .nonempty('password is required')
         .minLength(8, 'password must be at least 8 characters')
+        .maxLength(FieldLimits.password, 'password is too long')
         .describe('Password for local sign-in.'),
     /** Password confirmation entered during registration. */
     confirmPassword: string()
         .required('password confirmation is required')
         .nonempty('password confirmation is required')
         .minLength(8, 'password confirmation must be at least 8 characters')
+        .maxLength(FieldLimits.password, 'password confirmation is too long')
         .describe('Password confirmation entered during registration.'),
     /** Default currency used for dashboards and reports. */
     defaultCurrency: CurrencyCodeSchema.describe(
@@ -184,12 +201,14 @@ export const LoginBodySchema = object({
     email: string()
         .required('email is required')
         .nonempty('email is required')
+        .maxLength(FieldLimits.email, 'email is too long')
         .email('must be a valid email address')
         .describe('Email address used to sign in.'),
     /** Local account password. */
     password: string()
         .required('password is required')
         .nonempty('password is required')
+        .maxLength(FieldLimits.password, 'password is too long')
         .describe('Local account password.')
 }).schemaName('LoginBody');
 
@@ -211,6 +230,10 @@ export const ConfirmEmailBodySchema = object({
     token: string()
         .required('confirmation token is required')
         .nonempty('confirmation token is required')
+        .maxLength(
+            FieldLimits.confirmationToken,
+            'confirmation token is too long'
+        )
         .describe('One-time email confirmation token from the magic link.')
 }).schemaName('ConfirmEmailBody');
 
@@ -219,6 +242,7 @@ export const ResendEmailConfirmationBodySchema = object({
     email: string()
         .required('email is required')
         .nonempty('email is required')
+        .maxLength(FieldLimits.email, 'email is too long')
         .email('must be a valid email address')
         .describe(
             'Email address that should receive a fresh confirmation link.'
@@ -235,16 +259,19 @@ export const PassportResolveUserBodySchema = object({
     provider: string()
         .required('provider is required')
         .nonempty('provider is required')
+        .maxLength(FieldLimits.passportProvider, 'provider is too long')
         .describe('Identity provider resolved by Passport.'),
     /** Provider-specific subject identifier. */
     provider_subject: string()
         .required('provider subject is required')
         .nonempty('provider subject is required')
+        .maxLength(FieldLimits.passportSubject, 'provider subject is too long')
         .describe('Provider-specific subject identifier.'),
     /** Verified email address returned by the provider. */
     email: string()
         .required('email is required')
         .nonempty('email is required')
+        .maxLength(FieldLimits.email, 'email is too long')
         .email('must be a valid email address')
         .describe('Verified email address returned by the provider.'),
     /** Whether the provider verified the email address. */
@@ -254,10 +281,12 @@ export const PassportResolveUserBodySchema = object({
     /** Display name returned by the provider. */
     name: string()
         .optional()
+        .maxLength(FieldLimits.passportDisplayName, 'display name is too long')
         .describe('Display name returned by the provider.'),
     /** Avatar URL returned by the provider. */
     avatar_url: string()
         .optional()
+        .maxLength(FieldLimits.passportAvatarUrl, 'avatar URL is too long')
         .describe('Avatar URL returned by the provider.')
 }).schemaName('PassportResolveUserBody');
 
@@ -277,6 +306,10 @@ export const PassportExchangeBodySchema = object({
     code: string()
         .required('authorization code is required')
         .nonempty('authorization code is required')
+        .maxLength(
+            FieldLimits.passportAuthorizationCode,
+            'authorization code is too long'
+        )
         .describe('One-time authorization code returned by Passport.'),
     /** PKCE code verifier generated before redirecting to Passport. */
     codeVerifier: string()
@@ -391,7 +424,7 @@ export const CreateApiKeyBodySchema = object({
     name: string()
         .required('API key name is required')
         .nonempty('API key name is required')
-        .maxLength(120, 'API key name is too long')
+        .maxLength(FieldLimits.apiKeyName, 'API key name is too long')
         .describe('User-provided name used to recognize this key.')
 })
     .addValidator(value => {
@@ -493,22 +526,32 @@ export const TelegramUserBodySchema = object({
     telegramUserId: string()
         .required('Telegram user id is required')
         .nonempty('Telegram user id is required')
+        .maxLength(FieldLimits.telegramUserId, 'Telegram user id is too long')
         .describe(
             'Telegram user identifier, sent as a string to avoid precision issues.'
         ),
     /** Telegram username, when available. */
     telegramUsername: string()
-        .maxLength(64, 'Telegram username is too long')
+        .maxLength(
+            FieldLimits.telegramUsername,
+            'Telegram username is too long'
+        )
         .optional()
         .describe('Telegram username, when available.'),
     /** Telegram first name, when available. */
     telegramFirstName: string()
-        .maxLength(128, 'Telegram first name is too long')
+        .maxLength(
+            FieldLimits.telegramFirstName,
+            'Telegram first name is too long'
+        )
         .optional()
         .describe('Telegram first name, when available.'),
     /** Telegram last name, when available. */
     telegramLastName: string()
-        .maxLength(128, 'Telegram last name is too long')
+        .maxLength(
+            FieldLimits.telegramLastName,
+            'Telegram last name is too long'
+        )
         .optional()
         .describe('Telegram last name, when available.')
 }).schemaName('TelegramUserBody');
@@ -518,6 +561,7 @@ export const LinkTelegramAccountBodySchema = object({
     token: string()
         .required('link token is required')
         .nonempty('link token is required')
+        .maxLength(FieldLimits.telegramLinkToken, 'link token is too long')
         .describe('Random one-time token from the Telegram deep link payload.'),
     /** Telegram account to link to the xpenser account that owns the token. */
     telegramUser: TelegramUserBodySchema.describe(
@@ -661,7 +705,7 @@ export const CreateCategoryBodySchema = object({
     name: string()
         .required('category name is required')
         .nonempty('category name is required')
-        .maxLength(120, 'category name is too long')
+        .maxLength(FieldLimits.categoryName, 'category name is too long')
         .describe('Category name shown in transaction forms and reports.'),
     /** Whether this category is for expenses or income. */
     type: CategoryTypeSchema.describe(
@@ -682,7 +726,7 @@ export const UpdateCategoryBodySchema = object({
     /** Category name shown in transaction forms and reports. */
     name: string()
         .minLength(1, 'category name is required')
-        .maxLength(120, 'category name is too long')
+        .maxLength(FieldLimits.categoryName, 'category name is too long')
         .optional()
         .describe('Category name shown in transaction forms and reports.'),
     /** Whether this category is for expenses or income. */
@@ -786,6 +830,7 @@ export const VendorListQuerySchema = object({
     /** Text search applied to vendor names and domains. */
     search: string()
         .optional()
+        .maxLength(FieldLimits.vendorSearch, 'vendor search query is too long')
         .describe('Text search applied to vendor names and domains.'),
     /** Maximum number of vendors to return. */
     limit: number()
@@ -799,7 +844,7 @@ export const VendorCandidateSearchQuerySchema = object({
     query: string()
         .required('vendor search query is required')
         .nonempty('vendor search query is required')
-        .maxLength(160, 'vendor search query is too long')
+        .maxLength(FieldLimits.vendorSearch, 'vendor search query is too long')
         .describe('Vendor name text to search through Brandfetch.'),
     /** Maximum number of Brandfetch suggestions to return. */
     limit: number()
@@ -812,12 +857,15 @@ export const VendorCandidateDetailsQuerySchema = object({
     /** Brandfetch brand identifier. */
     brandfetchBrandId: string()
         .optional()
-        .maxLength(100, 'Brandfetch brand identifier is too long')
+        .maxLength(
+            FieldLimits.brandfetchBrandId,
+            'Brandfetch brand identifier is too long'
+        )
         .describe('Brandfetch brand identifier.'),
     /** Vendor domain returned by Brandfetch. */
     domain: string()
         .optional()
-        .maxLength(255, 'domain is too long')
+        .maxLength(FieldLimits.vendorDomain, 'domain is too long')
         .describe('Vendor domain returned by Brandfetch.')
 })
     .addValidator(value => {
@@ -841,22 +889,33 @@ export const VendorCandidateSchema = object({
     /** Brandfetch brand identifier. */
     brandfetchBrandId: string()
         .optional()
+        .maxLength(
+            FieldLimits.brandfetchBrandId,
+            'Brandfetch brand identifier is too long'
+        )
         .describe('Brandfetch brand identifier.'),
     /** Vendor name returned by Brandfetch. */
-    name: string().describe('Vendor name returned by Brandfetch.'),
+    name: string()
+        .maxLength(FieldLimits.vendorName, 'vendor name is too long')
+        .describe('Vendor name returned by Brandfetch.'),
     /** Vendor domain returned by Brandfetch. */
-    domain: string().describe('Vendor domain returned by Brandfetch.'),
+    domain: string()
+        .maxLength(FieldLimits.vendorDomain, 'domain is too long')
+        .describe('Vendor domain returned by Brandfetch.'),
     /** Brandfetch icon URL for the vendor search result. */
     logoUrl: string()
         .optional()
+        .maxLength(FieldLimits.vendorLogoUrl, 'logo URL is too long')
         .describe('Brandfetch icon URL for the vendor search result.'),
     /** Brandfetch description for the vendor candidate, when available. */
     description: string()
         .optional()
+        .maxLength(FieldLimits.vendorDescription, 'description is too long')
         .describe('Brandfetch description for the vendor candidate.'),
     /** Brandfetch primary color hex code, when available. */
     primaryColor: string()
         .optional()
+        .maxLength(FieldLimits.vendorPrimaryColor, 'primary color is too long')
         .describe('Brandfetch primary color hex code.'),
     /** Whether the brand has been claimed in Brandfetch. */
     claimed: boolean()
@@ -869,27 +928,30 @@ export const CreateVendorBodySchema = object({
     name: string()
         .required('vendor name is required')
         .nonempty('vendor name is required')
-        .maxLength(160, 'vendor name is too long')
+        .maxLength(FieldLimits.vendorName, 'vendor name is too long')
         .describe('User-entered vendor name.'),
     /** Brandfetch brand identifier selected from search results. */
     brandfetchBrandId: string()
         .optional()
-        .maxLength(100, 'Brandfetch brand identifier is too long')
+        .maxLength(
+            FieldLimits.brandfetchBrandId,
+            'Brandfetch brand identifier is too long'
+        )
         .describe('Brandfetch brand identifier selected from search results.'),
     /** Resolved name selected from Brandfetch search results. */
     resolvedName: string()
         .optional()
-        .maxLength(160, 'resolved name is too long')
+        .maxLength(FieldLimits.vendorName, 'resolved name is too long')
         .describe('Resolved name selected from Brandfetch search results.'),
     /** Vendor domain selected from Brandfetch search results. */
     domain: string()
         .optional()
-        .maxLength(255, 'domain is too long')
+        .maxLength(FieldLimits.vendorDomain, 'domain is too long')
         .describe('Vendor domain selected from Brandfetch search results.'),
     /** Vendor logo URL selected from Brandfetch search results. */
     logoUrl: string()
         .optional()
-        .maxLength(1000, 'logo URL is too long')
+        .maxLength(FieldLimits.vendorLogoUrl, 'logo URL is too long')
         .describe('Vendor logo URL selected from Brandfetch search results.')
 }).schemaName('CreateVendorBody');
 
@@ -898,39 +960,72 @@ export const UpdateVendorBodySchema = object({
     name: string()
         .optional()
         .nonempty('vendor name is required')
-        .maxLength(160, 'vendor name is too long')
+        .maxLength(FieldLimits.vendorName, 'vendor name is too long')
         .describe('User-entered vendor name.'),
     /** Manually adjusted resolved name. */
     resolvedName: string()
         .nullable()
         .optional()
-        .maxLength(160, 'resolved name is too long')
+        .maxLength(FieldLimits.vendorName, 'resolved name is too long')
         .describe('Manually adjusted resolved name.'),
     /** Manually adjusted vendor domain. */
     domain: string()
         .nullable()
         .optional()
-        .maxLength(255, 'domain is too long')
+        .maxLength(FieldLimits.vendorDomain, 'domain is too long')
         .describe('Manually adjusted vendor domain.'),
     /** Manually adjusted vendor description. */
     description: string()
         .nullable()
         .optional()
-        .maxLength(1000, 'description is too long')
+        .maxLength(FieldLimits.vendorDescription, 'description is too long')
         .describe('Manually adjusted vendor description.'),
     /** Manually adjusted logo URL. */
     logoUrl: string()
         .nullable()
         .optional()
-        .maxLength(1000, 'logo URL is too long')
+        .maxLength(FieldLimits.vendorLogoUrl, 'logo URL is too long')
         .describe('Manually adjusted logo URL.'),
     /** Manually adjusted primary color hex code. */
     primaryColor: string()
         .nullable()
         .optional()
-        .matches(/^#[0-9a-f]{6}$/i, 'primary color must be a hex color')
+        .maxLength(FieldLimits.vendorPrimaryColor, 'primary color is too long')
         .describe('Manually adjusted primary color hex code.')
-}).schemaName('UpdateVendorBody');
+})
+    .addValidator(value => {
+        const logoUrl = value.logoUrl?.trim();
+        if (!logoUrl || isHttpsUrl(logoUrl)) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'Logo URL must be a valid HTTPS URL.',
+                    property: field => field.logoUrl
+                }
+            ]
+        };
+    })
+    .addValidator(value => {
+        const primaryColor = value.primaryColor?.trim();
+        if (!primaryColor || /^#[0-9a-f]{6}$/i.test(primaryColor)) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'Primary color must be a six-digit hex color.',
+                    property: field => field.primaryColor
+                }
+            ]
+        };
+    })
+    .schemaName('UpdateVendorBody');
 
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
@@ -1033,7 +1128,7 @@ export const CreateTransactionBodySchema = object({
         .describe('Date and time when the transaction happened.'),
     /** Optional note entered by the user. */
     note: string()
-        .maxLength(500, 'note is too long')
+        .maxLength(FieldLimits.transactionNote, 'note is too long')
         .optional()
         .describe('Optional note entered by the user.')
 })
@@ -1082,6 +1177,10 @@ export const TransactionListQuerySchema = object({
     /** Full text search applied to category name and note. */
     search: string()
         .optional()
+        .maxLength(
+            FieldLimits.transactionSearch,
+            'transaction search query is too long'
+        )
         .describe('Full text search applied to category name and note.'),
     /** Filter by transaction direction. */
     type: CategoryTypeSchema.optional().describe(

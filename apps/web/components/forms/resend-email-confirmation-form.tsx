@@ -1,5 +1,6 @@
 'use client';
 
+import { FieldLimits } from '@xpenser/contracts';
 import { Button, Field, FieldError, FieldLabel, Input } from '@xpenser/ui';
 import { type FormEvent, useId, useState } from 'react';
 import { resendEmailConfirmationAction } from '@/lib/actions';
@@ -46,6 +47,7 @@ export function ResendEmailConfirmationForm({
                     <Input
                         autoComplete="email"
                         id={emailId}
+                        maxLength={FieldLimits.email}
                         onChange={event => setEmail(event.target.value)}
                         type="email"
                         value={email}

@@ -1,7 +1,7 @@
 'use client';
 
 import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
-import { LoginBodySchema } from '@xpenser/contracts';
+import { FieldLimits, LoginBodySchema } from '@xpenser/contracts';
 import { Button, FieldError, FieldGroup } from '@xpenser/ui';
 import { type FormEvent, useState } from 'react';
 import { loginAction } from '@/lib/actions';
@@ -50,7 +50,10 @@ export function LoginForm() {
             <form noValidate onSubmit={handleSubmit}>
                 <FieldGroup>
                     <SchemaField
-                        fieldProps={{ autoComplete: 'email' }}
+                        fieldProps={{
+                            autoComplete: 'email',
+                            maxLength: FieldLimits.email
+                        }}
                         forProperty={field => field.email}
                         form={form}
                         label="Email"
@@ -58,7 +61,10 @@ export function LoginForm() {
                         variant="email"
                     />
                     <SchemaField
-                        fieldProps={{ autoComplete: 'current-password' }}
+                        fieldProps={{
+                            autoComplete: 'current-password',
+                            maxLength: FieldLimits.password
+                        }}
                         forProperty={field => field.password}
                         form={form}
                         label="Password"

@@ -249,7 +249,7 @@ export const CreateVendorEndpoint = api.vendors.create
 
 export const UpdateVendorEndpoint = api.vendors.update
     .authorize(PrincipalSchema)
-    .inject({ db: DbToken })
+    .inject({ db: DbToken, logger: LoggerToken })
     .summary('Update vendor')
     .description('Updates editable vendor metadata.')
     .tags('vendors')

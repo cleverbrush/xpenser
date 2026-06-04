@@ -1,5 +1,6 @@
 'use client';
 
+import { FieldLimits } from '@xpenser/contracts';
 import { Button, FieldError, Input } from '@xpenser/ui';
 import { PlusIcon, Trash2Icon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -89,6 +90,7 @@ export function CategorySetupForm() {
                     >
                         <Input
                             aria-label={`Category ${index + 1} name`}
+                            maxLength={FieldLimits.categoryName}
                             onChange={event =>
                                 updateRow(row.id, {
                                     name: event.target.value

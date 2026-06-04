@@ -7,7 +7,7 @@ import type {
     Transaction,
     Vendor
 } from '@xpenser/contracts';
-import { CreateTransactionBodySchema } from '@xpenser/contracts';
+import { CreateTransactionBodySchema, FieldLimits } from '@xpenser/contracts';
 import {
     dateToLocalDateTimeInput,
     localDateTimeInputToDate
@@ -437,6 +437,9 @@ export function TransactionDialog({
                             variant="datetime-local"
                         />
                         <SchemaField
+                            fieldProps={{
+                                maxLength: FieldLimits.transactionNote
+                            }}
                             forProperty={field => field.note}
                             form={form}
                             label="Note"
