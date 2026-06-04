@@ -20,6 +20,7 @@ import { VendorUpdateActionRejected } from './log-templates';
 import { loggerFor } from './logger';
 
 const passportPkceCookie = 'xpenser_passport_pkce';
+const transactionScanTimeoutMs = 60_000;
 const vendorActionLogger = loggerFor('Vendor actions');
 
 function normalizeFormText(value: string): string {
@@ -633,7 +634,10 @@ export async function scanTransactionImageAction(
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const client = await getApiClient();
+    const client = await getApiClient({
+        retryOnTimeout: false,
+        timeoutMs: transactionScanTimeoutMs
+    });
     try {
         const scan = await client.transactionScans.create({
             body: {
