@@ -1425,6 +1425,62 @@ export const TransactionScanResponseSchema = object({
     )
 }).schemaName('TransactionScanResponse');
 
+export const TransactionScanJobResponseSchema = object({
+    /** Short-lived scan job identifier used by the progress subscription. */
+    jobId: string().describe(
+        'Short-lived scan job identifier used by the progress subscription.'
+    ),
+    /** One-time token scoped to this scan job. */
+    token: string().describe('One-time token scoped to this scan job.')
+}).schemaName('TransactionScanJobResponse');
+
+export const TransactionScanProgressQuerySchema = object({
+    /** Short-lived scan job identifier returned by the start endpoint. */
+    jobId: string()
+        .required('scan job is required')
+        .nonempty('scan job is required')
+        .describe(
+            'Short-lived scan job identifier returned by the start endpoint.'
+        ),
+    /** One-time token scoped to this scan job. */
+    token: string()
+        .required('scan token is required')
+        .nonempty('scan token is required')
+        .describe('One-time token scoped to this scan job.')
+}).schemaName('TransactionScanProgressQuery');
+
+export const TransactionScanProgressStageSchema = enumOf(
+    'queued',
+    'preparing',
+    'analyzing',
+    'saving',
+    'complete',
+    'failed'
+)
+    .describe('Current scanner job stage.')
+    .schemaName('TransactionScanProgressStage');
+
+export const TransactionScanProgressEventSchema = object({
+    /** Short-lived scan job identifier. */
+    jobId: string().describe('Short-lived scan job identifier.'),
+    /** Current scanner job stage. */
+    stage: TransactionScanProgressStageSchema.describe(
+        'Current scanner job stage.'
+    ),
+    /** User-facing progress message. */
+    message: string().describe('User-facing progress message.'),
+    /** Approximate scan progress from 0 to 100. */
+    progress: number().describe('Approximate scan progress from 0 to 100.'),
+    /** Final scan result when the job completed successfully. */
+    scan: TransactionScanResponseSchema.nullable().describe(
+        'Final scan result when the job completed successfully.'
+    ),
+    /** Safe user-facing failure message when the job failed. */
+    error: string()
+        .nullable()
+        .describe('Safe user-facing failure message when the job failed.')
+}).schemaName('TransactionScanProgressEvent');
+
 export const TransactionScanDecisionSchema = enumOf(
     'confirmed',
     'discarded'
@@ -2069,6 +2125,15 @@ export type TransactionListQuery = InferType<typeof TransactionListQuerySchema>;
 export type TransactionScanBody = InferType<typeof TransactionScanBodySchema>;
 export type TransactionScanResponse = InferType<
     typeof TransactionScanResponseSchema
+>;
+export type TransactionScanJobResponse = InferType<
+    typeof TransactionScanJobResponseSchema
+>;
+export type TransactionScanProgressQuery = InferType<
+    typeof TransactionScanProgressQuerySchema
+>;
+export type TransactionScanProgressEvent = InferType<
+    typeof TransactionScanProgressEventSchema
 >;
 export type TransactionScanDraft = InferType<typeof TransactionScanDraftSchema>;
 export type TransactionScanDecisionBody = InferType<

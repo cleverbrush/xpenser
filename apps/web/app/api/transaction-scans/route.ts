@@ -1,5 +1,5 @@
 import { createXpenserClient } from '@xpenser/client';
-import type { TransactionScanResponse } from '@xpenser/contracts';
+import type { TransactionScanJobResponse } from '@xpenser/contracts';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { webConfig } from '@/lib/config';
@@ -13,7 +13,6 @@ import {
     scanUploadChunkCountError,
     scanUploadFileSizeError,
     storeScanUpload,
-    transactionScanTimeoutMs,
     writeScanUploadChunk
 } from '@/lib/transaction-scan-upload-store';
 
@@ -21,12 +20,12 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 type ScanRouteResponse =
-    | { readonly error: string; readonly scan?: undefined }
+    | { readonly error: string; readonly job?: undefined }
     | { readonly error?: undefined; readonly uploaded: true }
     | {
           readonly attachment: StoredScanAttachment;
           readonly error?: undefined;
-          readonly scan: TransactionScanResponse;
+          readonly job: TransactionScanJobResponse;
       };
 
 type ScanChunkBody = {
@@ -182,19 +181,11 @@ export async function POST(request: Request) {
     const client = createXpenserClient({
         baseUrl: webConfig.apiBaseUrl,
         getToken: () => session.apiToken,
-        retryOnTimeout: false,
-        timeoutMs: transactionScanTimeoutMs
+        retryOnTimeout: false
     });
 
     try {
         const imageBase64 = image.toString('base64');
-        const scan = await client.transactionScans.create({
-            body: {
-                imageBase64,
-                mimeType,
-                fileName: body.fileName
-            }
-        });
         const attachment = await storeScanUpload({
             buffer: image,
             fileName: body.fileName,
@@ -202,7 +193,14 @@ export async function POST(request: Request) {
             uploadId: body.uploadId,
             userId
         });
-        return NextResponse.json<ScanRouteResponse>({ attachment, scan });
+        const job = await client.transactionScans.start({
+            body: {
+                imageBase64,
+                mimeType,
+                fileName: body.fileName
+            }
+        });
+        return NextResponse.json<ScanRouteResponse>({ attachment, job });
     } catch (err) {
         const status = apiErrorStatus(err);
         if (status === 400) {

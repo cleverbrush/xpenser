@@ -30,6 +30,9 @@ import {
     TransactionScanBodySchema,
     TransactionScanDecisionBodySchema,
     TransactionScanImageResponseSchema,
+    TransactionScanJobResponseSchema,
+    TransactionScanProgressEventSchema,
+    TransactionScanProgressQuerySchema,
     TransactionScanResponseSchema,
     TransactionSchema,
     UpdateCategoryBodySchema,
@@ -598,6 +601,36 @@ describe('shared schemas', () => {
                     mimeType: 'image/png',
                     fileName: 'receipt.png'
                 }
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanJobResponseSchema.validate({
+                jobId: '3baf2c5a-c8d3-45f4-a6c0-35a09407d42e',
+                token: 'scan-token'
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanProgressQuerySchema.validate({
+                jobId: '3baf2c5a-c8d3-45f4-a6c0-35a09407d42e',
+                token: 'scan-token'
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanProgressEventSchema.validate({
+                jobId: '3baf2c5a-c8d3-45f4-a6c0-35a09407d42e',
+                stage: 'complete',
+                message: 'Scan complete.',
+                progress: 100,
+                scan: {
+                    scanId: 10,
+                    documentKind: 'receipt',
+                    warnings: [],
+                    drafts: []
+                },
+                error: null
             }).valid
         ).toBe(true);
 

@@ -5,7 +5,7 @@ import { deleteScanUpload } from '@/lib/transaction-scan-upload-store';
 const mocks = vi.hoisted(() => ({
     auth: vi.fn(),
     createXpenserClient: vi.fn(),
-    transactionScanCreate: vi.fn()
+    transactionScanStart: vi.fn()
 }));
 
 vi.mock('@/auth', () => ({
@@ -55,13 +55,11 @@ describe('transaction scan route', () => {
             user: { id: userId }
         });
         mocks.createXpenserClient.mockReturnValue({
-            transactionScans: { create: mocks.transactionScanCreate }
+            transactionScans: { start: mocks.transactionScanStart }
         });
-        mocks.transactionScanCreate.mockResolvedValue({
-            scanId: 42,
-            documentKind: 'receipt',
-            warnings: [],
-            drafts: []
+        mocks.transactionScanStart.mockResolvedValue({
+            jobId: '00000000-0000-4000-8000-000000000042',
+            token: 'scan-token'
         });
     });
 
@@ -78,21 +76,18 @@ describe('transaction scan route', () => {
                 mimeType: 'image/jpeg',
                 uploadId
             },
-            scan: {
-                scanId: 42,
-                documentKind: 'receipt',
-                warnings: [],
-                drafts: []
+            job: {
+                jobId: '00000000-0000-4000-8000-000000000042',
+                token: 'scan-token'
             }
         });
         expect(response.status).toBe(200);
         expect(mocks.createXpenserClient).toHaveBeenCalledWith({
             baseUrl: 'https://api.example.test',
             getToken: expect.any(Function),
-            retryOnTimeout: false,
-            timeoutMs: 95_000
+            retryOnTimeout: false
         });
-        expect(mocks.transactionScanCreate).toHaveBeenCalledWith({
+        expect(mocks.transactionScanStart).toHaveBeenCalledWith({
             body: {
                 imageBase64: Buffer.from('receipt bytes').toString('base64'),
                 mimeType: 'image/jpeg',
@@ -114,6 +109,6 @@ describe('transaction scan route', () => {
             error: 'Image must be 10 MB or smaller.'
         });
         expect(response.status).toBe(413);
-        expect(mocks.transactionScanCreate).not.toHaveBeenCalled();
+        expect(mocks.transactionScanStart).not.toHaveBeenCalled();
     });
 });

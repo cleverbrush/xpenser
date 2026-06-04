@@ -1,12 +1,15 @@
 'use client';
 
+import { createXpenserClient } from '@xpenser/client';
 import {
     type Category,
     type Currency,
     type Transaction,
     type TransactionScanDecisionBody,
     type TransactionScanDraft,
+    type TransactionScanJobResponse,
     TransactionScanLimits,
+    type TransactionScanProgressEvent,
     type TransactionScanResponse,
     type Vendor
 } from '@xpenser/contracts';
@@ -78,13 +81,21 @@ type TransactionType = Category['type'];
 const maxImageBytes = TransactionScanLimits.maxImageBytes;
 const uploadChunkBytes = TransactionScanLimits.uploadChunkBytes;
 
-type ScanRouteResponse =
+type ScanResultResponse =
     | { readonly error: string; readonly scan?: undefined }
-    | { readonly error?: undefined; readonly uploaded: true }
     | {
           readonly attachment: ScanAttachment;
           readonly error?: undefined;
           readonly scan: TransactionScanResponse;
+      };
+
+type ScanUploadRouteResponse =
+    | { readonly error: string; readonly job?: undefined }
+    | { readonly error?: undefined; readonly uploaded: true }
+    | {
+          readonly attachment: ScanAttachment;
+          readonly error?: undefined;
+          readonly job: TransactionScanJobResponse;
       };
 
 function blobBase64(blob: Blob): Promise<string> {
@@ -104,9 +115,63 @@ function blobBase64(blob: Blob): Promise<string> {
     });
 }
 
-async function scanImageFile(file: File): Promise<ScanRouteResponse> {
+function browserApiBaseUrl(): string {
+    const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
+    if (configured) {
+        return configured.replace(/\/$/, '');
+    }
+    if (
+        window.location.hostname === 'localhost' &&
+        window.location.port === '3000'
+    ) {
+        return 'http://localhost:4000';
+    }
+    return new URL('/external-api', window.location.href)
+        .toString()
+        .replace(/\/$/, '');
+}
+
+function scanError(event: TransactionScanProgressEvent): string {
+    return event.error ?? 'Could not scan the image. Try again.';
+}
+
+async function waitForScanJob(
+    job: TransactionScanJobResponse,
+    onProgress: (message: string) => void
+): Promise<TransactionScanResponse> {
+    const client = createXpenserClient({
+        baseUrl: browserApiBaseUrl(),
+        retryOnTimeout: false
+    });
+    const subscription = client.transactionScans.progress({
+        query: { jobId: job.jobId, token: job.token },
+        reconnect: { maxRetries: 3, backoffLimit: 5_000 }
+    });
+
+    try {
+        for await (const event of subscription) {
+            onProgress(event.message);
+            if (event.stage === 'failed') {
+                throw new Error(scanError(event));
+            }
+            if (event.stage === 'complete' && event.scan) {
+                return event.scan;
+            }
+        }
+    } finally {
+        subscription.close();
+    }
+
+    throw new Error('Could not connect to scan progress. Try again.');
+}
+
+async function uploadAndScanImageFile(
+    file: File,
+    onProgress: (message: string) => void
+): Promise<ScanResultResponse> {
     const uploadId = crypto.randomUUID();
     const totalChunks = Math.ceil(file.size / uploadChunkBytes);
+    onProgress('Uploading image.');
 
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
         const start = chunkIndex * uploadChunkBytes;
@@ -127,7 +192,7 @@ async function scanImageFile(file: File): Promise<ScanRouteResponse> {
         });
         const result = (await response
             .json()
-            .catch(() => null)) as ScanRouteResponse | null;
+            .catch(() => null)) as ScanUploadRouteResponse | null;
 
         if (!response.ok) {
             return {
@@ -141,9 +206,25 @@ async function scanImageFile(file: File): Promise<ScanRouteResponse> {
         if (result?.error) {
             return result;
         }
-        if (result && 'scan' in result) {
-            return result;
+        if (result && 'attachment' in result && 'job' in result) {
+            onProgress('Connecting to scan progress.');
+            try {
+                const scan = await waitForScanJob(result.job, onProgress);
+                return { attachment: result.attachment, scan };
+            } catch (err) {
+                return {
+                    error:
+                        err instanceof Error
+                            ? err.message
+                            : 'Could not scan the image. Try again.'
+                };
+            }
         }
+        onProgress(
+            `Uploading image (${Math.round(
+                ((chunkIndex + 1) / totalChunks) * 100
+            )}%).`
+        );
     }
 
     return { error: 'Could not scan the image. Try again.' };
@@ -241,6 +322,7 @@ function ScanUpload({
     const [file, setFile] = useState<File | null>(null);
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [progressMessage, setProgressMessage] = useState<string | null>(null);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -259,8 +341,12 @@ function ScanUpload({
 
         setPending(true);
         setError(null);
+        setProgressMessage('Uploading image.');
         try {
-            const result = await scanImageFile(file);
+            const result = await uploadAndScanImageFile(
+                file,
+                setProgressMessage
+            );
             if (result.error) {
                 setError(result.error);
                 return;
@@ -270,6 +356,7 @@ function ScanUpload({
                 return;
             }
             onScanned(result.scan, result.attachment);
+            setProgressMessage(null);
         } catch {
             setError('Could not scan the image. Try again.');
         } finally {
@@ -302,6 +389,14 @@ function ScanUpload({
                     ) : null}
                     {error ? (
                         <FieldError role="alert">{error}</FieldError>
+                    ) : null}
+                    {pending && progressMessage ? (
+                        <div
+                            aria-live="polite"
+                            className="rounded-md border px-3 py-2 text-sm text-muted-foreground"
+                        >
+                            {progressMessage}
+                        </div>
                     ) : null}
                     <Button
                         className="h-12 w-full"

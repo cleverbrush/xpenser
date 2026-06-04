@@ -1,4 +1,12 @@
-import { ActionResult, type Handler } from '@cleverbrush/server';
+import {
+    ActionResult,
+    type Handler,
+    type SubscriptionHandler
+} from '@cleverbrush/server';
+import {
+    startTransactionScanJob,
+    subscribeTransactionScanJob
+} from '../../application/transaction-scan-jobs.js';
 import {
     recordTransactionScanDecision,
     scanTransactionsFromImage,
@@ -7,7 +15,9 @@ import {
 } from '../../application/transaction-scans.js';
 import type {
     CreateTransactionScanEndpoint,
-    DecideTransactionScanItemEndpoint
+    DecideTransactionScanItemEndpoint,
+    StartTransactionScanJobEndpoint,
+    TransactionScanProgressEndpoint
 } from '../endpoints.js';
 
 export const createTransactionScanHandler: Handler<
@@ -30,6 +40,19 @@ export const createTransactionScanHandler: Handler<
         }
         throw err;
     }
+};
+
+export const startTransactionScanJobHandler: Handler<
+    typeof StartTransactionScanJobEndpoint
+> = async ({ body, principal }, { db, config }) => {
+    const job = startTransactionScanJob(db, config, principal.userId, body);
+    return ActionResult.accepted(job);
+};
+
+export const transactionScanProgressHandler: SubscriptionHandler<
+    typeof TransactionScanProgressEndpoint
+> = async function* ({ query, signal }) {
+    yield* subscribeTransactionScanJob(query, signal);
 };
 
 export const decideTransactionScanItemHandler: Handler<

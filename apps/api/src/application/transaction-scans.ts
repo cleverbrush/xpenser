@@ -105,6 +105,12 @@ type CorrectionExample = {
     readonly corrected: unknown;
 };
 
+type ScanProgressStage = 'analyzing' | 'preparing' | 'saving';
+
+type ScanProgressOptions = {
+    readonly onProgress?: (stage: ScanProgressStage) => void;
+};
+
 type TransactionScanItemQuery = Promise<TransactionScanItemDb[]> & {
     readonly first: () => Promise<TransactionScanItemDb | undefined>;
     readonly update: (
@@ -660,10 +666,12 @@ export async function scanTransactionsFromImage(
     db: AppDb,
     config: Config,
     userId: number,
-    body: TransactionScanBody
+    body: TransactionScanBody,
+    options: ScanProgressOptions = {}
 ): Promise<TransactionScanResponse> {
     const buffer = imageBuffer(body);
     const imageHash = createHash('sha256').update(buffer).digest('hex');
+    options.onProgress?.('preparing');
     const user = await getUser(db, userId);
     const [categories, vendors, recentTransactions, examples] =
         await Promise.all([
@@ -677,6 +685,7 @@ export async function scanTransactionsFromImage(
             correctionExamples(db, userId)
         ]);
 
+    options.onProgress?.('analyzing');
     const parsed = await generateStructuredJsonFromContent<RawScanResult>(
         config,
         {
@@ -708,6 +717,7 @@ export async function scanTransactionsFromImage(
         }
     );
 
+    options.onProgress?.('saving');
     const scan = await db.transactionScans.insert({
         userId,
         documentKind: documentKind(parsed.documentKind),

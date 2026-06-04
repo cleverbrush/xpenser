@@ -46,6 +46,9 @@ import {
     TransactionScanBodySchema,
     TransactionScanDecisionBodySchema,
     TransactionScanImageResponseSchema,
+    TransactionScanJobResponseSchema,
+    TransactionScanProgressEventSchema,
+    TransactionScanProgressQuerySchema,
     TransactionScanResponseSchema,
     TransactionSchema,
     UpdateCategoryBodySchema,
@@ -70,6 +73,7 @@ const TransactionScanDecision = route({
     scanId: number().coerce(),
     itemId: number().coerce()
 })`/${t => t.scanId}/items/${t => t.itemId}/decision`;
+const TransactionScanJobs = route`/jobs`;
 const TransactionScanImage = route({ id: number().coerce() })`/${t =>
     t.id}/scan-image`;
 const categories = endpoint
@@ -398,6 +402,19 @@ export const api = defineApi({
                 201: TransactionScanResponseSchema,
                 400: ErrorResponseSchema
             }),
+        start: transactionScans
+            .post(TransactionScanJobs)
+            .body(TransactionScanBodySchema)
+            .responses({
+                202: TransactionScanJobResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        progress: endpoint
+            .subscription('/api/transaction-scans/jobs/progress')
+            .public()
+            .query(TransactionScanProgressQuerySchema)
+            .outgoing(TransactionScanProgressEventSchema),
         decide: transactionScans
             .post(TransactionScanDecision)
             .body(TransactionScanDecisionBodySchema)

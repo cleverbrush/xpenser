@@ -317,6 +317,24 @@ export const CreateTransactionScanEndpoint = api.transactionScans.create
     .tags('transaction-scans')
     .operationId('createTransactionScan');
 
+export const StartTransactionScanJobEndpoint = api.transactionScans.start
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Start transaction image scan')
+    .description(
+        'Starts an asynchronous multimodal scan job and returns a short-lived progress token.'
+    )
+    .tags('transaction-scans')
+    .operationId('startTransactionScanJob');
+
+export const TransactionScanProgressEndpoint = api.transactionScans.progress
+    .summary('Transaction image scan progress')
+    .description(
+        'Streams progress and the final scan result for a short-lived scan job token.'
+    )
+    .tags('transaction-scans')
+    .operationId('transactionScanProgress');
+
 export const DecideTransactionScanItemEndpoint = api.transactionScans.decide
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -420,6 +438,8 @@ export const endpoints = {
     },
     transactionScans: {
         create: CreateTransactionScanEndpoint,
+        start: StartTransactionScanJobEndpoint,
+        progress: TransactionScanProgressEndpoint,
         decide: DecideTransactionScanItemEndpoint
     },
     dashboard: {

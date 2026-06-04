@@ -31,7 +31,9 @@ import {
 } from './telegram.js';
 import {
     createTransactionScanHandler,
-    decideTransactionScanItemHandler
+    decideTransactionScanItemHandler,
+    startTransactionScanJobHandler,
+    transactionScanProgressHandler
 } from './transaction-scans.js';
 import {
     categoryTrendHandler,
@@ -108,6 +110,8 @@ export const handlers = {
     },
     transactionScans: {
         create: createTransactionScanHandler,
+        start: startTransactionScanJobHandler,
+        progress: transactionScanProgressHandler,
         decide: decideTransactionScanItemHandler
     },
     dashboard: {

@@ -65,6 +65,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    ports:
+      - "0.0.0.0:${API_PORT:-4000}:4000"
   web:
     build:
       context: .

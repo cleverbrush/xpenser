@@ -20,8 +20,6 @@ export const allowedScanImageTypes = [
     'image/webp'
 ] as const;
 
-export const transactionScanTimeoutMs = 95_000;
-
 const uploadRoot = join(tmpdir(), 'xpenser-transaction-scan-uploads');
 const uploadTtlMs = 24 * 60 * 60 * 1000;
 
