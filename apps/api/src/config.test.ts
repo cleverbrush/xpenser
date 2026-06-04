@@ -47,6 +47,7 @@ describe('API config', () => {
         expect(config.emailConfirmation.tokenTtlSeconds).toBe(86_400);
         expect(config.resend.emailFrom).toBe('Xpenser <noreply@example.com>');
         expect(config.openai.reportModel).toBe('gpt-5-mini');
+        expect(config.openai.transactionScanModel).toBe('gpt-5.5');
     });
 
     it('normalizes vendor enrichment feature flags', async () => {

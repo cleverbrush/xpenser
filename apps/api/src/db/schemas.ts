@@ -197,6 +197,56 @@ export const TransactionDbSchema = object({
     category: CategoryDbSchema.optional()
 }).hasTableName('transactions');
 
+export const TransactionScanDbSchema = object({
+    id: number().primaryKey(),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_scans_user_id'),
+    documentKind: string().hasColumnName('document_kind'),
+    imageHash: string().hasColumnName('image_hash'),
+    model: string(),
+    warningsJson: string().hasColumnName('warnings_json'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('transaction_scans');
+
+export const TransactionScanItemDbSchema = object({
+    id: number().primaryKey(),
+    scanId: number()
+        .hasColumnName('scan_id')
+        .references('transaction_scans', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_scan_items_scan_id'),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_scan_items_user_id'),
+    draftJson: string().hasColumnName('draft_json'),
+    decision: string().optional(),
+    correctedJson: string().hasColumnName('corrected_json').optional(),
+    transactionId: number()
+        .hasColumnName('transaction_id')
+        .references('transactions', 'id')
+        .onDelete('SET NULL')
+        .optional(),
+    createdCategoryId: number()
+        .hasColumnName('created_category_id')
+        .references('categories', 'id')
+        .onDelete('SET NULL')
+        .optional(),
+    createdVendorId: number()
+        .hasColumnName('created_vendor_id')
+        .references('vendors', 'id')
+        .onDelete('SET NULL')
+        .optional(),
+    decidedAt: date().hasColumnName('decided_at').optional(),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('transaction_scan_items');
+
 export const ExchangeRateDbSchema = object({
     id: number().primaryKey(),
     baseCurrency: string().hasColumnName('base_currency'),
@@ -233,6 +283,10 @@ export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
     l => l.categoryId,
     r => r.id
 );
+export const TransactionScanEntity = defineEntity(TransactionScanDbSchema);
+export const TransactionScanItemEntity = defineEntity(
+    TransactionScanItemDbSchema
+);
 export const ExchangeRateEntity = defineEntity(ExchangeRateDbSchema);
 
 export const entityMap = {
@@ -245,6 +299,8 @@ export const entityMap = {
     categories: CategoryEntity,
     vendors: VendorEntity,
     transactions: TransactionEntity,
+    transactionScans: TransactionScanEntity,
+    transactionScanItems: TransactionScanItemEntity,
     exchangeRates: ExchangeRateEntity
 };
 
@@ -352,6 +408,32 @@ export type TransactionDb = {
     readonly exchangeRateDate: string;
     readonly occurredAt: Date;
     readonly note?: string | null;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+};
+
+export type TransactionScanDb = {
+    readonly id: number;
+    readonly userId: number;
+    readonly documentKind: string;
+    readonly imageHash: string;
+    readonly model: string;
+    readonly warningsJson: string;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+};
+
+export type TransactionScanItemDb = {
+    readonly id: number;
+    readonly scanId: number;
+    readonly userId: number;
+    readonly draftJson: string;
+    readonly decision?: string | null;
+    readonly correctedJson?: string | null;
+    readonly transactionId?: number | null;
+    readonly createdCategoryId?: number | null;
+    readonly createdVendorId?: number | null;
+    readonly decidedAt?: Date | null;
     readonly createdAt: Date;
     readonly updatedAt: Date;
 };

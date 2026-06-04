@@ -297,6 +297,26 @@ export const DeleteTransactionEndpoint = api.transactions.delete
     .tags('transactions')
     .operationId('deleteTransaction');
 
+export const CreateTransactionScanEndpoint = api.transactionScans.create
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Scan transaction image')
+    .description(
+        'Extracts draft transactions from an uploaded receipt, invoice, bank app screenshot, or statement image.'
+    )
+    .tags('transaction-scans')
+    .operationId('createTransactionScan');
+
+export const DecideTransactionScanItemEndpoint = api.transactionScans.decide
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Record transaction scan decision')
+    .description(
+        'Records whether a scanned draft was confirmed or discarded, including user corrections for future scans.'
+    )
+    .tags('transaction-scans')
+    .operationId('decideTransactionScanItem');
+
 export const DashboardSummaryEndpoint = api.dashboard.summary
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -386,6 +406,10 @@ export const endpoints = {
         create: CreateTransactionEndpoint,
         update: UpdateTransactionEndpoint,
         delete: DeleteTransactionEndpoint
+    },
+    transactionScans: {
+        create: CreateTransactionScanEndpoint,
+        decide: DecideTransactionScanItemEndpoint
     },
     dashboard: {
         summary: DashboardSummaryEndpoint,

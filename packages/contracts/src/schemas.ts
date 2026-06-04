@@ -1237,6 +1237,194 @@ export const TransactionListResponseSchema = object({
     limit: number().describe('Number of records per page.')
 }).schemaName('TransactionListResponse');
 
+export const TransactionScanDocumentKindSchema = enumOf(
+    'bank_app',
+    'bank_statement',
+    'invoice',
+    'receipt',
+    'other'
+)
+    .describe('Type of uploaded transaction source inferred from the image.')
+    .schemaName('TransactionScanDocumentKind');
+
+export const TransactionScanConfidenceSchema = enumOf('high', 'medium', 'low')
+    .describe('Model confidence for a scanned transaction field.')
+    .schemaName('TransactionScanConfidence');
+
+export const TransactionScanSuggestedCategorySchema = object({
+    /** Suggested category name when no existing category fits. */
+    name: string().describe(
+        'Suggested category name when no existing category fits.'
+    ),
+    /** Suggested category direction. */
+    type: CategoryTypeSchema.describe('Suggested category direction.'),
+    /** Optional parent category identifier for a suggested subcategory. */
+    parentId: number()
+        .nullable()
+        .describe(
+            'Optional parent category identifier for a suggested subcategory.'
+        ),
+    /** Suggested category kind. */
+    kind: CategoryKindSchema.describe('Suggested category kind.'),
+    /** Short reason for suggesting this new category. */
+    reason: string().describe('Short reason for suggesting this new category.')
+}).schemaName('TransactionScanSuggestedCategory');
+
+export const TransactionScanFieldConfidenceSchema = object({
+    amount: TransactionScanConfidenceSchema.describe('Amount confidence.'),
+    category: TransactionScanConfidenceSchema.describe('Category confidence.'),
+    currency: TransactionScanConfidenceSchema.describe('Currency confidence.'),
+    date: TransactionScanConfidenceSchema.describe('Date confidence.'),
+    overall: TransactionScanConfidenceSchema.describe('Overall confidence.'),
+    vendor: TransactionScanConfidenceSchema.describe('Vendor confidence.')
+}).schemaName('TransactionScanFieldConfidence');
+
+export const TransactionScanDraftSchema = object({
+    /** Stable scan item identifier used to record the wizard decision. */
+    id: number().describe(
+        'Stable scan item identifier used to record the wizard decision.'
+    ),
+    /** Positive amount in the original currency, when visible. */
+    amount: decimalNumber()
+        .nullable()
+        .describe('Positive amount in the original currency, when visible.'),
+    /** Existing category identifier selected by the scanner, when available. */
+    categoryId: number()
+        .nullable()
+        .describe(
+            'Existing category identifier selected by the scanner, when available.'
+        ),
+    /** Scanner suggestion for a category that does not exist yet. */
+    suggestedCategory:
+        TransactionScanSuggestedCategorySchema.nullable().describe(
+            'Scanner suggestion for a category that does not exist yet.'
+        ),
+    /** Currency used for the scanned amount, when visible. */
+    currency: CurrencyCodeSchema.nullable().describe(
+        'Currency used for the scanned amount, when visible.'
+    ),
+    /** Date and time when the scanned transaction happened, when visible. */
+    occurredAt: date()
+        .coerce()
+        .nullable()
+        .describe(
+            'Date and time when the scanned transaction happened, when visible.'
+        ),
+    /** Existing vendor identifier selected by the scanner, when available. */
+    vendorId: number()
+        .nullable()
+        .describe(
+            'Existing vendor identifier selected by the scanner, when available.'
+        ),
+    /** Vendor name suggested by the scanner when no existing vendor fits. */
+    suggestedVendorName: string()
+        .nullable()
+        .describe(
+            'Vendor name suggested by the scanner when no existing vendor fits.'
+        ),
+    /** Suggested transaction direction used to filter categories in the wizard. */
+    transactionType: CategoryTypeSchema.describe(
+        'Suggested transaction direction used to filter categories in the wizard.'
+    ),
+    /** Optional note generated from visible source context. */
+    note: string()
+        .nullable()
+        .describe('Optional note generated from visible source context.'),
+    /** Text from the image that supports this draft. */
+    evidence: string().describe(
+        'Text from the image that supports this draft.'
+    ),
+    /** Confidence by scanned field. */
+    confidence: TransactionScanFieldConfidenceSchema.describe(
+        'Confidence by scanned field.'
+    ),
+    /** Existing transactions that may already represent this draft. */
+    possibleDuplicateTransactionIds: array(number()).describe(
+        'Existing transactions that may already represent this draft.'
+    )
+}).schemaName('TransactionScanDraft');
+
+export const TransactionScanBodySchema = object({
+    /** Raw uploaded image bytes encoded as base64, without a data URL prefix. */
+    imageBase64: string()
+        .required('image is required')
+        .nonempty('image is required')
+        .describe(
+            'Raw uploaded image bytes encoded as base64, without a data URL prefix.'
+        ),
+    /** Uploaded image MIME type. */
+    mimeType: enumOf('image/jpeg', 'image/png', 'image/webp').describe(
+        'Uploaded image MIME type.'
+    ),
+    /** Original file name, when provided by the browser. */
+    fileName: string()
+        .optional()
+        .describe('Original file name, when provided by the browser.')
+}).schemaName('TransactionScanBody');
+
+export const TransactionScanResponseSchema = object({
+    /** Stable scan identifier. */
+    scanId: number().describe('Stable scan identifier.'),
+    /** Type of uploaded source inferred from the image. */
+    documentKind: TransactionScanDocumentKindSchema.describe(
+        'Type of uploaded source inferred from the image.'
+    ),
+    /** User-facing scanner warnings. */
+    warnings: array(string()).describe('User-facing scanner warnings.'),
+    /** Draft transactions that require user confirmation. */
+    drafts: array(TransactionScanDraftSchema).describe(
+        'Draft transactions that require user confirmation.'
+    )
+}).schemaName('TransactionScanResponse');
+
+export const TransactionScanDecisionSchema = enumOf(
+    'confirmed',
+    'discarded'
+).schemaName('TransactionScanDecision');
+
+export const TransactionScanCorrectedTransactionSchema = object({
+    /** Confirmed category identifier. */
+    categoryId: number().describe('Confirmed category identifier.'),
+    /** Confirmed vendor identifier, when selected. */
+    vendorId: number()
+        .nullable()
+        .describe('Confirmed vendor identifier, when selected.'),
+    /** Confirmed amount. */
+    amount: decimalNumber().describe('Confirmed amount.'),
+    /** Confirmed currency. */
+    currency: CurrencyCodeSchema.describe('Confirmed currency.'),
+    /** Confirmed transaction date. */
+    occurredAt: date().coerce().describe('Confirmed transaction date.'),
+    /** Confirmed note. */
+    note: string().nullable().describe('Confirmed note.')
+}).schemaName('TransactionScanCorrectedTransaction');
+
+export const TransactionScanDecisionBodySchema = object({
+    /** User decision for this scanned draft. */
+    decision: TransactionScanDecisionSchema.describe(
+        'User decision for this scanned draft.'
+    ),
+    /** Transaction created from this draft, when confirmed. */
+    transactionId: number()
+        .nullable()
+        .optional()
+        .describe('Transaction created from this draft, when confirmed.'),
+    /** Category created inline for this draft, when applicable. */
+    createdCategoryId: number()
+        .nullable()
+        .optional()
+        .describe('Category created inline for this draft, when applicable.'),
+    /** Vendor created inline for this draft, when applicable. */
+    createdVendorId: number()
+        .nullable()
+        .optional()
+        .describe('Vendor created inline for this draft, when applicable.'),
+    /** Final user-corrected values, when confirmed. */
+    correctedTransaction: TransactionScanCorrectedTransactionSchema.nullable()
+        .optional()
+        .describe('Final user-corrected values, when confirmed.')
+}).schemaName('TransactionScanDecisionBody');
+
 export const DashboardQuerySchema = object({
     /** Reporting period. */
     period: PeriodSchema.default('day').describe('Reporting period.'),
@@ -1803,6 +1991,14 @@ export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema
 >;
 export type TransactionListQuery = InferType<typeof TransactionListQuerySchema>;
+export type TransactionScanBody = InferType<typeof TransactionScanBodySchema>;
+export type TransactionScanResponse = InferType<
+    typeof TransactionScanResponseSchema
+>;
+export type TransactionScanDraft = InferType<typeof TransactionScanDraftSchema>;
+export type TransactionScanDecisionBody = InferType<
+    typeof TransactionScanDecisionBodySchema
+>;
 export type DashboardSummary = InferType<typeof DashboardSummarySchema>;
 export type DashboardWindowResponse = InferType<
     typeof DashboardWindowResponseSchema

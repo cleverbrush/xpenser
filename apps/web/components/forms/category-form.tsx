@@ -22,6 +22,7 @@ export function CategoryForm({
     categories = [],
     first = false,
     initialCategory,
+    initialValues,
     namePlaceholder,
     onSaved,
     submitLabel = initialCategory ? 'Save category' : 'Create category'
@@ -29,8 +30,12 @@ export function CategoryForm({
     readonly categories?: readonly Category[];
     readonly first?: boolean;
     readonly initialCategory?: Category;
+    readonly initialValues?: Pick<
+        Category,
+        'kind' | 'name' | 'parentId' | 'type'
+    >;
     readonly namePlaceholder?: string;
-    readonly onSaved?: () => void;
+    readonly onSaved?: (category?: Category) => void;
     readonly submitLabel?: string;
 }) {
     const form = useSchemaForm(CreateCategoryBodySchema);
@@ -59,12 +64,15 @@ export function CategoryForm({
     const offsetKindLabel = selectedType === 'expense' ? 'Return' : 'Expense';
 
     useEffect(() => {
-        const nextType = initialCategory?.type ?? 'expense';
-        const nextParentId = initialCategory?.parentId ?? null;
-        const nextKind = initialCategory?.kind ?? 'normal';
+        const nextType =
+            initialCategory?.type ?? initialValues?.type ?? 'expense';
+        const nextParentId =
+            initialCategory?.parentId ?? initialValues?.parentId ?? null;
+        const nextKind =
+            initialCategory?.kind ?? initialValues?.kind ?? 'normal';
 
         form.reset({
-            name: initialCategory?.name,
+            name: initialCategory?.name ?? initialValues?.name,
             type: nextType,
             parentId: nextParentId,
             kind: nextKind
@@ -73,7 +81,7 @@ export function CategoryForm({
         setSelectedParentId(nextParentId);
         setSelectedKind(nextKind);
         setFormVersion(version => version + 1);
-    }, [form, initialCategory]);
+    }, [form, initialCategory, initialValues]);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -100,9 +108,10 @@ export function CategoryForm({
                 router.refresh();
                 onSaved?.();
             } else {
-                await createCategoryAction(formData);
+                const category = await createCategoryAction(formData);
                 form.reset({ type: 'expense', parentId: null, kind: 'normal' });
                 router.refresh();
+                onSaved?.(category);
             }
         } catch (caught) {
             if (isNextRedirectError(caught)) {

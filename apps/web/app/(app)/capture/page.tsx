@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { QuickCaptureForm } from '@/components/quick-capture-form';
+import { TransactionCaptureWorkspace } from '@/components/transaction-scan-capture';
 import { getApiClient } from '@/lib/api';
 import { categoriesByRecentUse } from '@/lib/capture-suggestions';
 
@@ -24,7 +24,7 @@ export default async function CapturePage() {
 
     return (
         <div className="mx-auto flex max-w-xl flex-col">
-            <QuickCaptureForm
+            <TransactionCaptureWorkspace
                 categories={categoriesByRecentUse(
                     categories,
                     recentTransactions.items

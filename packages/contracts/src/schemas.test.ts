@@ -27,6 +27,9 @@ import {
     TimeZoneSchema,
     TokenResponseSchema,
     TransactionListQuerySchema,
+    TransactionScanBodySchema,
+    TransactionScanDecisionBodySchema,
+    TransactionScanResponseSchema,
     UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
@@ -527,6 +530,69 @@ describe('shared schemas', () => {
         expect(result.getErrorsFor(field => field.amount).errors[0]).toBe(
             'amount is required'
         );
+    });
+
+    it('validates transaction image scan payloads and feedback', () => {
+        expect(
+            TransactionScanBodySchema.validate({
+                imageBase64: 'aW1hZ2U=',
+                mimeType: 'image/png',
+                fileName: 'receipt.png'
+            }).valid
+        ).toBe(true);
+        expect(
+            TransactionScanBodySchema.validate({
+                imageBase64: 'aW1hZ2U=',
+                mimeType: 'application/pdf'
+            } as never).valid
+        ).toBe(false);
+
+        expect(
+            TransactionScanResponseSchema.validate({
+                scanId: 10,
+                documentKind: 'receipt',
+                warnings: ['Check date.'],
+                drafts: [
+                    {
+                        id: 20,
+                        amount: 12.34,
+                        categoryId: 1,
+                        suggestedCategory: null,
+                        currency: 'USD',
+                        occurredAt: new Date('2026-06-01T12:00:00.000Z'),
+                        vendorId: null,
+                        suggestedVendorName: 'Walmart',
+                        transactionType: 'expense',
+                        note: null,
+                        evidence: 'Walmart 12.34',
+                        confidence: {
+                            amount: 'high',
+                            category: 'medium',
+                            currency: 'high',
+                            date: 'low',
+                            overall: 'medium',
+                            vendor: 'medium'
+                        },
+                        possibleDuplicateTransactionIds: [99]
+                    }
+                ]
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanDecisionBodySchema.validate({
+                decision: 'confirmed',
+                transactionId: 42,
+                correctedTransaction: {
+                    amount: 12.34,
+                    categoryId: 1,
+                    currency: 'USD',
+                    occurredAt: new Date('2026-06-01T12:00:00.000Z'),
+                    vendorId: null,
+                    note: null
+                }
+            }).valid
+        ).toBe(true);
     });
 
     it('validates stats reporting controls', () => {

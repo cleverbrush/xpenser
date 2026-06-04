@@ -30,6 +30,10 @@ import {
     telegramTokenHandler
 } from './telegram.js';
 import {
+    createTransactionScanHandler,
+    decideTransactionScanItemHandler
+} from './transaction-scans.js';
+import {
     categoryTrendHandler,
     createTransactionHandler,
     dashboardSummaryHandler,
@@ -99,6 +103,10 @@ export const handlers = {
         create: createTransactionHandler,
         update: updateTransactionHandler,
         delete: deleteTransactionHandler
+    },
+    transactionScans: {
+        create: createTransactionScanHandler,
+        decide: decideTransactionScanItemHandler
     },
     dashboard: {
         summary: dashboardSummaryHandler,

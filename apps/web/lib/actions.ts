@@ -2,7 +2,10 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import {
+    type Category,
     type Transaction,
+    type TransactionScanDecisionBody,
+    type TransactionScanResponse,
     UpdateVendorBodySchema,
     type Vendor,
     type VendorCandidate
@@ -336,9 +339,11 @@ export async function logoutAction() {
     await signOut({ redirectTo: '/login' });
 }
 
-export async function createCategoryAction(formData: FormData) {
+export async function createCategoryAction(
+    formData: FormData
+): Promise<Category> {
     const client = await getApiClient();
-    await client.categories.create({
+    const category = await client.categories.create({
         body: categoryBody(formData)
     });
     revalidateTag('categories', 'max');
@@ -347,6 +352,7 @@ export async function createCategoryAction(formData: FormData) {
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
     revalidatePath('/setup/categories');
+    return category;
 }
 
 export async function createFirstCategoryAction(formData: FormData) {
@@ -593,6 +599,79 @@ export async function createCaptureTransactionAction(
     revalidatePath('/transactions');
     revalidatePath('/stats');
     return transaction;
+}
+
+function uploadedFile(value: FormDataEntryValue | null): File | undefined {
+    if (
+        typeof value === 'object' &&
+        value !== null &&
+        'arrayBuffer' in value &&
+        'name' in value &&
+        'size' in value &&
+        'type' in value
+    ) {
+        return value as File;
+    }
+    return undefined;
+}
+
+export async function scanTransactionImageAction(
+    formData: FormData
+): Promise<
+    | { readonly error: string; readonly scan?: undefined }
+    | { readonly error?: undefined; readonly scan: TransactionScanResponse }
+> {
+    const file = uploadedFile(formData.get('image'));
+    if (!file || file.size === 0) {
+        return { error: 'Choose an image to scan.' };
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        return { error: 'Upload a PNG, JPEG, or WebP image.' };
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        return { error: 'Image must be 10 MB or smaller.' };
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const client = await getApiClient();
+    try {
+        const scan = await client.transactionScans.create({
+            body: {
+                imageBase64: buffer.toString('base64'),
+                mimeType: file.type as
+                    | 'image/jpeg'
+                    | 'image/png'
+                    | 'image/webp',
+                fileName: file.name
+            }
+        });
+        return { scan };
+    } catch (err) {
+        if (apiErrorStatus(err) === 400) {
+            return {
+                error:
+                    apiErrorMessage(err) ??
+                    'Could not scan the image. Try a clearer image.'
+            };
+        }
+        throw err;
+    }
+}
+
+export async function recordTransactionScanDecisionAction({
+    body,
+    itemId,
+    scanId
+}: {
+    readonly body: TransactionScanDecisionBody;
+    readonly itemId: number;
+    readonly scanId: number;
+}): Promise<void> {
+    const client = await getApiClient();
+    await client.transactionScans.decide({
+        params: { scanId, itemId },
+        body
+    });
 }
 
 export async function updateTransactionAction(formData: FormData) {
