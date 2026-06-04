@@ -247,6 +247,27 @@ export const TransactionScanItemDbSchema = object({
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 }).hasTableName('transaction_scan_items');
 
+export const TransactionScanImageDbSchema = object({
+    id: number().primaryKey(),
+    scanId: number()
+        .hasColumnName('scan_id')
+        .references('transaction_scans', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_scan_images_scan_id'),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_scan_images_user_id'),
+    imageHash: string().hasColumnName('image_hash'),
+    mimeType: string().hasColumnName('mime_type'),
+    fileName: string().hasColumnName('file_name').optional(),
+    sizeBytes: number().hasColumnName('size_bytes'),
+    imageBase64: string().hasColumnName('image_base64'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('transaction_scan_images');
+
 export const ExchangeRateDbSchema = object({
     id: number().primaryKey(),
     baseCurrency: string().hasColumnName('base_currency'),
@@ -287,6 +308,9 @@ export const TransactionScanEntity = defineEntity(TransactionScanDbSchema);
 export const TransactionScanItemEntity = defineEntity(
     TransactionScanItemDbSchema
 );
+export const TransactionScanImageEntity = defineEntity(
+    TransactionScanImageDbSchema
+);
 export const ExchangeRateEntity = defineEntity(ExchangeRateDbSchema);
 
 export const entityMap = {
@@ -301,6 +325,7 @@ export const entityMap = {
     transactions: TransactionEntity,
     transactionScans: TransactionScanEntity,
     transactionScanItems: TransactionScanItemEntity,
+    transactionScanImages: TransactionScanImageEntity,
     exchangeRates: ExchangeRateEntity
 };
 
@@ -434,6 +459,19 @@ export type TransactionScanItemDb = {
     readonly createdCategoryId?: number | null;
     readonly createdVendorId?: number | null;
     readonly decidedAt?: Date | null;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+};
+
+export type TransactionScanImageDb = {
+    readonly id: number;
+    readonly scanId: number;
+    readonly userId: number;
+    readonly imageHash: string;
+    readonly mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    readonly fileName?: string | null;
+    readonly sizeBytes: number;
+    readonly imageBase64: string;
     readonly createdAt: Date;
     readonly updatedAt: Date;
 };

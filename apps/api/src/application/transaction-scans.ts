@@ -8,13 +8,18 @@ import type {
     TransactionScanResponse,
     Vendor
 } from '@xpenser/contracts';
-import { FieldLimits } from '@xpenser/contracts';
+import { FieldLimits, TransactionScanLimits } from '@xpenser/contracts';
 import {
     dateToLocalDateParam,
     localDateTimeInputToDate
 } from '@xpenser/timezone';
 import type { Config } from '../config.js';
-import type { AppDb, TransactionScanItemDb, UserDb } from '../db/schemas.js';
+import type {
+    AppDb,
+    TransactionScanDb,
+    TransactionScanItemDb,
+    UserDb
+} from '../db/schemas.js';
 import { listCategories } from './categories.js';
 import { generateStructuredJsonFromContent } from './openai.js';
 import { listTransactions } from './transactions.js';
@@ -23,7 +28,7 @@ import { listVendors } from './vendors.js';
 export class TransactionScanInputError extends Error {}
 export class TransactionScanNotFoundError extends Error {}
 
-const maxImageBytes = 10 * 1024 * 1024;
+const maxImageBytes = TransactionScanLimits.maxImageBytes;
 const maxDrafts = 25;
 const maxContextVendors = 100;
 const maxRecentTransactions = 100;
@@ -234,9 +239,9 @@ function stripDataUrl(value: string): string {
         : value;
 }
 
-function imageBuffer(body: TransactionScanBody): Buffer {
+function scanImageBuffer(imageBase64: string): Buffer {
     try {
-        const buffer = Buffer.from(stripDataUrl(body.imageBase64), 'base64');
+        const buffer = Buffer.from(stripDataUrl(imageBase64), 'base64');
         if (buffer.length === 0) {
             throw new TransactionScanInputError('Upload a non-empty image.');
         }
@@ -252,6 +257,10 @@ function imageBuffer(body: TransactionScanBody): Buffer {
         }
         throw new TransactionScanInputError('Upload a valid image.');
     }
+}
+
+function imageBuffer(body: TransactionScanBody): Buffer {
+    return scanImageBuffer(body.imageBase64);
 }
 
 function oneLine(value: string, maxLength: number): string {
@@ -448,11 +457,14 @@ function sanitizeDraft({
     const amount = numberValue(raw.amount);
     const safeAmount = amount !== null && amount > 0 ? amount : null;
     const fieldConfidence = raw.confidence ?? {};
+    const categoryConfidence = confidence(fieldConfidence.category);
+    const exactCategoryId =
+        categoryId !== null && categoryConfidence !== 'low' ? categoryId : null;
     const draft = {
         amount: safeAmount,
-        categoryId,
+        categoryId: exactCategoryId,
         suggestedCategory:
-            categoryId === null
+            exactCategoryId === null
                 ? suggestedCategory(raw, type, categories)
                 : null,
         currency: currencyValue(raw.currency, defaultCurrency),
@@ -467,7 +479,7 @@ function sanitizeDraft({
         evidence: stringValue(raw.evidence, 500) ?? '',
         confidence: {
             amount: confidence(fieldConfidence.amount),
-            category: confidence(fieldConfidence.category),
+            category: categoryConfidence,
             currency: raw.currency
                 ? confidence(fieldConfidence.currency)
                 : 'low',
@@ -580,7 +592,8 @@ function scanPrompt() {
         'The image may be a receipt, invoice, bank app screenshot, or bank statement.',
         'Return one or more transactions. Split one receipt into multiple transactions when visible line items clearly belong to different categories or vendors.',
         'Do not create transactions, categories, or vendors. Only choose existing IDs from context or suggest names for the user to create later.',
-        'Prefer existing category IDs and vendor IDs when they are plausible. Suggest a new category or vendor only when no existing record is a good fit.',
+        'Prefer existing category IDs and vendor IDs only when they are a strong fit.',
+        'When no existing category is a strong fit, set categoryId to null and fill suggestedCategoryName, suggestedCategoryType, suggestedCategoryKind, optional suggestedCategoryParentId, and suggestedCategoryReason.',
         'Use positive amounts only. Infer expense/income through transactionType and category fit; do not encode signs in amount.',
         'If a field is not visible or not reliable, return null for that field and low confidence.',
         'Use correction examples as user-specific preferences and avoid repeating prior mistakes.',
@@ -618,7 +631,8 @@ function promptInput({
             occurredDate:
                 'Use YYYY-MM-DD when visible or inferable from the document; otherwise null.',
             occurredTime: 'Use HH:mm when visible; otherwise null.',
-            categoryId: 'Use only IDs from categories.',
+            categoryId:
+                'Use only IDs from categories when the match is strong; otherwise null and provide suggested category fields.',
             vendorId: 'Use only IDs from vendors.',
             suggestedCategoryParentId:
                 'Use only a parent category ID from categories, or null.',
@@ -750,6 +764,54 @@ async function ensureTransactionOwner(
     }
 }
 
+async function storeScanAttachment({
+    attachment,
+    db,
+    scan,
+    userId
+}: {
+    readonly attachment: NonNullable<TransactionScanDecisionBody['attachment']>;
+    readonly db: AppDb;
+    readonly scan: TransactionScanDb;
+    readonly userId: number;
+}): Promise<void> {
+    const imageBase64 = stripDataUrl(attachment.imageBase64);
+    const buffer = scanImageBuffer(imageBase64);
+    const imageHash = createHash('sha256').update(buffer).digest('hex');
+    if (imageHash !== scan.imageHash) {
+        throw new TransactionScanInputError(
+            'Confirmed scan image did not match the original scan.'
+        );
+    }
+
+    const existing = await db.transactionScanImages
+        .where(row => row.scanId, scan.id)
+        .where(row => row.userId, userId)
+        .first();
+    const values = {
+        imageHash,
+        mimeType: attachment.mimeType,
+        fileName: stringValue(attachment.fileName, 255) ?? null,
+        sizeBytes: buffer.length,
+        imageBase64,
+        updatedAt: new Date()
+    };
+
+    if (existing) {
+        await db.transactionScanImages
+            .where(row => row.id, existing.id)
+            .where(row => row.userId, userId)
+            .update(values as never);
+        return;
+    }
+
+    await db.transactionScanImages.insert({
+        scanId: scan.id,
+        userId,
+        ...values
+    } as never);
+}
+
 export async function recordTransactionScanDecision(
     db: AppDb,
     userId: number,
@@ -765,6 +827,13 @@ export async function recordTransactionScanDecision(
     if (!item) {
         throw new TransactionScanNotFoundError('Scan item was not found.');
     }
+    const scan = await db.transactionScans
+        .where(row => row.id, scanId)
+        .where(row => row.userId, userId)
+        .first();
+    if (!scan) {
+        throw new TransactionScanNotFoundError('Scan was not found.');
+    }
 
     if (body.decision === 'confirmed') {
         if (!body.transactionId || !body.correctedTransaction) {
@@ -773,6 +842,14 @@ export async function recordTransactionScanDecision(
             );
         }
         await ensureTransactionOwner(db, userId, body.transactionId);
+        if (body.attachment) {
+            await storeScanAttachment({
+                attachment: body.attachment,
+                db,
+                scan,
+                userId
+            });
+        }
     }
 
     await scanItemTable(db)

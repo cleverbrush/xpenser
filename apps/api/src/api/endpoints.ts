@@ -1,5 +1,5 @@
 import { api, PrincipalSchema } from '@xpenser/contracts';
-import { ConfigToken, DbToken, LoggerToken } from '../di/tokens.js';
+import { ConfigToken, DbToken, KnexToken, LoggerToken } from '../di/tokens.js';
 
 export const RegisterEndpoint = api.auth.register
     .inject({ db: DbToken, config: ConfigToken })
@@ -265,7 +265,7 @@ export const EnrichVendorEndpoint = api.vendors.enrich
 
 export const ListTransactionsEndpoint = api.transactions.list
     .authorize(PrincipalSchema)
-    .inject({ db: DbToken })
+    .inject({ db: DbToken, knex: KnexToken })
     .summary('List transactions')
     .description('Lists transactions owned by the authenticated user.')
     .tags('transactions')
@@ -296,6 +296,16 @@ export const DeleteTransactionEndpoint = api.transactions.delete
     .description('Deletes a transaction owned by the authenticated user.')
     .tags('transactions')
     .operationId('deleteTransaction');
+
+export const GetTransactionScanImageEndpoint = api.transactions.scanImage
+    .authorize(PrincipalSchema)
+    .inject({ knex: KnexToken })
+    .summary('Get scanned transaction image')
+    .description(
+        'Returns the original scanner image attached to a confirmed transaction.'
+    )
+    .tags('transactions')
+    .operationId('getTransactionScanImage');
 
 export const CreateTransactionScanEndpoint = api.transactionScans.create
     .authorize(PrincipalSchema)
@@ -405,7 +415,8 @@ export const endpoints = {
         list: ListTransactionsEndpoint,
         create: CreateTransactionEndpoint,
         update: UpdateTransactionEndpoint,
-        delete: DeleteTransactionEndpoint
+        delete: DeleteTransactionEndpoint,
+        scanImage: GetTransactionScanImageEndpoint
     },
     transactionScans: {
         create: CreateTransactionScanEndpoint,

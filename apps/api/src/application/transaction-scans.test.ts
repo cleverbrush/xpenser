@@ -9,6 +9,8 @@ import type { Config } from '../config.js';
 import type {
     AppDb,
     TransactionDb,
+    TransactionScanDb,
+    TransactionScanImageDb,
     TransactionScanItemDb,
     UserDb
 } from '../db/schemas.js';
@@ -171,12 +173,50 @@ function scanItem(
     };
 }
 
+function scan(overrides: Partial<TransactionScanDb> = {}): TransactionScanDb {
+    return {
+        id: 10,
+        userId: 1,
+        documentKind: 'receipt',
+        imageHash:
+            '6105d6cc76af400325e94d588ce511be5bfdbb73b437dc51eca43917d7a43e3d',
+        model: 'gpt-5.5',
+        warningsJson: '[]',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...overrides
+    };
+}
+
+function scanImage(
+    overrides: Partial<TransactionScanImageDb> = {}
+): TransactionScanImageDb {
+    return {
+        id: 30,
+        scanId: 10,
+        userId: 1,
+        imageHash:
+            '6105d6cc76af400325e94d588ce511be5bfdbb73b437dc51eca43917d7a43e3d',
+        mimeType: 'image/png',
+        fileName: 'receipt.png',
+        sizeBytes: 5,
+        imageBase64: Buffer.from('image').toString('base64'),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...overrides
+    };
+}
+
 function testDb({
+    scanImages = [],
     scanItems = [],
+    scans = [scan()],
     transactions = [],
     users = [user()]
 }: {
+    readonly scanImages?: TransactionScanImageDb[];
     readonly scanItems?: TransactionScanItemDb[];
+    readonly scans?: TransactionScanDb[];
     readonly transactions?: TransactionDb[];
     readonly users?: UserDb[];
 } = {}): AppDb {
@@ -187,12 +227,20 @@ function testDb({
             )
         },
         transactionScans: {
-            insert: vi.fn(async value => ({
-                id: 10,
-                createdAt: timestamp,
-                updatedAt: timestamp,
-                ...value
-            }))
+            where: vi.fn(
+                <TValue>(
+                    selector: (row: TransactionScanDb) => TValue,
+                    value: TValue
+                ) => testQuery(scans).where(selector, value)
+            ),
+            insert: vi.fn(async value => {
+                const created = scan({
+                    id: 10,
+                    ...value
+                });
+                scans.push(created);
+                return created;
+            })
         },
         transactionScanItems: {
             where: vi.fn(
@@ -207,6 +255,22 @@ function testDb({
                     ...value
                 });
                 scanItems.push(created);
+                return created;
+            })
+        },
+        transactionScanImages: {
+            where: vi.fn(
+                <TValue>(
+                    selector: (row: TransactionScanImageDb) => TValue,
+                    value: TValue
+                ) => testQuery(scanImages).where(selector, value)
+            ),
+            insert: vi.fn(async value => {
+                const created = scanImage({
+                    id: scanImages.length + 30,
+                    ...value
+                });
+                scanImages.push(created);
                 return created;
             })
         },
@@ -318,6 +382,63 @@ describe('transaction image scans', () => {
         );
     });
 
+    it('suggests category creation instead of trusting low-confidence category IDs', async () => {
+        mocks.listCategories.mockResolvedValue([category()]);
+        mocks.listVendors.mockResolvedValue([vendor()]);
+        mocks.listTransactions.mockResolvedValue({ items: [] });
+        mocks.generateStructuredJsonFromContent.mockResolvedValue({
+            documentKind: 'receipt',
+            warnings: [],
+            transactions: [
+                {
+                    amount: 18.5,
+                    categoryId: 7,
+                    confidence: {
+                        amount: 'high',
+                        category: 'low',
+                        currency: 'high',
+                        date: 'medium',
+                        overall: 'medium',
+                        vendor: 'low'
+                    },
+                    currency: 'USD',
+                    evidence: 'Hardware supplies 18.50',
+                    note: null,
+                    occurredDate: '2026-06-01',
+                    occurredTime: null,
+                    suggestedCategoryKind: 'normal',
+                    suggestedCategoryName: 'Home supplies',
+                    suggestedCategoryParentId: null,
+                    suggestedCategoryReason:
+                        'No existing category matches hardware supplies.',
+                    suggestedCategoryType: 'expense',
+                    suggestedVendorName: 'Hardware Shop',
+                    transactionType: 'expense',
+                    vendorId: null
+                }
+            ]
+        });
+
+        const result = await scanTransactionsFromImage(testDb(), config, 1, {
+            imageBase64: Buffer.from('image').toString('base64'),
+            mimeType: 'image/png'
+        });
+
+        expect(result.drafts[0]).toMatchObject({
+            categoryId: null,
+            suggestedCategory: {
+                name: 'Home supplies',
+                type: 'expense',
+                parentId: null,
+                kind: 'normal',
+                reason: 'No existing category matches hardware supplies.'
+            },
+            confidence: {
+                category: 'low'
+            }
+        });
+    });
+
     it('records confirmed scan corrections', async () => {
         const item = scanItem();
         const db = testDb({
@@ -349,5 +470,74 @@ describe('transaction image scans', () => {
             note: 'Corrected'
         });
         expect(item.decidedAt).toBeInstanceOf(Date);
+    });
+
+    it('stores the original image for confirmed scan transactions', async () => {
+        const item = scanItem();
+        const scanImages: TransactionScanImageDb[] = [];
+        const db = testDb({
+            scanImages,
+            scanItems: [item],
+            transactions: [transactionRow({ id: 42 })]
+        });
+
+        await recordTransactionScanDecision(db, 1, 10, 20, {
+            decision: 'confirmed',
+            transactionId: 42,
+            correctedTransaction: {
+                amount: 19.99,
+                categoryId: 7,
+                currency: 'USD',
+                occurredAt: timestamp,
+                vendorId: null,
+                note: null
+            },
+            attachment: {
+                imageBase64: Buffer.from('image').toString('base64'),
+                mimeType: 'image/png',
+                fileName: 'receipt.png'
+            }
+        });
+
+        expect(scanImages).toHaveLength(1);
+        expect(scanImages[0]).toMatchObject({
+            scanId: 10,
+            userId: 1,
+            mimeType: 'image/png',
+            fileName: 'receipt.png',
+            sizeBytes: 5,
+            imageBase64: Buffer.from('image').toString('base64')
+        });
+    });
+
+    it('rejects scan attachments that do not match the original scan hash', async () => {
+        const item = scanItem();
+        const scanImages: TransactionScanImageDb[] = [];
+        const db = testDb({
+            scanImages,
+            scanItems: [item],
+            transactions: [transactionRow({ id: 42 })]
+        });
+
+        await expect(
+            recordTransactionScanDecision(db, 1, 10, 20, {
+                decision: 'confirmed',
+                transactionId: 42,
+                correctedTransaction: {
+                    amount: 19.99,
+                    categoryId: 7,
+                    currency: 'USD',
+                    occurredAt: timestamp,
+                    vendorId: null,
+                    note: null
+                },
+                attachment: {
+                    imageBase64: Buffer.from('other').toString('base64'),
+                    mimeType: 'image/png',
+                    fileName: 'receipt.png'
+                }
+            })
+        ).rejects.toThrow('Confirmed scan image did not match');
+        expect(scanImages).toHaveLength(0);
     });
 });

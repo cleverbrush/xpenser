@@ -29,7 +29,9 @@ import {
     TransactionListQuerySchema,
     TransactionScanBodySchema,
     TransactionScanDecisionBodySchema,
+    TransactionScanImageResponseSchema,
     TransactionScanResponseSchema,
+    TransactionSchema,
     UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
@@ -590,7 +592,54 @@ describe('shared schemas', () => {
                     occurredAt: new Date('2026-06-01T12:00:00.000Z'),
                     vendorId: null,
                     note: null
+                },
+                attachment: {
+                    imageBase64: 'aW1hZ2U=',
+                    mimeType: 'image/png',
+                    fileName: 'receipt.png'
                 }
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionSchema.validate({
+                id: 42,
+                categoryId: 1,
+                vendorId: null,
+                categoryName: 'Groceries',
+                categoryDisplayName: 'Groceries',
+                categoryParentId: null,
+                categoryKind: 'normal',
+                type: 'expense',
+                amount: 12.34,
+                currency: 'USD',
+                defaultCurrencyAmount: 12.34,
+                defaultCurrency: 'USD',
+                exchangeRate: 1,
+                exchangeRateDate: '2026-06-01',
+                occurredAt: new Date('2026-06-01T12:00:00.000Z'),
+                scanAttachment: {
+                    scanId: 10,
+                    scanItemId: 20,
+                    fileName: 'receipt.png',
+                    mimeType: 'image/png',
+                    sizeBytes: 5,
+                    createdAt: new Date('2026-06-01T12:00:00.000Z')
+                },
+                createdAt: new Date('2026-06-01T12:00:00.000Z'),
+                updatedAt: new Date('2026-06-01T12:00:00.000Z')
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanImageResponseSchema.validate({
+                scanId: 10,
+                scanItemId: 20,
+                fileName: 'receipt.png',
+                mimeType: 'image/png',
+                sizeBytes: 5,
+                createdAt: new Date('2026-06-01T12:00:00.000Z'),
+                imageBase64: 'aW1hZ2U='
             }).valid
         ).toBe(true);
     });

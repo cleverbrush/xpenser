@@ -5,6 +5,8 @@ import {
     type Category,
     type Transaction,
     type TransactionScanDecisionBody,
+    type TransactionScanImageResponse,
+    TransactionScanLimits,
     type TransactionScanResponse,
     UpdateVendorBodySchema,
     type Vendor,
@@ -629,7 +631,7 @@ export async function scanTransactionImageAction(
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
         return { error: 'Upload a PNG, JPEG, or WebP image.' };
     }
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > TransactionScanLimits.maxImageBytes) {
         return { error: 'Image must be 10 MB or smaller.' };
     }
 
@@ -675,6 +677,15 @@ export async function recordTransactionScanDecisionAction({
     await client.transactionScans.decide({
         params: { scanId, itemId },
         body
+    });
+}
+
+export async function getTransactionScanImageAction(
+    transactionId: number
+): Promise<TransactionScanImageResponse> {
+    const client = await getApiClient();
+    return client.transactions.scanImage({
+        params: { id: transactionId }
     });
 }
 

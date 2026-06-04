@@ -4,6 +4,7 @@ import type {
     Category,
     Currency,
     Transaction,
+    TransactionScanImageResponse,
     Vendor
 } from '@xpenser/contracts';
 import { FieldLimits } from '@xpenser/contracts';
@@ -31,7 +32,13 @@ import {
     TableHeader,
     TableRow
 } from '@xpenser/ui';
-import { PencilIcon, SlidersHorizontalIcon, Trash2Icon } from 'lucide-react';
+import {
+    ImageIcon,
+    PencilIcon,
+    SlidersHorizontalIcon,
+    Trash2Icon
+} from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -44,6 +51,7 @@ import {
 } from 'react';
 import {
     deleteTransactionAction,
+    getTransactionScanImageAction,
     updateTransactionAction
 } from '@/lib/actions';
 import { expiredSessionPath } from '@/lib/auth-routes';
@@ -130,14 +138,114 @@ function transactionAmount(transaction: Transaction) {
     );
 }
 
+function imageSizeLabel(sizeBytes: number): string {
+    return `${(sizeBytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function ScanImageReviewButton({
+    transaction
+}: {
+    readonly transaction: Transaction;
+}) {
+    const [open, setOpen] = useState(false);
+    const [image, setImage] = useState<TransactionScanImageResponse | null>(
+        null
+    );
+    const [pending, setPending] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const attachment = transaction.scanAttachment;
+
+    useEffect(() => {
+        if (!open || image || pending || !attachment) {
+            return;
+        }
+
+        let active = true;
+        setPending(true);
+        setError(null);
+        getTransactionScanImageAction(transaction.id)
+            .then(result => {
+                if (active) {
+                    setImage(result);
+                }
+            })
+            .catch(() => {
+                if (active) {
+                    setError('Could not load scanned image.');
+                }
+            })
+            .finally(() => {
+                if (active) {
+                    setPending(false);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [attachment, image, open, pending, transaction.id]);
+
+    if (!attachment) {
+        return null;
+    }
+
+    const visibleImage = image ?? attachment;
+
+    return (
+        <Dialog onOpenChange={setOpen} open={open}>
+            <DialogTrigger asChild>
+                <Button
+                    className="h-6 gap-1 px-2 text-xs"
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                >
+                    <ImageIcon aria-hidden className="size-3" />
+                    Scanned
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Scanned image</DialogTitle>
+                    <DialogDescription>
+                        {visibleImage.fileName ?? 'Uploaded image'} -{' '}
+                        {imageSizeLabel(visibleImage.sizeBytes)}
+                    </DialogDescription>
+                </DialogHeader>
+                {pending ? (
+                    <p className="text-sm text-muted-foreground">
+                        Loading image...
+                    </p>
+                ) : null}
+                {error ? (
+                    <p className="text-sm text-destructive">{error}</p>
+                ) : null}
+                {image ? (
+                    <Image
+                        alt={image.fileName ?? 'Scanned transaction source'}
+                        className="max-h-[70vh] w-full rounded-md border object-contain"
+                        height={900}
+                        src={`data:${image.mimeType};base64,${image.imageBase64}`}
+                        unoptimized
+                        width={1200}
+                    />
+                ) : null}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function transactionBadges(transaction: Transaction) {
     return (
-        <Badge
-            className={directionBadgeClassName(transaction.type)}
-            variant="outline"
-        >
-            {categoryTypeLabel(transaction.type)}
-        </Badge>
+        <>
+            <Badge
+                className={directionBadgeClassName(transaction.type)}
+                variant="outline"
+            >
+                {categoryTypeLabel(transaction.type)}
+            </Badge>
+            <ScanImageReviewButton transaction={transaction} />
+        </>
     );
 }
 

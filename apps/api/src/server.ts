@@ -49,7 +49,7 @@ export function buildServer(
     });
 
     const server = createServer({
-        maxBodySize: 1024 * 1024
+        maxBodySize: 20 * 1024 * 1024
     })
         .use(tracingMiddleware({ excludePaths: ['/health'] }))
         .use(corsMiddleware(config))

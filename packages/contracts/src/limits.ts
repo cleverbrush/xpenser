@@ -25,3 +25,7 @@ export const FieldLimits = {
     vendorPrimaryColor: 7,
     vendorSearch: 160
 } as const;
+
+export const TransactionScanLimits = {
+    maxImageBytes: 10 * 1024 * 1024
+} as const;

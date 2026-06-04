@@ -45,6 +45,7 @@ import {
     TransactionListResponseSchema,
     TransactionScanBodySchema,
     TransactionScanDecisionBodySchema,
+    TransactionScanImageResponseSchema,
     TransactionScanResponseSchema,
     TransactionSchema,
     UpdateCategoryBodySchema,
@@ -69,6 +70,8 @@ const TransactionScanDecision = route({
     scanId: number().coerce(),
     itemId: number().coerce()
 })`/${t => t.scanId}/items/${t => t.itemId}/decision`;
+const TransactionScanImage = route({ id: number().coerce() })`/${t =>
+    t.id}/scan-image`;
 const categories = endpoint
     .resource('/api/categories')
     .authorize(PrincipalSchema);
@@ -381,7 +384,11 @@ export const api = defineApi({
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
-            .responses({ 204: null, 404: ErrorResponseSchema })
+            .responses({ 204: null, 404: ErrorResponseSchema }),
+        scanImage: transactions.get(TransactionScanImage).responses({
+            200: TransactionScanImageResponseSchema,
+            404: ErrorResponseSchema
+        })
     },
     transactionScans: {
         create: transactionScans

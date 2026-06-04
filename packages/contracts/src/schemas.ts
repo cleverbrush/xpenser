@@ -121,6 +121,14 @@ export const ErrorResponseSchema = object({
     )
 }).schemaName('ErrorResponse');
 
+export const ImageMimeTypeSchema = enumOf(
+    'image/jpeg',
+    'image/png',
+    'image/webp'
+)
+    .describe('Supported image MIME type.')
+    .schemaName('ImageMimeType');
+
 export const PrincipalSchema = object({
     /** Authenticated user identifier encoded in the API JWT. */
     userId: number().describe(
@@ -1096,6 +1104,32 @@ export const TransactionSchema = object({
         .describe('Date and time when the transaction happened.'),
     /** Optional note entered by the user. */
     note: string().optional().describe('Optional note entered by the user.'),
+    /** Original scanner image metadata when this transaction came from a scan. */
+    scanAttachment: object({
+        /** Scan session identifier. */
+        scanId: number().describe('Scan session identifier.'),
+        /** Scan item identifier linked to this transaction. */
+        scanItemId: number().describe(
+            'Scan item identifier linked to this transaction.'
+        ),
+        /** Original file name when available. */
+        fileName: string()
+            .nullable()
+            .describe('Original file name when available.'),
+        /** Stored image MIME type. */
+        mimeType: ImageMimeTypeSchema.describe('Stored image MIME type.'),
+        /** Original image size in bytes. */
+        sizeBytes: number().describe('Original image size in bytes.'),
+        /** Timestamp when the image was stored. */
+        createdAt: date()
+            .coerce()
+            .describe('Timestamp when the image was stored.')
+    })
+        .optional()
+        .nullable()
+        .describe(
+            'Original scanner image metadata when this transaction came from a scan.'
+        ),
     /** Creation timestamp. */
     createdAt: date().coerce().describe('Creation timestamp.'),
     /** Last update timestamp. */
@@ -1353,14 +1387,28 @@ export const TransactionScanBodySchema = object({
             'Raw uploaded image bytes encoded as base64, without a data URL prefix.'
         ),
     /** Uploaded image MIME type. */
-    mimeType: enumOf('image/jpeg', 'image/png', 'image/webp').describe(
-        'Uploaded image MIME type.'
-    ),
+    mimeType: ImageMimeTypeSchema.describe('Uploaded image MIME type.'),
     /** Original file name, when provided by the browser. */
     fileName: string()
         .optional()
         .describe('Original file name, when provided by the browser.')
 }).schemaName('TransactionScanBody');
+
+export const TransactionScanAttachmentBodySchema = object({
+    /** Raw uploaded image bytes encoded as base64, without a data URL prefix. */
+    imageBase64: string()
+        .required('image is required')
+        .nonempty('image is required')
+        .describe(
+            'Raw uploaded image bytes encoded as base64, without a data URL prefix.'
+        ),
+    /** Uploaded image MIME type. */
+    mimeType: ImageMimeTypeSchema.describe('Uploaded image MIME type.'),
+    /** Original file name, when provided by the browser. */
+    fileName: string()
+        .optional()
+        .describe('Original file name, when provided by the browser.')
+}).schemaName('TransactionScanAttachmentBody');
 
 export const TransactionScanResponseSchema = object({
     /** Stable scan identifier. */
@@ -1422,8 +1470,35 @@ export const TransactionScanDecisionBodySchema = object({
     /** Final user-corrected values, when confirmed. */
     correctedTransaction: TransactionScanCorrectedTransactionSchema.nullable()
         .optional()
-        .describe('Final user-corrected values, when confirmed.')
+        .describe('Final user-corrected values, when confirmed.'),
+    /** Original scan image, stored once for confirmed transactions. */
+    attachment: TransactionScanAttachmentBodySchema.optional().describe(
+        'Original scan image, stored once for confirmed transactions.'
+    )
 }).schemaName('TransactionScanDecisionBody');
+
+export const TransactionScanImageResponseSchema = object({
+    /** Scan session identifier. */
+    scanId: number().describe('Scan session identifier.'),
+    /** Scan item identifier linked to this transaction. */
+    scanItemId: number().describe(
+        'Scan item identifier linked to this transaction.'
+    ),
+    /** Original file name when available. */
+    fileName: string()
+        .nullable()
+        .describe('Original file name when available.'),
+    /** Stored image MIME type. */
+    mimeType: ImageMimeTypeSchema.describe('Stored image MIME type.'),
+    /** Original image size in bytes. */
+    sizeBytes: number().describe('Original image size in bytes.'),
+    /** Timestamp when the image was stored. */
+    createdAt: date().coerce().describe('Timestamp when the image was stored.'),
+    /** Raw uploaded image bytes encoded as base64. */
+    imageBase64: string().describe(
+        'Raw uploaded image bytes encoded as base64.'
+    )
+}).schemaName('TransactionScanImageResponse');
 
 export const DashboardQuerySchema = object({
     /** Reporting period. */
@@ -1998,6 +2073,9 @@ export type TransactionScanResponse = InferType<
 export type TransactionScanDraft = InferType<typeof TransactionScanDraftSchema>;
 export type TransactionScanDecisionBody = InferType<
     typeof TransactionScanDecisionBodySchema
+>;
+export type TransactionScanImageResponse = InferType<
+    typeof TransactionScanImageResponseSchema
 >;
 export type DashboardSummary = InferType<typeof DashboardSummarySchema>;
 export type DashboardWindowResponse = InferType<

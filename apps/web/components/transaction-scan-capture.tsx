@@ -1,12 +1,14 @@
 'use client';
 
-import type {
-    Category,
-    Currency,
-    Transaction,
-    TransactionScanDraft,
-    TransactionScanResponse,
-    Vendor
+import {
+    type Category,
+    type Currency,
+    type Transaction,
+    type TransactionScanDecisionBody,
+    type TransactionScanDraft,
+    TransactionScanLimits,
+    type TransactionScanResponse,
+    type Vendor
 } from '@xpenser/contracts';
 import {
     dateToLocalDateTimeInput,
@@ -65,9 +67,27 @@ import { VendorPicker } from './vendor-picker';
 
 type CaptureMode = 'manual' | 'scan';
 type Decision = 'confirmed' | 'discarded';
+type ScanAttachment = NonNullable<TransactionScanDecisionBody['attachment']>;
 type TransactionType = Category['type'];
 
-const maxImageBytes = 10 * 1024 * 1024;
+const maxImageBytes = TransactionScanLimits.maxImageBytes;
+
+function fileImageBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Could not read image.'));
+        reader.onload = () => {
+            const value = reader.result;
+            if (typeof value !== 'string') {
+                reject(new Error('Could not read image.'));
+                return;
+            }
+            const commaIndex = value.indexOf(',');
+            resolve(commaIndex >= 0 ? value.slice(commaIndex + 1) : value);
+        };
+        reader.readAsDataURL(file);
+    });
+}
 
 function parseAmount(value: string): number | undefined {
     const normalized = value.trim().replace(',', '.');
@@ -109,7 +129,7 @@ function initialValues({
     const type = draftCategoryType(draft, categories);
     return {
         amount: draft.amount ? String(draft.amount) : '',
-        categoryId: draft.categoryId ?? firstCategoryId(categories, type),
+        categoryId: draft.categoryId ?? undefined,
         currency: draft.currency ?? defaultCurrency,
         occurredAtText: dateToLocalDateTimeInput(
             draft.occurredAt ?? new Date(),
@@ -153,7 +173,10 @@ function nextPendingIndex(
 function ScanUpload({
     onScanned
 }: {
-    readonly onScanned: (scan: TransactionScanResponse) => void;
+    readonly onScanned: (
+        scan: TransactionScanResponse,
+        attachment: ScanAttachment
+    ) => void;
 }) {
     const [file, setFile] = useState<File | null>(null);
     const [pending, setPending] = useState(false);
@@ -189,7 +212,11 @@ function ScanUpload({
                 setError('Could not scan the image. Try again.');
                 return;
             }
-            onScanned(result.scan);
+            onScanned(result.scan, {
+                imageBase64: await fileImageBase64(file),
+                mimeType: file.type as ScanAttachment['mimeType'],
+                fileName: file.name
+            });
         } catch {
             setError('Could not scan the image. Try again.');
         } finally {
@@ -352,6 +379,7 @@ function SuggestedCategory({
 }
 
 function ScanWizard({
+    attachment,
     categories,
     currencies,
     defaultCurrency,
@@ -363,6 +391,7 @@ function ScanWizard({
     transactionCurrencies,
     vendors
 }: {
+    readonly attachment: ScanAttachment;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -428,6 +457,7 @@ function ScanWizard({
         null
     );
     const [createdVendorId, setCreatedVendorId] = useState<number | null>(null);
+    const [attachmentSubmitted, setAttachmentSubmitted] = useState(false);
 
     function loadDraft(nextIndex: number) {
         const nextDraft = scan.drafts[nextIndex];
@@ -582,6 +612,7 @@ function ScanWizard({
         setError(null);
         try {
             const transaction = await createCaptureTransactionAction(formData);
+            const shouldSubmitAttachment = !attachmentSubmitted;
             await recordTransactionScanDecisionAction({
                 scanId: scan.scanId,
                 itemId: draft.id,
@@ -597,9 +628,13 @@ function ScanWizard({
                         occurredAt,
                         vendorId: vendorId ?? null,
                         note: note.trim() || null
-                    }
+                    },
+                    attachment: shouldSubmitAttachment ? attachment : undefined
                 }
             });
+            if (shouldSubmitAttachment) {
+                setAttachmentSubmitted(true);
+            }
             const nextDecisions = {
                 ...decisions,
                 [draft.id]: 'confirmed' as const
@@ -963,7 +998,10 @@ export function TransactionCaptureWorkspace({
     readonly vendors: readonly Vendor[];
 }) {
     const [mode, setMode] = useState<CaptureMode>('manual');
-    const [scan, setScan] = useState<TransactionScanResponse | null>(null);
+    const [scanSession, setScanSession] = useState<{
+        readonly attachment: ScanAttachment;
+        readonly scan: TransactionScanResponse;
+    } | null>(null);
     const [localCategories, setLocalCategories] =
         useState<readonly Category[]>(categories);
     const [localVendors, setLocalVendors] =
@@ -1001,13 +1039,14 @@ export function TransactionCaptureWorkspace({
                     timezone={timezone}
                     transactionCurrencies={transactionCurrencies}
                 />
-            ) : scan ? (
+            ) : scanSession ? (
                 <ScanWizard
+                    attachment={scanSession.attachment}
                     categories={localCategories}
                     currencies={currencies}
                     defaultCurrency={defaultCurrency}
-                    onReset={() => setScan(null)}
-                    scan={scan}
+                    onReset={() => setScanSession(null)}
+                    scan={scanSession.scan}
                     setCategories={setLocalCategories}
                     setVendors={setLocalVendors}
                     timezone={timezone}
@@ -1015,7 +1054,11 @@ export function TransactionCaptureWorkspace({
                     vendors={localVendors}
                 />
             ) : (
-                <ScanUpload onScanned={setScan} />
+                <ScanUpload
+                    onScanned={(scan, attachment) =>
+                        setScanSession({ attachment, scan })
+                    }
+                />
             )}
         </div>
     );

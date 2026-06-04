@@ -5,6 +5,7 @@ import {
     dashboardSummary,
     dashboardWindow,
     deleteTransaction,
+    getTransactionScanImage,
     listTransactions,
     statsOverview,
     statsWindow,
@@ -19,6 +20,7 @@ import type {
     DashboardSummaryEndpoint,
     DashboardWindowEndpoint,
     DeleteTransactionEndpoint,
+    GetTransactionScanImageEndpoint,
     ListTransactionsEndpoint,
     StatsOverviewEndpoint,
     StatsWindowEndpoint,
@@ -27,8 +29,8 @@ import type {
 
 export const listTransactionsHandler: Handler<
     typeof ListTransactionsEndpoint
-> = async ({ query, principal }, { db }) => {
-    return listTransactions(db, principal.userId, query);
+> = async ({ query, principal }, { db, knex }) => {
+    return listTransactions(db, principal.userId, query, knex);
 };
 
 export const createTransactionHandler: Handler<
@@ -85,6 +87,19 @@ export const deleteTransactionHandler: Handler<
     try {
         await deleteTransaction(db, principal.userId, params.id);
         return ActionResult.noContent();
+    } catch (err) {
+        if (err instanceof TransactionNotFoundError) {
+            return ActionResult.notFound({ message: err.message });
+        }
+        throw err;
+    }
+};
+
+export const getTransactionScanImageHandler: Handler<
+    typeof GetTransactionScanImageEndpoint
+> = async ({ params, principal }, { knex }) => {
+    try {
+        return await getTransactionScanImage(knex, principal.userId, params.id);
     } catch (err) {
         if (err instanceof TransactionNotFoundError) {
             return ActionResult.notFound({ message: err.message });
