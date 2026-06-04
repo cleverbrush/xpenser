@@ -51,8 +51,7 @@ import { type FormEvent, useMemo, useState } from 'react';
 import {
     createCaptureTransactionAction,
     createVendorAction,
-    recordTransactionScanDecisionAction,
-    scanTransactionImageAction
+    recordTransactionScanDecisionAction
 } from '@/lib/actions';
 import {
     categoryEffectiveType,
@@ -72,6 +71,10 @@ type TransactionType = Category['type'];
 
 const maxImageBytes = TransactionScanLimits.maxImageBytes;
 
+type ScanRouteResponse =
+    | { readonly error: string; readonly scan?: undefined }
+    | { readonly error?: undefined; readonly scan: TransactionScanResponse };
+
 function fileImageBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -87,6 +90,31 @@ function fileImageBase64(file: File): Promise<string> {
         };
         reader.readAsDataURL(file);
     });
+}
+
+async function scanImageFile(file: File): Promise<ScanRouteResponse> {
+    const formData = new FormData();
+    formData.set('image', file);
+
+    const response = await fetch('/api/transaction-scans', {
+        method: 'POST',
+        body: formData
+    });
+    const result = (await response
+        .json()
+        .catch(() => null)) as ScanRouteResponse | null;
+
+    if (!response.ok) {
+        return {
+            error:
+                result?.error ??
+                (response.status === 413
+                    ? 'Image must be 10 MB or smaller.'
+                    : 'Could not scan the image. Try again.')
+        };
+    }
+
+    return result ?? { error: 'Could not scan the image. Try again.' };
 }
 
 function parseAmount(value: string): number | undefined {
@@ -197,13 +225,10 @@ function ScanUpload({
             return;
         }
 
-        const formData = new FormData();
-        formData.set('image', file);
-
         setPending(true);
         setError(null);
         try {
-            const result = await scanTransactionImageAction(formData);
+            const result = await scanImageFile(file);
             if (result.error) {
                 setError(result.error);
                 return;

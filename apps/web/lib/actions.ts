@@ -6,8 +6,6 @@ import {
     type Transaction,
     type TransactionScanDecisionBody,
     type TransactionScanImageResponse,
-    TransactionScanLimits,
-    type TransactionScanResponse,
     UpdateVendorBodySchema,
     type Vendor,
     type VendorCandidate
@@ -22,7 +20,6 @@ import { VendorUpdateActionRejected } from './log-templates';
 import { loggerFor } from './logger';
 
 const passportPkceCookie = 'xpenser_passport_pkce';
-const transactionScanTimeoutMs = 60_000;
 const vendorActionLogger = loggerFor('Vendor actions');
 
 function normalizeFormText(value: string): string {
@@ -602,66 +599,6 @@ export async function createCaptureTransactionAction(
     revalidatePath('/transactions');
     revalidatePath('/stats');
     return transaction;
-}
-
-function uploadedFile(value: FormDataEntryValue | null): File | undefined {
-    if (
-        typeof value === 'object' &&
-        value !== null &&
-        'arrayBuffer' in value &&
-        'name' in value &&
-        'size' in value &&
-        'type' in value
-    ) {
-        return value as File;
-    }
-    return undefined;
-}
-
-export async function scanTransactionImageAction(
-    formData: FormData
-): Promise<
-    | { readonly error: string; readonly scan?: undefined }
-    | { readonly error?: undefined; readonly scan: TransactionScanResponse }
-> {
-    const file = uploadedFile(formData.get('image'));
-    if (!file || file.size === 0) {
-        return { error: 'Choose an image to scan.' };
-    }
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-        return { error: 'Upload a PNG, JPEG, or WebP image.' };
-    }
-    if (file.size > TransactionScanLimits.maxImageBytes) {
-        return { error: 'Image must be 10 MB or smaller.' };
-    }
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const client = await getApiClient({
-        retryOnTimeout: false,
-        timeoutMs: transactionScanTimeoutMs
-    });
-    try {
-        const scan = await client.transactionScans.create({
-            body: {
-                imageBase64: buffer.toString('base64'),
-                mimeType: file.type as
-                    | 'image/jpeg'
-                    | 'image/png'
-                    | 'image/webp',
-                fileName: file.name
-            }
-        });
-        return { scan };
-    } catch (err) {
-        if (apiErrorStatus(err) === 400) {
-            return {
-                error:
-                    apiErrorMessage(err) ??
-                    'Could not scan the image. Try a clearer image.'
-            };
-        }
-        throw err;
-    }
 }
 
 export async function recordTransactionScanDecisionAction({
