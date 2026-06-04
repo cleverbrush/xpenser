@@ -1,8 +1,11 @@
 'use client';
 
 import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
-import type { Currency } from '@xpenser/contracts';
-import { RegisterBodySchema } from '@xpenser/contracts';
+import {
+    type Currency,
+    FieldLimits,
+    RegisterBodySchema
+} from '@xpenser/contracts';
 import {
     Button,
     Field,
@@ -142,7 +145,10 @@ export function RegisterForm({
         <form noValidate onSubmit={handleSubmit}>
             <FieldGroup key={formVersion}>
                 <SchemaField
-                    fieldProps={{ autoComplete: 'email' }}
+                    fieldProps={{
+                        autoComplete: 'email',
+                        maxLength: FieldLimits.email
+                    }}
                     forProperty={field => field.email}
                     form={form}
                     label="Email"
@@ -151,7 +157,10 @@ export function RegisterForm({
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                     <SchemaField
-                        fieldProps={{ autoComplete: 'new-password' }}
+                        fieldProps={{
+                            autoComplete: 'new-password',
+                            maxLength: FieldLimits.password
+                        }}
                         forProperty={field => field.password}
                         form={form}
                         label="Password"
@@ -159,7 +168,10 @@ export function RegisterForm({
                         variant="password"
                     />
                     <SchemaField
-                        fieldProps={{ autoComplete: 'new-password' }}
+                        fieldProps={{
+                            autoComplete: 'new-password',
+                            maxLength: FieldLimits.password
+                        }}
                         forProperty={field => field.confirmPassword}
                         form={form}
                         label="Confirm password"

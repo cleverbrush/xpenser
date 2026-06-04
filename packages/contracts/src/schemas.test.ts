@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FieldLimits } from './limits.js';
 import {
     CategoryListQuerySchema,
     CategorySchema,
@@ -33,6 +34,7 @@ import {
     VendorCandidateDetailsQuerySchema,
     VendorCandidateSchema,
     VendorCandidateSearchQuerySchema,
+    VendorListQuerySchema,
     VendorSchema
 } from './schemas.js';
 
@@ -77,6 +79,47 @@ describe('shared schemas', () => {
         ).toBe(true);
     });
 
+    it('rejects auth values longer than persisted identity fields', () => {
+        const registerResult = RegisterBodySchema.validate(
+            {
+                email: `${'a'.repeat(FieldLimits.email)}@example.com`,
+                password: 'super-secret',
+                confirmPassword: 'super-secret',
+                defaultCurrency: 'USD',
+                countryCode: 'US',
+                favoriteCurrencies: [],
+                timezone: 'UTC'
+            },
+            { doNotStopOnFirstError: true }
+        );
+        expect(registerResult.valid).toBe(false);
+        expect(
+            registerResult.getErrorsFor(field => field.email).errors
+        ).toContain('email is too long');
+
+        const passwordResult = RegisterBodySchema.validate({
+            email: 'jane@example.com',
+            password: 'x'.repeat(FieldLimits.password + 1),
+            confirmPassword: 'x'.repeat(FieldLimits.password + 1),
+            defaultCurrency: 'USD',
+            countryCode: 'US',
+            favoriteCurrencies: [],
+            timezone: 'UTC'
+        });
+        expect(passwordResult.valid).toBe(false);
+        expect(
+            passwordResult.getErrorsFor(field => field.password).errors
+        ).toContain('password is too long');
+
+        const tokenResult = ConfirmEmailBodySchema.validate({
+            token: 'x'.repeat(FieldLimits.confirmationToken + 1)
+        });
+        expect(tokenResult.valid).toBe(false);
+        expect(tokenResult.getErrorsFor(field => field.token).errors).toContain(
+            'confirmation token is too long'
+        );
+    });
+
     it('validates IANA time zones in preferences', () => {
         expect(TimeZoneSchema.validate('America/New_York').valid).toBe(true);
         expect(TimeZoneSchema.validate('Not/AZone').valid).toBe(false);
@@ -88,6 +131,30 @@ describe('shared schemas', () => {
                 timezone: 'Europe/London'
             }).valid
         ).toBe(true);
+    });
+
+    it('rejects preference and Passport identity values longer than DB columns', () => {
+        const timezoneResult = UpdateUserPreferenceBodySchema.validate({
+            defaultCurrency: 'USD',
+            countryCode: 'US',
+            favoriteCurrencies: ['EUR'],
+            timezone: 'A'.repeat(FieldLimits.timeZone + 1)
+        });
+        expect(timezoneResult.valid).toBe(false);
+        expect(
+            timezoneResult.getErrorsFor(field => field.timezone).errors
+        ).toContain('timezone is too long');
+
+        const passportResult = PassportResolveUserBodySchema.validate({
+            provider: 'google',
+            provider_subject: 'g'.repeat(FieldLimits.passportSubject + 1),
+            email: 'jane@example.com',
+            email_verified: true
+        });
+        expect(passportResult.valid).toBe(false);
+        expect(
+            passportResult.getErrorsFor(field => field.provider_subject).errors
+        ).toContain('provider subject is too long');
     });
 
     it('validates user preferences with derived transaction currencies', () => {
@@ -274,6 +341,50 @@ describe('shared schemas', () => {
         expect(
             colorResult.getErrorsFor(field => field.primaryColor).errors
         ).toEqual(['Primary color must be a six-digit hex color.']);
+    });
+
+    it('rejects vendor values longer than persisted vendor fields', () => {
+        const createResult = CreateVendorBodySchema.validate({
+            name: 'x'.repeat(FieldLimits.vendorName + 1)
+        });
+        expect(createResult.valid).toBe(false);
+        expect(createResult.getErrorsFor(field => field.name).errors).toContain(
+            'vendor name is too long'
+        );
+
+        const updateResult = UpdateVendorBodySchema.validate(
+            {
+                name: 'Trader Joe',
+                domain: 'x'.repeat(FieldLimits.vendorDomain + 1),
+                description: 'Г'.repeat(FieldLimits.vendorDescription + 1),
+                logoUrl: `https://example.com/${'x'.repeat(
+                    FieldLimits.vendorLogoUrl
+                )}`,
+                primaryColor: '#0071ce0'
+            },
+            { doNotStopOnFirstError: true }
+        );
+        expect(updateResult.valid).toBe(false);
+        expect(
+            updateResult.getErrorsFor(field => field.domain).errors
+        ).toContain('domain is too long');
+        expect(
+            updateResult.getErrorsFor(field => field.description).errors
+        ).toContain('description is too long');
+        expect(
+            updateResult.getErrorsFor(field => field.logoUrl).errors
+        ).toContain('logo URL is too long');
+        expect(
+            updateResult.getErrorsFor(field => field.primaryColor).errors
+        ).toContain('primary color is too long');
+
+        const searchResult = VendorListQuerySchema.validate({
+            search: 'x'.repeat(FieldLimits.vendorSearch + 1)
+        });
+        expect(searchResult.valid).toBe(false);
+        expect(
+            searchResult.getErrorsFor(field => field.search).errors
+        ).toContain('vendor search query is too long');
     });
 
     it('returns required messages before format messages for empty login fields', () => {
@@ -509,6 +620,28 @@ describe('shared schemas', () => {
         ).toBe(42);
     });
 
+    it('rejects transaction note and search text over the configured limits', () => {
+        const noteResult = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 12,
+            currency: 'USD',
+            occurredAt: new Date(),
+            note: 'x'.repeat(FieldLimits.transactionNote + 1)
+        });
+        expect(noteResult.valid).toBe(false);
+        expect(noteResult.getErrorsFor(field => field.note).errors).toContain(
+            'note is too long'
+        );
+
+        const searchResult = TransactionListQuerySchema.validate({
+            search: 'x'.repeat(FieldLimits.transactionSearch + 1)
+        });
+        expect(searchResult.valid).toBe(false);
+        expect(
+            searchResult.getErrorsFor(field => field.search).errors
+        ).toContain('transaction search query is too long');
+    });
+
     it('validates category trend controls', () => {
         expect(
             CategoryTrendQuerySchema.validate({
@@ -575,6 +708,31 @@ describe('shared schemas', () => {
                 telegramUser: { telegramUserId: '' }
             }).valid
         ).toBe(false);
+
+        const result = LinkTelegramAccountBodySchema.validate(
+            {
+                token: 'x'.repeat(FieldLimits.telegramLinkToken + 1),
+                telegramUser: {
+                    telegramUserId: '1'.repeat(FieldLimits.telegramUserId + 1),
+                    telegramUsername: 'x'.repeat(
+                        FieldLimits.telegramUsername + 1
+                    )
+                }
+            },
+            { doNotStopOnFirstError: true }
+        );
+        expect(result.valid).toBe(false);
+        expect(result.getErrorsFor(field => field.token).errors).toContain(
+            'link token is too long'
+        );
+        expect(
+            result.getErrorsFor(field => field.telegramUser.telegramUserId)
+                .errors
+        ).toContain('Telegram user id is too long');
+        expect(
+            result.getErrorsFor(field => field.telegramUser.telegramUsername)
+                .errors
+        ).toContain('Telegram username is too long');
     });
 
     it('validates API key names', () => {

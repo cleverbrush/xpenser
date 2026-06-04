@@ -5,6 +5,7 @@ import {
     type Category,
     CreateTransactionBodySchema,
     type Currency,
+    FieldLimits,
     type Transaction,
     type Vendor
 } from '@xpenser/contracts';
@@ -451,7 +452,10 @@ export function QuickCaptureForm({
                             </Field>
 
                             <SchemaField
-                                fieldProps={{ autoComplete: 'off' }}
+                                fieldProps={{
+                                    autoComplete: 'off',
+                                    maxLength: FieldLimits.transactionNote
+                                }}
                                 forProperty={field => field.note}
                                 form={form}
                                 label="Note"

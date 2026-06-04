@@ -6,6 +6,7 @@ import type {
     Transaction,
     Vendor
 } from '@xpenser/contracts';
+import { FieldLimits } from '@xpenser/contracts';
 import {
     Badge,
     Button,
@@ -631,6 +632,7 @@ export function TransactionsBrowser({
                             <Input
                                 defaultValue={searchParams.get('search') ?? ''}
                                 id="search"
+                                maxLength={FieldLimits.transactionSearch}
                                 name="search"
                             />
                         </Field>

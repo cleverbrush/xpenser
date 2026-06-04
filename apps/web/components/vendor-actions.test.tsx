@@ -9,7 +9,7 @@ import {
     waitFor,
     within
 } from '@testing-library/react';
-import type { Vendor } from '@xpenser/contracts';
+import { FieldLimits, type Vendor } from '@xpenser/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VendorProfileActions } from './vendor-actions';
 
@@ -162,7 +162,7 @@ describe('VendorProfileActions', () => {
             target: { value: '' }
         });
         fireEvent.change(screen.getByLabelText('Website'), {
-            target: { value: 'x'.repeat(256) }
+            target: { value: 'x'.repeat(FieldLimits.vendorDomain + 1) }
         });
         fireEvent.change(screen.getByLabelText('Logo URL'), {
             target: { value: 'http://example.com/logo.svg' }
@@ -171,7 +171,7 @@ describe('VendorProfileActions', () => {
             target: { value: '0071ce' }
         });
         fireEvent.change(screen.getByLabelText('Description'), {
-            target: { value: 'x'.repeat(1001) }
+            target: { value: 'x'.repeat(FieldLimits.vendorDescription + 1) }
         });
         fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
 

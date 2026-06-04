@@ -1,4 +1,4 @@
-import type { Vendor } from '@xpenser/contracts';
+import { FieldLimits, type Vendor } from '@xpenser/contracts';
 import {
     Button,
     Card,
@@ -141,6 +141,7 @@ export function VendorDirectory({
                 <Input
                     aria-label="Search vendors"
                     defaultValue={search}
+                    maxLength={FieldLimits.vendorSearch}
                     name="search"
                     placeholder="Search by name, domain, or description"
                 />

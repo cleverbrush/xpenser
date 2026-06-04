@@ -6,7 +6,11 @@ import {
     useSchemaForm
 } from '@cleverbrush/react-form';
 import { object, string } from '@cleverbrush/schema';
-import type { Vendor, VendorCandidate } from '@xpenser/contracts';
+import {
+    FieldLimits,
+    type Vendor,
+    type VendorCandidate
+} from '@xpenser/contracts';
 import {
     Button,
     Dialog,
@@ -61,11 +65,23 @@ const VendorEditFormSchema = object({
     name: string()
         .required('Display name is required.')
         .nonempty('Display name is required.')
-        .maxLength(160, 'Display name is too long.'),
-    domain: string().maxLength(255, 'Website is too long.'),
-    description: string().maxLength(1000, 'Description is too long.'),
-    logoUrl: string().maxLength(1000, 'Logo URL is too long.'),
-    primaryColor: string().maxLength(7, 'Primary color is too long.')
+        .maxLength(FieldLimits.vendorName, 'Display name is too long.'),
+    domain: string().maxLength(
+        FieldLimits.vendorDomain,
+        'Website is too long.'
+    ),
+    description: string().maxLength(
+        FieldLimits.vendorDescription,
+        'Description is too long.'
+    ),
+    logoUrl: string().maxLength(
+        FieldLimits.vendorLogoUrl,
+        'Logo URL is too long.'
+    ),
+    primaryColor: string().maxLength(
+        FieldLimits.vendorPrimaryColor,
+        'Primary color is too long.'
+    )
 })
     .addValidator(value => {
         const logoUrl = value.logoUrl.trim();
@@ -520,7 +536,7 @@ function VendorProfileDialogForm({
                         field={name}
                         id="vendor-name"
                         label="Display name"
-                        maxLength={160}
+                        maxLength={FieldLimits.vendorName}
                         name="name"
                         required
                         submitted={submitted}
@@ -529,7 +545,7 @@ function VendorProfileDialogForm({
                         field={domain}
                         id="vendor-domain"
                         label="Website"
-                        maxLength={255}
+                        maxLength={FieldLimits.vendorDomain}
                         name="domain"
                         placeholder="walmart.com"
                         submitted={submitted}
@@ -538,7 +554,7 @@ function VendorProfileDialogForm({
                         field={logoUrl}
                         id="vendor-logo-url"
                         label="Logo URL"
-                        maxLength={1000}
+                        maxLength={FieldLimits.vendorLogoUrl}
                         name="logoUrl"
                         placeholder="https://example.com/logo.svg"
                         submitted={submitted}
@@ -547,7 +563,7 @@ function VendorProfileDialogForm({
                         field={primaryColor}
                         id="vendor-primary-color"
                         label="Primary color"
-                        maxLength={7}
+                        maxLength={FieldLimits.vendorPrimaryColor}
                         name="primaryColor"
                         placeholder="#2563eb"
                         submitted={submitted}
@@ -556,7 +572,7 @@ function VendorProfileDialogForm({
                         field={description}
                         id="vendor-description"
                         label="Description"
-                        maxLength={1000}
+                        maxLength={FieldLimits.vendorDescription}
                         name="description"
                         submitted={submitted}
                     />

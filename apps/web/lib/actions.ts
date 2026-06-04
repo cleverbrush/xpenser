@@ -1,30 +1,42 @@
 'use server';
 
 import { createHash, randomBytes } from 'node:crypto';
-import type { Transaction, Vendor, VendorCandidate } from '@xpenser/contracts';
+import {
+    type Transaction,
+    UpdateVendorBodySchema,
+    type Vendor,
+    type VendorCandidate
+} from '@xpenser/contracts';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { signIn, signOut } from '../auth';
 import { getAnonymousApiClient, getApiClient } from './api';
 import { webConfig } from './config';
+import { VendorUpdateActionRejected } from './log-templates';
+import { loggerFor } from './logger';
 
 const passportPkceCookie = 'xpenser_passport_pkce';
+const vendorActionLogger = loggerFor('Vendor actions');
+
+function normalizeFormText(value: string): string {
+    return value.replace(/\r\n?/g, '\n').trim();
+}
 
 function requiredString(formData: FormData, key: string): string {
     const value = formData.get(key);
-    if (typeof value !== 'string' || value.trim() === '') {
+    if (typeof value !== 'string' || normalizeFormText(value) === '') {
         throw new Error(`${key} is required`);
     }
-    return value.trim();
+    return normalizeFormText(value);
 }
 
 function optionalString(formData: FormData, key: string): string | undefined {
     const value = formData.get(key);
-    if (typeof value !== 'string' || value.trim() === '') {
+    if (typeof value !== 'string' || normalizeFormText(value) === '') {
         return undefined;
     }
-    return value.trim();
+    return normalizeFormText(value);
 }
 
 function nullableString(
@@ -35,7 +47,7 @@ function nullableString(
     if (typeof value !== 'string') {
         return undefined;
     }
-    const trimmed = value.trim();
+    const trimmed = normalizeFormText(value);
     return trimmed ? trimmed : null;
 }
 
@@ -60,7 +72,7 @@ function booleanString(
 
 function editableString(formData: FormData, key: string): string | undefined {
     const value = formData.get(key);
-    return typeof value === 'string' ? value.trim() : undefined;
+    return typeof value === 'string' ? normalizeFormText(value) : undefined;
 }
 
 function transactionBody(formData: FormData, editableNote = false) {
@@ -96,6 +108,77 @@ function vendorUpdateBody(formData: FormData) {
         logoUrl: nullableStringIfPresent(formData, 'logoUrl'),
         primaryColor: nullableStringIfPresent(formData, 'primaryColor')
     };
+}
+
+type VendorUpdateBody = ReturnType<typeof vendorUpdateBody>;
+
+function optionalLength(value: string | null | undefined): number {
+    return typeof value === 'string' ? value.length : 0;
+}
+
+function isHttpsUrl(value: string | null | undefined): boolean {
+    if (typeof value !== 'string' || value.trim() === '') {
+        return true;
+    }
+    try {
+        return new URL(value).protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+function isPrimaryColor(value: string | null | undefined): boolean {
+    if (typeof value !== 'string' || value.trim() === '') {
+        return true;
+    }
+    return /^#[0-9a-f]{6}$/i.test(value.trim());
+}
+
+function validationMessage(
+    validationResult: ReturnType<typeof UpdateVendorBodySchema.validate>
+): string | undefined {
+    const invalidProperties =
+        typeof validationResult.getInvalidProperties === 'function'
+            ? validationResult.getInvalidProperties()
+            : [];
+    const propertyError = invalidProperties
+        .flatMap(property => property.errors)
+        .find(error => error.trim() !== '');
+    if (propertyError) {
+        return propertyError;
+    }
+
+    return validationResult.errors?.find(error => error.message.trim() !== '')
+        ?.message;
+}
+
+function logVendorUpdateRejection({
+    apiMessage,
+    apiStatus,
+    body,
+    localSchemaError,
+    vendorId
+}: {
+    readonly apiMessage?: string;
+    readonly apiStatus: number;
+    readonly body: VendorUpdateBody;
+    readonly localSchemaError?: string;
+    readonly vendorId: number;
+}) {
+    vendorActionLogger.warn(VendorUpdateActionRejected, {
+        ApiMessage: apiMessage,
+        ApiStatus: apiStatus,
+        DescriptionLength: optionalLength(body.description),
+        DomainLength: optionalLength(body.domain),
+        LocalSchemaError: localSchemaError,
+        LocalSchemaValid: !localSchemaError,
+        LogoUrlFormatValid: isHttpsUrl(body.logoUrl),
+        LogoUrlLength: optionalLength(body.logoUrl),
+        NameLength: body.name.length,
+        PrimaryColorFormatValid: isPrimaryColor(body.primaryColor),
+        PrimaryColorLength: optionalLength(body.primaryColor),
+        VendorId: vendorId
+    });
 }
 
 function categoryBody(formData: FormData) {
@@ -404,17 +487,39 @@ export async function updateVendorAction(
 > {
     const id = Number(requiredString(formData, 'id'));
     const client = await getApiClient();
+    const body = vendorUpdateBody(formData);
+    const localValidation = UpdateVendorBodySchema.validate(body);
+    if (!localValidation.valid) {
+        const localSchemaError =
+            validationMessage(localValidation) ??
+            'Could not save vendor. Check the entered details.';
+        logVendorUpdateRejection({
+            apiStatus: 0,
+            body,
+            localSchemaError,
+            vendorId: id
+        });
+        return { error: localSchemaError };
+    }
+
     let vendor: Vendor;
     try {
         vendor = await client.vendors.update({
             params: { id },
-            body: vendorUpdateBody(formData)
+            body
         });
     } catch (err) {
         if (apiErrorStatus(err) === 400) {
+            const apiMessage = apiErrorMessage(err);
+            logVendorUpdateRejection({
+                apiMessage,
+                apiStatus: 400,
+                body,
+                vendorId: id
+            });
             return {
                 error:
-                    apiErrorMessage(err) ??
+                    apiMessage ??
                     'Could not save vendor. Check the entered details.'
             };
         }

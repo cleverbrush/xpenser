@@ -7,6 +7,7 @@ import type {
     VendorCandidateSearchQuery,
     VendorListQuery
 } from '@xpenser/contracts';
+import { FieldLimits } from '@xpenser/contracts';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -119,7 +120,7 @@ function domainText(value: string | undefined): string | undefined {
     const withoutProtocol = text.replace(/^https?:\/\//i, '');
     return truncate(
         withoutProtocol.split('/')[0]?.toLowerCase() ?? text.toLowerCase(),
-        255
+        FieldLimits.vendorDomain
     );
 }
 
@@ -143,7 +144,7 @@ function chooseLogoUrl(logos: unknown): string | undefined {
             formats.find(format => format.format === 'svg') ?? formats[0];
         const src = httpsUrl(nonemptyString(svg?.src));
         if (src) {
-            return truncate(src, 1000);
+            return truncate(src, FieldLimits.vendorLogoUrl);
         }
     }
 
@@ -246,14 +247,20 @@ function mapBrandSearchResult(
         return undefined;
     }
 
-    const name = truncate(nonemptyString(value.name), 160) ?? domain;
-    const brandfetchBrandId = truncate(nonemptyString(value.brandId), 100);
+    const name =
+        truncate(nonemptyString(value.name), FieldLimits.vendorName) ?? domain;
+    const brandfetchBrandId = truncate(
+        nonemptyString(value.brandId),
+        FieldLimits.brandfetchBrandId
+    );
     const logoUrl = httpsUrl(nonemptyString(value.icon));
     return {
         ...(brandfetchBrandId ? { brandfetchBrandId } : {}),
         name,
         domain,
-        ...(logoUrl ? { logoUrl: truncate(logoUrl, 1000) } : {}),
+        ...(logoUrl
+            ? { logoUrl: truncate(logoUrl, FieldLimits.vendorLogoUrl) }
+            : {}),
         ...(typeof value.claimed === 'boolean'
             ? { claimed: value.claimed }
             : {})
@@ -334,7 +341,8 @@ export async function getVendorCandidateDetails(
     }
 
     const name =
-        truncate(nonemptyString(update.resolvedName), 160) ?? resolvedDomain;
+        truncate(nonemptyString(update.resolvedName), FieldLimits.vendorName) ??
+        resolvedDomain;
     return {
         ...(brandfetchBrandId ? { brandfetchBrandId } : {}),
         name,
@@ -351,9 +359,15 @@ function brandfetchUpdate(json: BrandfetchResponse) {
         nonemptyString(json?.longDescription);
 
     const values = {
-        resolvedName: truncate(nonemptyString(json?.name), 160),
-        domain: truncate(nonemptyString(json?.domain), 255),
-        description: truncate(description, 1000),
+        resolvedName: truncate(
+            nonemptyString(json?.name),
+            FieldLimits.vendorName
+        ),
+        domain: truncate(
+            nonemptyString(json?.domain),
+            FieldLimits.vendorDomain
+        ),
+        description: truncate(description, FieldLimits.vendorDescription),
         logoUrl: chooseLogoUrl(json?.logos),
         primaryColor: choosePrimaryColor(json?.colors)
     };
@@ -631,11 +645,17 @@ function selectedVendorMetadata(body: CreateVendorBody) {
     return {
         brandfetchBrandId: truncate(
             nonemptyString(body.brandfetchBrandId),
-            100
+            FieldLimits.brandfetchBrandId
         ),
-        resolvedName: truncate(nonemptyString(body.resolvedName), 160),
+        resolvedName: truncate(
+            nonemptyString(body.resolvedName),
+            FieldLimits.vendorName
+        ),
         domain: domainText(nonemptyString(body.domain)),
-        logoUrl: truncate(httpsUrl(nonemptyString(body.logoUrl)), 1000)
+        logoUrl: truncate(
+            httpsUrl(nonemptyString(body.logoUrl)),
+            FieldLimits.vendorLogoUrl
+        )
     };
 }
 
@@ -802,7 +822,7 @@ function nullableText(
 }
 
 function nullableDomain(value: string | null | undefined) {
-    const text = nullableText(value, 255);
+    const text = nullableText(value, FieldLimits.vendorDomain);
     if (!text) {
         return text;
     }
@@ -811,7 +831,7 @@ function nullableDomain(value: string | null | undefined) {
 }
 
 function nullableLogoUrl(value: string | null | undefined) {
-    const text = nullableText(value, 1000);
+    const text = nullableText(value, FieldLimits.vendorLogoUrl);
     if (!text) {
         return text;
     }
@@ -823,7 +843,7 @@ function nullableLogoUrl(value: string | null | undefined) {
 }
 
 function nullablePrimaryColor(value: string | null | undefined) {
-    const text = nullableText(value, 7);
+    const text = nullableText(value, FieldLimits.vendorPrimaryColor);
     if (!text) {
         return text;
     }
@@ -866,13 +886,23 @@ export async function updateVendor(
         normalizedName,
         updatedAt: new Date(),
         ...(body.resolvedName !== undefined
-            ? { resolvedName: nullableText(body.resolvedName, 160) }
+            ? {
+                  resolvedName: nullableText(
+                      body.resolvedName,
+                      FieldLimits.vendorName
+                  )
+              }
             : {}),
         ...(body.domain !== undefined
             ? { domain: nullableDomain(body.domain) }
             : {}),
         ...(body.description !== undefined
-            ? { description: nullableText(body.description, 1000) }
+            ? {
+                  description: nullableText(
+                      body.description,
+                      FieldLimits.vendorDescription
+                  )
+              }
             : {}),
         ...(body.logoUrl !== undefined
             ? { logoUrl: nullableLogoUrl(body.logoUrl) }

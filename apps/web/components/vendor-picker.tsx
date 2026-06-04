@@ -1,6 +1,10 @@
 'use client';
 
-import type { Vendor, VendorCandidate } from '@xpenser/contracts';
+import {
+    FieldLimits,
+    type Vendor,
+    type VendorCandidate
+} from '@xpenser/contracts';
 import {
     Button,
     Field,
@@ -241,6 +245,7 @@ export function VendorPicker({
                     <Input
                         autoComplete="off"
                         id="vendor-search"
+                        maxLength={FieldLimits.vendorSearch}
                         onBlur={() => {
                             setTimeout(() => setOpen(false), 100);
                         }}

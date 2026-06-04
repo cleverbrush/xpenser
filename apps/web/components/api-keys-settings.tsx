@@ -1,6 +1,10 @@
 'use client';
 
-import type { ApiKey, CreateApiKeyResponse } from '@xpenser/contracts';
+import {
+    type ApiKey,
+    type CreateApiKeyResponse,
+    FieldLimits
+} from '@xpenser/contracts';
 import {
     Badge,
     Button,
@@ -97,7 +101,7 @@ export function ApiKeysSettings({ apiKeys }: ApiKeysSettingsProps) {
                         <div className="flex flex-col gap-2 sm:flex-row">
                             <Input
                                 id="api-key-name"
-                                maxLength={120}
+                                maxLength={FieldLimits.apiKeyName}
                                 name="name"
                                 onChange={event => setName(event.target.value)}
                                 placeholder="Laptop import script"
