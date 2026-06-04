@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+    fireEvent,
+    render,
+    screen,
+    waitFor,
+    within
+} from '@testing-library/react';
 import type { Vendor } from '@xpenser/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VendorProfileActions } from './vendor-actions';
@@ -110,31 +116,82 @@ describe('VendorProfileActions', () => {
         expect(refresh).toHaveBeenCalledOnce();
     });
 
-    it('validates editable vendor metadata before saving', async () => {
-        render(<VendorProfileActions vendor={vendor()} />);
+    it('populates editable fields when the dialog opens', () => {
+        render(
+            <VendorProfileActions
+                vendor={vendor({
+                    description: 'Legacy profile description.',
+                    logoUrl: 'https://cdn.example.com/walmart.svg',
+                    primaryColor: '#0071ce'
+                })}
+            />
+        );
 
         fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
-        fireEvent.change(screen.getByLabelText('Logo URL'), {
-            target: { value: 'http://example.com/logo.svg' }
-        });
-        fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
 
         expect(
-            await screen.findByText('Logo URL must be a valid HTTPS URL.')
-        ).toBeTruthy();
-        expect(updateVendorAction).not.toHaveBeenCalled();
+            (screen.getByLabelText('Display name') as HTMLInputElement).value
+        ).toBe('Old Walmart');
+        expect(
+            (screen.getByLabelText('Website') as HTMLInputElement).value
+        ).toBe('old.example');
+        expect(
+            (screen.getByLabelText('Logo URL') as HTMLInputElement).value
+        ).toBe('https://cdn.example.com/walmart.svg');
+        expect(
+            (screen.getByLabelText('Primary color') as HTMLInputElement).value
+        ).toBe('#0071ce');
+        expect(
+            (screen.getByLabelText('Description') as HTMLTextAreaElement).value
+        ).toBe('Legacy profile description.');
+    });
 
+    it('shows field-level validation messages before saving', async () => {
+        render(
+            <VendorProfileActions
+                vendor={vendor({
+                    description: 'Valid description.',
+                    logoUrl: 'https://cdn.example.com/walmart.svg',
+                    primaryColor: '#0071ce'
+                })}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        fireEvent.change(screen.getByLabelText('Display name'), {
+            target: { value: '' }
+        });
+        fireEvent.change(screen.getByLabelText('Website'), {
+            target: { value: 'x'.repeat(256) }
+        });
         fireEvent.change(screen.getByLabelText('Logo URL'), {
-            target: { value: 'https://example.com/logo.svg' }
+            target: { value: 'http://example.com/logo.svg' }
         });
         fireEvent.change(screen.getByLabelText('Primary color'), {
             target: { value: '0071ce' }
         });
+        fireEvent.change(screen.getByLabelText('Description'), {
+            target: { value: 'x'.repeat(1001) }
+        });
         fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
 
         expect(
-            await screen.findByText(
-                'Primary color must be a six-digit hex color.'
+            await screen.findByText('Display name is required.')
+        ).toBeTruthy();
+        expect(screen.getByText('Website is too long.')).toBeTruthy();
+        expect(
+            screen.getByText('Logo URL must be a valid HTTPS URL.')
+        ).toBeTruthy();
+        expect(
+            screen.getByText('Primary color must be a six-digit hex color.')
+        ).toBeTruthy();
+        expect(screen.getByText('Description is too long.')).toBeTruthy();
+
+        const logoField = screen.getByLabelText('Logo URL').closest('div');
+        expect(logoField).toBeTruthy();
+        expect(
+            within(logoField as HTMLElement).getByText(
+                'Logo URL must be a valid HTTPS URL.'
             )
         ).toBeTruthy();
         expect(updateVendorAction).not.toHaveBeenCalled();

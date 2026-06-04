@@ -1,6 +1,10 @@
 'use client';
 
-import { useSchemaForm } from '@cleverbrush/react-form';
+import {
+    type SchemaFormInstance,
+    type UseFieldResult,
+    useSchemaForm
+} from '@cleverbrush/react-form';
 import { object, string } from '@cleverbrush/schema';
 import type { Vendor, VendorCandidate } from '@xpenser/contracts';
 import {
@@ -18,7 +22,7 @@ import {
 } from '@xpenser/ui';
 import { PencilIcon, RefreshCwIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import {
     getVendorCandidateDetailsAction,
     searchVendorCandidatesAction,
@@ -55,13 +59,13 @@ function isHttpsUrl(value: string): boolean {
 
 const VendorEditFormSchema = object({
     name: string()
-        .required('vendor name is required')
-        .nonempty('vendor name is required')
-        .maxLength(160, 'vendor name is too long'),
-    domain: string().maxLength(255, 'domain is too long'),
-    description: string().maxLength(1000, 'description is too long'),
-    logoUrl: string().maxLength(1000, 'logo URL is too long'),
-    primaryColor: string().maxLength(7, 'primary color is too long')
+        .required('Display name is required.')
+        .nonempty('Display name is required.')
+        .maxLength(160, 'Display name is too long.'),
+    domain: string().maxLength(255, 'Website is too long.'),
+    description: string().maxLength(1000, 'Description is too long.'),
+    logoUrl: string().maxLength(1000, 'Logo URL is too long.'),
+    primaryColor: string().maxLength(7, 'Primary color is too long.')
 })
     .addValidator(value => {
         const logoUrl = value.logoUrl.trim();
@@ -95,6 +99,10 @@ const VendorEditFormSchema = object({
             ]
         };
     });
+
+type VendorEditForm = SchemaFormInstance<typeof VendorEditFormSchema>;
+
+type VendorDialogMode = 'edit' | 'refresh';
 
 function errorMessage(error: unknown, fallback: string): string {
     const body =
@@ -136,6 +144,103 @@ function candidateProfileValues(
             ? { primaryColor: candidate.primaryColor }
             : {})
     };
+}
+
+function shouldShowFieldError(
+    field: UseFieldResult<string>,
+    submitted: boolean
+): boolean {
+    return Boolean(field.error) && (submitted || field.touched);
+}
+
+function VendorTextField({
+    field,
+    id,
+    label,
+    maxLength,
+    name,
+    placeholder,
+    required,
+    submitted
+}: {
+    readonly field: UseFieldResult<string>;
+    readonly id: string;
+    readonly label: string;
+    readonly maxLength?: number;
+    readonly name: string;
+    readonly placeholder?: string;
+    readonly required?: boolean;
+    readonly submitted: boolean;
+}) {
+    const invalid = shouldShowFieldError(field, submitted);
+    const errorId = `${id}-error`;
+
+    return (
+        <Field data-invalid={invalid ? true : undefined}>
+            <FieldLabel htmlFor={id}>{label}</FieldLabel>
+            <Input
+                aria-describedby={invalid ? errorId : undefined}
+                aria-invalid={invalid}
+                id={id}
+                maxLength={maxLength}
+                name={name}
+                onBlur={field.onBlur}
+                onChange={event => field.onChange(event.target.value)}
+                placeholder={placeholder}
+                required={required}
+                value={String(field.value ?? '')}
+            />
+            {invalid ? (
+                <FieldError id={errorId} role="alert">
+                    {field.error}
+                </FieldError>
+            ) : null}
+        </Field>
+    );
+}
+
+function VendorTextareaField({
+    field,
+    id,
+    label,
+    maxLength,
+    name,
+    submitted
+}: {
+    readonly field: UseFieldResult<string>;
+    readonly id: string;
+    readonly label: string;
+    readonly maxLength?: number;
+    readonly name: string;
+    readonly submitted: boolean;
+}) {
+    const invalid = shouldShowFieldError(field, submitted);
+    const errorId = `${id}-error`;
+
+    return (
+        <Field
+            className="sm:col-span-2"
+            data-invalid={invalid ? true : undefined}
+        >
+            <FieldLabel htmlFor={id}>{label}</FieldLabel>
+            <textarea
+                aria-describedby={invalid ? errorId : undefined}
+                aria-invalid={invalid}
+                className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                id={id}
+                maxLength={maxLength}
+                name={name}
+                onBlur={field.onBlur}
+                onChange={event => field.onChange(event.target.value)}
+                value={String(field.value ?? '')}
+            />
+            {invalid ? (
+                <FieldError id={errorId} role="alert">
+                    {field.error}
+                </FieldError>
+            ) : null}
+        </Field>
+    );
 }
 
 function textValue(value: string | undefined): string {
@@ -209,20 +314,28 @@ function SuggestedFieldReview({
     );
 }
 
-export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
-    const router = useRouter();
-    const form = useSchemaForm(VendorEditFormSchema);
+function VendorProfileDialogForm({
+    form,
+    mode,
+    onSaved,
+    vendor
+}: {
+    readonly form: VendorEditForm;
+    readonly mode: VendorDialogMode;
+    readonly onSaved: () => void;
+    readonly vendor: Vendor;
+}) {
     const name = form.useField(field => field.name);
     const domain = form.useField(field => field.domain);
     const logoUrl = form.useField(field => field.logoUrl);
     const primaryColor = form.useField(field => field.primaryColor);
     const description = form.useField(field => field.description);
-    const [open, setOpen] = useState(false);
     const [pending, setPending] = useState(false);
     const [suggestionPending, setSuggestionPending] = useState(false);
     const [searchPending, setSearchPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [searchError, setSearchError] = useState<string | null>(null);
+    const [submitted, setSubmitted] = useState(false);
     const [search, setSearch] = useState('');
     const [candidates, setCandidates] = useState<readonly VendorCandidate[]>(
         []
@@ -246,7 +359,7 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
 
     useEffect(() => {
         const query = search.trim();
-        if (!open || query.length < 2) {
+        if (query.length < 2) {
             setCandidates([]);
             setSearchPending(false);
             setSearchError(null);
@@ -280,78 +393,59 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
             active = false;
             clearTimeout(timeout);
         };
-    }, [open, search]);
+    }, [search]);
 
-    function resetDialog() {
-        form.reset(vendorProfileValues(vendor));
-        setSearch('');
-        setCandidates([]);
-        setSuggested(null);
-        setError(null);
-        setSearchError(null);
-        setPending(false);
-        setSuggestionPending(false);
-        setSearchPending(false);
-    }
+    const loadSuggestion = useCallback(
+        async (candidate: {
+            readonly brandfetchBrandId?: string;
+            readonly domain?: string;
+            readonly fallback?: VendorCandidate;
+        }) => {
+            const currentValues = form.getValue();
+            setSuggestionPending(true);
+            setError(null);
+            try {
+                const details = await getVendorCandidateDetailsAction({
+                    brandfetchBrandId: candidate.brandfetchBrandId,
+                    domain: candidate.domain
+                });
+                const nextSuggestion = candidateProfileValues(
+                    details ??
+                        candidate.fallback ?? {
+                            name:
+                                candidate.domain ??
+                                currentValues.name ??
+                                vendor.name,
+                            domain:
+                                candidate.domain ??
+                                currentValues.domain ??
+                                vendor.domain ??
+                                ''
+                        }
+                );
+                setSuggested(nextSuggestion);
+                setSearch('');
+                setCandidates([]);
+            } catch {
+                setError('Could not load suggested vendor details.');
+            } finally {
+                setSuggestionPending(false);
+            }
+        },
+        [form, vendor.domain, vendor.name]
+    );
 
-    function handleOpenChange(nextOpen: boolean) {
-        setOpen(nextOpen);
-        if (!nextOpen) {
-            resetDialog();
+    useEffect(() => {
+        if (mode !== 'refresh') {
+            return;
         }
-    }
 
-    function openEditor() {
-        resetDialog();
-        setOpen(true);
-    }
-
-    async function loadSuggestion(candidate: {
-        readonly brandfetchBrandId?: string;
-        readonly domain?: string;
-        readonly fallback?: VendorCandidate;
-    }) {
-        const currentValues = form.getValue();
-        setSuggestionPending(true);
-        setError(null);
-        try {
-            const details = await getVendorCandidateDetailsAction({
-                brandfetchBrandId: candidate.brandfetchBrandId,
-                domain: candidate.domain
-            });
-            const nextSuggestion = candidateProfileValues(
-                details ??
-                    candidate.fallback ?? {
-                        name:
-                            candidate.domain ??
-                            currentValues.name ??
-                            vendor.name,
-                        domain:
-                            candidate.domain ??
-                            currentValues.domain ??
-                            vendor.domain ??
-                            ''
-                    }
-            );
-            setSuggested(nextSuggestion);
-            setSearch('');
-            setCandidates([]);
-        } catch {
-            setError('Could not load suggested vendor details.');
-        } finally {
-            setSuggestionPending(false);
-        }
-    }
-
-    async function openRefresh() {
-        resetDialog();
-        setOpen(true);
         if (vendor.domain) {
-            await loadSuggestion({ domain: vendor.domain });
+            void loadSuggestion({ domain: vendor.domain });
         } else {
             setSearch(vendor.name);
         }
-    }
+    }, [loadSuggestion, mode, vendor.domain, vendor.name]);
 
     function setField(field: VendorProfileField, value: string) {
         switch (field) {
@@ -384,6 +478,7 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setError(null);
+        setSubmitted(true);
         const result = await form.submit();
         if (!result.valid || !result.object) {
             return;
@@ -398,8 +493,7 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
                 setError(response.error);
                 return;
             }
-            router.refresh();
-            setOpen(false);
+            onSaved();
         } catch (caught) {
             if (isNextRedirectError(caught)) {
                 throw caught;
@@ -411,9 +505,195 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
     }
 
     return (
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Edit vendor</DialogTitle>
+            </DialogHeader>
+            <form
+                className="flex flex-col gap-5"
+                noValidate
+                onSubmit={handleSubmit}
+            >
+                <input name="id" type="hidden" value={vendor.id} />
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <VendorTextField
+                        field={name}
+                        id="vendor-name"
+                        label="Display name"
+                        maxLength={160}
+                        name="name"
+                        required
+                        submitted={submitted}
+                    />
+                    <VendorTextField
+                        field={domain}
+                        id="vendor-domain"
+                        label="Website"
+                        maxLength={255}
+                        name="domain"
+                        placeholder="walmart.com"
+                        submitted={submitted}
+                    />
+                    <VendorTextField
+                        field={logoUrl}
+                        id="vendor-logo-url"
+                        label="Logo URL"
+                        maxLength={1000}
+                        name="logoUrl"
+                        placeholder="https://example.com/logo.svg"
+                        submitted={submitted}
+                    />
+                    <VendorTextField
+                        field={primaryColor}
+                        id="vendor-primary-color"
+                        label="Primary color"
+                        maxLength={7}
+                        name="primaryColor"
+                        placeholder="#2563eb"
+                        submitted={submitted}
+                    />
+                    <VendorTextareaField
+                        field={description}
+                        id="vendor-description"
+                        label="Description"
+                        maxLength={1000}
+                        name="description"
+                        submitted={submitted}
+                    />
+                </div>
+
+                <Field>
+                    <FieldLabel htmlFor="vendor-brand-search">
+                        Find brand details
+                    </FieldLabel>
+                    <Input
+                        autoComplete="off"
+                        id="vendor-brand-search"
+                        onChange={event => setSearch(event.target.value)}
+                        placeholder="Search Brandfetch"
+                        value={search}
+                    />
+                    <FieldDescription>
+                        Choose a suggested brand, then approve only the fields
+                        you want to use.
+                    </FieldDescription>
+                </Field>
+
+                {searchPending ? (
+                    <FieldDescription>Searching brands...</FieldDescription>
+                ) : null}
+                {searchError ? (
+                    <FieldDescription>{searchError}</FieldDescription>
+                ) : null}
+                {candidates.length > 0 ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                        {candidates.slice(0, 6).map(candidate => (
+                            <Button
+                                className="h-auto justify-start gap-2 px-2 py-2"
+                                disabled={suggestionPending}
+                                key={suggestionKey(candidate)}
+                                onClick={() =>
+                                    void loadSuggestion({
+                                        brandfetchBrandId:
+                                            candidate.brandfetchBrandId,
+                                        domain: candidate.domain,
+                                        fallback: candidate
+                                    })
+                                }
+                                type="button"
+                                variant="outline"
+                            >
+                                <VendorLogo
+                                    vendor={{
+                                        displayName: candidate.name,
+                                        logoUrl: candidate.logoUrl,
+                                        name: candidate.name
+                                    }}
+                                    size="sm"
+                                />
+                                <span className="min-w-0 text-left">
+                                    <span className="block truncate">
+                                        {candidate.name}
+                                    </span>
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                        {candidate.domain}
+                                    </span>
+                                </span>
+                            </Button>
+                        ))}
+                    </div>
+                ) : null}
+
+                {suggestionPending ? (
+                    <FieldDescription>
+                        Loading suggested details...
+                    </FieldDescription>
+                ) : null}
+                {suggested ? (
+                    <div className="flex flex-col gap-2">
+                        <div>
+                            <p className="text-sm font-medium">
+                                Review suggested changes
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                Use only the fields that look correct.
+                            </p>
+                        </div>
+                        {suggestedFields.length > 0 ? (
+                            suggestedFields.map(field => (
+                                <SuggestedFieldReview
+                                    field={field}
+                                    key={field}
+                                    onAccept={acceptSuggestion}
+                                    onKeep={() => {
+                                        setSuggested(current => {
+                                            if (!current) {
+                                                return current;
+                                            }
+                                            const next = { ...current };
+                                            delete next[field];
+                                            return next;
+                                        });
+                                    }}
+                                    suggested={suggested}
+                                    values={values}
+                                />
+                            ))
+                        ) : (
+                            <FieldDescription>
+                                No new suggested fields.
+                            </FieldDescription>
+                        )}
+                    </div>
+                ) : null}
+
+                {error ? <FieldError role="alert">{error}</FieldError> : null}
+                <DialogFooter>
+                    <Button disabled={pending} type="submit">
+                        {pending ? 'Saving...' : 'Save vendor'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    );
+}
+
+export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
+    const router = useRouter();
+    const form = useSchemaForm(VendorEditFormSchema);
+    const [open, setOpen] = useState(false);
+    const [mode, setMode] = useState<VendorDialogMode>('edit');
+
+    function openDialog(nextMode: VendorDialogMode) {
+        form.reset(vendorProfileValues(vendor));
+        setMode(nextMode);
+        setOpen(true);
+    }
+
+    return (
         <>
             <Button
-                onClick={openEditor}
+                onClick={() => openDialog('edit')}
                 size="sm"
                 type="button"
                 variant="outline"
@@ -422,298 +702,26 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
                 Edit
             </Button>
             <Button
-                disabled={suggestionPending}
-                onClick={() => {
-                    void openRefresh();
-                }}
+                onClick={() => openDialog('refresh')}
                 size="sm"
                 type="button"
                 variant="outline"
             >
                 <RefreshCwIcon aria-hidden className="size-4" />
-                {suggestionPending ? 'Refreshing...' : 'Refresh details'}
+                Refresh details
             </Button>
-            <Dialog onOpenChange={handleOpenChange} open={open}>
-                <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Edit vendor</DialogTitle>
-                    </DialogHeader>
-                    <form
-                        className="flex flex-col gap-5"
-                        noValidate
-                        onSubmit={handleSubmit}
-                    >
-                        <input name="id" type="hidden" value={vendor.id} />
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Field
-                                data-invalid={
-                                    name.touched && name.error
-                                        ? true
-                                        : undefined
-                                }
-                            >
-                                <FieldLabel htmlFor="vendor-name">
-                                    Display name
-                                </FieldLabel>
-                                <Input
-                                    aria-invalid={
-                                        name.touched && Boolean(name.error)
-                                    }
-                                    id="vendor-name"
-                                    maxLength={160}
-                                    name="name"
-                                    onBlur={name.onBlur}
-                                    onChange={event =>
-                                        name.onChange(event.target.value)
-                                    }
-                                    required
-                                    value={values.name}
-                                />
-                                {name.touched && name.error ? (
-                                    <FieldError>{name.error}</FieldError>
-                                ) : null}
-                            </Field>
-                            <Field
-                                data-invalid={
-                                    domain.touched && domain.error
-                                        ? true
-                                        : undefined
-                                }
-                            >
-                                <FieldLabel htmlFor="vendor-domain">
-                                    Website
-                                </FieldLabel>
-                                <Input
-                                    aria-invalid={
-                                        domain.touched && Boolean(domain.error)
-                                    }
-                                    id="vendor-domain"
-                                    maxLength={255}
-                                    name="domain"
-                                    onBlur={domain.onBlur}
-                                    onChange={event =>
-                                        domain.onChange(event.target.value)
-                                    }
-                                    placeholder="walmart.com"
-                                    value={values.domain}
-                                />
-                                {domain.touched && domain.error ? (
-                                    <FieldError>{domain.error}</FieldError>
-                                ) : null}
-                            </Field>
-                            <Field
-                                data-invalid={
-                                    logoUrl.touched && logoUrl.error
-                                        ? true
-                                        : undefined
-                                }
-                            >
-                                <FieldLabel htmlFor="vendor-logo-url">
-                                    Logo URL
-                                </FieldLabel>
-                                <Input
-                                    aria-invalid={
-                                        logoUrl.touched &&
-                                        Boolean(logoUrl.error)
-                                    }
-                                    id="vendor-logo-url"
-                                    maxLength={1000}
-                                    name="logoUrl"
-                                    onBlur={logoUrl.onBlur}
-                                    onChange={event =>
-                                        logoUrl.onChange(event.target.value)
-                                    }
-                                    placeholder="https://example.com/logo.svg"
-                                    value={values.logoUrl}
-                                />
-                                {logoUrl.touched && logoUrl.error ? (
-                                    <FieldError>{logoUrl.error}</FieldError>
-                                ) : null}
-                            </Field>
-                            <Field
-                                data-invalid={
-                                    primaryColor.touched && primaryColor.error
-                                        ? true
-                                        : undefined
-                                }
-                            >
-                                <FieldLabel htmlFor="vendor-primary-color">
-                                    Primary color
-                                </FieldLabel>
-                                <Input
-                                    aria-invalid={
-                                        primaryColor.touched &&
-                                        Boolean(primaryColor.error)
-                                    }
-                                    id="vendor-primary-color"
-                                    maxLength={7}
-                                    name="primaryColor"
-                                    onBlur={primaryColor.onBlur}
-                                    onChange={event =>
-                                        primaryColor.onChange(
-                                            event.target.value
-                                        )
-                                    }
-                                    placeholder="#2563eb"
-                                    value={values.primaryColor}
-                                />
-                                {primaryColor.touched && primaryColor.error ? (
-                                    <FieldError>
-                                        {primaryColor.error}
-                                    </FieldError>
-                                ) : null}
-                            </Field>
-                            <Field
-                                className="sm:col-span-2"
-                                data-invalid={
-                                    description.touched && description.error
-                                        ? true
-                                        : undefined
-                                }
-                            >
-                                <FieldLabel htmlFor="vendor-description">
-                                    Description
-                                </FieldLabel>
-                                <textarea
-                                    aria-invalid={
-                                        description.touched &&
-                                        Boolean(description.error)
-                                    }
-                                    className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                    id="vendor-description"
-                                    maxLength={1000}
-                                    name="description"
-                                    onBlur={description.onBlur}
-                                    onChange={event =>
-                                        description.onChange(event.target.value)
-                                    }
-                                    value={values.description}
-                                />
-                                {description.touched && description.error ? (
-                                    <FieldError>{description.error}</FieldError>
-                                ) : null}
-                            </Field>
-                        </div>
-
-                        <Field>
-                            <FieldLabel htmlFor="vendor-brand-search">
-                                Find brand details
-                            </FieldLabel>
-                            <Input
-                                autoComplete="off"
-                                id="vendor-brand-search"
-                                onChange={event =>
-                                    setSearch(event.target.value)
-                                }
-                                placeholder="Search Brandfetch"
-                                value={search}
-                            />
-                            <FieldDescription>
-                                Choose a suggested brand, then approve only the
-                                fields you want to use.
-                            </FieldDescription>
-                        </Field>
-
-                        {searchPending ? (
-                            <FieldDescription>
-                                Searching brands...
-                            </FieldDescription>
-                        ) : null}
-                        {searchError ? (
-                            <FieldDescription>{searchError}</FieldDescription>
-                        ) : null}
-                        {candidates.length > 0 ? (
-                            <div className="grid gap-2 sm:grid-cols-2">
-                                {candidates.slice(0, 6).map(candidate => (
-                                    <Button
-                                        className="h-auto justify-start gap-2 px-2 py-2"
-                                        disabled={suggestionPending}
-                                        key={suggestionKey(candidate)}
-                                        onClick={() =>
-                                            void loadSuggestion({
-                                                brandfetchBrandId:
-                                                    candidate.brandfetchBrandId,
-                                                domain: candidate.domain,
-                                                fallback: candidate
-                                            })
-                                        }
-                                        type="button"
-                                        variant="outline"
-                                    >
-                                        <VendorLogo
-                                            vendor={{
-                                                displayName: candidate.name,
-                                                logoUrl: candidate.logoUrl,
-                                                name: candidate.name
-                                            }}
-                                            size="sm"
-                                        />
-                                        <span className="min-w-0 text-left">
-                                            <span className="block truncate">
-                                                {candidate.name}
-                                            </span>
-                                            <span className="block truncate text-xs text-muted-foreground">
-                                                {candidate.domain}
-                                            </span>
-                                        </span>
-                                    </Button>
-                                ))}
-                            </div>
-                        ) : null}
-
-                        {suggestionPending ? (
-                            <FieldDescription>
-                                Loading suggested details...
-                            </FieldDescription>
-                        ) : null}
-                        {suggested ? (
-                            <div className="flex flex-col gap-2">
-                                <div>
-                                    <p className="text-sm font-medium">
-                                        Review suggested changes
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        Use only the fields that look correct.
-                                    </p>
-                                </div>
-                                {suggestedFields.length > 0 ? (
-                                    suggestedFields.map(field => (
-                                        <SuggestedFieldReview
-                                            field={field}
-                                            key={field}
-                                            onAccept={acceptSuggestion}
-                                            onKeep={() => {
-                                                setSuggested(current => {
-                                                    if (!current) {
-                                                        return current;
-                                                    }
-                                                    const next = { ...current };
-                                                    delete next[field];
-                                                    return next;
-                                                });
-                                            }}
-                                            suggested={suggested}
-                                            values={values}
-                                        />
-                                    ))
-                                ) : (
-                                    <FieldDescription>
-                                        No new suggested fields.
-                                    </FieldDescription>
-                                )}
-                            </div>
-                        ) : null}
-
-                        {error ? (
-                            <FieldError role="alert">{error}</FieldError>
-                        ) : null}
-                        <DialogFooter>
-                            <Button disabled={pending} type="submit">
-                                {pending ? 'Saving...' : 'Save vendor'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
+            <Dialog onOpenChange={setOpen} open={open}>
+                {open ? (
+                    <VendorProfileDialogForm
+                        form={form}
+                        mode={mode}
+                        onSaved={() => {
+                            router.refresh();
+                            setOpen(false);
+                        }}
+                        vendor={vendor}
+                    />
+                ) : null}
             </Dialog>
         </>
     );
