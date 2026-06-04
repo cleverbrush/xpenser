@@ -90,7 +90,7 @@ describe('transaction scan route', () => {
             baseUrl: 'https://api.example.test',
             getToken: expect.any(Function),
             retryOnTimeout: false,
-            timeoutMs: 60_000
+            timeoutMs: 95_000
         });
         expect(mocks.transactionScanCreate).toHaveBeenCalledWith({
             body: {
