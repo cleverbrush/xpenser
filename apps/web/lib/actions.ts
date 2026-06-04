@@ -396,13 +396,30 @@ export async function getVendorCandidateDetailsAction({
     }
 }
 
-export async function updateVendorAction(formData: FormData): Promise<Vendor> {
+export async function updateVendorAction(
+    formData: FormData
+): Promise<
+    | { readonly error: string; readonly vendor?: undefined }
+    | { readonly error?: undefined; readonly vendor: Vendor }
+> {
     const id = Number(requiredString(formData, 'id'));
     const client = await getApiClient();
-    const vendor = await client.vendors.update({
-        params: { id },
-        body: vendorUpdateBody(formData)
-    });
+    let vendor: Vendor;
+    try {
+        vendor = await client.vendors.update({
+            params: { id },
+            body: vendorUpdateBody(formData)
+        });
+    } catch (err) {
+        if (apiErrorStatus(err) === 400) {
+            return {
+                error:
+                    apiErrorMessage(err) ??
+                    'Could not save vendor. Check the entered details.'
+            };
+        }
+        throw err;
+    }
     revalidateTag('vendors', 'max');
     revalidateTag('transactions', 'max');
     revalidatePath('/capture');
@@ -411,7 +428,7 @@ export async function updateVendorAction(formData: FormData): Promise<Vendor> {
     revalidatePath(`/settings/vendors/${id}`);
     revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
-    return vendor;
+    return { vendor };
 }
 
 export async function retryVendorEnrichmentAction(

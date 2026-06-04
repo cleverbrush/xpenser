@@ -15,6 +15,12 @@ export const TransactionCreated = parseString(
     $t => $t`Transaction ${t => t.TransactionId} created by ${t => t.UserId}`
 );
 
+export const VendorUpdateValidationRejected = parseString(
+    object({ Reason: string(), UserId: number(), VendorId: number() }),
+    $t =>
+        $t`Vendor ${t => t.VendorId} update rejected for ${t => t.UserId}: ${t => t.Reason}`
+);
+
 export const McpTransportError = parseString(
     object({ UserId: number() }),
     $t => $t`MCP transport error for ${t => t.UserId}`

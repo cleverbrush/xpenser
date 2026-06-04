@@ -41,6 +41,14 @@ export const TimeZoneSchema = string()
     .describe('IANA time zone identifier, for example UTC or America/New_York.')
     .schemaName('TimeZone');
 
+function isHttpsUrl(value: string): boolean {
+    try {
+        return new URL(value).protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
 export const CategoryTypeSchema = enumOf('expense', 'income')
     .required('category type is required')
     .describe('Whether a category is used for expenses or income.')
@@ -928,9 +936,42 @@ export const UpdateVendorBodySchema = object({
     primaryColor: string()
         .nullable()
         .optional()
-        .matches(/^#[0-9a-f]{6}$/i, 'primary color must be a hex color')
+        .maxLength(7, 'primary color is too long')
         .describe('Manually adjusted primary color hex code.')
-}).schemaName('UpdateVendorBody');
+})
+    .addValidator(value => {
+        const logoUrl = value.logoUrl?.trim();
+        if (!logoUrl || isHttpsUrl(logoUrl)) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'Logo URL must be a valid HTTPS URL.',
+                    property: field => field.logoUrl
+                }
+            ]
+        };
+    })
+    .addValidator(value => {
+        const primaryColor = value.primaryColor?.trim();
+        if (!primaryColor || /^#[0-9a-f]{6}$/i.test(primaryColor)) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'Primary color must be a six-digit hex color.',
+                    property: field => field.primaryColor
+                }
+            ]
+        };
+    })
+    .schemaName('UpdateVendorBody');
 
 export const TransactionSchema = object({
     /** Unique transaction identifier. */

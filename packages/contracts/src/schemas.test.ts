@@ -246,6 +246,34 @@ describe('shared schemas', () => {
                 primaryColor: '#cc0000'
             }).valid
         ).toBe(true);
+
+        expect(
+            UpdateVendorBodySchema.validate({
+                name: 'Trader Joe',
+                logoUrl: '',
+                primaryColor: ''
+            }).valid
+        ).toBe(true);
+    });
+
+    it('validates editable vendor metadata formats', () => {
+        const logoResult = UpdateVendorBodySchema.validate({
+            name: 'Trader Joe',
+            logoUrl: 'http://example.com/logo.svg'
+        });
+        expect(logoResult.valid).toBe(false);
+        expect(logoResult.getErrorsFor(field => field.logoUrl).errors).toEqual([
+            'Logo URL must be a valid HTTPS URL.'
+        ]);
+
+        const colorResult = UpdateVendorBodySchema.validate({
+            name: 'Trader Joe',
+            primaryColor: '0071ce'
+        });
+        expect(colorResult.valid).toBe(false);
+        expect(
+            colorResult.getErrorsFor(field => field.primaryColor).errors
+        ).toEqual(['Primary color must be a six-digit hex color.']);
     });
 
     it('returns required messages before format messages for empty login fields', () => {

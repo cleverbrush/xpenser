@@ -1,5 +1,7 @@
 'use client';
 
+import { useSchemaForm } from '@cleverbrush/react-form';
+import { object, string } from '@cleverbrush/schema';
 import type { Vendor, VendorCandidate } from '@xpenser/contracts';
 import {
     Button,
@@ -16,13 +18,13 @@ import {
 } from '@xpenser/ui';
 import { PencilIcon, RefreshCwIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import {
     getVendorCandidateDetailsAction,
     searchVendorCandidatesAction,
     updateVendorAction
 } from '@/lib/actions';
-import { isNextRedirectError } from './forms/form-utils';
+import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 import { VendorLogo } from './vendor-display';
 
 type VendorProfileValues = {
@@ -42,6 +44,57 @@ const profileFieldLabels: Record<VendorProfileField, string> = {
     logoUrl: 'Logo URL',
     primaryColor: 'Primary color'
 };
+
+function isHttpsUrl(value: string): boolean {
+    try {
+        return new URL(value).protocol === 'https:';
+    } catch {
+        return false;
+    }
+}
+
+const VendorEditFormSchema = object({
+    name: string()
+        .required('vendor name is required')
+        .nonempty('vendor name is required')
+        .maxLength(160, 'vendor name is too long'),
+    domain: string().maxLength(255, 'domain is too long'),
+    description: string().maxLength(1000, 'description is too long'),
+    logoUrl: string().maxLength(1000, 'logo URL is too long'),
+    primaryColor: string().maxLength(7, 'primary color is too long')
+})
+    .addValidator(value => {
+        const logoUrl = value.logoUrl.trim();
+        if (!logoUrl || isHttpsUrl(logoUrl)) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'Logo URL must be a valid HTTPS URL.',
+                    property: field => field.logoUrl
+                }
+            ]
+        };
+    })
+    .addValidator(value => {
+        const primaryColor = value.primaryColor.trim();
+        if (!primaryColor || /^#[0-9a-f]{6}$/i.test(primaryColor)) {
+            return { valid: true };
+        }
+
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'Primary color must be a six-digit hex color.',
+                    property: field => field.primaryColor
+                }
+            ]
+        };
+    });
 
 function errorMessage(error: unknown, fallback: string): string {
     const body =
@@ -158,10 +211,13 @@ function SuggestedFieldReview({
 
 export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
     const router = useRouter();
+    const form = useSchemaForm(VendorEditFormSchema);
+    const name = form.useField(field => field.name);
+    const domain = form.useField(field => field.domain);
+    const logoUrl = form.useField(field => field.logoUrl);
+    const primaryColor = form.useField(field => field.primaryColor);
+    const description = form.useField(field => field.description);
     const [open, setOpen] = useState(false);
-    const [values, setValues] = useState<VendorProfileValues>(() =>
-        vendorProfileValues(vendor)
-    );
     const [pending, setPending] = useState(false);
     const [suggestionPending, setSuggestionPending] = useState(false);
     const [searchPending, setSearchPending] = useState(false);
@@ -174,15 +230,19 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
     const [suggested, setSuggested] =
         useState<Partial<VendorProfileValues> | null>(null);
 
-    const suggestedFields = useMemo(
-        () =>
-            suggested
-                ? (Object.keys(profileFieldLabels) as VendorProfileField[])
-                      .filter(field => suggested[field])
-                      .filter(field => suggested[field] !== values[field])
-                : [],
-        [suggested, values]
-    );
+    const values: VendorProfileValues = {
+        name: String(name.value ?? ''),
+        domain: String(domain.value ?? ''),
+        description: String(description.value ?? ''),
+        logoUrl: String(logoUrl.value ?? ''),
+        primaryColor: String(primaryColor.value ?? '')
+    };
+
+    const suggestedFields = suggested
+        ? (Object.keys(profileFieldLabels) as VendorProfileField[])
+              .filter(field => suggested[field])
+              .filter(field => suggested[field] !== values[field])
+        : [];
 
     useEffect(() => {
         const query = search.trim();
@@ -223,7 +283,7 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
     }, [open, search]);
 
     function resetDialog() {
-        setValues(vendorProfileValues(vendor));
+        form.reset(vendorProfileValues(vendor));
         setSearch('');
         setCandidates([]);
         setSuggested(null);
@@ -251,6 +311,7 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
         readonly domain?: string;
         readonly fallback?: VendorCandidate;
     }) {
+        const currentValues = form.getValue();
         setSuggestionPending(true);
         setError(null);
         try {
@@ -261,8 +322,15 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
             const nextSuggestion = candidateProfileValues(
                 details ??
                     candidate.fallback ?? {
-                        name: candidate.domain ?? values.name,
-                        domain: candidate.domain ?? values.domain
+                        name:
+                            candidate.domain ??
+                            currentValues.name ??
+                            vendor.name,
+                        domain:
+                            candidate.domain ??
+                            currentValues.domain ??
+                            vendor.domain ??
+                            ''
                     }
             );
             setSuggested(nextSuggestion);
@@ -286,7 +354,23 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
     }
 
     function setField(field: VendorProfileField, value: string) {
-        setValues(current => ({ ...current, [field]: value }));
+        switch (field) {
+            case 'name':
+                name.onChange(value);
+                return;
+            case 'domain':
+                domain.onChange(value);
+                return;
+            case 'description':
+                description.onChange(value);
+                return;
+            case 'logoUrl':
+                logoUrl.onChange(value);
+                return;
+            case 'primaryColor':
+                primaryColor.onChange(value);
+                return;
+        }
     }
 
     function acceptSuggestion(field: VendorProfileField) {
@@ -299,11 +383,21 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-        setPending(true);
         setError(null);
+        const result = await form.submit();
+        if (!result.valid || !result.object) {
+            return;
+        }
+
+        const formData = valuesToFormData(result.object);
+        formData.set('id', String(vendor.id));
+        setPending(true);
         try {
-            await updateVendorAction(formData);
+            const response = await updateVendorAction(formData);
+            if (response.error) {
+                setError(response.error);
+                return;
+            }
             router.refresh();
             setOpen(false);
         } catch (caught) {
@@ -351,86 +445,153 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
                     >
                         <input name="id" type="hidden" value={vendor.id} />
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <Field>
+                            <Field
+                                data-invalid={
+                                    name.touched && name.error
+                                        ? true
+                                        : undefined
+                                }
+                            >
                                 <FieldLabel htmlFor="vendor-name">
                                     Display name
                                 </FieldLabel>
                                 <Input
+                                    aria-invalid={
+                                        name.touched && Boolean(name.error)
+                                    }
                                     id="vendor-name"
                                     maxLength={160}
                                     name="name"
+                                    onBlur={name.onBlur}
                                     onChange={event =>
-                                        setField('name', event.target.value)
+                                        name.onChange(event.target.value)
                                     }
                                     required
                                     value={values.name}
                                 />
+                                {name.touched && name.error ? (
+                                    <FieldError>{name.error}</FieldError>
+                                ) : null}
                             </Field>
-                            <Field>
+                            <Field
+                                data-invalid={
+                                    domain.touched && domain.error
+                                        ? true
+                                        : undefined
+                                }
+                            >
                                 <FieldLabel htmlFor="vendor-domain">
                                     Website
                                 </FieldLabel>
                                 <Input
+                                    aria-invalid={
+                                        domain.touched && Boolean(domain.error)
+                                    }
                                     id="vendor-domain"
                                     maxLength={255}
                                     name="domain"
+                                    onBlur={domain.onBlur}
                                     onChange={event =>
-                                        setField('domain', event.target.value)
+                                        domain.onChange(event.target.value)
                                     }
                                     placeholder="walmart.com"
                                     value={values.domain}
                                 />
+                                {domain.touched && domain.error ? (
+                                    <FieldError>{domain.error}</FieldError>
+                                ) : null}
                             </Field>
-                            <Field>
+                            <Field
+                                data-invalid={
+                                    logoUrl.touched && logoUrl.error
+                                        ? true
+                                        : undefined
+                                }
+                            >
                                 <FieldLabel htmlFor="vendor-logo-url">
                                     Logo URL
                                 </FieldLabel>
                                 <Input
+                                    aria-invalid={
+                                        logoUrl.touched &&
+                                        Boolean(logoUrl.error)
+                                    }
                                     id="vendor-logo-url"
                                     maxLength={1000}
                                     name="logoUrl"
+                                    onBlur={logoUrl.onBlur}
                                     onChange={event =>
-                                        setField('logoUrl', event.target.value)
+                                        logoUrl.onChange(event.target.value)
                                     }
                                     placeholder="https://example.com/logo.svg"
                                     value={values.logoUrl}
                                 />
+                                {logoUrl.touched && logoUrl.error ? (
+                                    <FieldError>{logoUrl.error}</FieldError>
+                                ) : null}
                             </Field>
-                            <Field>
+                            <Field
+                                data-invalid={
+                                    primaryColor.touched && primaryColor.error
+                                        ? true
+                                        : undefined
+                                }
+                            >
                                 <FieldLabel htmlFor="vendor-primary-color">
                                     Primary color
                                 </FieldLabel>
                                 <Input
+                                    aria-invalid={
+                                        primaryColor.touched &&
+                                        Boolean(primaryColor.error)
+                                    }
                                     id="vendor-primary-color"
                                     maxLength={7}
                                     name="primaryColor"
+                                    onBlur={primaryColor.onBlur}
                                     onChange={event =>
-                                        setField(
-                                            'primaryColor',
+                                        primaryColor.onChange(
                                             event.target.value
                                         )
                                     }
                                     placeholder="#2563eb"
                                     value={values.primaryColor}
                                 />
+                                {primaryColor.touched && primaryColor.error ? (
+                                    <FieldError>
+                                        {primaryColor.error}
+                                    </FieldError>
+                                ) : null}
                             </Field>
-                            <Field className="sm:col-span-2">
+                            <Field
+                                className="sm:col-span-2"
+                                data-invalid={
+                                    description.touched && description.error
+                                        ? true
+                                        : undefined
+                                }
+                            >
                                 <FieldLabel htmlFor="vendor-description">
                                     Description
                                 </FieldLabel>
                                 <textarea
+                                    aria-invalid={
+                                        description.touched &&
+                                        Boolean(description.error)
+                                    }
                                     className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                                     id="vendor-description"
                                     maxLength={1000}
                                     name="description"
+                                    onBlur={description.onBlur}
                                     onChange={event =>
-                                        setField(
-                                            'description',
-                                            event.target.value
-                                        )
+                                        description.onChange(event.target.value)
                                     }
                                     value={values.description}
                                 />
+                                {description.touched && description.error ? (
+                                    <FieldError>{description.error}</FieldError>
+                                ) : null}
                             </Field>
                         </div>
 

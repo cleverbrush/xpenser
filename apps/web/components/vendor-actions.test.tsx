@@ -67,7 +67,9 @@ describe('VendorProfileActions', () => {
             logoUrl: 'https://cdn.brandfetch.io/walmart.svg',
             primaryColor: '#0071ce'
         });
-        updateVendorAction.mockResolvedValue(vendor({ name: 'Walmart' }));
+        updateVendorAction.mockResolvedValue({
+            vendor: vendor({ name: 'Walmart' })
+        });
 
         render(<VendorProfileActions vendor={vendor()} />);
 
@@ -106,5 +108,55 @@ describe('VendorProfileActions', () => {
         expect(formData.get('domain')).toBe('old.example');
         expect(formData.get('resolvedName')).toBeNull();
         expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it('validates editable vendor metadata before saving', async () => {
+        render(<VendorProfileActions vendor={vendor()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        fireEvent.change(screen.getByLabelText('Logo URL'), {
+            target: { value: 'http://example.com/logo.svg' }
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
+
+        expect(
+            await screen.findByText('Logo URL must be a valid HTTPS URL.')
+        ).toBeTruthy();
+        expect(updateVendorAction).not.toHaveBeenCalled();
+
+        fireEvent.change(screen.getByLabelText('Logo URL'), {
+            target: { value: 'https://example.com/logo.svg' }
+        });
+        fireEvent.change(screen.getByLabelText('Primary color'), {
+            target: { value: '0071ce' }
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
+
+        expect(
+            await screen.findByText(
+                'Primary color must be a six-digit hex color.'
+            )
+        ).toBeTruthy();
+        expect(updateVendorAction).not.toHaveBeenCalled();
+    });
+
+    it('shows API validation messages and keeps the dialog open', async () => {
+        updateVendorAction.mockResolvedValue({
+            error: 'A vendor with this name already exists.'
+        });
+
+        render(<VendorProfileActions vendor={vendor()} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        fireEvent.change(screen.getByLabelText('Display name'), {
+            target: { value: 'Walmart' }
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
+
+        expect(
+            await screen.findByText('A vendor with this name already exists.')
+        ).toBeTruthy();
+        expect(screen.getByRole('dialog')).toBeTruthy();
+        expect(refresh).not.toHaveBeenCalled();
     });
 });

@@ -550,6 +550,22 @@ describe('vendor helpers', () => {
         });
     });
 
+    it('rejects invalid editable vendor metadata', async () => {
+        await expect(
+            updateVendor(testDb({ vendors: [vendor()] }), 1, 1, {
+                name: 'Walmart',
+                logoUrl: 'http://example.com/logo.svg'
+            })
+        ).rejects.toThrow('Logo URL must be a valid HTTPS URL.');
+
+        await expect(
+            updateVendor(testDb({ vendors: [vendor()] }), 1, 1, {
+                name: 'Walmart',
+                primaryColor: '0071ce'
+            })
+        ).rejects.toThrow('Primary color must be a six-digit hex color.');
+    });
+
     it('rejects vendor rename collisions for the same user', async () => {
         await expect(
             updateVendor(
