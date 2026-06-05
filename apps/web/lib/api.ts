@@ -1,4 +1,7 @@
-import { createXpenserClient } from '@xpenser/client';
+import {
+    createXpenserClient,
+    type XpenserClientOptions
+} from '@xpenser/client';
 import { redirect } from 'next/navigation';
 import { auth } from '../auth';
 import { expiredSessionPath } from './auth-routes';
@@ -12,14 +15,21 @@ export async function getSessionOrRedirect() {
     return session;
 }
 
-export async function getApiClient() {
+type ApiClientOptions = Pick<
+    XpenserClientOptions,
+    'retryOnTimeout' | 'timeoutMs'
+>;
+
+export async function getApiClient(options: ApiClientOptions = {}) {
     const session = await getSessionOrRedirect();
     return createXpenserClient({
         baseUrl: webConfig.apiBaseUrl,
         getToken: () => session.apiToken,
         onUnauthorized: () => {
             redirect(expiredSessionPath);
-        }
+        },
+        retryOnTimeout: options.retryOnTimeout,
+        timeoutMs: options.timeoutMs
     });
 }
 

@@ -71,8 +71,9 @@ describe('TransactionDialog', () => {
         fireEvent.change(screen.getByLabelText('Amount'), {
             target: { value: '23.45' }
         });
+        expect(screen.getByLabelText('Note').tagName).toBe('TEXTAREA');
         fireEvent.change(screen.getByLabelText('Note'), {
-            target: { value: 'Updated note' }
+            target: { value: 'Updated note\nItem line' }
         });
         fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
@@ -83,7 +84,7 @@ describe('TransactionDialog', () => {
         expect(formData?.get('categoryId')).toBe('7');
         expect(formData?.get('amount')).toBe('23.45');
         expect(formData?.get('currency')).toBe('USD');
-        expect(formData?.get('note')).toBe('Updated note');
+        expect(formData?.get('note')).toBe('Updated note\nItem line');
         expect(refresh).toHaveBeenCalledOnce();
     });
 });

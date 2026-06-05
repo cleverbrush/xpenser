@@ -1,5 +1,5 @@
 import { api, PrincipalSchema } from '@xpenser/contracts';
-import { ConfigToken, DbToken, LoggerToken } from '../di/tokens.js';
+import { ConfigToken, DbToken, KnexToken, LoggerToken } from '../di/tokens.js';
 
 export const RegisterEndpoint = api.auth.register
     .inject({ db: DbToken, config: ConfigToken })
@@ -265,7 +265,7 @@ export const EnrichVendorEndpoint = api.vendors.enrich
 
 export const ListTransactionsEndpoint = api.transactions.list
     .authorize(PrincipalSchema)
-    .inject({ db: DbToken })
+    .inject({ db: DbToken, knex: KnexToken })
     .summary('List transactions')
     .description('Lists transactions owned by the authenticated user.')
     .tags('transactions')
@@ -296,6 +296,54 @@ export const DeleteTransactionEndpoint = api.transactions.delete
     .description('Deletes a transaction owned by the authenticated user.')
     .tags('transactions')
     .operationId('deleteTransaction');
+
+export const GetTransactionScanImageEndpoint = api.transactions.scanImage
+    .authorize(PrincipalSchema)
+    .inject({ knex: KnexToken })
+    .summary('Get scanned transaction image')
+    .description(
+        'Returns the original scanner image attached to a confirmed transaction.'
+    )
+    .tags('transactions')
+    .operationId('getTransactionScanImage');
+
+export const CreateTransactionScanEndpoint = api.transactionScans.create
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Scan transaction image')
+    .description(
+        'Extracts draft transactions from an uploaded receipt, invoice, bank app screenshot, or statement image.'
+    )
+    .tags('transaction-scans')
+    .operationId('createTransactionScan');
+
+export const StartTransactionScanJobEndpoint = api.transactionScans.start
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Start transaction image scan')
+    .description(
+        'Starts an asynchronous multimodal scan job and returns a short-lived progress token.'
+    )
+    .tags('transaction-scans')
+    .operationId('startTransactionScanJob');
+
+export const TransactionScanProgressEndpoint = api.transactionScans.progress
+    .summary('Transaction image scan progress')
+    .description(
+        'Streams progress and the final scan result for a short-lived scan job token.'
+    )
+    .tags('transaction-scans')
+    .operationId('transactionScanProgress');
+
+export const DecideTransactionScanItemEndpoint = api.transactionScans.decide
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Record transaction scan decision')
+    .description(
+        'Records whether a scanned draft was confirmed or discarded, including user corrections for future scans.'
+    )
+    .tags('transaction-scans')
+    .operationId('decideTransactionScanItem');
 
 export const DashboardSummaryEndpoint = api.dashboard.summary
     .authorize(PrincipalSchema)
@@ -385,7 +433,14 @@ export const endpoints = {
         list: ListTransactionsEndpoint,
         create: CreateTransactionEndpoint,
         update: UpdateTransactionEndpoint,
-        delete: DeleteTransactionEndpoint
+        delete: DeleteTransactionEndpoint,
+        scanImage: GetTransactionScanImageEndpoint
+    },
+    transactionScans: {
+        create: CreateTransactionScanEndpoint,
+        start: StartTransactionScanJobEndpoint,
+        progress: TransactionScanProgressEndpoint,
+        decide: DecideTransactionScanItemEndpoint
     },
     dashboard: {
         summary: DashboardSummaryEndpoint,

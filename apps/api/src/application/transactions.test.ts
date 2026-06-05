@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { CategoryDb, VendorDb } from '../db/schemas.js';
 import {
     categoryTrendMaxBuckets,
     compareTransactionsByOccurrenceAsc,
     compareTransactionsByOccurrenceDesc,
     dashboardStatsGroupBy,
+    getTransactionScanImage,
     percentChange,
     resolveCategoryTrendRange,
     resolveDashboardComparisonRange,
@@ -448,6 +449,59 @@ describe('transaction category signs', () => {
         expect(summary.topVendors.some(item => item.type === 'income')).toBe(
             false
         );
+    });
+});
+
+describe('transaction scan images', () => {
+    it('returns the latest confirmed scan image for a transaction', async () => {
+        const scanTimestamp = new Date('2026-06-01T12:00:00.000Z');
+        const row = {
+            scanId: 10,
+            scanItemId: 20,
+            fileName: 'receipt.png',
+            mimeType: 'image/png',
+            sizeBytes: '5',
+            createdAt: scanTimestamp,
+            imageBase64: Buffer.from('image').toString('base64')
+        };
+        const query = {
+            join: vi.fn(() => query),
+            where: vi.fn(() => query),
+            orderBy: vi.fn(() => query),
+            select: vi.fn(() => query),
+            first: vi.fn(async () => row)
+        };
+        const knex = vi.fn(() => query);
+
+        await expect(
+            getTransactionScanImage(knex as never, 1, 42)
+        ).resolves.toEqual({
+            scanId: 10,
+            scanItemId: 20,
+            fileName: 'receipt.png',
+            mimeType: 'image/png',
+            sizeBytes: 5,
+            createdAt: scanTimestamp,
+            imageBase64: Buffer.from('image').toString('base64')
+        });
+        expect(knex).toHaveBeenCalledWith('transaction_scan_items as item');
+        expect(query.where).toHaveBeenCalledWith('item.user_id', 1);
+        expect(query.where).toHaveBeenCalledWith('item.transaction_id', 42);
+        expect(query.where).toHaveBeenCalledWith('item.decision', 'confirmed');
+    });
+
+    it('throws when a transaction has no stored scan image', async () => {
+        const query = {
+            join: vi.fn(() => query),
+            where: vi.fn(() => query),
+            orderBy: vi.fn(() => query),
+            select: vi.fn(() => query),
+            first: vi.fn(async () => undefined)
+        };
+
+        await expect(
+            getTransactionScanImage(vi.fn(() => query) as never, 1, 42)
+        ).rejects.toBeInstanceOf(TransactionNotFoundError);
     });
 });
 

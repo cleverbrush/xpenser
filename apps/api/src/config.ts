@@ -94,6 +94,10 @@ export const config = parseEnv(
             reportModel: env(
                 'OPENAI_REPORT_MODEL',
                 string().default('gpt-5-mini')
+            ),
+            transactionScanModel: env(
+                'OPENAI_TRANSACTION_SCAN_MODEL',
+                string().default('gpt-5.5')
             )
         },
         resend: {

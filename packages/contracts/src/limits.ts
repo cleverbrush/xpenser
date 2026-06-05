@@ -16,7 +16,7 @@ export const FieldLimits = {
     telegramUserId: 64,
     telegramUsername: 64,
     timeZone: 64,
-    transactionNote: 500,
+    transactionNote: 2000,
     transactionSearch: 500,
     vendorDescription: 1000,
     vendorDomain: 255,
@@ -24,4 +24,9 @@ export const FieldLimits = {
     vendorName: 160,
     vendorPrimaryColor: 7,
     vendorSearch: 160
+} as const;
+
+export const TransactionScanLimits = {
+    maxImageBytes: 10 * 1024 * 1024,
+    uploadChunkBytes: 384 * 1024
 } as const;

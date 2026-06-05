@@ -454,12 +454,14 @@ export function QuickCaptureForm({
                             <SchemaField
                                 fieldProps={{
                                     autoComplete: 'off',
-                                    maxLength: FieldLimits.transactionNote
+                                    maxLength: FieldLimits.transactionNote,
+                                    rows: 4
                                 }}
                                 forProperty={field => field.note}
                                 form={form}
                                 label="Note"
                                 name="note"
+                                variant="textarea"
                             />
 
                             {error ? (

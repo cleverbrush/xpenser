@@ -10,7 +10,8 @@ import type {
     StatsQuery,
     StatsWindowResponse,
     Transaction,
-    TransactionListQuery
+    TransactionListQuery,
+    TransactionScanImageResponse
 } from '@xpenser/contracts';
 import {
     addLocalDays,
@@ -33,6 +34,7 @@ import {
     statsBucketKeyInTimeZone,
     statsBucketLabelInTimeZone
 } from '@xpenser/timezone';
+import type { Knex } from 'knex';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -62,6 +64,20 @@ type DashboardPeriod = NonNullable<DashboardSummary['period']>;
 type DashboardCategory = DashboardSummary['byCategory'][number];
 
 type DashboardVendor = DashboardSummary['topVendors'][number];
+type TransactionScanAttachment = NonNullable<Transaction['scanAttachment']>;
+type TransactionScanAttachmentRow = {
+    readonly createdAt: Date;
+    readonly fileName: string | null;
+    readonly mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    readonly scanId: number;
+    readonly scanItemId: number;
+    readonly sizeBytes: number | string;
+    readonly transactionId: number;
+};
+
+type TransactionScanImageRow = TransactionScanAttachmentRow & {
+    readonly imageBase64: string;
+};
 
 type StatsBucket = StatsOverview['trend'][number];
 
@@ -210,7 +226,8 @@ function categoryForTransaction(
 function mapTransaction(
     row: TransactionDb,
     categoriesById: ReadonlyMap<number, CategoryDb>,
-    vendorsById: ReadonlyMap<number, VendorDb>
+    vendorsById: ReadonlyMap<number, VendorDb>,
+    scanAttachments: ReadonlyMap<number, TransactionScanAttachment> = new Map()
 ): Transaction {
     const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
@@ -236,9 +253,63 @@ function mapTransaction(
         exchangeRateDate: row.exchangeRateDate,
         occurredAt: row.occurredAt,
         note: row.note ?? undefined,
+        scanAttachment: scanAttachments.get(row.id) ?? null,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt
     };
+}
+
+function scanAttachmentFromRow(
+    row: TransactionScanAttachmentRow
+): TransactionScanAttachment {
+    return {
+        scanId: Number(row.scanId),
+        scanItemId: Number(row.scanItemId),
+        fileName: row.fileName,
+        mimeType: row.mimeType,
+        sizeBytes: Number(row.sizeBytes),
+        createdAt: row.createdAt
+    };
+}
+
+async function scanAttachmentsByTransaction(
+    knex: Knex | undefined,
+    userId: number,
+    transactionIds: readonly number[]
+): Promise<Map<number, TransactionScanAttachment>> {
+    const uniqueIds = [...new Set(transactionIds)];
+    if (!knex || uniqueIds.length === 0) {
+        return new Map();
+    }
+
+    const rows = (await knex('transaction_scan_items as item')
+        .join(
+            'transaction_scan_images as image',
+            'image.scan_id',
+            'item.scan_id'
+        )
+        .where('item.user_id', userId)
+        .where('image.user_id', userId)
+        .where('item.decision', 'confirmed')
+        .whereIn('item.transaction_id', uniqueIds)
+        .orderBy('item.decided_at', 'desc')
+        .select({
+            transactionId: 'item.transaction_id',
+            scanId: 'item.scan_id',
+            scanItemId: 'item.id',
+            fileName: 'image.file_name',
+            mimeType: 'image.mime_type',
+            sizeBytes: 'image.size_bytes',
+            createdAt: 'image.created_at'
+        })) as TransactionScanAttachmentRow[];
+
+    const attachments = new Map<number, TransactionScanAttachment>();
+    for (const row of rows) {
+        if (!attachments.has(row.transactionId)) {
+            attachments.set(row.transactionId, scanAttachmentFromRow(row));
+        }
+    }
+    return attachments;
 }
 
 export function compareTransactionsByOccurrenceDesc(
@@ -302,7 +373,8 @@ async function validateVendor(
 export async function listTransactions(
     db: AppDb,
     userId: number,
-    query: TransactionListQuery
+    query: TransactionListQuery,
+    knex?: Knex
 ) {
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, Math.max(1, query.limit ?? 50));
@@ -416,13 +488,22 @@ export async function listTransactions(
             );
         });
     const offset = (page - 1) * limit;
+    const pageRows = filtered.slice(offset, offset + limit) as TransactionDb[];
+    const scanAttachments = await scanAttachmentsByTransaction(
+        knex,
+        userId,
+        pageRows.map(transaction => transaction.id)
+    );
 
     return {
-        items: filtered
-            .slice(offset, offset + limit)
-            .map(transaction =>
-                mapTransaction(transaction, categoriesById, vendorsById)
-            ),
+        items: pageRows.map(transaction =>
+            mapTransaction(
+                transaction,
+                categoriesById,
+                vendorsById,
+                scanAttachments
+            )
+        ),
         total: filtered.length,
         page,
         limit
@@ -496,6 +577,43 @@ export async function getTransaction(
         throw new TransactionNotFoundError('Transaction was not found.');
     }
     return mapTransaction(row as TransactionDb, categoriesById, vendorsById);
+}
+
+export async function getTransactionScanImage(
+    knex: Knex,
+    userId: number,
+    transactionId: number
+): Promise<TransactionScanImageResponse> {
+    const row = (await knex('transaction_scan_items as item')
+        .join(
+            'transaction_scan_images as image',
+            'image.scan_id',
+            'item.scan_id'
+        )
+        .where('item.user_id', userId)
+        .where('image.user_id', userId)
+        .where('item.transaction_id', transactionId)
+        .where('item.decision', 'confirmed')
+        .orderBy('item.decided_at', 'desc')
+        .select({
+            scanId: 'item.scan_id',
+            scanItemId: 'item.id',
+            fileName: 'image.file_name',
+            mimeType: 'image.mime_type',
+            sizeBytes: 'image.size_bytes',
+            createdAt: 'image.created_at',
+            imageBase64: 'image.image_base64'
+        })
+        .first()) as TransactionScanImageRow | undefined;
+
+    if (!row) {
+        throw new TransactionNotFoundError('Scanned image was not found.');
+    }
+
+    return {
+        ...scanAttachmentFromRow({ ...row, transactionId }),
+        imageBase64: row.imageBase64
+    };
 }
 
 export async function updateTransaction(

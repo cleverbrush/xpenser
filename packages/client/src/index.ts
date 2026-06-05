@@ -20,6 +20,10 @@ export type XpenserClientOptions = {
     readonly headers?: Record<string, string>;
     /** Optional fetch implementation for server tests and Next.js fetch options. */
     readonly fetch?: typeof fetch;
+    /** Request timeout in milliseconds. Defaults to 10 seconds. */
+    readonly timeoutMs?: number;
+    /** Whether timeout failures should be retried. Defaults to true. */
+    readonly retryOnTimeout?: boolean;
 };
 
 function hasBasePath(baseUrl: string): boolean {
@@ -49,8 +53,11 @@ export function createXpenserClient(options: XpenserClientOptions) {
         fetch: options.fetch,
         middlewares: [
             clientTracingMiddleware(),
-            retry({ limit: 2, retryOnTimeout: true }),
-            timeout({ timeout: 10_000 }),
+            retry({
+                limit: 2,
+                retryOnTimeout: options.retryOnTimeout ?? true
+            }),
+            timeout({ timeout: options.timeoutMs ?? 10_000 }),
             dedupe(),
             cacheTags({
                 defaultTtl: 5_000,

@@ -2,7 +2,10 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import {
+    type Category,
     type Transaction,
+    type TransactionScanDecisionBody,
+    type TransactionScanImageResponse,
     UpdateVendorBodySchema,
     type Vendor,
     type VendorCandidate
@@ -11,13 +14,32 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { signIn, signOut } from '../auth';
-import { getAnonymousApiClient, getApiClient } from './api';
+import {
+    getAnonymousApiClient,
+    getApiClient,
+    getSessionOrRedirect
+} from './api';
 import { webConfig } from './config';
 import { VendorUpdateActionRejected } from './log-templates';
 import { loggerFor } from './logger';
+import {
+    deleteScanUpload,
+    readScanUploadAttachment
+} from './transaction-scan-upload-store';
 
 const passportPkceCookie = 'xpenser_passport_pkce';
 const vendorActionLogger = loggerFor('Vendor actions');
+
+type ScanDecisionAttachment =
+    | NonNullable<TransactionScanDecisionBody['attachment']>
+    | { readonly uploadId: string };
+
+type TransactionScanDecisionActionBody = Omit<
+    TransactionScanDecisionBody,
+    'attachment'
+> & {
+    readonly attachment?: ScanDecisionAttachment;
+};
 
 function normalizeFormText(value: string): string {
     return value.replace(/\r\n?/g, '\n').trim();
@@ -336,9 +358,11 @@ export async function logoutAction() {
     await signOut({ redirectTo: '/login' });
 }
 
-export async function createCategoryAction(formData: FormData) {
+export async function createCategoryAction(
+    formData: FormData
+): Promise<Category> {
     const client = await getApiClient();
-    await client.categories.create({
+    const category = await client.categories.create({
         body: categoryBody(formData)
     });
     revalidateTag('categories', 'max');
@@ -347,6 +371,7 @@ export async function createCategoryAction(formData: FormData) {
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
     revalidatePath('/setup/categories');
+    return category;
 }
 
 export async function createFirstCategoryAction(formData: FormData) {
@@ -593,6 +618,50 @@ export async function createCaptureTransactionAction(
     revalidatePath('/transactions');
     revalidatePath('/stats');
     return transaction;
+}
+
+export async function recordTransactionScanDecisionAction({
+    body,
+    itemId,
+    scanId
+}: {
+    readonly body: TransactionScanDecisionActionBody;
+    readonly itemId: number;
+    readonly scanId: number;
+}): Promise<void> {
+    const { attachment: requestedAttachment, ...decisionBody } = body;
+    const uploadId =
+        requestedAttachment &&
+        'uploadId' in requestedAttachment &&
+        typeof requestedAttachment.uploadId === 'string'
+            ? requestedAttachment.uploadId
+            : undefined;
+    const session = uploadId ? await getSessionOrRedirect() : null;
+    const attachment: TransactionScanDecisionBody['attachment'] = uploadId
+        ? await readScanUploadAttachment(session?.user.id, uploadId)
+        : requestedAttachment && !('uploadId' in requestedAttachment)
+          ? requestedAttachment
+          : undefined;
+    const client = await getApiClient();
+    await client.transactionScans.decide({
+        params: { scanId, itemId },
+        body: {
+            ...decisionBody,
+            attachment
+        }
+    });
+    if (uploadId) {
+        await deleteScanUpload(session?.user.id, uploadId);
+    }
+}
+
+export async function getTransactionScanImageAction(
+    transactionId: number
+): Promise<TransactionScanImageResponse> {
+    const client = await getApiClient();
+    return client.transactions.scanImage({
+        params: { id: transactionId }
+    });
 }
 
 export async function updateTransactionAction(formData: FormData) {

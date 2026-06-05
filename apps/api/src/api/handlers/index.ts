@@ -30,11 +30,18 @@ import {
     telegramTokenHandler
 } from './telegram.js';
 import {
+    createTransactionScanHandler,
+    decideTransactionScanItemHandler,
+    startTransactionScanJobHandler,
+    transactionScanProgressHandler
+} from './transaction-scans.js';
+import {
     categoryTrendHandler,
     createTransactionHandler,
     dashboardSummaryHandler,
     dashboardWindowHandler,
     deleteTransactionHandler,
+    getTransactionScanImageHandler,
     listTransactionsHandler,
     statsOverviewHandler,
     statsWindowHandler,
@@ -98,7 +105,14 @@ export const handlers = {
         list: listTransactionsHandler,
         create: createTransactionHandler,
         update: updateTransactionHandler,
-        delete: deleteTransactionHandler
+        delete: deleteTransactionHandler,
+        scanImage: getTransactionScanImageHandler
+    },
+    transactionScans: {
+        create: createTransactionScanHandler,
+        start: startTransactionScanJobHandler,
+        progress: transactionScanProgressHandler,
+        decide: decideTransactionScanItemHandler
     },
     dashboard: {
         summary: dashboardSummaryHandler,

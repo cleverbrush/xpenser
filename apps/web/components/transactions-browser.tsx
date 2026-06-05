@@ -31,7 +31,13 @@ import {
     TableHeader,
     TableRow
 } from '@xpenser/ui';
-import { PencilIcon, SlidersHorizontalIcon, Trash2Icon } from 'lucide-react';
+import {
+    ImageIcon,
+    PencilIcon,
+    SlidersHorizontalIcon,
+    Trash2Icon
+} from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -130,14 +136,90 @@ function transactionAmount(transaction: Transaction) {
     );
 }
 
+function imageSizeLabel(sizeBytes: number): string {
+    return `${(sizeBytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function ScanImageReviewButton({
+    transaction
+}: {
+    readonly transaction: Transaction;
+}) {
+    const [open, setOpen] = useState(false);
+    const [loaded, setLoaded] = useState(false);
+    const [failed, setFailed] = useState(false);
+    const attachment = transaction.scanAttachment;
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+        setLoaded(false);
+        setFailed(false);
+    }, [open]);
+
+    if (!attachment) {
+        return null;
+    }
+    const imageSrc = `/api/transactions/${transaction.id}/scan-image`;
+
+    return (
+        <Dialog onOpenChange={setOpen} open={open}>
+            <DialogTrigger asChild>
+                <Button
+                    className="h-6 gap-1 px-2 text-xs"
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                >
+                    <ImageIcon aria-hidden className="size-3" />
+                    Scanned
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Scanned image</DialogTitle>
+                    <DialogDescription>
+                        {attachment.fileName ?? 'Uploaded image'} -{' '}
+                        {imageSizeLabel(attachment.sizeBytes)}
+                    </DialogDescription>
+                </DialogHeader>
+                {!loaded && !failed ? (
+                    <p className="text-sm text-muted-foreground">
+                        Loading image...
+                    </p>
+                ) : null}
+                {failed ? (
+                    <p className="text-sm text-destructive">
+                        Could not load scanned image.
+                    </p>
+                ) : null}
+                <Image
+                    alt={attachment.fileName ?? 'Scanned transaction source'}
+                    className="max-h-[70vh] w-full rounded-md border object-contain"
+                    height={900}
+                    onError={() => setFailed(true)}
+                    onLoad={() => setLoaded(true)}
+                    src={imageSrc}
+                    unoptimized
+                    width={1200}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function transactionBadges(transaction: Transaction) {
     return (
-        <Badge
-            className={directionBadgeClassName(transaction.type)}
-            variant="outline"
-        >
-            {categoryTypeLabel(transaction.type)}
-        </Badge>
+        <>
+            <Badge
+                className={directionBadgeClassName(transaction.type)}
+                variant="outline"
+            >
+                {categoryTypeLabel(transaction.type)}
+            </Badge>
+            <ScanImageReviewButton transaction={transaction} />
+        </>
     );
 }
 

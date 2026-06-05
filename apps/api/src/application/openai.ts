@@ -12,6 +12,21 @@ type StructuredJsonOptions = {
     readonly system: string;
 };
 
+type InputContentPart =
+    | {
+          readonly text: string;
+          readonly type: 'input_text';
+      }
+    | {
+          readonly detail?: 'auto' | 'high' | 'low' | 'original';
+          readonly image_url: string;
+          readonly type: 'input_image';
+      };
+
+type StructuredJsonContentOptions = Omit<StructuredJsonOptions, 'input'> & {
+    readonly content: readonly InputContentPart[];
+};
+
 function responseOutputText(json: unknown): string {
     if (
         typeof json === 'object' &&
@@ -56,6 +71,24 @@ export async function generateStructuredJson<T>(
     config: Config,
     options: StructuredJsonOptions
 ): Promise<T> {
+    return generateStructuredJsonFromContent(config, {
+        content: [
+            {
+                type: 'input_text',
+                text: JSON.stringify(options.input)
+            }
+        ],
+        model: options.model,
+        schema: options.schema,
+        schemaName: options.schemaName,
+        system: options.system
+    });
+}
+
+export async function generateStructuredJsonFromContent<T>(
+    config: Config,
+    options: StructuredJsonContentOptions
+): Promise<T> {
     if (!config.openai.apiKey) {
         throw new OpenAIConfigError('OPENAI_API_KEY is not set.');
     }
@@ -74,15 +107,11 @@ export async function generateStructuredJson<T>(
                 },
                 {
                     role: 'user',
-                    content: [
-                        {
-                            type: 'input_text',
-                            text: JSON.stringify(options.input)
-                        }
-                    ]
+                    content: options.content
                 }
             ],
             model: options.model,
+            store: false,
             text: {
                 format: {
                     name: options.schemaName,

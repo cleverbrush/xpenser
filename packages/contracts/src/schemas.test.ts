@@ -27,6 +27,14 @@ import {
     TimeZoneSchema,
     TokenResponseSchema,
     TransactionListQuerySchema,
+    TransactionScanBodySchema,
+    TransactionScanDecisionBodySchema,
+    TransactionScanImageResponseSchema,
+    TransactionScanJobResponseSchema,
+    TransactionScanProgressEventSchema,
+    TransactionScanProgressQuerySchema,
+    TransactionScanResponseSchema,
+    TransactionSchema,
     UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
@@ -527,6 +535,146 @@ describe('shared schemas', () => {
         expect(result.getErrorsFor(field => field.amount).errors[0]).toBe(
             'amount is required'
         );
+    });
+
+    it('validates transaction image scan payloads and feedback', () => {
+        expect(
+            TransactionScanBodySchema.validate({
+                imageBase64: 'aW1hZ2U=',
+                mimeType: 'image/png',
+                fileName: 'receipt.png'
+            }).valid
+        ).toBe(true);
+        expect(
+            TransactionScanBodySchema.validate({
+                imageBase64: 'aW1hZ2U=',
+                mimeType: 'application/pdf'
+            } as never).valid
+        ).toBe(false);
+
+        expect(
+            TransactionScanResponseSchema.validate({
+                scanId: 10,
+                documentKind: 'receipt',
+                warnings: ['Check date.'],
+                drafts: [
+                    {
+                        id: 20,
+                        amount: 12.34,
+                        categoryId: 1,
+                        suggestedCategory: null,
+                        currency: 'USD',
+                        occurredAt: new Date('2026-06-01T12:00:00.000Z'),
+                        vendorId: null,
+                        suggestedVendorName: 'Walmart',
+                        transactionType: 'expense',
+                        note: null,
+                        evidence: 'Walmart 12.34',
+                        confidence: {
+                            amount: 'high',
+                            category: 'medium',
+                            currency: 'high',
+                            date: 'low',
+                            overall: 'medium',
+                            vendor: 'medium'
+                        },
+                        possibleDuplicateTransactionIds: [99]
+                    }
+                ]
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanDecisionBodySchema.validate({
+                decision: 'confirmed',
+                transactionId: 42,
+                correctedTransaction: {
+                    amount: 12.34,
+                    categoryId: 1,
+                    currency: 'USD',
+                    occurredAt: new Date('2026-06-01T12:00:00.000Z'),
+                    vendorId: null,
+                    note: null
+                },
+                attachment: {
+                    imageBase64: 'aW1hZ2U=',
+                    mimeType: 'image/png',
+                    fileName: 'receipt.png'
+                }
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanJobResponseSchema.validate({
+                jobId: '3baf2c5a-c8d3-45f4-a6c0-35a09407d42e',
+                token: 'scan-token'
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanProgressQuerySchema.validate({
+                jobId: '3baf2c5a-c8d3-45f4-a6c0-35a09407d42e',
+                token: 'scan-token'
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanProgressEventSchema.validate({
+                jobId: '3baf2c5a-c8d3-45f4-a6c0-35a09407d42e',
+                stage: 'complete',
+                message: 'Scan complete.',
+                progress: 100,
+                scan: {
+                    scanId: 10,
+                    documentKind: 'receipt',
+                    warnings: [],
+                    drafts: []
+                },
+                error: null
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionSchema.validate({
+                id: 42,
+                categoryId: 1,
+                vendorId: null,
+                categoryName: 'Groceries',
+                categoryDisplayName: 'Groceries',
+                categoryParentId: null,
+                categoryKind: 'normal',
+                type: 'expense',
+                amount: 12.34,
+                currency: 'USD',
+                defaultCurrencyAmount: 12.34,
+                defaultCurrency: 'USD',
+                exchangeRate: 1,
+                exchangeRateDate: '2026-06-01',
+                occurredAt: new Date('2026-06-01T12:00:00.000Z'),
+                scanAttachment: {
+                    scanId: 10,
+                    scanItemId: 20,
+                    fileName: 'receipt.png',
+                    mimeType: 'image/png',
+                    sizeBytes: 5,
+                    createdAt: new Date('2026-06-01T12:00:00.000Z')
+                },
+                createdAt: new Date('2026-06-01T12:00:00.000Z'),
+                updatedAt: new Date('2026-06-01T12:00:00.000Z')
+            }).valid
+        ).toBe(true);
+
+        expect(
+            TransactionScanImageResponseSchema.validate({
+                scanId: 10,
+                scanItemId: 20,
+                fileName: 'receipt.png',
+                mimeType: 'image/png',
+                sizeBytes: 5,
+                createdAt: new Date('2026-06-01T12:00:00.000Z'),
+                imageBase64: 'aW1hZ2U='
+            }).valid
+        ).toBe(true);
     });
 
     it('validates stats reporting controls', () => {

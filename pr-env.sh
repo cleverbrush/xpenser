@@ -163,6 +163,7 @@ write_compose_env() {
 NODE_ENV=production
 APP_URL=https://${DOMAIN}
 PUBLIC_API_BASE_URL=https://${DOMAIN}/external-api
+API_PORT=${API_PORT}
 WEB_PORT=${WEB_PORT}
 POSTGRES_DB=${POSTGRES_DB}
 POSTGRES_USER=${POSTGRES_USER}
@@ -282,6 +283,7 @@ load_state() {
 
 save_state() {
     write_shell_env "$STATE_FILE" \
+        API_PORT "$API_PORT" \
         WEB_PORT "$WEB_PORT" \
         POSTGRES_PASSWORD "$POSTGRES_PASSWORD" \
         JWT_SECRET "$JWT_SECRET" \
@@ -300,6 +302,7 @@ ensure_state() {
     ensure_writable_dir "$STATE_DIR"
     load_state
     WEB_PORT="$((10#$PR_ENV_PORT_BASE + 10#$PR_NUMBER))"
+    API_PORT="$((10#$PR_ENV_PORT_BASE + 1000 + 10#$PR_NUMBER))"
 
     POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(random_secret)}"
     JWT_SECRET="${JWT_SECRET:-$(random_secret)}"

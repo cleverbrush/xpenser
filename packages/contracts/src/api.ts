@@ -43,6 +43,13 @@ import {
     TokenResponseSchema,
     TransactionListQuerySchema,
     TransactionListResponseSchema,
+    TransactionScanBodySchema,
+    TransactionScanDecisionBodySchema,
+    TransactionScanImageResponseSchema,
+    TransactionScanJobResponseSchema,
+    TransactionScanProgressEventSchema,
+    TransactionScanProgressQuerySchema,
+    TransactionScanResponseSchema,
     TransactionSchema,
     UpdateCategoryBodySchema,
     UpdateTransactionBodySchema,
@@ -62,6 +69,13 @@ const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
 const VendorEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
 const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
+const TransactionScanDecision = route({
+    scanId: number().coerce(),
+    itemId: number().coerce()
+})`/${t => t.scanId}/items/${t => t.itemId}/decision`;
+const TransactionScanJobs = route`/jobs`;
+const TransactionScanImage = route({ id: number().coerce() })`/${t =>
+    t.id}/scan-image`;
 const categories = endpoint
     .resource('/api/categories')
     .authorize(PrincipalSchema);
@@ -74,6 +88,9 @@ const vendorCandidateDetails = endpoint
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
+    .authorize(PrincipalSchema);
+const transactionScans = endpoint
+    .resource('/api/transaction-scans')
     .authorize(PrincipalSchema);
 const stats = endpoint.resource('/api/stats').authorize(PrincipalSchema);
 const apiKeys = endpoint
@@ -371,7 +388,41 @@ export const api = defineApi({
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
-            .responses({ 204: null, 404: ErrorResponseSchema })
+            .responses({ 204: null, 404: ErrorResponseSchema }),
+        scanImage: transactions.get(TransactionScanImage).responses({
+            200: TransactionScanImageResponseSchema,
+            404: ErrorResponseSchema
+        })
+    },
+    transactionScans: {
+        create: transactionScans
+            .post()
+            .body(TransactionScanBodySchema)
+            .responses({
+                201: TransactionScanResponseSchema,
+                400: ErrorResponseSchema
+            }),
+        start: transactionScans
+            .post(TransactionScanJobs)
+            .body(TransactionScanBodySchema)
+            .responses({
+                202: TransactionScanJobResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        progress: endpoint
+            .subscription('/api/transaction-scans/jobs/progress')
+            .public()
+            .query(TransactionScanProgressQuerySchema)
+            .outgoing(TransactionScanProgressEventSchema),
+        decide: transactionScans
+            .post(TransactionScanDecision)
+            .body(TransactionScanDecisionBodySchema)
+            .responses({
+                204: null,
+                400: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            })
     },
     dashboard: {
         summary: endpoint
