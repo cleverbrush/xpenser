@@ -14,6 +14,7 @@ import {
     DashboardSummarySchema,
     DashboardWindowQuerySchema,
     EmailConfirmationPendingResponseSchema,
+    GoogleSignInBodySchema,
     LinkTelegramAccountBodySchema,
     LoginBodySchema,
     MoveAndDeleteCategoryBodySchema,
@@ -454,6 +455,32 @@ describe('shared schemas', () => {
             PassportExchangeBodySchema.validate({
                 code: '',
                 codeVerifier: 'a'.repeat(43)
+            }).valid
+        ).toBe(false);
+    });
+
+    it('validates direct Google sign-in payloads', () => {
+        expect(
+            GoogleSignInBodySchema.validate({
+                providerSubject: 'google-subject',
+                email: 'jane@example.com',
+                emailVerified: true,
+                name: 'Jane Doe',
+                avatarUrl: 'https://example.com/avatar.png'
+            }).valid
+        ).toBe(true);
+        expect(
+            GoogleSignInBodySchema.validate({
+                providerSubject: '',
+                email: 'jane@example.com',
+                emailVerified: true
+            }).valid
+        ).toBe(false);
+        expect(
+            GoogleSignInBodySchema.validate({
+                providerSubject: 'google-subject',
+                email: 'not-an-email',
+                emailVerified: true
             }).valid
         ).toBe(false);
     });

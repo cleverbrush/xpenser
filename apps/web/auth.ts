@@ -3,6 +3,7 @@ import { UserSessionMaxAgeSeconds } from '@xpenser/contracts/session';
 import NextAuth, { type DefaultSession, type NextAuthResult } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
+import Google from 'next-auth/providers/google';
 import {
     apiTokenExpiresAt,
     applyTokenResponse,
@@ -10,10 +11,12 @@ import {
 } from './lib/api-session-token';
 import { expiredSessionPath } from './lib/auth-routes';
 import {
+    getGoogleSignInProvider,
     getNextAuthSecret,
     getWebApiServiceSecret,
     webConfig
 } from './lib/config';
+import { googleSignInBodyFromAuthProfile } from './lib/google-auth';
 import {
     AuthDebugLogged,
     AuthErrorLogged,
@@ -106,164 +109,204 @@ async function refreshApiToken(token: JWT): Promise<JWT> {
     return applyTokenResponse(token, response);
 }
 
-const nextAuth: NextAuthResult = NextAuth(() => ({
-    session: { strategy: 'jwt', maxAge: UserSessionMaxAgeSeconds },
-    jwt: { maxAge: UserSessionMaxAgeSeconds },
-    secret: getNextAuthSecret(),
-    trustHost: true,
-    logger: {
-        error(error) {
-            authLogger.error(error, AuthErrorLogged, {
-                AuthErrorType: authErrorType(error),
-                AuthErrorMessage: error.message
-            });
+const nextAuth: NextAuthResult = NextAuth(() => {
+    const googleSignInProvider = getGoogleSignInProvider();
+
+    return {
+        session: { strategy: 'jwt', maxAge: UserSessionMaxAgeSeconds },
+        jwt: { maxAge: UserSessionMaxAgeSeconds },
+        secret: getNextAuthSecret(),
+        trustHost: true,
+        logger: {
+            error(error) {
+                authLogger.error(error, AuthErrorLogged, {
+                    AuthErrorType: authErrorType(error),
+                    AuthErrorMessage: error.message
+                });
+            },
+            warn(code) {
+                authLogger.warn(AuthWarningLogged, {
+                    AuthWarningCode: code
+                });
+            },
+            debug(message, metadata) {
+                authLogger.debug(AuthDebugLogged, {
+                    AuthDebugMessage: message,
+                    AuthDebugMetadata: metadata
+                });
+            }
         },
-        warn(code) {
-            authLogger.warn(AuthWarningLogged, {
-                AuthWarningCode: code
-            });
-        },
-        debug(message, metadata) {
-            authLogger.debug(AuthDebugLogged, {
-                AuthDebugMessage: message,
-                AuthDebugMetadata: metadata
-            });
-        }
-    },
-    providers: [
-        Credentials({
-            credentials: {
-                email: { label: 'Email', type: 'email' },
-                password: { label: 'Password', type: 'password' }
-            },
-            authorize: async credentials => {
-                const email = String(credentials?.email ?? '');
-                const password = String(credentials?.password ?? '');
-                const response = await apiClient().auth.login({
-                    body: { email, password }
-                });
-
-                return {
-                    id: String(response.user.id),
-                    email: response.user.email,
-                    apiToken: response.token,
-                    apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
-                    role: response.user.role,
-                    defaultCurrency: response.user.defaultCurrency,
-                    countryCode: response.user.countryCode,
-                    timezone: response.user.timezone,
-                    hasCategories: response.user.hasCategories
-                };
-            }
-        }),
-        Credentials({
-            id: 'passport-code',
-            name: 'Passport',
-            credentials: {
-                code: { label: 'Code', type: 'text' },
-                codeVerifier: { label: 'Code verifier', type: 'text' }
-            },
-            authorize: async credentials => {
-                const code = String(credentials?.code ?? '');
-                const codeVerifier = String(credentials?.codeVerifier ?? '');
-                const response = await apiClient().auth.passportExchange({
-                    body: { code, codeVerifier }
-                });
-
-                return {
-                    id: String(response.user.id),
-                    email: response.user.email,
-                    apiToken: response.token,
-                    apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
-                    role: response.user.role,
-                    defaultCurrency: response.user.defaultCurrency,
-                    countryCode: response.user.countryCode,
-                    timezone: response.user.timezone,
-                    hasCategories: response.user.hasCategories
-                };
-            }
-        }),
-        Credentials({
-            id: 'email-confirmation-token',
-            name: 'Email confirmation',
-            credentials: {
-                token: { label: 'Token', type: 'text' }
-            },
-            authorize: async credentials => {
-                const token = String(credentials?.token ?? '');
-                const response = await apiClient().auth.confirmEmail({
-                    body: { token }
-                });
-
-                return {
-                    id: String(response.user.id),
-                    email: response.user.email,
-                    apiToken: response.token,
-                    apiTokenExpiresAt: apiTokenExpiresAt(response.expiresAt),
-                    role: response.user.role,
-                    defaultCurrency: response.user.defaultCurrency,
-                    countryCode: response.user.countryCode,
-                    timezone: response.user.timezone,
-                    hasCategories: response.user.hasCategories
-                };
-            }
-        })
-    ],
-    pages: {
-        signIn: '/login',
-        error: expiredSessionPath
-    },
-    callbacks: {
-        async jwt({ token, user }) {
-            if (user?.apiToken) {
-                token.apiToken = user.apiToken;
-                token.apiTokenExpiresAt = user.apiTokenExpiresAt;
-                token.sub = user.id;
-                token.email = user.email;
-                token.role = user.role;
-                token.defaultCurrency = user.defaultCurrency;
-                token.countryCode = user.countryCode;
-                token.timezone = user.timezone;
-                token.hasCategories = user.hasCategories;
-            }
-
-            if (shouldRefreshApiToken(token)) {
-                try {
-                    return await refreshApiToken(token);
-                } catch (err) {
-                    authLogger.warn(AuthWarningLogged, {
-                        AuthWarningCode:
-                            apiErrorStatus(err) === 401
-                                ? 'ApiTokenRefreshUnauthorized'
-                                : 'ApiTokenRefreshFailed'
+        providers: [
+            Credentials({
+                credentials: {
+                    email: { label: 'Email', type: 'email' },
+                    password: { label: 'Password', type: 'password' }
+                },
+                authorize: async credentials => {
+                    const email = String(credentials?.email ?? '');
+                    const password = String(credentials?.password ?? '');
+                    const response = await apiClient().auth.login({
+                        body: { email, password }
                     });
-                    if (apiErrorStatus(err) === 401) {
-                        token.apiToken = undefined;
-                        token.apiTokenExpiresAt = undefined;
+
+                    return {
+                        id: String(response.user.id),
+                        email: response.user.email,
+                        apiToken: response.token,
+                        apiTokenExpiresAt: apiTokenExpiresAt(
+                            response.expiresAt
+                        ),
+                        role: response.user.role,
+                        defaultCurrency: response.user.defaultCurrency,
+                        countryCode: response.user.countryCode,
+                        timezone: response.user.timezone,
+                        hasCategories: response.user.hasCategories
+                    };
+                }
+            }),
+            ...(googleSignInProvider === 'passport'
+                ? [
+                      Credentials({
+                          id: 'passport-code',
+                          name: 'Passport',
+                          credentials: {
+                              code: { label: 'Code', type: 'text' },
+                              codeVerifier: {
+                                  label: 'Code verifier',
+                                  type: 'text'
+                              }
+                          },
+                          authorize: async credentials => {
+                              const code = String(credentials?.code ?? '');
+                              const codeVerifier = String(
+                                  credentials?.codeVerifier ?? ''
+                              );
+                              const response =
+                                  await apiClient().auth.passportExchange({
+                                      body: { code, codeVerifier }
+                                  });
+
+                              return {
+                                  id: String(response.user.id),
+                                  email: response.user.email,
+                                  apiToken: response.token,
+                                  apiTokenExpiresAt: apiTokenExpiresAt(
+                                      response.expiresAt
+                                  ),
+                                  role: response.user.role,
+                                  defaultCurrency:
+                                      response.user.defaultCurrency,
+                                  countryCode: response.user.countryCode,
+                                  timezone: response.user.timezone,
+                                  hasCategories: response.user.hasCategories
+                              };
+                          }
+                      })
+                  ]
+                : []),
+            ...(googleSignInProvider === 'direct'
+                ? [
+                      Google({
+                          clientId: webConfig.google.clientId ?? '',
+                          clientSecret: webConfig.google.clientSecret ?? ''
+                      })
+                  ]
+                : []),
+            Credentials({
+                id: 'email-confirmation-token',
+                name: 'Email confirmation',
+                credentials: {
+                    token: { label: 'Token', type: 'text' }
+                },
+                authorize: async credentials => {
+                    const token = String(credentials?.token ?? '');
+                    const response = await apiClient().auth.confirmEmail({
+                        body: { token }
+                    });
+
+                    return {
+                        id: String(response.user.id),
+                        email: response.user.email,
+                        apiToken: response.token,
+                        apiTokenExpiresAt: apiTokenExpiresAt(
+                            response.expiresAt
+                        ),
+                        role: response.user.role,
+                        defaultCurrency: response.user.defaultCurrency,
+                        countryCode: response.user.countryCode,
+                        timezone: response.user.timezone,
+                        hasCategories: response.user.hasCategories
+                    };
+                }
+            })
+        ],
+        pages: {
+            signIn: '/login',
+            error: expiredSessionPath
+        },
+        callbacks: {
+            async jwt({ token, user, account, profile }) {
+                if (account?.provider === 'google') {
+                    const response =
+                        await internalApiClient().auth.googleSignIn({
+                            body: googleSignInBodyFromAuthProfile(
+                                account,
+                                profile as Record<string, unknown> | undefined
+                            )
+                        });
+                    return applyTokenResponse(token, response);
+                }
+
+                if (user?.apiToken) {
+                    token.apiToken = user.apiToken;
+                    token.apiTokenExpiresAt = user.apiTokenExpiresAt;
+                    token.sub = user.id;
+                    token.email = user.email;
+                    token.role = user.role;
+                    token.defaultCurrency = user.defaultCurrency;
+                    token.countryCode = user.countryCode;
+                    token.timezone = user.timezone;
+                    token.hasCategories = user.hasCategories;
+                }
+
+                if (shouldRefreshApiToken(token)) {
+                    try {
+                        return await refreshApiToken(token);
+                    } catch (err) {
+                        authLogger.warn(AuthWarningLogged, {
+                            AuthWarningCode:
+                                apiErrorStatus(err) === 401
+                                    ? 'ApiTokenRefreshUnauthorized'
+                                    : 'ApiTokenRefreshFailed'
+                        });
+                        if (apiErrorStatus(err) === 401) {
+                            token.apiToken = undefined;
+                            token.apiTokenExpiresAt = undefined;
+                        }
                     }
                 }
-            }
 
-            return token;
-        },
-        async session({ session, token }) {
-            return {
-                ...session,
-                apiToken: token.apiToken ?? '',
-                user: {
-                    ...session.user,
-                    id: token.sub ?? '',
-                    email: token.email ?? '',
-                    role: token.role ?? 'user',
-                    defaultCurrency: token.defaultCurrency ?? 'USD',
-                    countryCode: token.countryCode ?? 'US',
-                    timezone: token.timezone ?? 'UTC',
-                    hasCategories: Boolean(token.hasCategories)
-                }
-            };
+                return token;
+            },
+            async session({ session, token }) {
+                return {
+                    ...session,
+                    apiToken: token.apiToken ?? '',
+                    user: {
+                        ...session.user,
+                        id: token.sub ?? '',
+                        email: token.email ?? '',
+                        role: token.role ?? 'user',
+                        defaultCurrency: token.defaultCurrency ?? 'USD',
+                        countryCode: token.countryCode ?? 'US',
+                        timezone: token.timezone ?? 'UTC',
+                        hasCategories: Boolean(token.hasCategories)
+                    }
+                };
+            }
         }
-    }
-}));
+    };
+});
 
 export const handlers: NextAuthResult['handlers'] = nextAuth.handlers;
 export const auth: NextAuthResult['auth'] = nextAuth.auth;

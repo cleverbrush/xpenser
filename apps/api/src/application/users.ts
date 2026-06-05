@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type {
     EmailConfirmationMessageResponse,
     EmailConfirmationPendingResponse,
+    GoogleSignInBody,
     PassportResolveUserBody,
     PassportResolveUserResponse,
     RegisterBody,
@@ -19,6 +20,7 @@ export class DuplicateEmailError extends Error {}
 export class EmailNotVerifiedError extends Error {}
 export class InvalidEmailConfirmationTokenError extends Error {}
 export class InvalidCredentialsError extends Error {}
+export class InvalidGoogleIdentityError extends Error {}
 export class InvalidPassportIdentityError extends Error {}
 export class PasswordMismatchError extends Error {}
 
@@ -440,28 +442,23 @@ export async function resendEmailConfirmation(
     return emailConfirmationResendResponse();
 }
 
-export async function resolvePassportGoogleUser(
+async function resolveGoogleIdentity(
     db: AppDb,
-    identity: PassportResolveUserBody
+    identity: GoogleSignInBody
 ): Promise<PassportResolveUserResponse> {
-    if (identity.provider !== 'google') {
-        throw new InvalidPassportIdentityError(
-            'Unsupported identity provider.'
-        );
-    }
-    if (identity.email_verified !== true) {
-        throw new InvalidPassportIdentityError('Google email is not verified.');
+    if (identity.emailVerified !== true) {
+        throw new InvalidGoogleIdentityError('Google email is not verified.');
     }
 
     return db.transaction(async trx => {
         const existingIdentity = await trx.externalIdentities
-            .where(row => row.provider, identity.provider)
-            .where(row => row.providerSubject, identity.provider_subject)
+            .where(row => row.provider, 'google')
+            .where(row => row.providerSubject, identity.providerSubject)
             .first();
         if (existingIdentity) {
             const user = await trx.users.find(existingIdentity.userId);
             if (!user) {
-                throw new InvalidPassportIdentityError(
+                throw new InvalidGoogleIdentityError(
                     'Linked account was not found.'
                 );
             }
@@ -475,7 +472,7 @@ export async function resolvePassportGoogleUser(
             .where(user => user.email, identity.email)
             .first();
         if (found && found.authProvider !== 'google') {
-            throw new InvalidPassportIdentityError(
+            throw new InvalidGoogleIdentityError(
                 'Email is already registered with another sign-in method.'
             );
         }
@@ -496,18 +493,18 @@ export async function resolvePassportGoogleUser(
             }));
 
         const userIdentity = await trx.externalIdentities
-            .where(row => row.provider, identity.provider)
+            .where(row => row.provider, 'google')
             .where(row => row.userId, user.id)
             .first();
         if (userIdentity) {
-            throw new InvalidPassportIdentityError(
+            throw new InvalidGoogleIdentityError(
                 'Account is already linked to another Google identity.'
             );
         }
 
         await trx.externalIdentities.insert({
-            provider: identity.provider,
-            providerSubject: identity.provider_subject,
+            provider: 'google',
+            providerSubject: identity.providerSubject,
             userId: user.id,
             email: identity.email
         });
@@ -517,6 +514,48 @@ export async function resolvePassportGoogleUser(
             roles: [user.role]
         };
     });
+}
+
+export async function resolveGoogleUser(
+    db: AppDb,
+    identity: GoogleSignInBody
+): Promise<PassportResolveUserResponse> {
+    return resolveGoogleIdentity(db, identity);
+}
+
+export async function resolvePassportGoogleUser(
+    db: AppDb,
+    identity: PassportResolveUserBody
+): Promise<PassportResolveUserResponse> {
+    if (identity.provider !== 'google') {
+        throw new InvalidGoogleIdentityError('Unsupported identity provider.');
+    }
+
+    return resolveGoogleIdentity(db, {
+        providerSubject: identity.provider_subject,
+        email: identity.email,
+        emailVerified: identity.email_verified,
+        name: identity.name,
+        avatarUrl: identity.avatar_url
+    });
+}
+
+export async function issueGoogleUserToken(
+    db: AppDb,
+    config: Config,
+    identity: GoogleSignInBody
+): Promise<TokenResponse> {
+    const resolved = await resolveGoogleUser(db, identity);
+    const userId = Number(resolved.service_user_id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
+        throw new InvalidGoogleIdentityError('Google user was not found.');
+    }
+
+    const response = await issueUserToken(db, config, userId);
+    if (!response) {
+        throw new InvalidGoogleIdentityError('Google user was not found.');
+    }
+    return response;
 }
 
 export async function issuePassportUserToken(

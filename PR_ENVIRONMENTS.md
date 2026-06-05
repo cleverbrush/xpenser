@@ -433,6 +433,7 @@ PR_ENV_STATE_DIR=/var/lib/pr-envs
 PR_ENV_PORT_BASE=3000
 PROD_COMPOSE_PROJECT=xpenser
 GIT_REPOSITORY_URL=git@github.com:cleverbrush/xpenser.git
+GOOGLE_SIGN_IN_MODE=passport
 PASSPORT_BASE_URL=https://auth.cleverbrush.com
 PASSPORT_PROJECT=xpenser
 POSTGRES_DB=xpenser

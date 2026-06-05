@@ -23,6 +23,7 @@ import {
     EmailConfirmationMessageResponseSchema,
     EmailConfirmationPendingResponseSchema,
     ErrorResponseSchema,
+    GoogleSignInBodySchema,
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
     LoginBodySchema,
@@ -139,6 +140,14 @@ export const api = defineApi({
         passportExchange: endpoint
             .post('/api/auth/passport/exchange')
             .body(PassportExchangeBodySchema)
+            .responses({
+                200: TokenResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        googleSignIn: endpoint
+            .post('/api/auth/google/sign-in')
+            .body(GoogleSignInBodySchema)
             .responses({
                 200: TokenResponseSchema,
                 400: ErrorResponseSchema,

@@ -45,15 +45,9 @@ export const config = parseEnv(
             )
         },
         passport: {
-            baseUrl: env(
-                'PASSPORT_BASE_URL',
-                string().default('https://auth.cleverbrush.com')
-            ),
-            project: env('PASSPORT_PROJECT', string().default('xpenser')),
-            environment: env(
-                'PASSPORT_ENVIRONMENT',
-                string().default('production')
-            ),
+            baseUrl: env('PASSPORT_BASE_URL', string().default('')),
+            project: env('PASSPORT_PROJECT', string().default('')),
+            environment: env('PASSPORT_ENVIRONMENT', string().default('')),
             publicKey: env('PASSPORT_PUBLIC_KEY', string().optional())
         },
         telegram: {

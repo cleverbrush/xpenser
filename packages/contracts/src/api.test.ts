@@ -15,6 +15,7 @@ describe('api contract authorization metadata', () => {
         expect(authRoles(api.auth.resendEmailConfirmation)).toBeNull();
         expect(authRoles(api.auth.passportResolveUser)).toBeNull();
         expect(authRoles(api.auth.passportExchange)).toBeNull();
+        expect(authRoles(api.auth.googleSignIn)).toBeNull();
         expect(authRoles(api.currencies.list)).toBeNull();
         expect(authRoles(api.telegram.link)).toBeNull();
         expect(authRoles(api.telegram.token)).toBeNull();

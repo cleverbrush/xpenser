@@ -9,8 +9,13 @@ import {
 import Link from 'next/link';
 import { LoginForm } from '@/components/forms/login-form';
 import { googleSignInAction } from '@/lib/actions';
+import { getGoogleSignInProvider } from '@/lib/config';
+
+export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
+    const googleSignInEnabled = getGoogleSignInProvider() !== 'disabled';
+
     return (
         <main className="flex min-h-dvh items-center justify-center bg-muted px-3 py-6 sm:px-4">
             <Card className="w-full max-w-md">
@@ -20,15 +25,17 @@ export default function LoginPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                     <LoginForm />
-                    <form action={googleSignInAction}>
-                        <Button
-                            className="w-full"
-                            type="submit"
-                            variant="outline"
-                        >
-                            Sign in with Google
-                        </Button>
-                    </form>
+                    {googleSignInEnabled ? (
+                        <form action={googleSignInAction}>
+                            <Button
+                                className="w-full"
+                                type="submit"
+                                variant="outline"
+                            >
+                                Sign in with Google
+                            </Button>
+                        </form>
+                    ) : null}
                     <p className="text-sm text-muted-foreground">
                         New here?{' '}
                         <Link

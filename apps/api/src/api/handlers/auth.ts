@@ -6,7 +6,9 @@ import {
     getUserPreference,
     InvalidCredentialsError,
     InvalidEmailConfirmationTokenError,
+    InvalidGoogleIdentityError,
     InvalidPassportIdentityError,
+    issueGoogleUserToken,
     issuePassportUserToken,
     issueUserToken,
     loginUser,
@@ -26,6 +28,7 @@ import {
 import type {
     ConfirmEmailEndpoint,
     GetMeEndpoint,
+    GoogleSignInEndpoint,
     LoginEndpoint,
     PassportExchangeEndpoint,
     PassportResolveUserEndpoint,
@@ -104,7 +107,10 @@ export const passportResolveUserHandler: Handler<
         );
         return await resolvePassportGoogleUser(db, body);
     } catch (err) {
-        if (err instanceof InvalidPassportIdentityError) {
+        if (
+            err instanceof InvalidGoogleIdentityError ||
+            err instanceof InvalidPassportIdentityError
+        ) {
             return ActionResult.badRequest({ message: err.message });
         }
         if (err instanceof PassportAuthError) {
@@ -137,6 +143,31 @@ export const passportExchangeHandler: Handler<
     } catch (err) {
         if (err instanceof PassportAuthError) {
             return ActionResult.unauthorized({ message: err.message });
+        }
+        throw err;
+    }
+};
+
+export const googleSignInHandler: Handler<typeof GoogleSignInEndpoint> = async (
+    { body, context },
+    { db, config }
+) => {
+    if (
+        !verifyWebApiServiceSecret(
+            config,
+            context.headers[webServiceSecretHeader]
+        )
+    ) {
+        return ActionResult.unauthorized({
+            message: 'Invalid web service credentials.'
+        });
+    }
+
+    try {
+        return await issueGoogleUserToken(db, config, body);
+    } catch (err) {
+        if (err instanceof InvalidGoogleIdentityError) {
+            return ActionResult.badRequest({ message: err.message });
         }
         throw err;
     }

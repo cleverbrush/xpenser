@@ -49,6 +49,15 @@ export const PassportExchangeEndpoint = api.auth.passportExchange
     .tags('auth')
     .operationId('passportExchange');
 
+export const GoogleSignInEndpoint = api.auth.googleSignIn
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Direct Google sign-in')
+    .description(
+        'Maps an Auth.js Google identity to a local xpenser user and issues an API JWT.'
+    )
+    .tags('auth')
+    .operationId('googleSignIn');
+
 export const SessionTokenEndpoint = api.auth.sessionToken
     .inject({ db: DbToken, config: ConfigToken })
     .summary('Web session token')
@@ -393,6 +402,7 @@ export const endpoints = {
         resendEmailConfirmation: ResendEmailConfirmationEndpoint,
         passportResolveUser: PassportResolveUserEndpoint,
         passportExchange: PassportExchangeEndpoint,
+        googleSignIn: GoogleSignInEndpoint,
         sessionToken: SessionTokenEndpoint,
         me: GetMeEndpoint
     },
