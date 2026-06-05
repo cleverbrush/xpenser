@@ -94,7 +94,7 @@ const frameworkFeatures: readonly Feature[] = [
     },
     {
         description:
-            'Passport sign-in, API keys, and protected endpoint metadata demonstrate framework-level auth integration.',
+            'Google sign-in, API keys, and protected endpoint metadata demonstrate framework-level auth integration.',
         icon: ShieldCheckIcon,
         title: 'Auth-aware APIs'
     },

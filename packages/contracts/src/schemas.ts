@@ -329,6 +329,36 @@ export const PassportExchangeBodySchema = object({
         )
 }).schemaName('PassportExchangeBody');
 
+export const GoogleSignInBodySchema = object({
+    /** Stable Google account subject returned by Auth.js. */
+    providerSubject: string()
+        .required('provider subject is required')
+        .nonempty('provider subject is required')
+        .maxLength(FieldLimits.passportSubject, 'provider subject is too long')
+        .describe('Stable Google account subject returned by Auth.js.'),
+    /** Verified email address returned by Google. */
+    email: string()
+        .required('email is required')
+        .nonempty('email is required')
+        .maxLength(FieldLimits.email, 'email is too long')
+        .email('must be a valid email address')
+        .describe('Verified email address returned by Google.'),
+    /** Whether Google verified the email address. */
+    emailVerified: boolean()
+        .required('email verification is required')
+        .describe('Whether Google verified the email address.'),
+    /** Display name returned by Google. */
+    name: string()
+        .optional()
+        .maxLength(FieldLimits.passportDisplayName, 'display name is too long')
+        .describe('Display name returned by Google.'),
+    /** Avatar URL returned by Google. */
+    avatarUrl: string()
+        .optional()
+        .maxLength(FieldLimits.passportAvatarUrl, 'avatar URL is too long')
+        .describe('Avatar URL returned by Google.')
+}).schemaName('GoogleSignInBody');
+
 export const SessionTokenBodySchema = object({
     /** Authenticated user identifier stored in the trusted web session. */
     userId: number().describe(
@@ -2082,6 +2112,7 @@ export type PassportResolveUserResponse = InferType<
     typeof PassportResolveUserResponseSchema
 >;
 export type PassportExchangeBody = InferType<typeof PassportExchangeBodySchema>;
+export type GoogleSignInBody = InferType<typeof GoogleSignInBodySchema>;
 export type TokenResponse = InferType<typeof TokenResponseSchema>;
 export type UserPreference = InferType<typeof UserPreferenceSchema>;
 export type ApiKey = InferType<typeof ApiKeySchema>;

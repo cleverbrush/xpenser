@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Config } from '../../config.js';
 import type { AppDb } from '../../db/schemas.js';
 import { hashPassword } from '../../security/password.js';
-import { loginHandler, sessionTokenHandler } from './auth.js';
+import {
+    googleSignInHandler,
+    loginHandler,
+    sessionTokenHandler
+} from './auth.js';
 
 const secret = 'web-service-secret-minimum-32-chars';
 const config = {
@@ -93,6 +97,46 @@ describe('session token handler', () => {
                 email: 'jane@example.com',
                 role: 'user'
             }
+        });
+    });
+});
+
+describe('direct Google sign-in handler', () => {
+    const body = {
+        providerSubject: 'google-subject',
+        email: 'jane@example.com',
+        emailVerified: true
+    };
+
+    it('rejects missing web service credentials', async () => {
+        const result = await googleSignInHandler(
+            {
+                body,
+                context: { headers: {} }
+            } as never,
+            { db: mockDb(undefined), config } as never
+        );
+
+        expect(result).toMatchObject({
+            status: 401,
+            body: { message: 'Invalid web service credentials.' }
+        });
+    });
+
+    it('rejects invalid web service credentials', async () => {
+        const result = await googleSignInHandler(
+            {
+                body,
+                context: {
+                    headers: { 'x-xpenser-web-secret': `${secret}-wrong` }
+                }
+            } as never,
+            { db: mockDb(undefined), config } as never
+        );
+
+        expect(result).toMatchObject({
+            status: 401,
+            body: { message: 'Invalid web service credentials.' }
         });
     });
 });

@@ -6,6 +6,7 @@ import {
 import {
     confirmEmailHandler,
     getMeHandler,
+    googleSignInHandler,
     loginHandler,
     passportExchangeHandler,
     passportResolveUserHandler,
@@ -65,6 +66,7 @@ export const handlers = {
         resendEmailConfirmation: resendEmailConfirmationHandler,
         passportResolveUser: passportResolveUserHandler,
         passportExchange: passportExchangeHandler,
+        googleSignIn: googleSignInHandler,
         sessionToken: sessionTokenHandler,
         me: getMeHandler
     },

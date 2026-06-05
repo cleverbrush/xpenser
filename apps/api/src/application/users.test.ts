@@ -7,10 +7,12 @@ import {
     createEmailConfirmationToken,
     EmailNotVerifiedError,
     hashEmailConfirmationToken,
+    InvalidGoogleIdentityError,
     InvalidPassportIdentityError,
     issueUserToken,
     loginUser,
     PasswordMismatchError,
+    resolveGoogleUser,
     transactionCurrenciesByRecentPopularity,
     verifyWebApiServiceSecret
 } from './users.js';
@@ -221,6 +223,131 @@ describe('email confirmation', () => {
             emailVerificationTokenHash: null,
             emailVerificationExpiresAt: null
         });
+    });
+});
+
+describe('Google identity resolution', () => {
+    function mockGoogleDb({
+        existingIdentity,
+        existingUserIdentity,
+        linkedUser,
+        userByEmail
+    }: {
+        readonly existingIdentity?: object;
+        readonly existingUserIdentity?: object;
+        readonly linkedUser?: object;
+        readonly userByEmail?: object;
+    }): { db: AppDb; insertIdentity: ReturnType<typeof vi.fn> } {
+        const insertedUser = {
+            id: 12,
+            email: 'jane@example.com',
+            role: 'user',
+            authProvider: 'google'
+        };
+        const insertIdentity = vi.fn();
+        const trx = {
+            externalIdentities: {
+                where: vi
+                    .fn()
+                    .mockReturnValueOnce({
+                        where: vi.fn(() => ({
+                            first: vi.fn(async () => existingIdentity)
+                        }))
+                    })
+                    .mockReturnValueOnce({
+                        where: vi.fn(() => ({
+                            first: vi.fn(async () => existingUserIdentity)
+                        }))
+                    }),
+                insert: insertIdentity
+            },
+            users: {
+                find: vi.fn(async () => linkedUser),
+                where: vi.fn(() => ({
+                    first: vi.fn(async () => userByEmail)
+                })),
+                insert: vi.fn(async () => insertedUser)
+            }
+        };
+
+        return {
+            db: {
+                transaction: async <T>(callback: (db: typeof trx) => T) =>
+                    callback(trx)
+            } as unknown as AppDb,
+            insertIdentity
+        };
+    }
+
+    it('creates a Google user and external identity for a new verified identity', async () => {
+        const { db, insertIdentity } = mockGoogleDb({});
+
+        const response = await resolveGoogleUser(db, {
+            providerSubject: 'google-subject',
+            email: 'jane@example.com',
+            emailVerified: true
+        });
+
+        expect(response).toEqual({
+            service_user_id: '12',
+            roles: ['user']
+        });
+        expect(insertIdentity).toHaveBeenCalledWith({
+            provider: 'google',
+            providerSubject: 'google-subject',
+            userId: 12,
+            email: 'jane@example.com'
+        });
+    });
+
+    it('reuses an existing linked Google identity', async () => {
+        const { db, insertIdentity } = mockGoogleDb({
+            existingIdentity: { userId: 15 },
+            linkedUser: {
+                id: 15,
+                role: 'admin'
+            }
+        });
+
+        await expect(
+            resolveGoogleUser(db, {
+                providerSubject: 'google-subject',
+                email: 'jane@example.com',
+                emailVerified: true
+            })
+        ).resolves.toEqual({
+            service_user_id: '15',
+            roles: ['admin']
+        });
+        expect(insertIdentity).not.toHaveBeenCalled();
+    });
+
+    it('rejects unverified Google emails', async () => {
+        await expect(
+            resolveGoogleUser({} as AppDb, {
+                providerSubject: 'google-subject',
+                email: 'jane@example.com',
+                emailVerified: false
+            })
+        ).rejects.toBeInstanceOf(InvalidGoogleIdentityError);
+    });
+
+    it('rejects local accounts with the same email', async () => {
+        const { db } = mockGoogleDb({
+            userByEmail: {
+                id: 12,
+                email: 'jane@example.com',
+                authProvider: 'local'
+            }
+        });
+
+        await expect(
+            resolveGoogleUser(db, {
+                providerSubject: 'google-subject',
+                email: 'jane@example.com',
+                emailVerified: true
+            })
+        ).rejects.toBeInstanceOf(InvalidGoogleIdentityError);
     });
 });
 

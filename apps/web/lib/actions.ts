@@ -19,7 +19,7 @@ import {
     getApiClient,
     getSessionOrRedirect
 } from './api';
-import { webConfig } from './config';
+import { getGoogleSignInProvider, webConfig } from './config';
 import { VendorUpdateActionRejected } from './log-templates';
 import { loggerFor } from './logger';
 import {
@@ -254,9 +254,16 @@ function pkceChallenge(verifier: string): string {
 }
 
 function passportLoginUrl(codeChallenge: string): string {
-    const url = new URL('/login', webConfig.passport.baseUrl);
-    url.searchParams.set('project', webConfig.passport.project);
-    url.searchParams.set('env', webConfig.passport.environment);
+    const { baseUrl, environment, project } = webConfig.passport;
+    if (!baseUrl || !environment || !project) {
+        throw new Error(
+            'Passport sign-in requires PASSPORT_BASE_URL, PASSPORT_PROJECT, and PASSPORT_ENVIRONMENT.'
+        );
+    }
+
+    const url = new URL('/login', baseUrl);
+    url.searchParams.set('project', project);
+    url.searchParams.set('env', environment);
     url.searchParams.set('code_challenge', codeChallenge);
     url.searchParams.set('code_challenge_method', 'S256');
     return url.toString();
@@ -342,6 +349,15 @@ export async function resendEmailConfirmationAction(formData: FormData) {
 }
 
 export async function googleSignInAction() {
+    const provider = getGoogleSignInProvider();
+    if (provider === 'direct') {
+        await signIn('google', { redirectTo: '/dashboard' });
+        return;
+    }
+    if (provider === 'disabled') {
+        redirect('/login');
+    }
+
     const verifier = randomBytes(32).toString('base64url');
     const cookieStore = await cookies();
     cookieStore.set(passportPkceCookie, verifier, {

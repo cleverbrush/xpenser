@@ -77,16 +77,77 @@ Local URLs:
 - API health check: http://localhost:4000/health
 - OpenAPI JSON: http://localhost:4000/openapi.json
 
-### Google sign-in through Passport
+### Authentication
 
-Google sign-in is brokered by Passport at `auth.cleverbrush.com`. The web app
-redirects users to Passport, Passport calls the xpenser API to resolve or
-auto-create the local user, and the callback exchanges the Passport code for the
-same xpenser API JWT used by email/password login.
+Email/password sign-in is built in and works without any external auth provider.
+Accounts created this way must confirm their email before signing in.
 
-Configure the xpenser services with:
+Google sign-in has two supported modes:
+
+- Direct Google OAuth for self-hosted deployments.
+- Cleverbrush Passport for the hosted Cleverbrush deployment.
+
+Select the mode with `GOOGLE_SIGN_IN_MODE`:
 
 ```env
+GOOGLE_SIGN_IN_MODE=auto
+```
+
+`auto` uses direct Google OAuth when `AUTH_GOOGLE_ID` and
+`AUTH_GOOGLE_SECRET` are configured. If those are not set, it uses Passport only
+when all Passport variables are configured. If neither auth provider is
+configured, the Google sign-in button is hidden and email/password sign-in still
+works.
+
+Use `GOOGLE_SIGN_IN_MODE=direct` to require direct Google OAuth,
+`GOOGLE_SIGN_IN_MODE=passport` to require Passport, or
+`GOOGLE_SIGN_IN_MODE=disabled` to hide Google sign-in even when credentials are
+present.
+
+#### Direct Google OAuth for self-hosting
+
+Create an OAuth 2.0 client in Google Cloud Console:
+
+- Application type: Web application
+- Authorized JavaScript origin: your public `APP_URL`
+- Authorized redirect URI: `${APP_URL}/api/auth/callback/google`
+
+For local development with the default `APP_URL`, use:
+
+```text
+http://localhost:3000/api/auth/callback/google
+```
+
+Configure the web app with Auth.js-standard Google variables:
+
+```env
+APP_URL=https://xpenser.example.com
+NEXTAUTH_URL=https://xpenser.example.com
+NEXTAUTH_SECRET=replace-with-at-least-32-characters
+AUTH_SECRET=replace-with-the-same-value-as-NEXTAUTH_SECRET
+GOOGLE_SIGN_IN_MODE=auto
+AUTH_GOOGLE_ID=your-google-oauth-client-id
+AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
+```
+
+The web app validates the Google profile through Auth.js, then calls the private
+xpenser API with `WEB_API_SERVICE_SECRET`. The API resolves or creates a local
+`google` user, stores the Google subject in `external_identities`, and returns
+the same xpenser API JWT used by email/password sessions.
+
+Google accounts must have a verified email address. If a local email/password
+account already exists with the same email, Google sign-in is rejected instead of
+silently linking the accounts.
+
+#### Passport for Cleverbrush deployment
+
+Passport is a private Cleverbrush auth broker. Self-hosted deployments should
+use direct Google OAuth unless they run their own compatible Passport service.
+
+Configure both services with:
+
+```env
+GOOGLE_SIGN_IN_MODE=passport
 PASSPORT_BASE_URL=https://auth.cleverbrush.com
 PASSPORT_PROJECT=xpenser
 PASSPORT_ENVIRONMENT=production
@@ -263,3 +324,12 @@ change the relevant app port before starting the dev servers.
 
 If login/register fails after changing secrets or resetting data, stop the dev
 server, clear browser cookies for `localhost`, and start the app again.
+
+If the Google sign-in button is hidden, either set `AUTH_GOOGLE_ID` and
+`AUTH_GOOGLE_SECRET` for direct Google OAuth, set complete Passport variables
+with `GOOGLE_SIGN_IN_MODE=passport`, or set `GOOGLE_SIGN_IN_MODE=direct` to fail
+fast when Google credentials are missing.
+
+If Google returns a redirect URI mismatch, add the exact
+`${APP_URL}/api/auth/callback/google` URL to the Google OAuth client. The scheme,
+host, port, and path must match the public URL users open in the browser.
