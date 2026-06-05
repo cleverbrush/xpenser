@@ -17,12 +17,22 @@ export type TelegramUpdateSpanInfo = {
 
 const tracer = trace.getTracer('xpenser.telegram-bot');
 
+/**
+ * Extracts a low-cardinality Telegram command name for span names and
+ * attributes without retaining command arguments such as deep-link tokens.
+ */
 export function telegramCommand(text: string | undefined): string {
     const match = (text ?? '').trim().match(/^\/([a-zA-Z0-9_]+)(?:@\S+)?/);
     const command = match?.[1];
     return command?.toLowerCase() ?? 'unknown';
 }
 
+/**
+ * Maps callback payloads to safe action names.
+ *
+ * Callback payloads can contain category IDs or other user data, so only the
+ * action family is recorded in telemetry.
+ */
 export function telegramCallbackAction(data: string | undefined): string {
     if (!data) {
         return 'unknown';

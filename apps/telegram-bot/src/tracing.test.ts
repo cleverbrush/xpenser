@@ -3,7 +3,8 @@ import {
     telegramCallbackAction,
     telegramCommand,
     telegramSpanAttributes,
-    telegramSpanName
+    telegramSpanName,
+    traceTelegramUpdate
 } from './tracing.js';
 
 describe('telegram tracing helpers', () => {
@@ -44,5 +45,23 @@ describe('telegram tracing helpers', () => {
             'telegram.message.id': 42
         });
         expect(Object.values(attributes)).not.toContain('cat:123');
+    });
+
+    it('returns handler results and propagates handler errors from traced updates', async () => {
+        await expect(
+            traceTelegramUpdate(
+                { updateType: 'command', command: 'start' },
+                async () => 'ok'
+            )
+        ).resolves.toBe('ok');
+
+        await expect(
+            traceTelegramUpdate(
+                { updateType: 'message' },
+                async (): Promise<string> => {
+                    throw new Error('handler failed');
+                }
+            )
+        ).rejects.toThrow('handler failed');
     });
 });

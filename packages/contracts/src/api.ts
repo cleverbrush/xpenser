@@ -98,6 +98,15 @@ const apiKeys = endpoint
     .resource('/api/users/me/api-keys')
     .authorize(PrincipalSchema);
 
+/**
+ * Public xpenser HTTP API contract.
+ *
+ * This is the single contract shared by the API server and typed clients. The
+ * server enriches these endpoint builders with DI, summaries, and operation IDs
+ * in `apps/api/src/api/endpoints.ts`, while consumers import this contract to
+ * get request, response, route-parameter, cache-tag, and authorization metadata
+ * without code generation.
+ */
 export const api = defineApi({
     auth: {
         register: endpoint

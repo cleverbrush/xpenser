@@ -71,4 +71,44 @@ describe('createXpenserClient', () => {
             timeout: 60_000
         });
     });
+
+    it('orders framework middlewares from tracing through cache and batching', () => {
+        createXpenserClient({ baseUrl: 'http://api:4000' });
+
+        expect(middlewareMocks.createClient).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                middlewares: [
+                    { name: 'tracing' },
+                    { name: 'retry' },
+                    { name: 'timeout' },
+                    { name: 'dedupe' },
+                    { name: 'cacheTags' },
+                    { name: 'batching' }
+                ]
+            })
+        );
+        expect(middlewareMocks.batching).toHaveBeenCalledWith({
+            maxSize: 10,
+            windowMs: 10
+        });
+    });
+
+    it('skips batching when the base URL includes an API proxy path', () => {
+        createXpenserClient({ baseUrl: 'http://localhost:3000/external-api' });
+
+        expect(middlewareMocks.batching).not.toHaveBeenCalled();
+        expect(middlewareMocks.createClient).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                middlewares: [
+                    { name: 'tracing' },
+                    { name: 'retry' },
+                    { name: 'timeout' },
+                    { name: 'dedupe' },
+                    { name: 'cacheTags' }
+                ]
+            })
+        );
+    });
 });

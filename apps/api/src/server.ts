@@ -6,7 +6,7 @@ import {
     type Middleware,
     mapHandlers
 } from '@cleverbrush/server';
-import { serveOpenApi } from '@cleverbrush/server-openapi';
+import { createOpenApiEndpoint } from '@cleverbrush/server-openapi';
 import { endpoints } from './api/endpoints.js';
 import { handlers } from './api/handlers/index.js';
 import type { Config } from './config.js';
@@ -14,6 +14,14 @@ import { configureDI, type DbResources } from './di/setup.js';
 import { McpEndpoint, mcpHandler } from './mcp/endpoint.js';
 import { xpenserAuthScheme } from './security/api-auth.js';
 
+/**
+ * CORS middleware for the public API surface.
+ *
+ * The allowed origin is intentionally the configured web app origin, because
+ * browser traffic normally reaches the API through the Next.js app or the
+ * `/external-api` proxy. Non-browser clients can still use bearer/API-key auth
+ * without relying on CORS.
+ */
 function corsMiddleware(config: Config): Middleware {
     return async (ctx, next) => {
         ctx.response.setHeader('Access-Control-Allow-Origin', config.app.url);
@@ -48,6 +56,11 @@ export function buildServer(
         correlationResponseHeader: false
     });
 
+    /**
+     * Middleware order matters for the reference app:
+     * tracing opens the server span first, then CORS/logging/DI/auth run inside
+     * that span so logs and database spans can correlate with the request.
+     */
     const server = createServer({
         maxBodySize: 20 * 1024 * 1024
     })
@@ -64,35 +77,38 @@ export function buildServer(
         .withHealthcheck()
         .useBatching();
 
-    server.use(
-        serveOpenApi({
-            server,
-            info: {
-                title: 'xpenser API',
-                version: '0.1.0',
-                description:
-                    'Schema-first income and expense tracking API built with Cleverbrush.'
-            },
-            servers: [
-                {
-                    url: config.api.publicBaseUrl,
-                    description: 'Configured API base URL'
-                }
-            ],
-            securitySchemes: {
-                bearerAuth: {
-                    type: 'http',
-                    scheme: 'bearer',
-                    bearerFormat: 'JWT or xpenser API key'
-                },
-                apiKey: {
-                    type: 'apiKey',
-                    in: 'header',
-                    name: 'X-API-Key'
-                }
+    const openApi = createOpenApiEndpoint({
+        server,
+        info: {
+            title: 'xpenser API',
+            version: '0.1.0',
+            description:
+                'Schema-first income and expense tracking API built with Cleverbrush.'
+        },
+        servers: [
+            {
+                url: config.api.publicBaseUrl,
+                description: 'Configured API base URL'
             }
-        })
-    );
+        ],
+        securitySchemes: {
+            bearerAuth: {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT or xpenser API key'
+            },
+            apiKey: {
+                type: 'apiKey',
+                in: 'header',
+                name: 'X-API-Key'
+            }
+        }
+    });
+
+    // Register OpenAPI as a first-class endpoint. Cleverbrush middleware runs
+    // after route matching, so an unmatched `/openapi.json` request would never
+    // reach `serveOpenApi()`.
+    server.handle(openApi.endpoint, openApi.handler);
 
     server.handle(McpEndpoint, mcpHandler);
     server.handleAll(mapHandlers(endpoints, handlers));

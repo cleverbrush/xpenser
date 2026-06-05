@@ -68,4 +68,22 @@ describe('API config', () => {
         expect(config.vendorEnrichment.enabled).toBe(true);
         expect(config.vendorEnrichment.timeoutMs).toBe(1234);
     });
+
+    it('rejects placeholder secrets in production', async () => {
+        vi.stubEnv('NODE_ENV', 'production');
+        vi.stubEnv('JWT_SECRET', 'change-me-in-production-min32chars');
+        vi.stubEnv(
+            'WEB_API_SERVICE_SECRET',
+            'change-me-in-production-min32chars'
+        );
+        vi.stubEnv(
+            'TELEGRAM_BOT_SERVICE_SECRET',
+            'change-me-in-production-min32chars'
+        );
+        vi.resetModules();
+
+        await expect(import('./config.js')).rejects.toThrow(
+            'Refusing to start with placeholder production secrets: JWT_SECRET, WEB_API_SERVICE_SECRET, TELEGRAM_BOT_SERVICE_SECRET'
+        );
+    });
 });
