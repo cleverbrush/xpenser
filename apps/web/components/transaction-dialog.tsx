@@ -438,12 +438,14 @@ export function TransactionDialog({
                         />
                         <SchemaField
                             fieldProps={{
-                                maxLength: FieldLimits.transactionNote
+                                maxLength: FieldLimits.transactionNote,
+                                rows: 4
                             }}
                             forProperty={field => field.note}
                             form={form}
                             label="Note"
                             name="note"
+                            variant="textarea"
                         />
                         {error ? (
                             <FieldError role="alert">{error}</FieldError>

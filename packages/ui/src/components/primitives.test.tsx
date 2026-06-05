@@ -32,6 +32,7 @@ import {
     TableHeader,
     TableRow
 } from './table.js';
+import { Textarea } from './textarea.js';
 
 describe('ui primitives', () => {
     it('renders card regions with caller props and classes', () => {
@@ -103,6 +104,18 @@ describe('ui primitives', () => {
 
         expect(spinner?.getAttribute('aria-hidden')).toBe('true');
         expect(spinner?.getAttribute('class')).toContain('animate-spin');
+    });
+
+    it('renders textarea fields with caller props and classes', () => {
+        render(
+            <Field>
+                <FieldLabel htmlFor="note">Note</FieldLabel>
+                <Textarea id="note" rows={4} />
+            </Field>
+        );
+
+        expect(screen.getByLabelText('Note').tagName).toBe('TEXTAREA');
+        expect(screen.getByLabelText('Note').className).toContain('min-h-24');
     });
 
     it('renders avatar images with a fallback', () => {

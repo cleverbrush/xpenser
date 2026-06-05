@@ -4,6 +4,7 @@ import type {
     TransactionScanDecisionBody,
     Vendor
 } from '@xpenser/contracts';
+import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
 import type {
@@ -15,6 +16,7 @@ import type {
     UserDb
 } from '../db/schemas.js';
 import {
+    prepareScanImagesForVision,
     recordTransactionScanDecision,
     scanTransactionsFromImage
 } from './transaction-scans.js';
@@ -309,6 +311,8 @@ describe('transaction image scans', () => {
         mocks.generateStructuredJsonFromContent.mockResolvedValue({
             documentKind: 'receipt',
             warnings: ['Check tax lines.'],
+            visibleTotal: 12.34,
+            visibleTotalCurrency: 'USD',
             transactions: [
                 {
                     amount: 12.34,
@@ -323,7 +327,9 @@ describe('transaction image scans', () => {
                     },
                     currency: 'usd',
                     evidence: 'Walmart 12.34',
-                    note: 'Receipt total',
+                    lineItemSubtotal: 12.34,
+                    lineItems: [],
+                    note: 'Milk - 4.34\nBread - 8.00',
                     occurredDate: '2026-06-01',
                     occurredTime: null,
                     suggestedCategoryKind: null,
@@ -366,6 +372,7 @@ describe('transaction image scans', () => {
             amount: 12.34,
             categoryId: 7,
             currency: 'USD',
+            note: 'Milk - 4.34\nBread - 8.00',
             vendorId: 5
         });
         expect(
@@ -380,6 +387,14 @@ describe('transaction image scans', () => {
                 })
             ])
         );
+        expect(
+            JSON.parse(
+                String(
+                    mocks.generateStructuredJsonFromContent.mock.calls[0]?.[1]
+                        .content[0]?.text
+                )
+            ).outputRules.note
+        ).toContain('multiline notes');
     });
 
     it('suggests category creation instead of trusting low-confidence category IDs', async () => {
@@ -389,6 +404,8 @@ describe('transaction image scans', () => {
         mocks.generateStructuredJsonFromContent.mockResolvedValue({
             documentKind: 'receipt',
             warnings: [],
+            visibleTotal: 18.5,
+            visibleTotalCurrency: 'USD',
             transactions: [
                 {
                     amount: 18.5,
@@ -403,6 +420,14 @@ describe('transaction image scans', () => {
                     },
                     currency: 'USD',
                     evidence: 'Hardware supplies 18.50',
+                    lineItemSubtotal: 18.5,
+                    lineItems: [
+                        {
+                            amount: 18.5,
+                            description: 'Hardware supplies',
+                            quantity: 1
+                        }
+                    ],
                     note: null,
                     occurredDate: '2026-06-01',
                     occurredTime: null,
@@ -437,6 +462,143 @@ describe('transaction image scans', () => {
                 category: 'low'
             }
         });
+    });
+
+    it('keeps split invoice drafts linked to one scan with itemized notes', async () => {
+        mocks.listCategories.mockResolvedValue([
+            category({ id: 7, name: 'Groceries', displayName: 'Groceries' }),
+            category({ id: 8, name: 'Medicine', displayName: 'Medicine' })
+        ]);
+        mocks.listVendors.mockResolvedValue([vendor()]);
+        mocks.listTransactions.mockResolvedValue({ items: [] });
+        mocks.generateStructuredJsonFromContent.mockResolvedValue({
+            documentKind: 'invoice',
+            warnings: [],
+            visibleTotal: 33.0,
+            visibleTotalCurrency: 'USD',
+            transactions: [
+                {
+                    amount: 21.0,
+                    categoryId: 7,
+                    confidence: {
+                        amount: 'high',
+                        category: 'high',
+                        currency: 'high',
+                        date: 'high',
+                        overall: 'high',
+                        vendor: 'high'
+                    },
+                    currency: 'USD',
+                    evidence: 'Apples 10.00 Milk 11.00',
+                    lineItemSubtotal: 21,
+                    lineItems: [
+                        {
+                            amount: 10,
+                            description: 'Apples',
+                            quantity: 1
+                        },
+                        { amount: 11, description: 'Milk', quantity: 1 }
+                    ],
+                    note: 'Apples - 10.00\nMilk - 11.00',
+                    occurredDate: '2026-06-02',
+                    occurredTime: null,
+                    suggestedCategoryKind: null,
+                    suggestedCategoryName: null,
+                    suggestedCategoryParentId: null,
+                    suggestedCategoryReason: null,
+                    suggestedCategoryType: null,
+                    suggestedVendorName: null,
+                    transactionType: 'expense',
+                    vendorId: 5
+                },
+                {
+                    amount: 12.0,
+                    categoryId: 8,
+                    confidence: {
+                        amount: 'high',
+                        category: 'high',
+                        currency: 'high',
+                        date: 'high',
+                        overall: 'high',
+                        vendor: 'high'
+                    },
+                    currency: 'USD',
+                    evidence: 'Bandages 12.00',
+                    lineItemSubtotal: 12,
+                    lineItems: [
+                        { amount: 12, description: 'Bandages', quantity: 1 }
+                    ],
+                    note: 'Bandages - 12.00',
+                    occurredDate: '2026-06-02',
+                    occurredTime: null,
+                    suggestedCategoryKind: null,
+                    suggestedCategoryName: null,
+                    suggestedCategoryParentId: null,
+                    suggestedCategoryReason: null,
+                    suggestedCategoryType: null,
+                    suggestedVendorName: null,
+                    transactionType: 'expense',
+                    vendorId: 5
+                }
+            ]
+        });
+
+        const scanItems: TransactionScanItemDb[] = [];
+        const result = await scanTransactionsFromImage(
+            testDb({ scanItems }),
+            config,
+            1,
+            {
+                imageBase64: Buffer.from('image').toString('base64'),
+                mimeType: 'image/png',
+                fileName: 'invoice.png'
+            }
+        );
+
+        expect(result).toMatchObject({
+            scanId: 10,
+            documentKind: 'invoice',
+            drafts: [
+                {
+                    amount: 21,
+                    categoryId: 7,
+                    note: 'Apples - 10.00\nMilk - 11.00'
+                },
+                {
+                    amount: 12,
+                    categoryId: 8,
+                    note: 'Bandages - 12.00'
+                }
+            ]
+        });
+        expect(scanItems).toHaveLength(2);
+        expect(scanItems.map(item => item.scanId)).toEqual([10, 10]);
+    });
+
+    it('splits very tall images into ordered vision tiles', async () => {
+        const buffer = await sharp({
+            create: {
+                background: '#ffffff',
+                channels: 3,
+                height: 7661,
+                width: 1440
+            }
+        })
+            .png()
+            .toBuffer();
+
+        const prepared = await prepareScanImagesForVision(buffer, 'image/png');
+
+        expect(prepared.images).toHaveLength(4);
+        expect(prepared.images[0]).toMatchObject({
+            description: 'tile 1 of 4',
+            mimeType: 'image/jpeg',
+            width: 1440
+        });
+        expect(prepared.promptContext.preprocessing).toContain(
+            'ordered overlapping tiles'
+        );
+        expect(prepared.warnings[0]).toContain('split into 4 ordered tiles');
     });
 
     it('records confirmed scan corrections', async () => {

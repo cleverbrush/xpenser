@@ -16,7 +16,7 @@ export const FieldLimits = {
     telegramUserId: 64,
     telegramUsername: 64,
     timeZone: 64,
-    transactionNote: 500,
+    transactionNote: 2000,
     transactionSearch: 500,
     vendorDescription: 1000,
     vendorDomain: 255,

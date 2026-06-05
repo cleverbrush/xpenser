@@ -4,6 +4,7 @@ import { createXpenserClient } from '@xpenser/client';
 import {
     type Category,
     type Currency,
+    FieldLimits,
     type Transaction,
     type TransactionScanDecisionBody,
     type TransactionScanDraft,
@@ -37,7 +38,8 @@ import {
     SelectGroup,
     SelectItem,
     SelectTrigger,
-    SelectValue
+    SelectValue,
+    Textarea
 } from '@xpenser/ui';
 import {
     AlertCircleIcon,
@@ -46,11 +48,18 @@ import {
     ChevronRightIcon,
     ImageUpIcon,
     PlusIcon,
-    ScanLineIcon,
     Trash2Icon
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useMemo, useState } from 'react';
+import {
+    type ChangeEvent,
+    type DragEvent,
+    type FormEvent,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from 'react';
 import {
     createCaptureTransactionAction,
     createVendorAction,
@@ -80,6 +89,33 @@ type TransactionType = Category['type'];
 
 const maxImageBytes = TransactionScanLimits.maxImageBytes;
 const uploadChunkBytes = TransactionScanLimits.uploadChunkBytes;
+const allowedScanImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+const analyzingMessages = [
+    'Reading visible text and totals.',
+    'Matching vendors and categories.',
+    'Checking whether line items should be split.',
+    'Allocating shared tax, fees, and discounts.',
+    'Preparing transactions for review.'
+];
+
+type ScanProgressStage =
+    | TransactionScanProgressEvent['stage']
+    | 'connecting'
+    | 'uploading';
+
+type ScanProgressUpdate = {
+    readonly message: string;
+    readonly progress: number;
+    readonly stage: ScanProgressStage;
+};
+
+type ScanFileDetails = {
+    readonly height?: number;
+    readonly key: string;
+    readonly name: string;
+    readonly size: number;
+    readonly width?: number;
+};
 
 type ScanResultResponse =
     | { readonly error: string; readonly scan?: undefined }
@@ -135,9 +171,42 @@ function scanError(event: TransactionScanProgressEvent): string {
     return event.error ?? 'Could not scan the image. Try again.';
 }
 
+function scanEventProgress(event: TransactionScanProgressEvent): number {
+    return Math.min(100, Math.round(40 + event.progress * 0.6));
+}
+
+function fileKey(file: File): string {
+    return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function formatFileSize(bytes: number): string {
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function readImageDimensions(
+    file: File
+): Promise<{ readonly height: number; readonly width: number } | null> {
+    return new Promise(resolve => {
+        const image = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve({
+                height: image.naturalHeight,
+                width: image.naturalWidth
+            });
+        };
+        image.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(null);
+        };
+        image.src = objectUrl;
+    });
+}
+
 async function waitForScanJob(
     job: TransactionScanJobResponse,
-    onProgress: (message: string) => void
+    onProgress: (update: ScanProgressUpdate) => void
 ): Promise<TransactionScanResponse> {
     const client = createXpenserClient({
         baseUrl: browserApiBaseUrl(),
@@ -150,7 +219,11 @@ async function waitForScanJob(
 
     try {
         for await (const event of subscription) {
-            onProgress(event.message);
+            onProgress({
+                message: event.message,
+                progress: scanEventProgress(event),
+                stage: event.stage
+            });
             if (event.stage === 'failed') {
                 throw new Error(scanError(event));
             }
@@ -167,11 +240,15 @@ async function waitForScanJob(
 
 async function uploadAndScanImageFile(
     file: File,
-    onProgress: (message: string) => void
+    onProgress: (update: ScanProgressUpdate) => void
 ): Promise<ScanResultResponse> {
     const uploadId = crypto.randomUUID();
     const totalChunks = Math.ceil(file.size / uploadChunkBytes);
-    onProgress('Uploading image.');
+    onProgress({
+        message: 'Uploading image.',
+        progress: 4,
+        stage: 'uploading'
+    });
 
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
         const start = chunkIndex * uploadChunkBytes;
@@ -207,7 +284,11 @@ async function uploadAndScanImageFile(
             return result;
         }
         if (result && 'attachment' in result && 'job' in result) {
-            onProgress('Connecting to scan progress.');
+            onProgress({
+                message: 'Connecting to scan progress.',
+                progress: 38,
+                stage: 'connecting'
+            });
             try {
                 const scan = await waitForScanJob(result.job, onProgress);
                 return { attachment: result.attachment, scan };
@@ -220,11 +301,16 @@ async function uploadAndScanImageFile(
                 };
             }
         }
-        onProgress(
-            `Uploading image (${Math.round(
+        onProgress({
+            message: `Uploading image (${Math.round(
                 ((chunkIndex + 1) / totalChunks) * 100
-            )}%).`
-        );
+            )}%).`,
+            progress: Math.max(
+                4,
+                Math.round(((chunkIndex + 1) / totalChunks) * 35)
+            ),
+            stage: 'uploading'
+        });
     }
 
     return { error: 'Could not scan the image. Try again.' };
@@ -319,34 +405,77 @@ function ScanUpload({
         attachment: ScanAttachment
     ) => void;
 }) {
-    const [file, setFile] = useState<File | null>(null);
+    const inputRef = useRef<HTMLInputElement | null>(null);
+    const [fileDetails, setFileDetails] = useState<ScanFileDetails | null>(
+        null
+    );
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [progressMessage, setProgressMessage] = useState<string | null>(null);
+    const [progress, setProgress] = useState<ScanProgressUpdate | null>(null);
+    const [analysisTick, setAnalysisTick] = useState(0);
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (!file) {
-            setError('Choose an image to scan.');
+    useEffect(() => {
+        if (progress?.stage !== 'analyzing') {
             return;
         }
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        const timer = window.setInterval(
+            () => setAnalysisTick(value => value + 1),
+            5_000
+        );
+        return () => window.clearInterval(timer);
+    }, [progress?.stage]);
+
+    function setNextProgress(update: ScanProgressUpdate) {
+        setProgress(current => {
+            if (current?.stage !== update.stage) {
+                setAnalysisTick(0);
+            }
+            return update;
+        });
+    }
+
+    async function scanSelectedFile(file: File) {
+        const key = fileKey(file);
+        setFileDetails({
+            key,
+            name: file.name,
+            size: file.size
+        });
+        setError(null);
+        setProgress(null);
+        void readImageDimensions(file).then(dimensions => {
+            if (!dimensions) {
+                return;
+            }
+            setFileDetails(current =>
+                current?.key === key
+                    ? {
+                          ...current,
+                          height: dimensions.height,
+                          width: dimensions.width
+                      }
+                    : current
+            );
+        });
+
+        if (!allowedScanImageTypes.includes(file.type)) {
             setError('Upload a PNG, JPEG, or WebP image.');
+            if (inputRef.current) {
+                inputRef.current.value = '';
+            }
             return;
         }
         if (file.size > maxImageBytes) {
             setError('Image must be 10 MB or smaller.');
+            if (inputRef.current) {
+                inputRef.current.value = '';
+            }
             return;
         }
 
         setPending(true);
-        setError(null);
-        setProgressMessage('Uploading image.');
         try {
-            const result = await uploadAndScanImageFile(
-                file,
-                setProgressMessage
-            );
+            const result = await uploadAndScanImageFile(file, setNextProgress);
             if (result.error) {
                 setError(result.error);
                 return;
@@ -356,57 +485,114 @@ function ScanUpload({
                 return;
             }
             onScanned(result.scan, result.attachment);
-            setProgressMessage(null);
+            setProgress(null);
         } catch {
             setError('Could not scan the image. Try again.');
         } finally {
             setPending(false);
+            if (inputRef.current) {
+                inputRef.current.value = '';
+            }
         }
     }
+
+    function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+        const selected = event.target.files?.[0];
+        if (selected) {
+            void scanSelectedFile(selected);
+        }
+    }
+
+    function handleDrop(event: DragEvent<HTMLLabelElement>) {
+        event.preventDefault();
+        if (pending) {
+            return;
+        }
+        const selected = event.dataTransfer.files?.[0];
+        if (selected) {
+            void scanSelectedFile(selected);
+        }
+    }
+
+    const displayProgress =
+        progress?.stage === 'analyzing'
+            ? Math.min(82, progress.progress + analysisTick * 6)
+            : (progress?.progress ?? 0);
+    const displayMessage =
+        progress?.stage === 'analyzing'
+            ? analyzingMessages[analysisTick % analyzingMessages.length]
+            : progress?.message;
 
     return (
         <Card>
             <CardContent className="p-4 sm:p-6">
-                <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-                    <Field>
-                        <FieldLabel htmlFor="scan-image">
-                            Invoice, receipt, or bank screenshot
-                        </FieldLabel>
+                <div className="flex flex-col gap-4">
+                    <FieldLabel
+                        className={`flex cursor-pointer flex-col items-center gap-3 rounded-md border border-dashed bg-muted/20 px-4 py-6 text-center transition-colors ${
+                            pending
+                                ? 'pointer-events-none opacity-70'
+                                : 'hover:border-primary'
+                        }`}
+                        htmlFor="scan-image"
+                        onDragOver={event => event.preventDefault()}
+                        onDrop={handleDrop}
+                    >
                         <Input
                             accept="image/png,image/jpeg,image/webp"
+                            className="sr-only"
+                            disabled={pending}
                             id="scan-image"
-                            onChange={event =>
-                                setFile(event.target.files?.[0] ?? null)
-                            }
+                            onChange={handleFileChange}
+                            ref={inputRef}
                             type="file"
                         />
-                    </Field>
-                    {file ? (
+                        <span className="flex size-11 items-center justify-center rounded-full border bg-background">
+                            <ImageUpIcon aria-hidden className="size-5" />
+                        </span>
+                        <span>
+                            {fileDetails
+                                ? 'Choose another image'
+                                : 'Choose image'}
+                        </span>
+                    </FieldLabel>
+                    {fileDetails ? (
                         <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
-                            {file.name} - {(file.size / 1024 / 1024).toFixed(2)}{' '}
-                            MB
+                            <p className="truncate text-foreground">
+                                {fileDetails.name}
+                            </p>
+                            <p>
+                                {formatFileSize(fileDetails.size)}
+                                {fileDetails.width && fileDetails.height
+                                    ? ` - ${fileDetails.width}x${fileDetails.height}`
+                                    : ''}
+                            </p>
                         </div>
                     ) : null}
                     {error ? (
                         <FieldError role="alert">{error}</FieldError>
                     ) : null}
-                    {pending && progressMessage ? (
+                    {pending && progress && displayMessage ? (
                         <div
                             aria-live="polite"
-                            className="rounded-md border px-3 py-2 text-sm text-muted-foreground"
+                            className="rounded-md border px-3 py-3 text-sm text-muted-foreground"
                         >
-                            {progressMessage}
+                            <div
+                                aria-label="Scan progress"
+                                aria-valuemax={100}
+                                aria-valuemin={0}
+                                aria-valuenow={displayProgress}
+                                className="mb-2 h-2 overflow-hidden rounded-full bg-muted"
+                                role="progressbar"
+                            >
+                                <div
+                                    className="h-full rounded-full bg-primary transition-all duration-700"
+                                    style={{ width: `${displayProgress}%` }}
+                                />
+                            </div>
+                            {displayMessage}
                         </div>
                     ) : null}
-                    <Button
-                        className="h-12 w-full"
-                        disabled={pending}
-                        type="submit"
-                    >
-                        <ScanLineIcon aria-hidden className="size-4" />
-                        {pending ? 'Scanning...' : 'Scan image'}
-                    </Button>
-                </form>
+                </div>
             </CardContent>
         </Card>
     );
@@ -1084,10 +1270,12 @@ function ScanWizard({
 
                         <Field>
                             <FieldLabel htmlFor="scan-note">Note</FieldLabel>
-                            <Input
+                            <Textarea
                                 autoComplete="off"
                                 id="scan-note"
+                                maxLength={FieldLimits.transactionNote}
                                 onChange={event => setNote(event.target.value)}
+                                rows={5}
                                 value={note}
                             />
                         </Field>

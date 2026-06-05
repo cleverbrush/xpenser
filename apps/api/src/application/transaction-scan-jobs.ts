@@ -109,7 +109,7 @@ function progressMessage(stage: ProgressStage): string {
         case 'preparing':
             return 'Loading categories, vendors, and prior scan corrections.';
         case 'analyzing':
-            return 'Asking AI to extract transactions from the image.';
+            return 'Reading image details with AI.';
         case 'saving':
             return 'Saving scan suggestions for review.';
     }

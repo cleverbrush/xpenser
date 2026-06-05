@@ -11,5 +11,6 @@ export * from './components/label.js';
 export * from './components/select.js';
 export * from './components/spinner.js';
 export * from './components/table.js';
+export * from './components/textarea.js';
 export * from './forms/react-form-provider.js';
 export * from './lib/utils.js';

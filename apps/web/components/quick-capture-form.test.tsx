@@ -141,7 +141,7 @@ describe('QuickCaptureForm', () => {
 
         expect(screen.getByRole('combobox', { name: 'Currency' })).toBeTruthy();
         expect(screen.getByLabelText('Date and time')).toBeTruthy();
-        expect(screen.getByLabelText('Note')).toBeTruthy();
+        expect(screen.getByLabelText('Note').tagName).toBe('TEXTAREA');
         expect(screen.queryByRole('button', { name: 'Details' })).toBeNull();
         expect(
             screen.queryByRole('combobox', { name: 'All categories' })
@@ -152,7 +152,7 @@ describe('QuickCaptureForm', () => {
             target: { value: '12.34' }
         });
         fireEvent.change(screen.getByLabelText('Note'), {
-            target: { value: 'Quick capture note' }
+            target: { value: 'Quick capture note\nSecond line' }
         });
         fireEvent.click(
             screen.getByRole('button', { name: 'Save transaction' })
@@ -168,12 +168,12 @@ describe('QuickCaptureForm', () => {
         expect(formData.get('amount')).toBe('12.34');
         expect(formData.get('currency')).toBe('USD');
         expect(formData.get('effect')).toBeNull();
-        expect(formData.get('note')).toBe('Quick capture note');
+        expect(formData.get('note')).toBe('Quick capture note\nSecond line');
         expect(formData.get('occurredAt')).toBeTruthy();
         expect(refresh).toHaveBeenCalledOnce();
-        expect((screen.getByLabelText('Note') as HTMLInputElement).value).toBe(
-            ''
-        );
+        expect(
+            (screen.getByLabelText('Note') as HTMLTextAreaElement).value
+        ).toBe('');
 
         expect(screen.getByText('Saved')).toBeTruthy();
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
