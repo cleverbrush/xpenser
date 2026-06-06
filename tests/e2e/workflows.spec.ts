@@ -94,7 +94,7 @@ test.describe('authenticated app workflows', () => {
             page.getByRole('heading', { name: 'User preferences' })
         ).toBeVisible();
         await expect(page.getByText('MCP server')).toBeVisible();
-        await expect(page.getByText('/external-api/mcp')).toBeVisible();
+        await expect(page.getByText('/external-api/mcp').first()).toBeVisible();
     });
 
     test('creates categories and manages a transaction lifecycle', async ({
