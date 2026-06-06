@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { jwtScheme, signJwt } from '@cleverbrush/auth';
+import { array, string } from '@cleverbrush/schema';
 import type {
     McpOAuthAuthorizationQuery,
     McpOAuthAuthorizationRequest,
@@ -20,6 +21,7 @@ const mcpScope = 'mcp';
 const accessTokenTtlSeconds = 60 * 60;
 const authorizationCodeTtlSeconds = 10 * 60;
 const refreshTokenTtlSeconds = 30 * 24 * 60 * 60;
+const StringArraySchema = array(string());
 
 type DynamicClientRegistrationRequest = {
     readonly client_name?: unknown;
@@ -95,15 +97,18 @@ function tokenExpiresAt(ttlSeconds: number, now = new Date()): Date {
     return new Date(now.getTime() + ttlSeconds * 1000);
 }
 
-function isStringArray(value: unknown): value is string[] {
-    return (
-        Array.isArray(value) && value.every(item => typeof item === 'string')
-    );
+function redirectUris(client: McpOAuthClientDb): string[] {
+    return parseStringArray(JSON.parse(client.redirectUrisJson));
 }
 
-function redirectUris(client: McpOAuthClientDb): string[] {
-    const parsed = JSON.parse(client.redirectUrisJson) as unknown;
-    return isStringArray(parsed) ? parsed : [];
+function parseStringArray(value: unknown): string[] {
+    const result = StringArraySchema.safeParse(value);
+    return result.valid ? (result.object ?? []) : [];
+}
+
+function stringArray(value: unknown): string[] | undefined {
+    const result = StringArraySchema.safeParse(value);
+    return result.valid ? (result.object ?? []) : undefined;
 }
 
 function oauthClientDisplayName(value: unknown): string {
@@ -167,18 +172,14 @@ function requireSupportedRegistration(body: DynamicClientRegistrationRequest) {
         );
     }
     if (
-        isStringArray(body.grant_types) &&
-        !body.grant_types.includes('authorization_code')
+        stringArray(body.grant_types)?.includes('authorization_code') === false
     ) {
         throw new OAuthError(
             'invalid_client_metadata',
             'authorization_code grant type is required.'
         );
     }
-    if (
-        isStringArray(body.response_types) &&
-        !body.response_types.includes('code')
-    ) {
+    if (stringArray(body.response_types)?.includes('code') === false) {
         throw new OAuthError(
             'invalid_client_metadata',
             'code response type is required.'
@@ -360,14 +361,15 @@ export async function registerMcpOAuthClient(
 ): Promise<DynamicClientRegistrationResponse> {
     requireSupportedRegistration(body);
     const scope = normalizeScope(body.scope);
-    if (!isStringArray(body.redirect_uris) || body.redirect_uris.length === 0) {
+    const redirectUris = stringArray(body.redirect_uris);
+    if (!redirectUris || redirectUris.length === 0) {
         throw new OAuthError(
             'invalid_client_metadata',
             'At least one redirect URI is required.'
         );
     }
-    const redirectUris = Array.from(new Set(body.redirect_uris));
-    if (redirectUris.some(uri => !allowedRedirectUri(uri))) {
+    const uniqueRedirectUris = Array.from(new Set(redirectUris));
+    if (uniqueRedirectUris.some(uri => !allowedRedirectUri(uri))) {
         throw new OAuthError(
             'invalid_client_metadata',
             'Redirect URIs must use HTTPS, except localhost loopback HTTP.'
@@ -377,7 +379,7 @@ export async function registerMcpOAuthClient(
     const created = (await db.mcpOAuthClients.insert({
         clientId: `xpenser_mcp_${randomBytes(18).toString('base64url')}`,
         clientName: oauthClientDisplayName(body.client_name),
-        redirectUrisJson: JSON.stringify(redirectUris),
+        redirectUrisJson: JSON.stringify(uniqueRedirectUris),
         scope
     })) as McpOAuthClientDb;
 
@@ -385,7 +387,7 @@ export async function registerMcpOAuthClient(
         client_id: created.clientId,
         client_id_issued_at: epochSeconds(created.createdAt),
         client_name: created.clientName,
-        redirect_uris: redirectUris,
+        redirect_uris: uniqueRedirectUris,
         grant_types: ['authorization_code', 'refresh_token'],
         response_types: ['code'],
         scope,
