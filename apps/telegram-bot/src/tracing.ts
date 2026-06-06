@@ -49,11 +49,38 @@ export function telegramCallbackAction(data: string | undefined): string {
     if (data.startsWith('cur:')) {
         return 'currency_select';
     }
+    if (data === 'vendor:none') {
+        return 'vendor_none';
+    }
+    if (data === 'vendor:search') {
+        return 'vendor_search';
+    }
+    if (data.startsWith('vendorpage:')) {
+        return 'vendor_page';
+    }
+    if (data.startsWith('vendor:select:')) {
+        return 'vendor_select';
+    }
     if (data === 'note:skip') {
         return 'note_skip';
     }
     if (data === 'note:add') {
         return 'note_add';
+    }
+    if (data.startsWith('scan:edit:')) {
+        return 'scan_edit';
+    }
+    if (data === 'scan:confirm') {
+        return 'scan_confirm';
+    }
+    if (data === 'scan:discard') {
+        return 'scan_discard';
+    }
+    if (data === 'scan:previous') {
+        return 'scan_previous';
+    }
+    if (data === 'scan:next') {
+        return 'scan_next';
     }
     return 'unknown';
 }

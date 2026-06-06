@@ -18,6 +18,12 @@ describe('telegram tracing helpers', () => {
         expect(telegramCallbackAction('cat:123')).toBe('category_select');
         expect(telegramCallbackAction('catpage:2')).toBe('category_page');
         expect(telegramCallbackAction('cur:USD')).toBe('currency_select');
+        expect(telegramCallbackAction('vendor:select:123')).toBe(
+            'vendor_select'
+        );
+        expect(telegramCallbackAction('vendorpage:2')).toBe('vendor_page');
+        expect(telegramCallbackAction('scan:edit:amount')).toBe('scan_edit');
+        expect(telegramCallbackAction('scan:confirm')).toBe('scan_confirm');
         expect(telegramCallbackAction('note:add')).toBe('note_add');
         expect(telegramCallbackAction('unknown:secret')).toBe('unknown');
     });

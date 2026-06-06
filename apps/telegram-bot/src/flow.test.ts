@@ -2,18 +2,26 @@ import type {
     Category,
     Currency,
     Transaction,
-    UserPreference
+    UserPreference,
+    Vendor
 } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
 import {
     addButtonText,
     categoriesByRecentUse,
+    categoriesWithPreferredFirst,
     currencyKeyboard,
+    filteredVendors,
     isAddButtonText,
+    isAllowedScanImageMimeType,
     parseAmount,
     parseStartToken,
+    parseTelegramDateTime,
     preferredCurrencies,
-    quickAddReplyKeyboard
+    quickAddReplyKeyboard,
+    scanImageSizeError,
+    vendorKeyboard,
+    vendorSelectCallbackPrefix
 } from './flow.js';
 
 describe('telegram bot flow helpers', () => {
@@ -76,6 +84,78 @@ describe('telegram bot flow helpers', () => {
             [{ text: 'USD', callback_data: 'cur:USD' }],
             [{ text: 'Cancel', callback_data: 'cancel' }]
         ]);
+    });
+
+    it('parses local Telegram date-time edits in the user timezone', () => {
+        expect(
+            parseTelegramDateTime(
+                '2026-05-10 09:30',
+                'America/New_York'
+            )?.toISOString()
+        ).toBe('2026-05-10T13:30:00.000Z');
+        expect(
+            parseTelegramDateTime(
+                '2026-05-10T09:30',
+                'America/New_York'
+            )?.toISOString()
+        ).toBe('2026-05-10T13:30:00.000Z');
+        expect(parseTelegramDateTime('05/10/2026', 'UTC')).toBeUndefined();
+    });
+
+    it('validates supported scan image types and sizes', () => {
+        expect(isAllowedScanImageMimeType('image/jpeg')).toBe(true);
+        expect(isAllowedScanImageMimeType('image/png')).toBe(true);
+        expect(isAllowedScanImageMimeType('image/webp')).toBe(true);
+        expect(isAllowedScanImageMimeType('application/pdf')).toBe(false);
+        expect(scanImageSizeError(10 * 1024 * 1024)).toBeUndefined();
+        expect(scanImageSizeError(10 * 1024 * 1024 + 1)).toBe(
+            'Image must be 10 MB or smaller.'
+        );
+    });
+
+    it('filters and renders existing vendor choices', () => {
+        const vendors = [
+            {
+                id: 1,
+                name: 'Acme Groceries',
+                displayName: 'Acme Groceries'
+            },
+            {
+                id: 2,
+                name: 'Coffee Bar',
+                displayName: 'Coffee Bar',
+                domain: 'coffee.example'
+            }
+        ] as Vendor[];
+
+        expect(
+            filteredVendors(vendors, 'coffee').map(vendor => vendor.id)
+        ).toEqual([2]);
+        expect(vendorKeyboard(vendors, 0).inline_keyboard).toContainEqual([
+            {
+                text: 'Acme Groceries',
+                callback_data: `${vendorSelectCallbackPrefix}1`
+            }
+        ]);
+    });
+
+    it('moves a vendor suggested category to the front', () => {
+        const categories = [
+            { id: 1, displayName: 'Food', type: 'expense' },
+            { id: 2, displayName: 'Coffee', type: 'expense' },
+            { id: 3, displayName: 'Travel', type: 'expense' }
+        ] as Category[];
+
+        expect(
+            categoriesWithPreferredFirst(categories, 2).map(
+                category => category.id
+            )
+        ).toEqual([2, 1, 3]);
+        expect(
+            categoriesWithPreferredFirst(categories, 999).map(
+                category => category.id
+            )
+        ).toEqual([1, 2, 3]);
     });
 
     it('sorts recently used categories first', () => {
