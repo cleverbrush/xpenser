@@ -31,5 +31,6 @@ fixes before public disclosure.
 - Passwords use scrypt with per-password salts.
 - API keys, Telegram link tokens, and email confirmation tokens are stored as
   hashes.
-- MCP access requires an API-key principal and exposes read-only tools.
+- MCP access requires an API-key principal and can read or mutate the API-key
+  owner's vendors, categories, and transactions.
 - Database spans redact SQL text at the instrumentation boundary.

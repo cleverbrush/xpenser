@@ -24,7 +24,7 @@ workflows, and MCP access from one cohesive application.
   on mobile and desktop.
 - Receive optional weekly and monthly email summaries with OpenAI-generated
   spending and income insights.
-- Connect external tools through API keys, a typed Node client, a read-only MCP
+- Connect external tools through API keys, a typed Node client, an MCP
   server, and a Telegram bot.
 
 ## Built With Cleverbrush
@@ -250,9 +250,11 @@ subtract it from that category.
 
 ## MCP Server
 
-xpenser exposes a read-only MCP Streamable HTTP endpoint for AI agents at
+xpenser exposes an MCP Streamable HTTP endpoint for AI agents at
 `/external-api/mcp`. Use the same API key from Settings -> Preferences -> API
-keys as a bearer token:
+keys as a bearer token. MCP tools can read and manage the API-key owner's
+vendors, categories, and transactions, so treat MCP access as full account data
+access:
 
 ```json
 {
@@ -268,9 +270,9 @@ keys as a bearer token:
 }
 ```
 
-The MCP server exposes read-only tools for the current user, categories,
-transactions, dashboard summaries, and statistics. Transaction write operations
-are not exposed through MCP.
+The MCP server exposes tools for the current user, vendors, categories,
+transactions, dashboard summaries, and statistics. Vendor candidate search and
+enrichment may call the configured vendor enrichment provider.
 
 ## Development Commands
 
