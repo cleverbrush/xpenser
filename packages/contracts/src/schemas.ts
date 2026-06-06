@@ -4,6 +4,7 @@ import {
     date,
     enumOf,
     type InferType,
+    nul,
     number,
     object,
     string,
@@ -15,15 +16,13 @@ export const CurrencyCodeSchema = string()
     .required('currency is required')
     .nonempty('currency is required')
     .matches(/^[A-Z]{3}$/, 'currency must be a 3-letter ISO 4217 code')
-    .describe('ISO 4217 currency code, for example USD or EUR.')
-    .schemaName('CurrencyCode');
+    .describe('ISO 4217 currency code, for example USD or EUR.');
 
 export const CountryCodeSchema = string()
     .required('country is required')
     .nonempty('country is required')
     .matches(/^[A-Z]{2}$/, 'country must be a 2-letter ISO 3166-1 code')
-    .describe('ISO 3166-1 alpha-2 country code, for example US or UA.')
-    .schemaName('CountryCode');
+    .describe('ISO 3166-1 alpha-2 country code, for example US or UA.');
 
 export const TimeZoneSchema = string()
     .required('timezone is required')
@@ -44,8 +43,9 @@ export const TimeZoneSchema = string()
             };
         }
     })
-    .describe('IANA time zone identifier, for example UTC or America/New_York.')
-    .schemaName('TimeZone');
+    .describe(
+        'IANA time zone identifier, for example UTC or America/New_York.'
+    );
 
 function isHttpsUrl(value: string): boolean {
     try {
@@ -57,27 +57,35 @@ function isHttpsUrl(value: string): boolean {
 
 export const CategoryTypeSchema = enumOf('expense', 'income')
     .required('category type is required')
-    .describe('Whether a category is used for expenses or income.')
-    .schemaName('CategoryType');
+    .describe('Whether a category is used for expenses or income.');
 
 export const CategoryKindSchema = enumOf('normal', 'offset')
     .default('normal')
     .describe(
         'Whether transactions in this category report on the same or opposite side.'
-    )
-    .schemaName('CategoryKind');
+    );
 
-export const PeriodSchema = enumOf('day', 'week', 'month', 'quarter', 'year')
-    .describe('Dashboard reporting period.')
-    .schemaName('Period');
+export const PeriodSchema = enumOf(
+    'day',
+    'week',
+    'month',
+    'quarter',
+    'year'
+).describe('Dashboard reporting period.');
 
-export const StatsGroupBySchema = enumOf('hour', 'day', 'week', 'month')
-    .describe('Stats trend grouping.')
-    .schemaName('StatsGroupBy');
+export const StatsGroupBySchema = enumOf(
+    'hour',
+    'day',
+    'week',
+    'month'
+).describe('Stats trend grouping.');
 
-export const CategoryTrendGroupBySchema = enumOf('day', 'week', 'month', 'year')
-    .describe('Category trend grouping.')
-    .schemaName('CategoryTrendGroupBy');
+export const CategoryTrendGroupBySchema = enumOf(
+    'day',
+    'week',
+    'month',
+    'year'
+).describe('Category trend grouping.');
 
 export const CategoryTrendRangeSchema = enumOf(
     'last-30-days',
@@ -86,9 +94,7 @@ export const CategoryTrendRangeSchema = enumOf(
     'last-12-months',
     'all-time',
     'custom'
-)
-    .describe('Category trend timeframe.')
-    .schemaName('CategoryTrendRange');
+).describe('Category trend timeframe.');
 
 export const StatsTimeframeSchema = enumOf(
     'this-week',
@@ -97,13 +103,11 @@ export const StatsTimeframeSchema = enumOf(
     'last-month',
     'last-30-days',
     'custom'
-)
-    .describe('Stats reporting timeframe.')
-    .schemaName('StatsTimeframe');
+).describe('Stats reporting timeframe.');
 
-export const SortDirectionSchema = enumOf('asc', 'desc')
-    .describe('Sort direction.')
-    .schemaName('SortDirection');
+export const SortDirectionSchema = enumOf('asc', 'desc').describe(
+    'Sort direction.'
+);
 
 const decimalNumber = () => number().clearIsInteger();
 
@@ -125,9 +129,7 @@ export const ImageMimeTypeSchema = enumOf(
     'image/jpeg',
     'image/png',
     'image/webp'
-)
-    .describe('Supported image MIME type.')
-    .schemaName('ImageMimeType');
+).describe('Supported image MIME type.');
 
 export const PrincipalSchema = object({
     /** Authenticated user identifier encoded in the API JWT. */
@@ -488,7 +490,7 @@ export const CreateApiKeyResponseSchema = object({
         'Plaintext API key. It is returned only when the key is created.'
     ),
     /** Persisted API key metadata. */
-    apiKey: ApiKeySchema.describe('Persisted API key metadata.')
+    apiKey: ApiKeySchema
 }).schemaName('CreateApiKeyResponse');
 
 export const UpdateUserPreferenceBodySchema = object({
@@ -602,16 +604,12 @@ export const LinkTelegramAccountBodySchema = object({
         .maxLength(FieldLimits.telegramLinkToken, 'link token is too long')
         .describe('Random one-time token from the Telegram deep link payload.'),
     /** Telegram account to link to the xpenser account that owns the token. */
-    telegramUser: TelegramUserBodySchema.describe(
-        'Telegram account to link to the xpenser account that owns the token.'
-    )
+    telegramUser: TelegramUserBodySchema
 }).schemaName('LinkTelegramAccountBody');
 
 export const TelegramTokenBodySchema = object({
     /** Telegram account requesting a short-lived xpenser API token. */
-    telegramUser: TelegramUserBodySchema.describe(
-        'Telegram account requesting a short-lived xpenser API token.'
-    )
+    telegramUser: TelegramUserBodySchema
 }).schemaName('TelegramTokenBody');
 
 export const LinkTelegramAccountResponseSchema = object({
@@ -620,9 +618,7 @@ export const LinkTelegramAccountResponseSchema = object({
     /** Connected xpenser user email address. */
     email: string().describe('Connected xpenser user email address.'),
     /** Current Telegram connection status. */
-    telegram: TelegramConnectionStatusSchema.describe(
-        'Current Telegram connection status.'
-    )
+    telegram: TelegramConnectionStatusSchema
 }).schemaName('LinkTelegramAccountResponse');
 
 export const CurrencySchema = object({
@@ -798,7 +794,7 @@ export const VendorEnrichmentStatusSchema = enumOf(
     'success',
     'not_found',
     'failed'
-).schemaName('VendorEnrichmentStatus');
+);
 
 export const VendorSchema = object({
     /** Unique vendor identifier. */
@@ -1307,13 +1303,13 @@ export const TransactionScanDocumentKindSchema = enumOf(
     'invoice',
     'receipt',
     'other'
-)
-    .describe('Type of uploaded transaction source inferred from the image.')
-    .schemaName('TransactionScanDocumentKind');
+).describe('Type of uploaded transaction source inferred from the image.');
 
-export const TransactionScanConfidenceSchema = enumOf('high', 'medium', 'low')
-    .describe('Model confidence for a scanned transaction field.')
-    .schemaName('TransactionScanConfidence');
+export const TransactionScanConfidenceSchema = enumOf(
+    'high',
+    'medium',
+    'low'
+).describe('Model confidence for a scanned transaction field.');
 
 export const TransactionScanSuggestedCategorySchema = object({
     /** Suggested category name when no existing category fits. */
@@ -1359,10 +1355,9 @@ export const TransactionScanDraftSchema = object({
             'Existing category identifier selected by the scanner, when available.'
         ),
     /** Scanner suggestion for a category that does not exist yet. */
-    suggestedCategory:
-        TransactionScanSuggestedCategorySchema.nullable().describe(
-            'Scanner suggestion for a category that does not exist yet.'
-        ),
+    suggestedCategory: union(TransactionScanSuggestedCategorySchema)
+        .or(nul())
+        .describe('Scanner suggestion for a category that does not exist yet.'),
     /** Currency used for the scanned amount, when visible. */
     currency: CurrencyCodeSchema.nullable().describe(
         'Currency used for the scanned amount, when visible.'
@@ -1399,9 +1394,7 @@ export const TransactionScanDraftSchema = object({
         'Text from the image that supports this draft.'
     ),
     /** Confidence by scanned field. */
-    confidence: TransactionScanFieldConfidenceSchema.describe(
-        'Confidence by scanned field.'
-    ),
+    confidence: TransactionScanFieldConfidenceSchema,
     /** Existing transactions that may already represent this draft. */
     possibleDuplicateTransactionIds: array(number()).describe(
         'Existing transactions that may already represent this draft.'
@@ -1486,9 +1479,7 @@ export const TransactionScanProgressStageSchema = enumOf(
     'saving',
     'complete',
     'failed'
-)
-    .describe('Current scanner job stage.')
-    .schemaName('TransactionScanProgressStage');
+).describe('Current scanner job stage.');
 
 export const TransactionScanProgressEventSchema = object({
     /** Short-lived scan job identifier. */
@@ -1502,19 +1493,16 @@ export const TransactionScanProgressEventSchema = object({
     /** Approximate scan progress from 0 to 100. */
     progress: number().describe('Approximate scan progress from 0 to 100.'),
     /** Final scan result when the job completed successfully. */
-    scan: TransactionScanResponseSchema.nullable().describe(
-        'Final scan result when the job completed successfully.'
-    ),
+    scan: union(TransactionScanResponseSchema)
+        .or(nul())
+        .describe('Final scan result when the job completed successfully.'),
     /** Safe user-facing failure message when the job failed. */
     error: string()
         .nullable()
         .describe('Safe user-facing failure message when the job failed.')
 }).schemaName('TransactionScanProgressEvent');
 
-export const TransactionScanDecisionSchema = enumOf(
-    'confirmed',
-    'discarded'
-).schemaName('TransactionScanDecision');
+export const TransactionScanDecisionSchema = enumOf('confirmed', 'discarded');
 
 export const TransactionScanCorrectedTransactionSchema = object({
     /** Confirmed category identifier. */
@@ -1554,13 +1542,16 @@ export const TransactionScanDecisionBodySchema = object({
         .optional()
         .describe('Vendor created inline for this draft, when applicable.'),
     /** Final user-corrected values, when confirmed. */
-    correctedTransaction: TransactionScanCorrectedTransactionSchema.nullable()
+    correctedTransaction: union(TransactionScanCorrectedTransactionSchema)
+        .or(nul())
         .optional()
         .describe('Final user-corrected values, when confirmed.'),
     /** Original scan image, stored once for confirmed transactions. */
-    attachment: TransactionScanAttachmentBodySchema.optional().describe(
-        'Original scan image, stored once for confirmed transactions.'
-    )
+    attachment: union(TransactionScanAttachmentBodySchema)
+        .optional()
+        .describe(
+            'Original scan image, stored once for confirmed transactions.'
+        )
 }).schemaName('TransactionScanDecisionBody');
 
 export const TransactionScanImageResponseSchema = object({
@@ -1941,13 +1932,9 @@ export const StatsOverviewSchema = object({
     /** Comparison totals for matching prior periods. */
     comparison: object({
         /** Matching previous period totals. */
-        previousPeriod: StatsComparisonSchema.describe(
-            'Matching previous period totals.'
-        ),
+        previousPeriod: StatsComparisonSchema,
         /** Same selected period one year earlier. */
-        previousYear: StatsComparisonSchema.describe(
-            'Same selected period one year earlier.'
-        )
+        previousYear: StatsComparisonSchema
     }).describe('Comparison totals for matching prior periods.')
 }).schemaName('StatsOverview');
 
@@ -1986,9 +1973,7 @@ export const DashboardWindowItemSchema = object({
     /** Stable local date key for the period start. */
     date: string().describe('Stable local date key for the period start.'),
     /** Summary for the matching dashboard period. */
-    summary: DashboardSummarySchema.describe(
-        'Summary for the matching dashboard period.'
-    )
+    summary: DashboardSummarySchema
 }).schemaName('DashboardWindowItem');
 
 export const DashboardWindowResponseSchema = object({
@@ -2002,9 +1987,7 @@ export const StatsWindowItemSchema = object({
     /** Stable local date key for the period start. */
     date: string().describe('Stable local date key for the period start.'),
     /** Stats overview for the matching dashboard period. */
-    overview: StatsOverviewSchema.describe(
-        'Stats overview for the matching dashboard period.'
-    )
+    overview: StatsOverviewSchema
 }).schemaName('StatsWindowItem');
 
 export const StatsWindowResponseSchema = object({

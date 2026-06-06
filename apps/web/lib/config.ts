@@ -2,6 +2,11 @@ import { env, parseEnv } from '@cleverbrush/env';
 import { string } from '@cleverbrush/schema';
 import { GoogleSignInModes, resolveGoogleSignInProvider } from './google-auth';
 
+/**
+ * Web runtime configuration parsed with the same `@cleverbrush/env` pattern as
+ * the API. Only server-side modules should import this object; browser-exposed
+ * configuration must stay behind explicit `NEXT_PUBLIC_*` variables.
+ */
 export const webConfig = parseEnv({
     nodeEnv: env('NODE_ENV', string().default('production')),
     appUrl: env('APP_URL', string().default('http://localhost:3000')),
@@ -47,6 +52,12 @@ export function getGoogleSignInProvider() {
 
 const PLACEHOLDER_SECRET = 'change-me-in-production-min32chars';
 
+/**
+ * Reads and validates the Auth.js signing secret at call time.
+ *
+ * Auth.js expects this value when the auth module is initialized, but parsing it
+ * lazily keeps tests and routes that do not touch auth from requiring a secret.
+ */
 export function getNextAuthSecret(): string {
     const { nextAuthSecret } = parseEnv({
         nextAuthSecret: env('NEXTAUTH_SECRET', string().minLength(32))
@@ -64,6 +75,9 @@ export function getNextAuthSecret(): string {
     return nextAuthSecret;
 }
 
+/**
+ * Reads the private shared secret used by trusted web-to-API session refreshes.
+ */
 export function getWebApiServiceSecret(): string {
     const { webApiServiceSecret } = parseEnv({
         webApiServiceSecret: env(

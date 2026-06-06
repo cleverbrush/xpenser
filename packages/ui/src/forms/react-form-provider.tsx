@@ -19,10 +19,19 @@ import {
 import { Textarea } from '../components/textarea.js';
 
 export type SelectRendererOption = {
+    /** Human-readable option label rendered inside the select menu. */
     readonly label: React.ReactNode;
+    /** Form value passed back to `@cleverbrush/react-form` on selection. */
     readonly value: string;
 };
 
+/**
+ * Extra props understood by the xpenser select renderer.
+ *
+ * These props are passed through `Field`'s `fieldProps` escape hatch while the
+ * field binding itself remains type-safe through Cleverbrush property
+ * selectors.
+ */
 export type SelectRendererFieldProps = {
     readonly ariaLabel?: string;
     readonly disabled?: boolean;
@@ -43,6 +52,7 @@ export type CheckboxRendererFieldProps = {
     ) => void;
 };
 
+/** Props accepted by the date/time renderer variant. */
 export type DateTimeRendererFieldProps =
     React.InputHTMLAttributes<HTMLInputElement> & {
         readonly onValueChange?: (
@@ -299,6 +309,13 @@ const renderers = {
     'date:datetime-local': dateTimeRenderer
 };
 
+/**
+ * Registers xpenser UI renderers for `@cleverbrush/react-form`.
+ *
+ * App forms can use `<Field forProperty={field => field.name} />` and rely on
+ * this provider to pick the matching input, select, checkbox, textarea, or
+ * datetime renderer from the Cleverbrush schema descriptor.
+ */
 export function XpenserFormProvider({
     children
 }: {

@@ -2,6 +2,14 @@ import { env, parseEnv } from '@cleverbrush/env';
 import { number, string } from '@cleverbrush/schema';
 import { UserSessionMaxAgeSeconds } from '@xpenser/contracts/session';
 
+/**
+ * API runtime configuration parsed through `@cleverbrush/env`.
+ *
+ * All environment variables are validated and coerced once during startup, then
+ * the computed config object is injected into Cleverbrush handlers through DI.
+ * Production refuses documented placeholder secrets so example defaults cannot
+ * accidentally become live deployment credentials.
+ */
 export const config = parseEnv(
     {
         nodeEnv: env('NODE_ENV', string().default('production')),

@@ -2,6 +2,12 @@
 
 Personal income and expense tracking app.
 
+xpenser also serves as a demonstrator for projects based on CleverBrush
+Framework. See
+[Cleverbrush Reference Notes](./docs/cleverbrush-reference.md) for the
+framework integration patterns, security baseline, and tests that keep the app
+usable as an example.
+
 ## Local Development
 
 This setup runs the API and web app on your machine, with PostgreSQL running in

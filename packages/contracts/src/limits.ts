@@ -1,3 +1,10 @@
+/**
+ * Persisted text-field limits shared by contracts, UI inputs, and database
+ * migrations.
+ *
+ * Keeping these values in the contracts package prevents form max lengths,
+ * Cleverbrush schema validation, and database column sizes from drifting.
+ */
 export const FieldLimits = {
     apiKeyName: 120,
     brandfetchBrandId: 100,
@@ -26,6 +33,9 @@ export const FieldLimits = {
     vendorSearch: 160
 } as const;
 
+/**
+ * Limits for multimodal transaction scan uploads and generated scan drafts.
+ */
 export const TransactionScanLimits = {
     maxImageBytes: 10 * 1024 * 1024,
     uploadChunkBytes: 384 * 1024
