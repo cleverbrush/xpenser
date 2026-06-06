@@ -81,7 +81,7 @@ import {
     TransactionCreated,
     VendorUpdateValidationRejected
 } from '../log-templates.js';
-import type { McpApiKeyPrincipal } from './auth.js';
+import type { McpPrincipal } from './auth.js';
 
 type JsonValue =
     | string
@@ -198,7 +198,7 @@ export type XpenserMcpDataAccess = {
 };
 
 export type XpenserMcpToolContext = {
-    readonly principal: McpApiKeyPrincipal;
+    readonly principal: McpPrincipal;
     readonly data: XpenserMcpDataAccess;
     readonly logger: Pick<Logger, 'info' | 'warn'>;
 };
@@ -834,7 +834,11 @@ function logToolCall(context: XpenserMcpToolContext, toolName: string): void {
     context.logger.info(McpToolCalled, {
         ToolName: toolName,
         UserId: context.principal.userId,
-        ApiKeyId: context.principal.apiKeyId
+        CredentialType: context.principal.authType,
+        CredentialId:
+            context.principal.authType === 'api_key'
+                ? String(context.principal.apiKeyId)
+                : context.principal.mcpClientId
     });
 }
 

@@ -27,9 +27,14 @@ export const McpTransportError = parseString(
 );
 
 export const McpToolCalled = parseString(
-    object({ ToolName: string(), UserId: number(), ApiKeyId: number() }),
+    object({
+        ToolName: string(),
+        UserId: number(),
+        CredentialType: string(),
+        CredentialId: string()
+    }),
     $t =>
-        $t`MCP tool ${t => t.ToolName} called by ${t => t.UserId} using API key ${t => t.ApiKeyId}`
+        $t`MCP tool ${t => t.ToolName} called by ${t => t.UserId} using ${t => t.CredentialType} ${t => t.CredentialId}`
 );
 
 export const FrankfurterCurrencyCatalogFallback = parseString(

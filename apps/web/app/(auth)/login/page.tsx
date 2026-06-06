@@ -13,8 +13,24 @@ import { getGoogleSignInProvider } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 
-export default function LoginPage() {
+function safeCallback(value: string | string[] | undefined) {
+    const candidate = Array.isArray(value) ? value[0] : value;
+    if (!candidate?.startsWith('/') || candidate.startsWith('//')) {
+        return undefined;
+    }
+    return candidate;
+}
+
+export default async function LoginPage({
+    searchParams
+}: {
+    readonly searchParams?: Promise<{
+        readonly callbackUrl?: string | string[];
+    }>;
+}) {
+    const params = searchParams ? await searchParams : {};
     const googleSignInEnabled = getGoogleSignInProvider() !== 'disabled';
+    const redirectTo = safeCallback(params.callbackUrl);
 
     return (
         <main className="flex min-h-dvh items-center justify-center bg-muted px-3 py-6 sm:px-4">
@@ -24,9 +40,16 @@ export default function LoginPage() {
                     <CardDescription>Sign in to continue.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
-                    <LoginForm />
+                    <LoginForm redirectTo={redirectTo} />
                     {googleSignInEnabled ? (
                         <form action={googleSignInAction}>
+                            {redirectTo ? (
+                                <input
+                                    name="redirectTo"
+                                    type="hidden"
+                                    value={redirectTo}
+                                />
+                            ) : null}
                             <Button
                                 className="w-full"
                                 type="submit"

@@ -28,6 +28,7 @@ import {
 } from './transaction-scan-upload-store';
 
 const passportPkceCookie = 'xpenser_passport_pkce';
+const passportRedirectCookie = 'xpenser_passport_redirect';
 const vendorActionLogger = loggerFor('Vendor actions');
 
 type ScanDecisionAttachment =
@@ -249,6 +250,21 @@ function apiErrorStatus(err: unknown): number | undefined {
         : undefined;
 }
 
+function safeInternalRedirect(value: string | undefined): string | undefined {
+    if (!value?.startsWith('/') || value.startsWith('//')) {
+        return undefined;
+    }
+    try {
+        const url = new URL(value, webConfig.appUrl);
+        if (url.origin !== new URL(webConfig.appUrl).origin) {
+            return undefined;
+        }
+        return `${url.pathname}${url.search}${url.hash}`;
+    } catch {
+        return undefined;
+    }
+}
+
 function pkceChallenge(verifier: string): string {
     return createHash('sha256').update(verifier).digest('base64url');
 }
@@ -297,7 +313,9 @@ export async function loginAction(formData: FormData) {
     await signIn('credentials', {
         email,
         password,
-        redirectTo: '/dashboard'
+        redirectTo:
+            safeInternalRedirect(optionalString(formData, 'redirectTo')) ??
+            '/dashboard'
     });
 }
 
@@ -348,10 +366,13 @@ export async function resendEmailConfirmationAction(formData: FormData) {
     }
 }
 
-export async function googleSignInAction() {
+export async function googleSignInAction(formData: FormData) {
     const provider = getGoogleSignInProvider();
+    const redirectTo =
+        safeInternalRedirect(optionalString(formData, 'redirectTo')) ??
+        '/dashboard';
     if (provider === 'direct') {
-        await signIn('google', { redirectTo: '/dashboard' });
+        await signIn('google', { redirectTo });
         return;
     }
     if (provider === 'disabled') {
@@ -361,6 +382,13 @@ export async function googleSignInAction() {
     const verifier = randomBytes(32).toString('base64url');
     const cookieStore = await cookies();
     cookieStore.set(passportPkceCookie, verifier, {
+        httpOnly: true,
+        secure: webConfig.appUrl.startsWith('https://'),
+        sameSite: 'lax',
+        path: '/auth/callback',
+        maxAge: 10 * 60
+    });
+    cookieStore.set(passportRedirectCookie, redirectTo, {
         httpOnly: true,
         secure: webConfig.appUrl.startsWith('https://'),
         sameSite: 'lax',
@@ -777,5 +805,51 @@ export async function revokeApiKeyAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'id')) }
     });
     revalidateTag('api-keys', 'max');
+    revalidatePath('/settings/preferences');
+}
+
+function mcpOAuthAuthorizationBody(formData: FormData) {
+    return {
+        response_type: requiredString(formData, 'response_type'),
+        client_id: requiredString(formData, 'client_id'),
+        redirect_uri: requiredString(formData, 'redirect_uri'),
+        code_challenge: requiredString(formData, 'code_challenge'),
+        code_challenge_method: requiredString(
+            formData,
+            'code_challenge_method'
+        ),
+        state: optionalString(formData, 'state'),
+        scope: optionalString(formData, 'scope')
+    };
+}
+
+export async function approveMcpOAuthAction(formData: FormData) {
+    const client = await getApiClient();
+    const result = await client.oauth.authorize({
+        body: mcpOAuthAuthorizationBody(formData)
+    });
+    revalidateTag('mcp-connections', 'max');
+    revalidatePath('/settings/preferences');
+    redirect(result.redirectUrl);
+}
+
+export async function denyMcpOAuthAction(formData: FormData) {
+    const client = await getApiClient();
+    const body = mcpOAuthAuthorizationBody(formData);
+    await client.oauth.authorizationRequest({ query: body });
+    const redirectUrl = new URL(body.redirect_uri);
+    redirectUrl.searchParams.set('error', 'access_denied');
+    if (body.state) {
+        redirectUrl.searchParams.set('state', body.state);
+    }
+    redirect(redirectUrl.toString());
+}
+
+export async function revokeMcpOAuthConnectionAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.users.revokeMcpOAuthConnection({
+        params: { id: Number(requiredString(formData, 'id')) }
+    });
+    revalidateTag('mcp-connections', 'max');
     revalidatePath('/settings/preferences');
 }

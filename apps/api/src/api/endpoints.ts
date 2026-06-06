@@ -139,6 +139,44 @@ export const RevokeApiKeyEndpoint = api.users.revokeApiKey
     .tags('api-keys')
     .operationId('revokeApiKey');
 
+export const ListMcpOAuthConnectionsEndpoint = api.users.listMcpOAuthConnections
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List MCP connections')
+    .description('Lists active MCP OAuth connections for the current user.')
+    .tags('mcp')
+    .operationId('listMcpOAuthConnections');
+
+export const RevokeMcpOAuthConnectionEndpoint =
+    api.users.revokeMcpOAuthConnection
+        .authorize(PrincipalSchema)
+        .inject({ db: DbToken })
+        .summary('Revoke MCP connection')
+        .description(
+            'Revokes an MCP OAuth connection owned by the current user.'
+        )
+        .tags('mcp')
+        .operationId('revokeMcpOAuthConnection');
+
+export const McpOAuthAuthorizationRequestEndpoint =
+    api.oauth.authorizationRequest
+        .authorize(PrincipalSchema)
+        .inject({ db: DbToken })
+        .summary('MCP OAuth authorization request')
+        .description(
+            'Validates an MCP OAuth authorization request before user approval.'
+        )
+        .tags('mcp')
+        .operationId('mcpOAuthAuthorizationRequest');
+
+export const McpOAuthAuthorizeEndpoint = api.oauth.authorize
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Approve MCP OAuth')
+    .description('Approves an MCP OAuth authorization request for the user.')
+    .tags('mcp')
+    .operationId('mcpOAuthAuthorize');
+
 export const LinkTelegramEndpoint = api.telegram.link
     .inject({ db: DbToken, config: ConfigToken })
     .summary('Link Telegram account')
@@ -413,7 +451,13 @@ export const endpoints = {
         disconnectTelegram: DisconnectTelegramEndpoint,
         listApiKeys: ListApiKeysEndpoint,
         createApiKey: CreateApiKeyEndpoint,
-        revokeApiKey: RevokeApiKeyEndpoint
+        revokeApiKey: RevokeApiKeyEndpoint,
+        listMcpOAuthConnections: ListMcpOAuthConnectionsEndpoint,
+        revokeMcpOAuthConnection: RevokeMcpOAuthConnectionEndpoint
+    },
+    oauth: {
+        authorizationRequest: McpOAuthAuthorizationRequestEndpoint,
+        authorize: McpOAuthAuthorizeEndpoint
     },
     telegram: {
         link: LinkTelegramEndpoint,

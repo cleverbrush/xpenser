@@ -11,7 +11,7 @@ import type {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TransactionCategoryError } from '../application/transactions.js';
 import { VendorNameError } from '../application/vendors.js';
-import type { McpApiKeyPrincipal } from './auth.js';
+import type { McpPrincipal } from './auth.js';
 import {
     createXpenserMcpTools,
     handleCreateCategory,
@@ -35,7 +35,7 @@ import {
     type XpenserMcpToolContext
 } from './tools.js';
 
-const principal: McpApiKeyPrincipal = {
+const principal: McpPrincipal = {
     userId: 7,
     role: 'user',
     authType: 'api_key',

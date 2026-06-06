@@ -105,7 +105,19 @@ export function xpenserAuthScheme(
                 return authenticateKey(token);
             }
 
-            return jwt.authenticate(context);
+            const result = await jwt.authenticate(context);
+            if (
+                result.succeeded &&
+                result.principal.hasClaim('auth_type', 'mcp_oauth')
+            ) {
+                return {
+                    succeeded: false,
+                    failure:
+                        'MCP OAuth tokens are only accepted by the MCP endpoint'
+                };
+            }
+
+            return result;
         },
         challenge() {
             return {

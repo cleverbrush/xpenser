@@ -12,6 +12,18 @@ import { handlers } from './api/handlers/index.js';
 import type { Config } from './config.js';
 import { configureDI, type DbResources } from './di/setup.js';
 import { McpEndpoint, mcpHandler } from './mcp/endpoint.js';
+import {
+    OAuthAuthorizationServerEndpoint,
+    OAuthClientRegistrationEndpoint,
+    OAuthProtectedResourceEndpoint,
+    OAuthProtectedResourceMcpEndpoint,
+    OAuthTokenEndpoint,
+    oauthAuthorizationServerHandler,
+    oauthClientRegistrationHandler,
+    oauthProtectedResourceHandler,
+    oauthProtectedResourceMcpHandler,
+    oauthTokenHandler
+} from './mcp/oauth-endpoints.js';
 import { xpenserAuthScheme } from './security/api-auth.js';
 
 /**
@@ -110,6 +122,23 @@ export function buildServer(
     // reach `serveOpenApi()`.
     server.handle(openApi.endpoint, openApi.handler);
 
+    server.handle(
+        OAuthProtectedResourceEndpoint,
+        oauthProtectedResourceHandler
+    );
+    server.handle(
+        OAuthProtectedResourceMcpEndpoint,
+        oauthProtectedResourceMcpHandler
+    );
+    server.handle(
+        OAuthAuthorizationServerEndpoint,
+        oauthAuthorizationServerHandler
+    );
+    server.handle(
+        OAuthClientRegistrationEndpoint,
+        oauthClientRegistrationHandler
+    );
+    server.handle(OAuthTokenEndpoint, oauthTokenHandler);
     server.handle(McpEndpoint, mcpHandler);
     server.handleAll(mapHandlers(endpoints, handlers));
 
