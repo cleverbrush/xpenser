@@ -24,6 +24,12 @@ import {
 } from './categories.js';
 import { convertCurrencyHandler, listCurrenciesHandler } from './currencies.js';
 import {
+    listMcpOAuthConnectionsHandler,
+    mcpOAuthAuthorizationRequestHandler,
+    mcpOAuthAuthorizeHandler,
+    revokeMcpOAuthConnectionHandler
+} from './mcp-oauth.js';
+import {
     createTelegramLinkTokenHandler,
     disconnectTelegramHandler,
     linkTelegramHandler,
@@ -77,7 +83,13 @@ export const handlers = {
         disconnectTelegram: disconnectTelegramHandler,
         listApiKeys: listApiKeysHandler,
         createApiKey: createApiKeyHandler,
-        revokeApiKey: revokeApiKeyHandler
+        revokeApiKey: revokeApiKeyHandler,
+        listMcpOAuthConnections: listMcpOAuthConnectionsHandler,
+        revokeMcpOAuthConnection: revokeMcpOAuthConnectionHandler
+    },
+    oauth: {
+        authorizationRequest: mcpOAuthAuthorizationRequestHandler,
+        authorize: mcpOAuthAuthorizeHandler
     },
     telegram: {
         link: linkTelegramHandler,

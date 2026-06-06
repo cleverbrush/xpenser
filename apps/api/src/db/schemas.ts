@@ -119,6 +119,85 @@ export const ApiKeyDbSchema = object({
     revokedAt: date().optional().hasColumnName('revoked_at')
 }).hasTableName('api_keys');
 
+export const McpOAuthClientDbSchema = object({
+    id: number().primaryKey(),
+    clientId: string()
+        .hasColumnName('client_id')
+        .index('idx_mcp_oauth_clients_client_id'),
+    clientName: string().hasColumnName('client_name'),
+    redirectUrisJson: string().hasColumnName('redirect_uris_json'),
+    scope: string().defaultTo('mcp'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now')
+}).hasTableName('mcp_oauth_clients');
+
+export const McpOAuthGrantDbSchema = object({
+    id: number().primaryKey(),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_mcp_oauth_grants_user_id'),
+    clientId: number()
+        .hasColumnName('client_id')
+        .references('mcp_oauth_clients', 'id')
+        .onDelete('CASCADE')
+        .index('idx_mcp_oauth_grants_client_id'),
+    scope: string().defaultTo('mcp'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    lastUsedAt: date().optional().hasColumnName('last_used_at'),
+    revokedAt: date().optional().hasColumnName('revoked_at')
+}).hasTableName('mcp_oauth_grants');
+
+export const McpOAuthAuthorizationCodeDbSchema = object({
+    id: number().primaryKey(),
+    codeHash: string()
+        .hasColumnName('code_hash')
+        .index('idx_mcp_oauth_authorization_codes_code_hash'),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE'),
+    clientId: number()
+        .hasColumnName('client_id')
+        .references('mcp_oauth_clients', 'id')
+        .onDelete('CASCADE'),
+    grantId: number()
+        .hasColumnName('grant_id')
+        .references('mcp_oauth_grants', 'id')
+        .onDelete('CASCADE'),
+    redirectUri: string().hasColumnName('redirect_uri'),
+    codeChallenge: string().hasColumnName('code_challenge'),
+    codeChallengeMethod: string().hasColumnName('code_challenge_method'),
+    scope: string().defaultTo('mcp'),
+    expiresAt: date().hasColumnName('expires_at'),
+    consumedAt: date().optional().hasColumnName('consumed_at'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now')
+}).hasTableName('mcp_oauth_authorization_codes');
+
+export const McpOAuthRefreshTokenDbSchema = object({
+    id: number().primaryKey(),
+    tokenHash: string()
+        .hasColumnName('token_hash')
+        .index('idx_mcp_oauth_refresh_tokens_token_hash'),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE'),
+    clientId: number()
+        .hasColumnName('client_id')
+        .references('mcp_oauth_clients', 'id')
+        .onDelete('CASCADE'),
+    grantId: number()
+        .hasColumnName('grant_id')
+        .references('mcp_oauth_grants', 'id')
+        .onDelete('CASCADE')
+        .index('idx_mcp_oauth_refresh_tokens_grant_id'),
+    expiresAt: date().hasColumnName('expires_at'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    lastUsedAt: date().optional().hasColumnName('last_used_at'),
+    revokedAt: date().optional().hasColumnName('revoked_at')
+}).hasTableName('mcp_oauth_refresh_tokens');
+
 export const CategoryDbSchema = object({
     id: number().primaryKey(),
     userId: number()
@@ -297,6 +376,14 @@ export const ExternalIdentityEntity = defineEntity(ExternalIdentityDbSchema);
 export const TelegramAccountEntity = defineEntity(TelegramAccountDbSchema);
 export const TelegramLinkTokenEntity = defineEntity(TelegramLinkTokenDbSchema);
 export const ApiKeyEntity = defineEntity(ApiKeyDbSchema);
+export const McpOAuthClientEntity = defineEntity(McpOAuthClientDbSchema);
+export const McpOAuthGrantEntity = defineEntity(McpOAuthGrantDbSchema);
+export const McpOAuthAuthorizationCodeEntity = defineEntity(
+    McpOAuthAuthorizationCodeDbSchema
+);
+export const McpOAuthRefreshTokenEntity = defineEntity(
+    McpOAuthRefreshTokenDbSchema
+);
 export const CategoryEntity = defineEntity(CategoryDbSchema);
 export const VendorEntity = defineEntity(VendorDbSchema);
 export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
@@ -320,6 +407,10 @@ export const entityMap = {
     telegramAccounts: TelegramAccountEntity,
     telegramLinkTokens: TelegramLinkTokenEntity,
     apiKeys: ApiKeyEntity,
+    mcpOAuthClients: McpOAuthClientEntity,
+    mcpOAuthGrants: McpOAuthGrantEntity,
+    mcpOAuthAuthorizationCodes: McpOAuthAuthorizationCodeEntity,
+    mcpOAuthRefreshTokens: McpOAuthRefreshTokenEntity,
     categories: CategoryEntity,
     vendors: VendorEntity,
     transactions: TransactionEntity,
@@ -413,6 +504,52 @@ export type ApiKeyDb = {
     readonly keyId: string;
     readonly keyPrefix: string;
     readonly secretHash: string;
+    readonly createdAt: Date;
+    readonly lastUsedAt?: Date | null;
+    readonly revokedAt?: Date | null;
+};
+
+export type McpOAuthClientDb = {
+    readonly id: number;
+    readonly clientId: string;
+    readonly clientName: string;
+    readonly redirectUrisJson: string;
+    readonly scope: string;
+    readonly createdAt: Date;
+};
+
+export type McpOAuthGrantDb = {
+    readonly id: number;
+    readonly userId: number;
+    readonly clientId: number;
+    readonly scope: string;
+    readonly createdAt: Date;
+    readonly lastUsedAt?: Date | null;
+    readonly revokedAt?: Date | null;
+};
+
+export type McpOAuthAuthorizationCodeDb = {
+    readonly id: number;
+    readonly codeHash: string;
+    readonly userId: number;
+    readonly clientId: number;
+    readonly grantId: number;
+    readonly redirectUri: string;
+    readonly codeChallenge: string;
+    readonly codeChallengeMethod: string;
+    readonly scope: string;
+    readonly expiresAt: Date;
+    readonly consumedAt?: Date | null;
+    readonly createdAt: Date;
+};
+
+export type McpOAuthRefreshTokenDb = {
+    readonly id: number;
+    readonly tokenHash: string;
+    readonly userId: number;
+    readonly clientId: number;
+    readonly grantId: number;
+    readonly expiresAt: Date;
     readonly createdAt: Date;
     readonly lastUsedAt?: Date | null;
     readonly revokedAt?: Date | null;

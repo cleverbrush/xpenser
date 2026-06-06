@@ -13,7 +13,15 @@ const nextConfig: NextConfig = {
         '@xpenser/contracts',
         '@xpenser/timezone'
     ],
-    output: 'standalone'
+    output: 'standalone',
+    async rewrites() {
+        return [
+            {
+                source: '/.well-known/:path*',
+                destination: '/external-api/.well-known/:path*'
+            }
+        ];
+    }
 };
 
 export default nextConfig;

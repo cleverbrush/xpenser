@@ -493,6 +493,90 @@ export const CreateApiKeyResponseSchema = object({
     apiKey: ApiKeySchema
 }).schemaName('CreateApiKeyResponse');
 
+export const McpOAuthConnectionSchema = object({
+    /** Unique MCP OAuth connection identifier. */
+    id: number().describe('Unique MCP OAuth connection identifier.'),
+    /** MCP client identifier issued during registration. */
+    clientId: string().describe(
+        'MCP client identifier issued during registration.'
+    ),
+    /** Client-provided name shown to the user. */
+    clientName: string().describe('Client-provided name shown to the user.'),
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last time this connection authenticated MCP access, when available. */
+    lastUsedAt: date()
+        .coerce()
+        .optional()
+        .describe(
+            'Last time this connection authenticated MCP access, when available.'
+        )
+}).schemaName('McpOAuthConnection');
+
+const McpOAuthAuthorizationFields = {
+    /** OAuth response type. xpenser supports authorization code only. */
+    response_type: string()
+        .required('response_type is required')
+        .nonempty('response_type is required')
+        .describe('OAuth response type. xpenser supports code only.'),
+    /** Registered MCP OAuth client identifier. */
+    client_id: string()
+        .required('client_id is required')
+        .nonempty('client_id is required')
+        .describe('Registered MCP OAuth client identifier.'),
+    /** Redirect URI registered by the MCP client. */
+    redirect_uri: string()
+        .required('redirect_uri is required')
+        .nonempty('redirect_uri is required')
+        .describe('Redirect URI registered by the MCP client.'),
+    /** PKCE S256 code challenge. */
+    code_challenge: string()
+        .required('code_challenge is required')
+        .nonempty('code_challenge is required')
+        .describe('PKCE S256 code challenge.'),
+    /** PKCE challenge method. xpenser requires S256. */
+    code_challenge_method: string()
+        .required('code_challenge_method is required')
+        .nonempty('code_challenge_method is required')
+        .describe('PKCE challenge method. xpenser requires S256.'),
+    /** Opaque client state returned unchanged to the redirect URI. */
+    state: string()
+        .optional()
+        .describe(
+            'Opaque client state returned unchanged to the redirect URI.'
+        ),
+    /** Requested OAuth scope. xpenser supports the mcp scope. */
+    scope: string()
+        .optional()
+        .describe('Requested OAuth scope. xpenser supports the mcp scope.')
+};
+
+export const McpOAuthAuthorizationQuerySchema = object(
+    McpOAuthAuthorizationFields
+).schemaName('McpOAuthAuthorizationQuery');
+
+export const McpOAuthAuthorizationRequestSchema = object({
+    /** Client-provided name shown to the user. */
+    clientName: string().describe('Client-provided name shown to the user.'),
+    /** Redirect URI that will receive the authorization code. */
+    redirectUri: string().describe(
+        'Redirect URI that will receive the authorization code.'
+    ),
+    /** OAuth scope that will be granted. */
+    scope: string().describe('OAuth scope that will be granted.')
+}).schemaName('McpOAuthAuthorizationRequest');
+
+export const McpOAuthAuthorizeBodySchema = object(
+    McpOAuthAuthorizationFields
+).schemaName('McpOAuthAuthorizeBody');
+
+export const McpOAuthAuthorizeResponseSchema = object({
+    /** Redirect URL containing either the authorization code or OAuth error. */
+    redirectUrl: string().describe(
+        'Redirect URL containing either the authorization code or OAuth error.'
+    )
+}).schemaName('McpOAuthAuthorizeResponse');
+
 export const UpdateUserPreferenceBodySchema = object({
     /** Default currency used for reports and new transactions. */
     defaultCurrency: CurrencyCodeSchema.describe(
@@ -2101,6 +2185,19 @@ export type UserPreference = InferType<typeof UserPreferenceSchema>;
 export type ApiKey = InferType<typeof ApiKeySchema>;
 export type CreateApiKeyBody = InferType<typeof CreateApiKeyBodySchema>;
 export type CreateApiKeyResponse = InferType<typeof CreateApiKeyResponseSchema>;
+export type McpOAuthConnection = InferType<typeof McpOAuthConnectionSchema>;
+export type McpOAuthAuthorizationQuery = InferType<
+    typeof McpOAuthAuthorizationQuerySchema
+>;
+export type McpOAuthAuthorizationRequest = InferType<
+    typeof McpOAuthAuthorizationRequestSchema
+>;
+export type McpOAuthAuthorizeBody = InferType<
+    typeof McpOAuthAuthorizeBodySchema
+>;
+export type McpOAuthAuthorizeResponse = InferType<
+    typeof McpOAuthAuthorizeResponseSchema
+>;
 export type TelegramConnectionStatus = InferType<
     typeof TelegramConnectionStatusSchema
 >;

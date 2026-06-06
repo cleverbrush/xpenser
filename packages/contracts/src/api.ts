@@ -27,6 +27,11 @@ import {
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
     LoginBodySchema,
+    McpOAuthAuthorizationQuerySchema,
+    McpOAuthAuthorizationRequestSchema,
+    McpOAuthAuthorizeBodySchema,
+    McpOAuthAuthorizeResponseSchema,
+    McpOAuthConnectionSchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
     PassportResolveUserBodySchema,
@@ -96,6 +101,9 @@ const transactionScans = endpoint
 const stats = endpoint.resource('/api/stats').authorize(PrincipalSchema);
 const apiKeys = endpoint
     .resource('/api/users/me/api-keys')
+    .authorize(PrincipalSchema);
+const mcpConnections = endpoint
+    .resource('/api/users/me/mcp-connections')
     .authorize(PrincipalSchema);
 
 /**
@@ -234,6 +242,41 @@ export const api = defineApi({
                 204: null,
                 401: ErrorResponseSchema,
                 404: ErrorResponseSchema
+            }),
+        listMcpOAuthConnections: mcpConnections
+            .get()
+            .cacheTag('mcp-connections')
+            .responses({
+                200: array(McpOAuthConnectionSchema),
+                401: ErrorResponseSchema
+            }),
+        revokeMcpOAuthConnection: mcpConnections
+            .delete(ById)
+            .clearsCacheTag('mcp-connections')
+            .responses({
+                204: null,
+                401: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            })
+    },
+    oauth: {
+        authorizationRequest: endpoint
+            .get('/api/oauth/authorize-request')
+            .authorize(PrincipalSchema)
+            .query(McpOAuthAuthorizationQuerySchema)
+            .responses({
+                200: McpOAuthAuthorizationRequestSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        authorize: endpoint
+            .post('/api/oauth/authorize')
+            .authorize(PrincipalSchema)
+            .body(McpOAuthAuthorizeBodySchema)
+            .responses({
+                200: McpOAuthAuthorizeResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
             })
     },
     telegram: {

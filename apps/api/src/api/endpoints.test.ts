@@ -208,4 +208,49 @@ describe('api endpoint map', () => {
             await runningServer.close();
         }
     });
+
+    it('serves MCP OAuth discovery metadata and challenges unauthenticated MCP requests', async () => {
+        const server = buildServer(testServerConfig(), testLogger(), {
+            knex: {},
+            db: {}
+        } as never);
+        const runningServer = await server.listen(0, '127.0.0.1');
+
+        try {
+            const port = runningServer.address?.port;
+            expect(port).toBeTypeOf('number');
+
+            const baseUrl = `http://127.0.0.1:${port}`;
+            const authorizationServer = await fetch(
+                `${baseUrl}/.well-known/oauth-authorization-server`
+            );
+            await expect(authorizationServer.json()).resolves.toMatchObject({
+                issuer: 'http://localhost:3000',
+                authorization_endpoint:
+                    'http://localhost:3000/mcp/oauth/authorize',
+                token_endpoint:
+                    'http://localhost:3000/external-api/oauth/token',
+                registration_endpoint:
+                    'http://localhost:3000/external-api/oauth/register',
+                code_challenge_methods_supported: ['S256']
+            });
+
+            const protectedResource = await fetch(
+                `${baseUrl}/.well-known/oauth-protected-resource/external-api/mcp`
+            );
+            await expect(protectedResource.json()).resolves.toMatchObject({
+                resource: 'http://localhost:3000/external-api/mcp',
+                authorization_servers: ['http://localhost:3000'],
+                scopes_supported: ['mcp']
+            });
+
+            const mcp = await fetch(`${baseUrl}/api/mcp`, { method: 'POST' });
+            expect(mcp.status).toBe(401);
+            expect(mcp.headers.get('www-authenticate')).toBe(
+                'Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/external-api/mcp"'
+            );
+        } finally {
+            await runningServer.close();
+        }
+    });
 });

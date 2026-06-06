@@ -16,17 +16,20 @@ import {
     disconnectTelegramAction
 } from '@/lib/actions';
 import { getApiClient } from '@/lib/api';
+import { publicAppUrl } from '@/lib/public-url';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PreferencesPage() {
     const client = await getApiClient();
-    const [me, currencies, telegram, apiKeys] = await Promise.all([
-        client.auth.me(),
-        client.currencies.list(),
-        client.users.telegramStatus(),
-        client.users.listApiKeys()
-    ]);
+    const [me, currencies, telegram, apiKeys, mcpConnections] =
+        await Promise.all([
+            client.auth.me(),
+            client.currencies.list(),
+            client.users.telegramStatus(),
+            client.users.listApiKeys(),
+            client.users.listMcpOAuthConnections()
+        ]);
     const telegramName = telegram.telegramUsername
         ? `@${telegram.telegramUsername}`
         : [telegram.telegramFirstName, telegram.telegramLastName]
@@ -142,13 +145,17 @@ export default async function PreferencesPage() {
             </Card>
             <Card>
                 <CardHeader>
-                    <CardTitle>API keys</CardTitle>
+                    <CardTitle>API keys and MCP</CardTitle>
                     <CardDescription>
-                        Use API keys from scripts and external tools.
+                        Connect scripts and AI clients to your xpenser account.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <ApiKeysSettings apiKeys={apiKeys} />
+                    <ApiKeysSettings
+                        apiKeys={apiKeys}
+                        mcpConnections={mcpConnections}
+                        mcpUrl={publicAppUrl('/external-api/mcp').toString()}
+                    />
                 </CardContent>
             </Card>
         </div>

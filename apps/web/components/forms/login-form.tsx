@@ -8,7 +8,11 @@ import { loginAction } from '@/lib/actions';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
 import { ResendEmailConfirmationForm } from './resend-email-confirmation-form';
 
-export function LoginForm() {
+export function LoginForm({
+    redirectTo
+}: {
+    readonly redirectTo?: string;
+} = {}) {
     const form = useSchemaForm(LoginBodySchema);
     const [error, setError] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
@@ -26,7 +30,9 @@ export function LoginForm() {
         setError(null);
         setUnverifiedEmail(null);
         try {
-            const response = await loginAction(valuesToFormData(result.object));
+            const response = await loginAction(
+                valuesToFormData({ ...result.object, redirectTo })
+            );
             if (response && 'error' in response && response.error) {
                 setError(response.error);
                 setUnverifiedEmail(
@@ -49,6 +55,13 @@ export function LoginForm() {
         <div className="flex flex-col gap-4">
             <form noValidate onSubmit={handleSubmit}>
                 <FieldGroup>
+                    {redirectTo ? (
+                        <input
+                            name="redirectTo"
+                            type="hidden"
+                            value={redirectTo}
+                        />
+                    ) : null}
                     <SchemaField
                         fieldProps={{
                             autoComplete: 'email',

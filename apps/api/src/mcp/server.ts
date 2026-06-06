@@ -3,7 +3,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import type { Knex } from 'knex';
 import type { Config } from '../config.js';
 import type { AppDb } from '../db/schemas.js';
-import type { McpApiKeyPrincipal } from './auth.js';
+import type { McpPrincipal } from './auth.js';
 import {
     createXpenserMcpDataAccess,
     registerXpenserMcpTools
@@ -14,7 +14,7 @@ export type XpenserMcpServerOptions = {
     readonly db: AppDb;
     readonly knex: Knex;
     readonly logger: Logger;
-    readonly principal: McpApiKeyPrincipal;
+    readonly principal: McpPrincipal;
 };
 
 export function createXpenserMcpServer({

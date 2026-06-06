@@ -1,14 +1,12 @@
 import { ActionResult, endpoint, type Handler } from '@cleverbrush/server';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { PrincipalSchema } from '@xpenser/contracts';
 import { ConfigToken, DbToken, KnexToken, LoggerToken } from '../di/tokens.js';
 import { McpTransportError } from '../log-templates.js';
-import { requireMcpApiKeyPrincipal } from './auth.js';
+import { authenticateMcpPrincipal } from './auth.js';
 import { createXpenserMcpServer } from './server.js';
 
 export const McpEndpoint = endpoint
     .post('/api/mcp')
-    .authorize(PrincipalSchema)
     .inject({
         config: ConfigToken,
         db: DbToken,
@@ -21,17 +19,25 @@ export const McpEndpoint = endpoint
     .operationId('xpenserMcp');
 
 export const mcpHandler: Handler<typeof McpEndpoint> = async (
-    { context, principal },
+    { context },
     { config, db, knex, logger }
 ) => {
-    let apiKeyPrincipal: ReturnType<typeof requireMcpApiKeyPrincipal>;
-    try {
-        apiKeyPrincipal = requireMcpApiKeyPrincipal(principal);
-    } catch (err) {
-        if (err instanceof Error) {
-            return ActionResult.unauthorized({ message: err.message });
-        }
-        throw err;
+    const principal = await authenticateMcpPrincipal({
+        config,
+        db,
+        headers: context.headers
+    });
+    if (!principal) {
+        context.response.setHeader(
+            'WWW-Authenticate',
+            `Bearer resource_metadata="${new URL(
+                '/.well-known/oauth-protected-resource/external-api/mcp',
+                config.app.url
+            ).toString()}"`
+        );
+        return ActionResult.unauthorized({
+            message: 'MCP access requires a xpenser API key or MCP OAuth token.'
+        });
     }
 
     const mcpServer = createXpenserMcpServer({
@@ -39,7 +45,7 @@ export const mcpHandler: Handler<typeof McpEndpoint> = async (
         db,
         knex,
         logger,
-        principal: apiKeyPrincipal
+        principal
     });
     const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined
@@ -47,7 +53,7 @@ export const mcpHandler: Handler<typeof McpEndpoint> = async (
 
     transport.onerror = error => {
         logger.error(error, McpTransportError, {
-            UserId: apiKeyPrincipal.userId
+            UserId: principal.userId
         });
     };
     context.response.on('close', () => {

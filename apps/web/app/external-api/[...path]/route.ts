@@ -25,6 +25,9 @@ const hopByHopHeaders = new Set([
 
 function apiPath(parts: readonly string[]): string {
     const path = parts.join('/');
+    if (path === '.well-known' || path.startsWith('.well-known/')) {
+        return `/${path}`;
+    }
     if (path === 'health' || path === 'openapi.json' || path === '__batch') {
         return `/${path}`;
     }
