@@ -15,18 +15,16 @@ describe('LandingPage', () => {
             screen.getByRole('heading', { level: 1, name: 'xpenser' })
         ).toBeTruthy();
         expect(
-            screen.getByText(/Cleverbrush Framework: typed contracts/i)
+            screen.getByText(/Track income, expenses, refunds/i)
         ).toBeTruthy();
         expect(
-            screen.getByText(/initially a demonstrator of possibilities/i)
+            screen.getByText(/Learn Cleverbrush from a working app/i)
         ).toBeTruthy();
         expect(screen.getAllByText(/Telegram bot/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/MCP server/i).length).toBeGreaterThan(0);
-        expect(
-            screen.getAllByText(/Mobile-friendly interface/i).length
-        ).toBeGreaterThan(0);
-        expect(screen.getAllByText(/open-source/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/self-hosted/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/open-source/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/MIT licensed/i).length).toBeGreaterThan(0);
         expect(
             screen.getAllByText(/multiple currencies/i).length
         ).toBeGreaterThan(0);
@@ -49,16 +47,31 @@ describe('LandingPage', () => {
             )
         ).toBe(true);
 
-        const githubLinks = screen.getAllByRole('link', { name: /github/i });
+        const xpenserGithubLinks = screen.getAllByRole('link', {
+            name: /xpenser github/i
+        });
         expect(
-            githubLinks.every(
+            xpenserGithubLinks.every(
                 link =>
                     link.getAttribute('href') ===
                     'https://github.com/cleverbrush/xpenser'
             )
         ).toBe(true);
 
-        const docsLinks = screen.getAllByRole('link', { name: /docs/i });
+        const frameworkGithubLinks = screen.getAllByRole('link', {
+            name: /framework github/i
+        });
+        expect(
+            frameworkGithubLinks.every(
+                link =>
+                    link.getAttribute('href') ===
+                    'https://github.com/cleverbrush/framework'
+            )
+        ).toBe(true);
+
+        const docsLinks = screen.getAllByRole('link', {
+            name: /cleverbrush docs/i
+        });
         expect(
             docsLinks.every(
                 link =>
@@ -66,7 +79,9 @@ describe('LandingPage', () => {
             )
         ).toBe(true);
 
-        const schemaLinks = screen.getAllByRole('link', { name: /schema/i });
+        const schemaLinks = screen.getAllByRole('link', {
+            name: /schema docs/i
+        });
         expect(
             schemaLinks.every(
                 link =>

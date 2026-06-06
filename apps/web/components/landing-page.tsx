@@ -122,29 +122,34 @@ const capabilityRows = [
 ] as const;
 
 const heroProofs = [
-    'Fast financial entry',
-    'Mobile-friendly interface',
-    'MCP server access',
+    'Self-hosted finance app',
+    'Multi-currency tracking',
+    'Read-only MCP access',
     'Telegram bot integration',
-    'Open-source and self-hosted ready',
-    'Frankfurter currency conversion'
+    'Cleverbrush reference code',
+    'MIT licensed'
 ] as const;
 
 const resourceLinks = [
     {
         href: 'https://github.com/cleverbrush/xpenser',
         icon: GithubIcon,
-        label: 'GitHub'
+        label: 'xpenser GitHub'
+    },
+    {
+        href: 'https://github.com/cleverbrush/framework',
+        icon: GithubIcon,
+        label: 'Framework GitHub'
     },
     {
         href: 'https://docs.cleverbrush.com',
         icon: BookOpenIcon,
-        label: 'Docs'
+        label: 'Cleverbrush Docs'
     },
     {
         href: 'https://schema.cleverbrush.com',
         icon: BracesIcon,
-        label: 'Schema'
+        label: 'Schema Docs'
     }
 ] as const;
 
@@ -291,7 +296,7 @@ function ProductPreview() {
 
 function ResourceButtons() {
     return (
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2">
             {resourceLinks.map(({ href, icon: IconComponent, label }) => (
                 <a
                     className={heroResourceLinkClassName}
@@ -389,19 +394,21 @@ export function LandingPage() {
 
             <section className="border-b bg-muted/35">
                 <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-center lg:py-16">
-                    <div className="rounded-lg border bg-background p-5 shadow-sm sm:p-7 lg:p-8">
+                    <div className="py-2 lg:py-6">
                         <Badge className="mb-5 w-fit" variant="secondary">
-                            Cleverbrush Framework demonstrator
+                            Open-source personal finance
                         </Badge>
                         <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
                             xpenser
                         </h1>
                         <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
-                            Open-source, self-hosted ready personal income and
-                            expense tracking that initially demonstrates what
-                            can be built with Cleverbrush Framework: typed
-                            contracts, schema-driven forms, observable services,
-                            and connected app workflows.
+                            Track income, expenses, refunds, currencies,
+                            vendors, and reports in a self-hosted app that keeps
+                            the code open for inspection. Under the product
+                            surface, xpenser shows how Cleverbrush Framework
+                            connects typed contracts, schema-driven forms,
+                            observable services, Telegram, API, and MCP
+                            workflows.
                         </p>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
@@ -436,12 +443,12 @@ export function LandingPage() {
             <section className="mx-auto max-w-6xl px-4 py-14 sm:py-16">
                 <div className="mb-8 max-w-2xl">
                     <h2 className="text-2xl font-semibold">
-                        Useful finance workflows first
+                        Personal finance workflows first
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
                         xpenser is a working app, not a static showcase. The
-                        demo covers the product surfaces a user expects from a
-                        finance tracker while keeping the implementation
+                        project covers the product surfaces a user expects from
+                        a finance tracker while keeping the implementation
                         open-source and small enough to inspect or self-host,
                         including multiple currencies and Frankfurter-backed
                         automatic conversion.
@@ -458,18 +465,17 @@ export function LandingPage() {
                 <div className="mx-auto grid max-w-6xl gap-8 px-4 py-14 sm:py-16 lg:grid-cols-[0.8fr_1.2fr]">
                     <div>
                         <Badge className="mb-4 w-fit" variant="outline">
-                            Framework surface
+                            Cleverbrush reference
                         </Badge>
                         <h2 className="text-2xl font-semibold">
-                            Built to show how Cleverbrush pieces fit together
+                            Learn Cleverbrush from a working app
                         </h2>
                         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                            The current version is initially a demonstrator of
-                            possibilities: a single app path that exercises
-                            Cleverbrush contracts, server handlers, generated
-                            clients, schema-backed React forms, auth, Telegram
-                            bot integration, an MCP server, logs, telemetry, and
-                            deployment-ready configuration for self-hosting.
+                            The codebase exercises Cleverbrush contracts, server
+                            handlers, generated clients, schema-backed React
+                            forms, auth, Telegram bot integration, an MCP
+                            server, logs, telemetry, and deployment-ready
+                            configuration for self-hosting.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -540,13 +546,12 @@ export function LandingPage() {
                     <div className="flex flex-col gap-5 rounded-lg border bg-muted/35 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                         <div className="max-w-xl">
                             <h2 className="text-2xl font-semibold">
-                                Open the demonstrator
+                                Use it, self-host it, or study the source
                             </h2>
                             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                                Sign in to use the app, or review the framework
-                                docs behind the contracts, forms, APIs, and
-                                telemetry for an open-source, self-hosted ready
-                                setup.
+                                Sign in to use the hosted app, review the source
+                                on GitHub, or follow the Cleverbrush docs behind
+                                the contracts, forms, APIs, and telemetry.
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row">
@@ -576,7 +581,10 @@ export function LandingPage() {
                             <div className="font-semibold text-foreground">
                                 xpenser
                             </div>
-                            <p>Initial Cleverbrush Framework demonstrator.</p>
+                            <p>
+                                Open-source personal finance built with
+                                Cleverbrush Framework.
+                            </p>
                         </div>
                     </div>
                     <nav className="flex flex-wrap gap-3">

@@ -4,6 +4,20 @@ xpenser is both a usable personal finance app and a reference implementation for
 projects based on CleverBrush Framework. This document points to the patterns
 worth copying and the checks that keep those patterns from drifting.
 
+Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
+
+## Learning Path
+
+1. Start with `packages/contracts/src/api.ts` and
+   `packages/contracts/src/schemas.ts` to see the public API shape.
+2. Compare that contract with `apps/api/src/api/endpoints.ts` and
+   `apps/api/src/api/handlers` to see how metadata and handlers line up.
+3. Read `packages/client/src/index.ts` for the client middleware stack.
+4. Read `packages/ui/src/forms/react-form-provider.tsx` for schema-backed form
+   bindings.
+5. Use the tests listed below as executable examples of the framework
+   invariants.
+
 ## Architecture Map
 
 - `packages/contracts` defines the public API with `@cleverbrush/schema` and
