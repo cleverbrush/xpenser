@@ -134,7 +134,12 @@ const resourceLinks = [
     {
         href: 'https://github.com/cleverbrush/xpenser',
         icon: GithubIcon,
-        label: 'GitHub'
+        label: 'xpenser GitHub'
+    },
+    {
+        href: 'https://github.com/cleverbrush/framework',
+        icon: GithubIcon,
+        label: 'Framework GitHub'
     },
     {
         href: 'https://docs.cleverbrush.com',
@@ -291,7 +296,7 @@ function ProductPreview() {
 
 function ResourceButtons() {
     return (
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2">
             {resourceLinks.map(({ href, icon: IconComponent, label }) => (
                 <a
                     className={heroResourceLinkClassName}

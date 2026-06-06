@@ -44,6 +44,7 @@ Start with [Cleverbrush Reference Notes](./docs/cleverbrush-reference.md) if
 you are here to learn the framework patterns behind the app. For upstream
 framework docs, use:
 
+- [Cleverbrush Framework source](https://github.com/cleverbrush/framework)
 - [Cleverbrush Framework docs](https://docs.cleverbrush.com)
 - [Cleverbrush Schema docs](https://schema.cleverbrush.com)
 

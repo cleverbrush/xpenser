@@ -47,12 +47,25 @@ describe('LandingPage', () => {
             )
         ).toBe(true);
 
-        const githubLinks = screen.getAllByRole('link', { name: /github/i });
+        const xpenserGithubLinks = screen.getAllByRole('link', {
+            name: /xpenser github/i
+        });
         expect(
-            githubLinks.every(
+            xpenserGithubLinks.every(
                 link =>
                     link.getAttribute('href') ===
                     'https://github.com/cleverbrush/xpenser'
+            )
+        ).toBe(true);
+
+        const frameworkGithubLinks = screen.getAllByRole('link', {
+            name: /framework github/i
+        });
+        expect(
+            frameworkGithubLinks.every(
+                link =>
+                    link.getAttribute('href') ===
+                    'https://github.com/cleverbrush/framework'
             )
         ).toBe(true);
 

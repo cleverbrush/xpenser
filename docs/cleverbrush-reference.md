@@ -4,6 +4,8 @@ xpenser is both a usable personal finance app and a reference implementation for
 projects based on CleverBrush Framework. This document points to the patterns
 worth copying and the checks that keep those patterns from drifting.
 
+Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
+
 ## Learning Path
 
 1. Start with `packages/contracts/src/api.ts` and
