@@ -24,6 +24,7 @@
         "@opentelemetry/instrumentation-undici": "0.25.0",
         "@xpenser/client": "0.1.0",
         "@xpenser/contracts": "0.1.0",
+        "@xpenser/timezone": "0.1.0",
         "node-telegram-bot-api": "^0.66.0"
     },
     "devDependencies": {
