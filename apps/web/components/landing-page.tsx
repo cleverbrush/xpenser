@@ -118,13 +118,13 @@ const capabilityRows = [
         'Email summaries',
         'Configurable weekly and monthly spending and income insights'
     ],
-    ['External API', 'Typed client, API keys, and read-only MCP server']
+    ['External API', 'Typed client, API keys, and MCP server']
 ] as const;
 
 const heroProofs = [
     'Self-hosted finance app',
     'Multi-currency tracking',
-    'Read-only MCP access',
+    'MCP agent access',
     'Telegram bot integration',
     'Cleverbrush reference code',
     'MIT licensed'

@@ -1,7 +1,7 @@
 import { ActionResult, endpoint, type Handler } from '@cleverbrush/server';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { PrincipalSchema } from '@xpenser/contracts';
-import { DbToken, LoggerToken } from '../di/tokens.js';
+import { ConfigToken, DbToken, KnexToken, LoggerToken } from '../di/tokens.js';
 import { McpTransportError } from '../log-templates.js';
 import { requireMcpApiKeyPrincipal } from './auth.js';
 import { createXpenserMcpServer } from './server.js';
@@ -9,15 +9,20 @@ import { createXpenserMcpServer } from './server.js';
 export const McpEndpoint = endpoint
     .post('/api/mcp')
     .authorize(PrincipalSchema)
-    .inject({ db: DbToken, logger: LoggerToken })
+    .inject({
+        config: ConfigToken,
+        db: DbToken,
+        knex: KnexToken,
+        logger: LoggerToken
+    })
     .summary('MCP server')
-    .description('Read-only xpenser MCP server for AI agents.')
+    .description('xpenser MCP server for AI agents.')
     .tags('mcp')
     .operationId('xpenserMcp');
 
 export const mcpHandler: Handler<typeof McpEndpoint> = async (
     { context, principal },
-    { db, logger }
+    { config, db, knex, logger }
 ) => {
     let apiKeyPrincipal: ReturnType<typeof requireMcpApiKeyPrincipal>;
     try {
@@ -30,7 +35,9 @@ export const mcpHandler: Handler<typeof McpEndpoint> = async (
     }
 
     const mcpServer = createXpenserMcpServer({
+        config,
         db,
+        knex,
         logger,
         principal: apiKeyPrincipal
     });
