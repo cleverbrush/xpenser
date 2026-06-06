@@ -1,0 +1,39 @@
+name: Cleverbrush framework question
+description: Ask a question about how xpenser uses Cleverbrush Framework.
+title: "[Cleverbrush]: "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For broad discussion, examples, and learning threads, GitHub Discussions is usually the best place. Use this issue form when the question points to a concrete documentation gap or unclear repository behavior.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to understand?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Link the file, concept, endpoint, schema, or workflow you are reading.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Framework area
+      options:
+        - Schema / contracts
+        - Server handlers
+        - OpenAPI
+        - Client middleware
+        - React forms
+        - Auth / authorization
+        - DI / ORM
+        - Observability
+        - MCP
+        - Other
+    validations:
+      required: true

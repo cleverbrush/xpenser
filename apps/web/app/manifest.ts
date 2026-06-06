@@ -4,7 +4,8 @@ export default function manifest(): MetadataRoute.Manifest {
     return {
         name: 'xpenser',
         short_name: 'xpenser',
-        description: 'Personal income and expense tracking app.',
+        description:
+            'Open-source personal finance tracking for self-hosted workflows.',
         start_url: '/dashboard',
         scope: '/',
         display: 'standalone',

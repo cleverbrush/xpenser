@@ -4,10 +4,39 @@ import './globals.css';
 import { XpenserWebFormProvider } from '@/components/forms/schema-fields';
 import { ThemeProvider } from '@/components/theme-provider';
 
+const publicUrl = process.env.APP_URL ?? 'https://xpenser.cleverbrush.com';
+const description =
+    'Open-source personal finance tracking for self-hosted workflows, built with Cleverbrush Framework.';
+
 export const metadata: Metadata = {
-    title: 'xpenser',
-    description:
-        'Personal finance tracking and Cleverbrush Framework demonstrator'
+    metadataBase: new URL(publicUrl),
+    applicationName: 'xpenser',
+    title: {
+        default: 'xpenser',
+        template: '%s | xpenser'
+    },
+    description,
+    openGraph: {
+        type: 'website',
+        url: '/',
+        siteName: 'xpenser',
+        title: 'xpenser',
+        description,
+        images: [
+            {
+                url: '/og-image.png',
+                width: 1200,
+                height: 630,
+                alt: 'xpenser personal finance app preview'
+            }
+        ]
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: 'xpenser',
+        description,
+        images: ['/og-image.png']
+    }
 };
 
 export default function RootLayout({

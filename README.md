@@ -1,22 +1,58 @@
 # xpenser
 
-Personal income and expense tracking app.
+Open-source personal income and expense tracking for people who want a
+self-hosted finance app they can inspect, extend, and connect to their own
+workflows.
 
-xpenser also serves as a demonstrator for projects based on CleverBrush
-Framework. See
-[Cleverbrush Reference Notes](./docs/cleverbrush-reference.md) for the
-framework integration patterns, security baseline, and tests that keep the app
-usable as an example.
+![xpenser landing page preview](./docs/assets/xpenser-landing-preview.png)
 
-## Local Development
+xpenser is also a real-world reference app for
+[Cleverbrush Framework](https://docs.cleverbrush.com). It shows how a
+schema-first TypeScript stack can drive API contracts, validation, OpenAPI,
+typed clients, React forms, auth-aware endpoints, observability, Telegram
+workflows, and MCP access from one cohesive application.
 
-This setup runs the API and web app on your machine, with PostgreSQL running in
-Docker.
+## Why xpenser
+
+- Track income, expenses, refunds, and returns with categories, notes, dates,
+  vendors, and currencies.
+- Review daily, weekly, monthly, quarterly, and yearly summaries with category
+  split and trend context.
+- Use multiple transaction currencies with automatic conversion to your default
+  currency through [Frankfurter](https://www.frankfurter.app/).
+- Capture transaction scans, enrich vendor data, and keep setup workflows usable
+  on mobile and desktop.
+- Receive optional weekly and monthly email summaries with OpenAI-generated
+  spending and income insights.
+- Connect external tools through API keys, a typed Node client, a read-only MCP
+  server, and a Telegram bot.
+
+## Built With Cleverbrush
+
+xpenser is intentionally small enough to inspect while still exercising
+production-shaped framework patterns:
+
+- `packages/contracts` defines the public contract with Cleverbrush schemas.
+- `apps/api` exposes the contract through Cleverbrush server handlers,
+  auth metadata, OpenAPI, DI, logging, tracing, and MCP.
+- `packages/client` wraps the generated Cleverbrush client with retry, timeout,
+  dedupe, batching, cache tags, and OpenTelemetry propagation.
+- `packages/ui` binds Cleverbrush schema fields to reusable React form
+  controls.
+
+Start with [Cleverbrush Reference Notes](./docs/cleverbrush-reference.md) if
+you are here to learn the framework patterns behind the app. For upstream
+framework docs, use:
+
+- [Cleverbrush Framework docs](https://docs.cleverbrush.com)
+- [Cleverbrush Schema docs](https://schema.cleverbrush.com)
+
+## Quick Start
 
 ### Prerequisites
 
 - Node.js 22
-- npm
+- npm 11
 - Docker with Docker Compose v2 (`docker compose`)
 
 ### 1. Install dependencies
@@ -31,20 +67,12 @@ npm install
 cp .env.example .env
 ```
 
-The defaults in `.env.example` are already set up for local development with
-PostgreSQL exposed on `localhost:5432`:
+The defaults in `.env.example` are safe for local development and point the app
+at PostgreSQL on `localhost:5432`.
 
-```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=xpenser
-DB_USER=xpenser
-DB_PASSWORD=xpenser_secret
-```
+### 3. Build shared workspaces
 
-### 3. Build the shared workspaces
-
-The apps import the local packages from their built `dist` outputs, so build the
+The apps import local packages from their built `dist` outputs, so build the
 shared packages once before starting dev servers:
 
 ```sh
@@ -55,13 +83,11 @@ npm run build -w @xpenser/ui
 
 ### 4. Start PostgreSQL
 
-Start only the Postgres service from `docker-compose.yml`:
-
 ```sh
 docker compose up -d postgres
 ```
 
-Check that it is running:
+Useful checks:
 
 ```sh
 docker compose ps postgres
@@ -83,12 +109,12 @@ Local URLs:
 - API health check: http://localhost:4000/health
 - OpenAPI JSON: http://localhost:4000/openapi.json
 
-### Authentication
+## Authentication
 
-Email/password sign-in is built in and works without any external auth provider.
-Accounts created this way must confirm their email before signing in.
+Email/password sign-in works without any external auth provider. Accounts
+created this way must confirm their email before signing in.
 
-Google sign-in has two supported modes:
+Google sign-in supports two modes:
 
 - Direct Google OAuth for self-hosted deployments.
 - Cleverbrush Passport for the hosted Cleverbrush deployment.
@@ -110,7 +136,7 @@ Use `GOOGLE_SIGN_IN_MODE=direct` to require direct Google OAuth,
 `GOOGLE_SIGN_IN_MODE=disabled` to hide Google sign-in even when credentials are
 present.
 
-#### Direct Google OAuth for self-hosting
+### Direct Google OAuth
 
 Create an OAuth 2.0 client in Google Cloud Console:
 
@@ -136,16 +162,11 @@ AUTH_GOOGLE_ID=your-google-oauth-client-id
 AUTH_GOOGLE_SECRET=your-google-oauth-client-secret
 ```
 
-The web app validates the Google profile through Auth.js, then calls the private
-xpenser API with `WEB_API_SERVICE_SECRET`. The API resolves or creates a local
-`google` user, stores the Google subject in `external_identities`, and returns
-the same xpenser API JWT used by email/password sessions.
-
 Google accounts must have a verified email address. If a local email/password
-account already exists with the same email, Google sign-in is rejected instead of
-silently linking the accounts.
+account already exists with the same email, Google sign-in is rejected instead
+of silently linking the accounts.
 
-#### Passport for Cleverbrush deployment
+### Cleverbrush Passport
 
 Passport is a private Cleverbrush auth broker. Self-hosted deployments should
 use direct Google OAuth unless they run their own compatible Passport service.
@@ -160,68 +181,20 @@ PASSPORT_ENVIRONMENT=production
 PASSPORT_PUBLIC_KEY=
 ```
 
-`PASSPORT_PUBLIC_KEY` is optional. When it is empty, the API fetches
-`<PASSPORT_BASE_URL>/.well-known/public-key` and caches it in memory. If set, use
-the base64-encoded PEM public key.
-
-Register the production Passport environment with:
-
-```sh
-curl -X PUT "$PASSPORT_BASE_URL/api/projects/xpenser/environments/production" \
-  -H "Authorization: ServiceKey $PASSPORT_SERVICE_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "frontend_origin": "https://xpenser.cleverbrush.com",
-    "callback_path": "/auth/callback",
-    "backend_auth_url": "https://xpenser.cleverbrush.com/external-api/auth/passport",
-    "status": "active"
-  }'
-```
-
-To see distributed traces during local development, run the Compose observability
-services or the full Docker stack so `OTEL_EXPORTER_OTLP_ENDPOINT` points at a
-live collector. The web app reports as `xpenser-web`; the API reports as
-`xpenser-api`.
-
-## Database Commands
-
-Run migrations manually if needed:
-
-```sh
-npm run db:run -w @xpenser/api
-```
-
-Stop Postgres without deleting data:
-
-```sh
-docker compose stop postgres
-```
-
-Stop Compose services and remove containers/networks:
-
-```sh
-docker compose down
-```
-
-Reset the local database by removing the Postgres volume:
-
-```sh
-docker compose down -v
-docker compose up -d postgres
-```
+`PASSPORT_PUBLIC_KEY` is optional. When empty, the API fetches
+`<PASSPORT_BASE_URL>/.well-known/public-key` and caches it in memory. If set,
+use the base64-encoded PEM public key.
 
 ## Full Docker Run
 
-For a production-like local run, build and start the Compose stack:
+For a production-like local run, build and start the full Compose stack:
 
 ```sh
 docker compose up --build
 ```
 
-This starts the containerized web app, API, PostgreSQL, Swagger UI, and the
-observability services defined in `docker-compose.yml`. Requests that start in
-the web app and call the API should appear in SigNoz as one distributed trace
-with spans from both services.
+This starts the containerized web app, API, PostgreSQL, Swagger UI, and
+observability services defined in `docker-compose.yml`.
 
 Full Docker URLs:
 
@@ -230,7 +203,11 @@ Full Docker URLs:
 - Swagger UI: http://localhost:8090
 - SigNoz: http://localhost:8080
 
-## External API Access
+For public deployments, put your reverse proxy in front of the web app and set
+`APP_URL` to the public origin. The API service stays private on the Docker
+network and the Next app exposes it under `/external-api`.
+
+## External API
 
 Create an API key from Settings -> Preferences -> API keys. The API key can be
 used as a bearer token with curl or with the typed Node client:
@@ -264,15 +241,15 @@ await client.transactions.create({
 ```
 
 Omit `effect` or set it to `normal` for regular transactions. Use
-`effect: 'reversal'` for refunds in expense categories or payments/chargebacks
-in income categories; the entered amount stays positive and reports subtract it
-from that category.
+`effect: 'reversal'` for refunds in expense categories or payments and
+chargebacks in income categories; the entered amount stays positive and reports
+subtract it from that category.
 
 `X-API-Key: $XPENSER_API_KEY` is also accepted.
 
 ## MCP Server
 
-xpenser also exposes a read-only MCP Streamable HTTP endpoint for AI agents at
+xpenser exposes a read-only MCP Streamable HTTP endpoint for AI agents at
 `/external-api/mcp`. Use the same API key from Settings -> Preferences -> API
 keys as a bearer token:
 
@@ -294,48 +271,45 @@ The MCP server exposes read-only tools for the current user, categories,
 transactions, dashboard summaries, and statistics. Transaction write operations
 are not exposed through MCP.
 
-In Docker Compose, the API service stays private on the Docker network and the
-Next app exposes it under `/external-api`. Put your host reverse proxy in front
-of the web app:
+## Development Commands
 
-```nginx
-server {
-    server_name xpenser.example.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run test:e2e
 ```
 
-Set `APP_URL` to the public web origin. The API's OpenAPI server URL defaults to
-`${APP_URL}/external-api` in Compose and can be overridden with
-`PUBLIC_API_BASE_URL`.
+Database helpers:
 
-## Ephemeral PR Environments
+```sh
+npm run db:run -w @xpenser/api
+docker compose stop postgres
+docker compose down
+docker compose down -v
+```
 
-See [PR_ENVIRONMENTS.md](./PR_ENVIRONMENTS.md) for the nginx proxy script,
-environment deploy script, and GitHub Actions setup.
+The e2e suite requires `PLAYWRIGHT_BASE_URL` when run outside the GitHub PR
+environment.
 
-## Troubleshooting
+## Contributing
 
-If port `5432` is already in use, change `POSTGRES_PORT` in `.env` and update
-`DB_PORT` to match.
+Contributions are welcome. Good first areas include documentation, self-hosting
+guides, framework reference notes, UI polish, API examples, and small focused
+product improvements.
 
-If port `3000` or `4000` is already in use, stop the conflicting process or
-change the relevant app port before starting the dev servers.
+- Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
+- Use issues for actionable bugs and feature requests.
+- Use GitHub Discussions for questions, ideas, and Cleverbrush learning threads.
+- Keep Cleverbrush contract, endpoint metadata, and handler trees aligned when
+  changing the API.
 
-If login/register fails after changing secrets or resetting data, stop the dev
-server, clear browser cookies for `localhost`, and start the app again.
+## Project Status
 
-If the Google sign-in button is hidden, either set `AUTH_GOOGLE_ID` and
-`AUTH_GOOGLE_SECRET` for direct Google OAuth, set complete Passport variables
-with `GOOGLE_SIGN_IN_MODE=passport`, or set `GOOGLE_SIGN_IN_MODE=direct` to fail
-fast when Google credentials are missing.
+xpenser is early, practical, and evolving. The goal is to remain useful as a
+personal finance app while staying clear enough for developers to learn how a
+Cleverbrush full-stack project fits together.
 
-If Google returns a redirect URI mismatch, add the exact
-`${APP_URL}/api/auth/callback/google` URL to the Google OAuth client. The scheme,
-host, port, and path must match the public URL users open in the browser.
+## License
+
+xpenser is released under the [MIT License](./LICENSE).

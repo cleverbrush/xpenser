@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest a product, self-hosting, integration, or documentation improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user need or workflow should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the change you would like to see.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Finance workflow
+        - Self-hosting
+        - External API
+        - MCP server
+        - Telegram bot
+        - Cleverbrush reference example
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Mention any workaround, existing tool, or alternate design.
+  - type: textarea
+    id: contribution
+    attributes:
+      label: Contribution interest
+      description: If you want to work on this, note your intended approach or questions.

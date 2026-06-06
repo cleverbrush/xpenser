@@ -1,8 +1,28 @@
 {
     "name": "xpenser",
     "version": "0.1.0",
+    "description": "Open-source personal finance tracking app built with Cleverbrush Framework.",
     "private": true,
+    "license": "MIT",
     "type": "module",
+    "homepage": "https://xpenser.cleverbrush.com",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/cleverbrush/xpenser.git"
+    },
+    "bugs": {
+        "url": "https://github.com/cleverbrush/xpenser/issues"
+    },
+    "keywords": [
+        "personal-finance",
+        "expense-tracker",
+        "self-hosted",
+        "typescript",
+        "nextjs",
+        "cleverbrush",
+        "mcp",
+        "openapi"
+    ],
     "packageManager": "npm@11.12.1",
     "workspaces": [
         "apps/*",
