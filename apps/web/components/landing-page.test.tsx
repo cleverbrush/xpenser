@@ -15,16 +15,28 @@ describe('LandingPage', () => {
             screen.getByRole('heading', { level: 1, name: 'xpenser' })
         ).toBeTruthy();
         expect(
-            screen.getByText(/Track income, expenses, refunds/i)
+            screen.getByText(/Replace spreadsheet-based income and expense/i)
+        ).toBeTruthy();
+        expect(screen.getByText(/early and evolving/i)).toBeTruthy();
+        expect(
+            screen.getByAltText(/xpenser dashboard month view/i)
         ).toBeTruthy();
         expect(
             screen.getByText(/Learn Cleverbrush from a working app/i)
         ).toBeTruthy();
         expect(screen.getAllByText(/Telegram bot/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/MCP server/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/self-hosted/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/self-host/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/open-source/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/MIT licensed/i).length).toBeGreaterThan(0);
+        expect(
+            screen.getAllByText(/Spreadsheet replacement/i).length
+        ).toBeGreaterThan(0);
+        expect(
+            screen.getByText(
+                /read or manage vendors, categories, and transactions/i
+            )
+        ).toBeTruthy();
         expect(
             screen.getAllByText(/multiple currencies/i).length
         ).toBeGreaterThan(0);
