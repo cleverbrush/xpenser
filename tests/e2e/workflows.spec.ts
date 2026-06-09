@@ -525,9 +525,22 @@ test.describe('authenticated app workflows', () => {
     }) => {
         const expenseCategory = uniqueName('E2E trend expense');
         const expenseNote = uniqueName('E2E trend note');
-        const occurredAt = dateTimeLocalValue();
 
         await createCategory(page, expenseCategory, 'expense');
+        await page.goto('/dashboard');
+        const expensesUrl = new URL(
+            (await page
+                .getByRole('link', {
+                    name: 'View expenses transactions for this period'
+                })
+                .getAttribute('href')) ?? '/transactions',
+            page.url()
+        );
+        const periodDate =
+            expensesUrl.searchParams.get('from') ??
+            dateTimeLocalValue().slice(0, 10);
+        const occurredAt = `${periodDate}T12:00`;
+
         await createTransaction(
             page,
             expenseCategory,
