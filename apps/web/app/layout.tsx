@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 
 const publicUrl = process.env.APP_URL ?? 'https://xpenser.cleverbrush.com';
 const description =
-    'Open-source personal finance tracking for self-hosted workflows, built with Cleverbrush Framework.';
+    'Open-source, self-hostable personal finance tracking for replacing spreadsheets with dashboards, reports, API keys, and MCP access.';
 
 export const metadata: Metadata = {
     metadataBase: new URL(publicUrl),
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
         type: 'website',
         url: '/',
         siteName: 'xpenser',
-        title: 'xpenser',
+        title: 'xpenser - open-source personal finance tracker',
         description,
         images: [
             {
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     },
     twitter: {
         card: 'summary_large_image',
-        title: 'xpenser',
+        title: 'xpenser - open-source personal finance tracker',
         description,
         images: ['/og-image.png']
     }

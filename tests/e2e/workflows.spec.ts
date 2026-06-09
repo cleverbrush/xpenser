@@ -525,6 +525,7 @@ test.describe('authenticated app workflows', () => {
     }) => {
         const expenseCategory = uniqueName('E2E trend expense');
         const expenseNote = uniqueName('E2E trend note');
+        const occurredAt = dateTimeLocalValue();
 
         await createCategory(page, expenseCategory, 'expense');
         await createTransaction(
@@ -532,10 +533,11 @@ test.describe('authenticated app workflows', () => {
             expenseCategory,
             'expense',
             '12.34',
-            expenseNote
+            expenseNote,
+            occurredAt
         );
 
-        await page.goto('/stats');
+        await page.goto(`/stats?period=day&date=${occurredAt.slice(0, 10)}`);
         await page
             .getByRole('link', { name: new RegExp(expenseCategory) })
             .click();
@@ -577,15 +579,17 @@ test.describe('authenticated app workflows', () => {
         await expect(
             page.getByRole('button', { name: 'Apply' })
         ).toHaveCount(0);
-        const currentMonthFrom = `${new Date().toISOString().slice(0, 7)}-01`;
+        const transactionDate = occurredAt.slice(0, 10);
+        const currentMonthFrom = `${transactionDate.slice(0, 7)}-01`;
         await fromInput.fill(currentMonthFrom);
+        await toInput.fill(transactionDate);
         await expect(page).toHaveURL(url => {
             return (
                 url.pathname.startsWith('/stats/categories/') &&
                 url.searchParams.get('groupBy') === 'week' &&
                 url.searchParams.get('range') === 'custom' &&
                 url.searchParams.get('from') === currentMonthFrom &&
-                Boolean(url.searchParams.get('to'))
+                url.searchParams.get('to') === transactionDate
             );
         });
 

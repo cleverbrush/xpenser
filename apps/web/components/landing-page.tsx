@@ -106,28 +106,15 @@ const frameworkFeatures: readonly Feature[] = [
     }
 ];
 
-const capabilityRows = [
-    ['Dashboard', 'Cash flow, net total, category split, trend marks'],
-    [
-        'Transactions',
-        'Filtering, editing, nested categories, multi-currency input'
-    ],
-    ['Conversion', 'Automatic default-currency conversion via Frankfurter'],
-    ['Reports', 'Period comparison with charted historical context'],
-    [
-        'Email summaries',
-        'Configurable weekly and monthly spending and income insights'
-    ],
-    ['External API', 'Typed client, API keys, and MCP server']
-] as const;
-
 const heroProofs = [
-    'Self-hosted finance app',
+    'Spreadsheet replacement',
+    'Self-hostable finance app',
     'Multi-currency tracking',
-    'MCP agent access',
+    'MCP/API access',
     'Telegram bot integration',
     'Cleverbrush reference code',
-    'MIT licensed'
+    'MIT licensed',
+    'Early project'
 ] as const;
 
 const resourceLinks = [
@@ -178,119 +165,19 @@ function FeatureCard({ description, icon: IconComponent, title }: Feature) {
 
 function ProductPreview() {
     return (
-        <div
-            aria-label="xpenser dashboard preview"
-            className="mx-auto w-full max-w-xl rounded-lg border bg-card p-2 shadow-xl sm:p-3 lg:max-w-none"
-            role="img"
-        >
-            <div className="rounded-md border bg-background p-3 sm:p-4">
-                <div className="mb-4 flex items-center justify-between border-b pb-3">
-                    <div className="flex items-center gap-2">
-                        <Image
-                            alt=""
-                            aria-hidden
-                            className="rounded-md"
-                            height={28}
-                            src="/icon.svg"
-                            width={28}
-                        />
-                        <div>
-                            <div className="text-sm font-semibold">
-                                Monthly overview
-                            </div>
-                            <div className="mt-0.5 text-xs text-muted-foreground">
-                                Income, expenses, and net trend
-                            </div>
-                        </div>
-                    </div>
-                    <div className="hidden h-8 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground sm:flex">
-                        Live data
-                    </div>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-md border bg-card p-3">
-                        <div className="text-[10px] font-medium uppercase text-muted-foreground">
-                            Income
-                        </div>
-                        <div className="mt-2 text-sm font-semibold">$4,280</div>
-                        <div className="mt-3 h-1.5 w-full rounded bg-muted">
-                            <div className="h-full w-4/5 rounded bg-primary" />
-                        </div>
-                    </div>
-                    <div className="rounded-md border bg-card p-3">
-                        <div className="text-[10px] font-medium uppercase text-muted-foreground">
-                            Expenses
-                        </div>
-                        <div className="mt-2 text-sm font-semibold">$2,420</div>
-                        <div className="mt-3 h-1.5 w-full rounded bg-muted">
-                            <div className="h-full w-3/5 rounded bg-foreground/70" />
-                        </div>
-                    </div>
-                    <div className="rounded-md border bg-card p-3">
-                        <div className="text-[10px] font-medium uppercase text-muted-foreground">
-                            Net
-                        </div>
-                        <div className="mt-2 text-sm font-semibold">$1,860</div>
-                        <div className="mt-3 h-1.5 w-full rounded bg-muted">
-                            <div className="h-full w-1/2 rounded bg-accent" />
-                        </div>
-                    </div>
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
-                    <div className="rounded-md border bg-card p-3">
-                        <div className="mb-3 flex items-center justify-between">
-                            <div className="text-sm font-medium">
-                                Category split
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                                30 days
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            {[72, 54, 86, 48].map(width => (
-                                <div
-                                    className="grid grid-cols-[1fr_auto] items-center gap-4"
-                                    key={width}
-                                >
-                                    <div className="h-2 rounded bg-muted" />
-                                    <div
-                                        className="h-2 rounded bg-primary/70"
-                                        style={{ width }}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="rounded-md border bg-card p-3">
-                        <div className="mb-3 text-sm font-medium">
-                            Spending trend
-                        </div>
-                        <div className="flex h-24 items-end gap-1.5">
-                            {[30, 62, 42, 76, 50, 88, 58].map(height => (
-                                <div
-                                    className="flex-1 rounded-t bg-accent"
-                                    key={height}
-                                    style={{ height }}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                <div className="mt-3 rounded-md border bg-card">
-                    {capabilityRows.map(([label, detail]) => (
-                        <div
-                            className="grid grid-cols-[96px_1fr] gap-3 border-b px-3 py-2 text-xs last:border-b-0 sm:grid-cols-[112px_1fr]"
-                            key={label}
-                        >
-                            <span className="font-medium">{label}</span>
-                            <span className="truncate text-muted-foreground">
-                                {detail}
-                            </span>
-                        </div>
-                    ))}
-                </div>
+        <figure className="mx-auto w-full max-w-xl lg:max-w-none">
+            <div className="rounded-lg border bg-card p-2 shadow-xl sm:p-3">
+                <Image
+                    alt="xpenser dashboard month view showing income, expenses, net total, and category detail"
+                    className="aspect-[1.04] w-full rounded-md border object-cover object-top sm:aspect-[1.18] lg:aspect-[1.06]"
+                    height={1473}
+                    priority
+                    sizes="(min-width: 1024px) 560px, 100vw"
+                    src="/screenshots/dashboard-month.png"
+                    width={1440}
+                />
             </div>
-        </div>
+        </figure>
     );
 }
 
@@ -396,19 +283,21 @@ export function LandingPage() {
                 <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-center lg:py-16">
                     <div className="py-2 lg:py-6">
                         <Badge className="mb-5 w-fit" variant="secondary">
-                            Open-source personal finance
+                            Early open-source personal finance
                         </Badge>
                         <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
                             xpenser
                         </h1>
                         <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
-                            Track income, expenses, refunds, currencies,
-                            vendors, and reports in a self-hosted app that keeps
-                            the code open for inspection. Under the product
-                            surface, xpenser shows how Cleverbrush Framework
-                            connects typed contracts, schema-driven forms,
-                            observable services, Telegram, API, and MCP
-                            workflows.
+                            Replace spreadsheet-based income and expense
+                            tracking with dashboards, categories, vendors,
+                            reports, and MCP/API access in a self-hostable app
+                            with source you can inspect.
+                        </p>
+                        <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
+                            xpenser is early and evolving; feedback on product
+                            fit, self-hosting, README clarity, and MCP workflows
+                            is welcome.
                         </p>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
@@ -447,11 +336,11 @@ export function LandingPage() {
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
                         xpenser is a working app, not a static showcase. The
-                        project covers the product surfaces a user expects from
-                        a finance tracker while keeping the implementation
-                        open-source and small enough to inspect or self-host,
-                        including multiple currencies and Frankfurter-backed
-                        automatic conversion.
+                        project grew from a spreadsheet replacement into product
+                        surfaces a finance tracker needs while keeping the
+                        implementation open-source and small enough to inspect
+                        or self-host, including multiple currencies and
+                        Frankfurter-backed automatic conversion.
                     </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -506,7 +395,7 @@ export function LandingPage() {
                         {
                             icon: BotIcon,
                             title: 'MCP server',
-                            text: 'Expose dashboard, category, and transaction data through tool calls.'
+                            text: 'Let approved agents read or manage vendors, categories, and transactions through tool calls.'
                         },
                         {
                             icon: SendIcon,
@@ -582,7 +471,7 @@ export function LandingPage() {
                                 xpenser
                             </div>
                             <p>
-                                Open-source personal finance built with
+                                Self-hostable personal finance built with
                                 Cleverbrush Framework.
                             </p>
                         </div>

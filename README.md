@@ -1,19 +1,26 @@
 # xpenser
 
-Open-source personal income and expense tracking for people who want a
-self-hosted finance app they can inspect, extend, and connect to their own
-workflows.
+xpenser is an open-source, self-hostable personal finance tracker for people
+who want to replace spreadsheet-based income and expense tracking with
+dashboards, categories, vendors, reports, and API/MCP access.
 
-![xpenser landing page preview](./docs/assets/xpenser-landing-preview.png)
+![xpenser dashboard month view with income, expenses, net total, and category detail](./docs/assets/xpenser-dashboard-month.png)
+
+It started as a practical replacement for a real Google Spreadsheet accounting
+workflow. The project is early and still evolving, but it is useful enough to
+run, inspect, extend, self-host, or use as a working Cleverbrush Framework
+reference app.
 
 xpenser is also a real-world reference app for
-[Cleverbrush Framework](https://docs.cleverbrush.com). It shows how a
+[Cleverbrush Framework](https://docs.cleverbrush.com), showing how a
 schema-first TypeScript stack can drive API contracts, validation, OpenAPI,
 typed clients, React forms, auth-aware endpoints, observability, Telegram
 workflows, and MCP access from one cohesive application.
 
 ## Why xpenser
 
+- Move spreadsheet-style tracking into a structured app with dashboards,
+  categories, vendors, reports, and searchable transaction history.
 - Track income, expenses, refunds, and returns with categories, notes, dates,
   vendors, and currencies.
 - Review daily, weekly, monthly, quarterly, and yearly summaries with category
@@ -26,6 +33,27 @@ workflows, and MCP access from one cohesive application.
   spending and income insights.
 - Connect external tools through API keys, a typed Node client, an MCP
   server, and a Telegram bot.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td>
+      <img src="./docs/assets/xpenser-dashboard-month.png" alt="xpenser dashboard month view" width="360">
+    </td>
+    <td>
+      <img src="./docs/assets/xpenser-transactions.png" alt="xpenser transactions table" width="360">
+    </td>
+    <td>
+      <img src="./docs/assets/xpenser-preferences-mcp-email.png" alt="xpenser preferences with email reports, API keys, and MCP settings" width="360">
+    </td>
+  </tr>
+  <tr>
+    <td>Dashboard month view</td>
+    <td>Transaction history</td>
+    <td>Email reports, API keys, and MCP</td>
+  </tr>
+</table>
 
 ## Built With Cleverbrush
 
@@ -208,6 +236,25 @@ For public deployments, put your reverse proxy in front of the web app and set
 `APP_URL` to the public origin. The API service stays private on the Docker
 network and the Next app exposes it under `/external-api`.
 
+For a smaller public deployment, use `docker-compose.prod.yml` as the starting
+point and provide production secrets for `NEXTAUTH_SECRET`, `AUTH_SECRET`,
+`JWT_SECRET`, `WEB_API_SERVICE_SECRET`, and `TELEGRAM_BOT_SERVICE_SECRET`.
+
+## Optional Integrations
+
+The default `.env.example` keeps external integrations off unless you configure
+their provider credentials:
+
+- OpenAI email insights: set `OPENAI_API_KEY`, `OPENAI_REPORT_MODEL`,
+  `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPORTS_ENABLED=1`, and
+  `EMAIL_REPORTS_SCHEDULER_ENABLED=1`.
+- Telegram bot workflows: set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`,
+  and `TELEGRAM_BOT_SERVICE_SECRET`.
+- Vendor enrichment: set `BRANDFETCH_API_KEY` or `BRANDFETCH_CLIENT_ID`, then
+  enable `VENDOR_ENRICHMENT_ENABLED=1`.
+- Google sign-in: configure direct Google OAuth as described above, or leave
+  it disabled and use email/password accounts.
+
 ## External API
 
 Create an API key from Settings -> Preferences -> API keys. The API key can be
@@ -254,7 +301,8 @@ xpenser exposes an MCP Streamable HTTP endpoint for AI agents at
 `/external-api/mcp`. Use the same API key from Settings -> Preferences -> API
 keys as a bearer token. MCP tools can read and manage the API-key owner's
 vendors, categories, and transactions, so treat MCP access as full account data
-access:
+access. Use a dedicated API key for MCP clients and revoke it when access is no
+longer needed:
 
 ```json
 {
@@ -309,9 +357,14 @@ product improvements.
 
 ## Project Status
 
-xpenser is early, practical, and evolving. The goal is to remain useful as a
-personal finance app while staying clear enough for developers to learn how a
-Cleverbrush full-stack project fits together.
+xpenser is early, practical, and evolving. It has no meaningful user traction
+yet; feedback on product fit, README clarity, self-hosting, and MCP workflows is
+welcome. The goal is to remain useful as a personal finance app while staying
+clear enough for developers to learn how a Cleverbrush full-stack project fits
+together.
+
+xpenser does not currently ship bank sync, budget planning, net-worth tracking,
+native mobile apps, or mature import pipelines.
 
 ## License
 
