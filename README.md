@@ -1,15 +1,17 @@
 # xpenser
 
 xpenser is an open-source, self-hostable personal finance tracker for people
-who want to replace spreadsheet-based income and expense tracking with
-dashboards, categories, vendors, reports, and API/MCP access.
+who want to track and analyze income and expenses with dashboards, categories,
+vendors, reports, and API/MCP access.
 
 ![xpenser dashboard month view with income, expenses, net total, and category detail](./docs/assets/xpenser-dashboard-month.png)
 
-It started as a practical replacement for a real Google Spreadsheet accounting
-workflow. The project is early and still evolving, but it is useful enough to
-run, inspect, extend, self-host, or use as a working Cleverbrush Framework
-reference app.
+It grew out of a personal Telegram bot plus Google Sheets workflow. The
+project is early and still evolving, but it is useful enough to run, inspect,
+extend, self-host, or use as a working Cleverbrush Framework reference app. If
+you track or analyze expenses somewhere else today, feedback is welcome on
+whether xpenser could replace or complement that setup and what would need to be
+added.
 
 xpenser is also a real-world reference app for
 [Cleverbrush Framework](https://docs.cleverbrush.com), showing how a
@@ -19,7 +21,7 @@ workflows, and MCP access from one cohesive application.
 
 ## Why xpenser
 
-- Move spreadsheet-style tracking into a structured app with dashboards,
+- Move everyday finance tracking into a structured app with dashboards,
   categories, vendors, reports, and searchable transaction history.
 - Track income, expenses, refunds, and returns with categories, notes, dates,
   vendors, and currencies.
