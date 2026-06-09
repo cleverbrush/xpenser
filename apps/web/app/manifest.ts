@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: 'xpenser',
         short_name: 'xpenser',
         description:
-            'Open-source, self-hostable personal finance tracking for spreadsheet replacement workflows.',
+            'Open-source, self-hostable personal finance tracking with dashboards, reports, API keys, Telegram, and MCP access.',
         start_url: '/dashboard',
         scope: '/',
         display: 'standalone',

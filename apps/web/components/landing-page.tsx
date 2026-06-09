@@ -107,7 +107,7 @@ const frameworkFeatures: readonly Feature[] = [
 ];
 
 const heroProofs = [
-    'Spreadsheet replacement',
+    'Expense tracking workflows',
     'Self-hostable finance app',
     'Multi-currency tracking',
     'MCP/API access',
@@ -289,10 +289,10 @@ export function LandingPage() {
                             xpenser
                         </h1>
                         <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
-                            Replace spreadsheet-based income and expense
-                            tracking with dashboards, categories, vendors,
-                            reports, and MCP/API access in a self-hostable app
-                            with source you can inspect.
+                            Track and analyze income and expenses with
+                            dashboards, categories, vendors, reports, and
+                            MCP/API access in a self-hostable app with source
+                            you can inspect.
                         </p>
                         <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
                             xpenser is early and evolving; feedback on product
@@ -335,12 +335,12 @@ export function LandingPage() {
                         Personal finance workflows first
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                        xpenser is a working app, not a static showcase. The
-                        project grew from a spreadsheet replacement into product
-                        surfaces a finance tracker needs while keeping the
-                        implementation open-source and small enough to inspect
-                        or self-host, including multiple currencies and
-                        Frankfurter-backed automatic conversion.
+                        xpenser is a working app, not a static showcase. It grew
+                        from a personal Telegram bot plus Google Sheets workflow
+                        into the product surfaces a finance tracker needs while
+                        keeping the implementation open-source and small enough
+                        to inspect or self-host, including multiple currencies
+                        and Frankfurter-backed automatic conversion.
                     </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
