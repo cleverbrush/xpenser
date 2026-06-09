@@ -15,7 +15,7 @@ describe('LandingPage', () => {
             screen.getByRole('heading', { level: 1, name: 'xpenser' })
         ).toBeTruthy();
         expect(
-            screen.getByText(/Replace spreadsheet-based income and expense/i)
+            screen.getByText(/Track and analyze income and expenses/i)
         ).toBeTruthy();
         expect(screen.getByText(/early and evolving/i)).toBeTruthy();
         expect(
@@ -30,7 +30,7 @@ describe('LandingPage', () => {
         expect(screen.getAllByText(/open-source/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/MIT licensed/i).length).toBeGreaterThan(0);
         expect(
-            screen.getAllByText(/Spreadsheet replacement/i).length
+            screen.getAllByText(/Expense tracking workflows/i).length
         ).toBeGreaterThan(0);
         expect(
             screen.getByText(

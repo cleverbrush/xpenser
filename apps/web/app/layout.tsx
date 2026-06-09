@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 
 const publicUrl = process.env.APP_URL ?? 'https://xpenser.cleverbrush.com';
 const description =
-    'Open-source, self-hostable personal finance tracking for replacing spreadsheets with dashboards, reports, API keys, and MCP access.';
+    'Open-source, self-hostable personal finance tracking with dashboards, reports, API keys, Telegram, and MCP access.';
 
 export const metadata: Metadata = {
     metadataBase: new URL(publicUrl),
