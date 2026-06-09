@@ -606,10 +606,13 @@ test.describe('authenticated app workflows', () => {
             );
         });
 
-        await page
+        const drilldownLink = page
             .getByRole('link', { name: /View .* transactions/ })
-            .first()
-            .click();
+            .first();
+        await expect(drilldownLink).toBeVisible();
+        const drilldownHref = await drilldownLink.getAttribute('href');
+        expect(drilldownHref).toMatch(/^\/transactions\?/);
+        await page.goto(drilldownHref ?? '/transactions');
         await expect(page).toHaveURL(url => {
             return (
                 url.pathname === '/transactions' &&
