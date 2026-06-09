@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions and ideas
-    url: https://github.com/cleverbrush/xpenser/discussions
-    about: Use GitHub Discussions for open-ended questions, ideas, and Cleverbrush learning threads.
+    url: https://github.com/cleverbrush/xpenser/issues/new?template=feature_request.yml
+    about: Use the feature request form for product, self-hosting, integration, documentation, or Cleverbrush learning ideas.
   - name: Security reports
     url: https://github.com/cleverbrush/xpenser/security/advisories/new
     about: Please report vulnerabilities privately through GitHub Security Advisories.
