@@ -3,28 +3,31 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { XpenserWebFormProvider } from '@/components/forms/schema-fields';
 import { ThemeProvider } from '@/components/theme-provider';
+import {
+    getPublicMarketingPage,
+    publicSiteOrigin,
+    publicUrl
+} from '@/lib/public-site';
 
-const publicUrl = process.env.APP_URL ?? 'https://xpenser.cleverbrush.com';
-const description =
-    'Open-source, self-hostable personal finance tracking with dashboards, reports, API keys, Telegram, and MCP access.';
+const homePage = getPublicMarketingPage('/');
 
 export const metadata: Metadata = {
-    metadataBase: new URL(publicUrl),
+    metadataBase: new URL(publicSiteOrigin),
     applicationName: 'xpenser',
     title: {
-        default: 'xpenser',
+        default: 'xpenser - self-hosted personal finance tracking',
         template: '%s | xpenser'
     },
-    description,
+    description: homePage.description,
     openGraph: {
         type: 'website',
-        url: '/',
+        url: publicUrl('/'),
         siteName: 'xpenser',
-        title: 'xpenser - open-source personal finance tracker',
-        description,
+        title: 'xpenser - self-hosted personal finance tracking',
+        description: homePage.description,
         images: [
             {
-                url: '/og-image.png',
+                url: publicUrl('/og-image.png'),
                 width: 1200,
                 height: 630,
                 alt: 'xpenser personal finance app preview'
@@ -33,9 +36,9 @@ export const metadata: Metadata = {
     },
     twitter: {
         card: 'summary_large_image',
-        title: 'xpenser - open-source personal finance tracker',
-        description,
-        images: ['/og-image.png']
+        title: 'xpenser - self-hosted personal finance tracking',
+        description: homePage.description,
+        images: [publicUrl('/og-image.png')]
     }
 };
 
