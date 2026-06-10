@@ -1,0 +1,18 @@
+# xpenser
+
+> Open-source, self-hostable personal finance tracking with dashboards, reports, API keys, Telegram, and MCP access.
+
+xpenser is an early personal finance app and Cleverbrush Framework reference implementation. It supports income and expense tracking, categories, vendors, multi-currency reporting, API keys, MCP tools, and Telegram workflows.
+
+## Product Pages
+
+- [xpenser homepage](https://xpenser.cleverbrush.com/): Self-hosted personal finance tracking overview.
+- [Self-hosted personal finance tracker](https://xpenser.cleverbrush.com/self-hosted-personal-finance-tracker): Deployment and self-hosting angle.
+- [Open-source expense tracker](https://xpenser.cleverbrush.com/open-source-expense-tracker): Expense, income, vendor, category, and report workflows.
+- [Personal finance API and MCP access](https://xpenser.cleverbrush.com/personal-finance-api-mcp): API keys, typed client access, MCP tools, and agent workflows.
+
+## Source and Docs
+
+- [xpenser GitHub](https://github.com/cleverbrush/xpenser): MIT licensed source code.
+- [Cleverbrush Framework docs](https://docs.cleverbrush.com): Framework documentation behind the app.
+- [Cleverbrush Schema docs](https://schema.cleverbrush.com): Schema and contract tooling documentation.

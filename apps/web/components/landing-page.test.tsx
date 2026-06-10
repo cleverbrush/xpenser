@@ -12,7 +12,10 @@ describe('LandingPage', () => {
         render(createElement(LandingPage));
 
         expect(
-            screen.getByRole('heading', { level: 1, name: 'xpenser' })
+            screen.getByRole('heading', {
+                level: 1,
+                name: /Self-hosted personal finance tracking with xpenser/i
+            })
         ).toBeTruthy();
         expect(
             screen.getByText(/Track and analyze income and expenses/i)
@@ -44,6 +47,28 @@ describe('LandingPage', () => {
         expect(
             screen.getAllByText(/weekly and monthly email summaries/i).length
         ).toBeGreaterThan(0);
+        expect(
+            screen.getByRole('link', {
+                name: /Self-hosted personal finance tracker/i
+            })
+        ).toHaveProperty(
+            'href',
+            'http://localhost:3000/self-hosted-personal-finance-tracker'
+        );
+        expect(
+            screen.getByRole('link', { name: /Open-source expense tracker/i })
+        ).toHaveProperty(
+            'href',
+            'http://localhost:3000/open-source-expense-tracker'
+        );
+        expect(
+            screen.getByRole('link', {
+                name: /Personal finance API and MCP access/i
+            })
+        ).toHaveProperty(
+            'href',
+            'http://localhost:3000/personal-finance-api-mcp'
+        );
 
         const signInLinks = screen.getAllByRole('link', { name: /sign in/i });
         expect(

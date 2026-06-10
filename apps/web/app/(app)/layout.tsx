@@ -1,7 +1,12 @@
+import type { Metadata } from 'next';
 import { AppNav } from '@/components/app-nav';
 import { getSessionOrRedirect } from '@/lib/api';
+import { noIndexRobots } from '@/lib/public-site';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+    robots: noIndexRobots
+};
 
 export default async function ProtectedLayout({
     children

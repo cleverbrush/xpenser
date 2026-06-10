@@ -71,6 +71,10 @@ async function createTransaction(
     await expect(addDialog).toBeHidden({ timeout: 15_000 });
 }
 
+function startOfDayDateTime(date: string): string {
+    return `${date}T00:00`;
+}
+
 async function swipeReportAreaFromBlankSpace(
     page: import('@playwright/test').Page
 ): Promise<void> {
@@ -508,7 +512,7 @@ test.describe('authenticated app workflows', () => {
         const periodDate =
             expensesUrl.searchParams.get('from') ??
             dateTimeLocalValue().slice(0, 10);
-        const periodOccurredAt = `${periodDate}T12:00`;
+        const periodOccurredAt = startOfDayDateTime(periodDate);
 
         await createTransaction(
             page,
@@ -591,7 +595,7 @@ test.describe('authenticated app workflows', () => {
         const periodDate =
             expensesUrl.searchParams.get('from') ??
             dateTimeLocalValue().slice(0, 10);
-        const occurredAt = `${periodDate}T12:00`;
+        const occurredAt = startOfDayDateTime(periodDate);
 
         await createTransaction(
             page,

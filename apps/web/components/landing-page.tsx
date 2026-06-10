@@ -30,7 +30,13 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import type { ComponentType, SVGProps } from 'react';
+import type { ComponentType, ReactNode, SVGProps } from 'react';
+import {
+    appScreenshot,
+    getPublicMarketingPage,
+    publicMarketingPages,
+    publicSeoPages
+} from '@/lib/public-site';
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -106,17 +112,6 @@ const frameworkFeatures: readonly Feature[] = [
     }
 ];
 
-const heroProofs = [
-    'Expense tracking workflows',
-    'Self-hostable finance app',
-    'Multi-currency tracking',
-    'MCP/API access',
-    'Telegram bot integration',
-    'Cleverbrush reference code',
-    'MIT licensed',
-    'Early project'
-] as const;
-
 const resourceLinks = [
     {
         href: 'https://github.com/cleverbrush/xpenser',
@@ -163,18 +158,24 @@ function FeatureCard({ description, icon: IconComponent, title }: Feature) {
     );
 }
 
-function ProductPreview() {
+export function ProductPreview({
+    className = ''
+}: {
+    readonly className?: string;
+}) {
     return (
-        <figure className="mx-auto w-full max-w-xl lg:max-w-none">
+        <figure
+            className={`mx-auto w-full max-w-xl lg:max-w-none ${className}`}
+        >
             <div className="rounded-lg border bg-card p-2 shadow-xl sm:p-3">
                 <Image
-                    alt="xpenser dashboard month view showing income, expenses, net total, and category detail"
+                    alt={appScreenshot.alt}
                     className="aspect-[1.04] w-full rounded-md border object-cover object-top sm:aspect-[1.18] lg:aspect-[1.06]"
-                    height={1473}
+                    height={appScreenshot.height}
                     priority
                     sizes="(min-width: 1024px) 560px, 100vw"
-                    src="/screenshots/dashboard-month.png"
-                    width={1440}
+                    src={appScreenshot.src}
+                    width={appScreenshot.width}
                 />
             </div>
         </figure>
@@ -204,10 +205,10 @@ function ResourceButtons() {
     );
 }
 
-function HeroProofs() {
+function ProofGrid({ items }: { readonly items: readonly string[] }) {
     return (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {heroProofs.map(item => (
+            {items.map(item => (
                 <div
                     className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm text-foreground"
                     key={item}
@@ -223,70 +224,218 @@ function HeroProofs() {
     );
 }
 
-export function LandingPage() {
+function InternalSeoLinks() {
     return (
-        <main className="min-h-dvh bg-background text-foreground">
-            <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
-                <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-                    <Link
-                        className="flex items-center gap-2 font-semibold"
-                        href="/"
-                    >
-                        <Image
-                            alt=""
-                            aria-hidden
-                            className="rounded-md"
-                            height={28}
-                            src="/icon.svg"
-                            width={28}
-                        />
-                        <span>xpenser</span>
-                    </Link>
-                    <nav className="flex items-center gap-2">
-                        <div className="hidden items-center gap-1 md:flex">
-                            {resourceLinks.map(({ href, label }) => (
-                                <Button
-                                    asChild
-                                    key={href}
-                                    size="sm"
-                                    variant="ghost"
-                                >
-                                    <a
-                                        href={href}
-                                        rel="noreferrer"
-                                        target="_blank"
-                                    >
-                                        {label}
-                                    </a>
-                                </Button>
-                            ))}
-                        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+            {publicSeoPages.map(page => (
+                <Card className="h-full" key={page.path}>
+                    <CardHeader>
+                        <CardTitle className="text-base leading-snug">
+                            <Link
+                                className="outline-none hover:text-primary focus-visible:ring-2 focus-visible:ring-ring"
+                                href={page.path}
+                            >
+                                {page.h1}
+                            </Link>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm leading-6 text-muted-foreground">
+                            {page.description}
+                        </p>
                         <Button
                             asChild
-                            className="hidden sm:inline-flex"
+                            className="mt-4"
                             size="sm"
-                            variant="ghost"
+                            variant="outline"
                         >
-                            <Link href="/register">Create account</Link>
-                        </Button>
-                        <Button asChild size="sm">
-                            <Link href="/login">
-                                <LogInIcon aria-hidden className="size-4" />
-                                Sign in
+                            <Link href={page.path}>
+                                Explore
+                                <ArrowRightIcon
+                                    aria-hidden
+                                    className="size-4"
+                                />
                             </Link>
                         </Button>
-                    </nav>
-                </div>
-            </header>
+                    </CardContent>
+                </Card>
+            ))}
+        </div>
+    );
+}
 
+export function PublicSiteHeader() {
+    return (
+        <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
+            <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
+                <Link
+                    className="flex items-center gap-2 font-semibold"
+                    href="/"
+                >
+                    <Image
+                        alt=""
+                        aria-hidden
+                        className="rounded-md"
+                        height={28}
+                        src="/icon.svg"
+                        width={28}
+                    />
+                    <span>xpenser</span>
+                </Link>
+                <nav className="flex items-center gap-2">
+                    <div className="hidden items-center gap-1 lg:flex">
+                        {publicMarketingPages.map(({ navLabel, path }) => (
+                            <Button
+                                asChild
+                                key={path}
+                                size="sm"
+                                variant="ghost"
+                            >
+                                <Link href={path}>{navLabel}</Link>
+                            </Button>
+                        ))}
+                    </div>
+                    <Button
+                        asChild
+                        className="hidden sm:inline-flex"
+                        size="sm"
+                        variant="ghost"
+                    >
+                        <Link href="/login">Sign in</Link>
+                    </Button>
+                    <Button asChild size="sm">
+                        <Link href="/register">
+                            <LogInIcon aria-hidden className="size-4" />
+                            Create account
+                        </Link>
+                    </Button>
+                </nav>
+            </div>
+        </header>
+    );
+}
+
+export function PublicSiteFooter() {
+    return (
+        <footer className="border-t bg-background">
+            <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-7 text-sm text-muted-foreground lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center gap-3">
+                    <Image
+                        alt=""
+                        aria-hidden
+                        className="rounded-md"
+                        height={28}
+                        src="/icon.svg"
+                        width={28}
+                    />
+                    <div>
+                        <div className="font-semibold text-foreground">
+                            xpenser
+                        </div>
+                        <p>
+                            Self-hostable personal finance built with
+                            Cleverbrush Framework.
+                        </p>
+                    </div>
+                </div>
+                <nav className="flex flex-wrap gap-3">
+                    {publicMarketingPages.map(({ navLabel, path }) => (
+                        <Link
+                            className="font-medium text-foreground transition-colors hover:text-primary"
+                            href={path}
+                            key={path}
+                        >
+                            {navLabel}
+                        </Link>
+                    ))}
+                    <a
+                        className="font-medium text-foreground transition-colors hover:text-primary"
+                        href="/llms.txt"
+                    >
+                        llms.txt
+                    </a>
+                    {resourceLinks.map(({ href, label }) => (
+                        <a
+                            className="inline-flex items-center gap-1 font-medium text-foreground transition-colors hover:text-primary"
+                            href={href}
+                            key={href}
+                            rel="noreferrer"
+                            target="_blank"
+                        >
+                            {label}
+                            <ExternalLinkIcon aria-hidden className="size-3" />
+                        </a>
+                    ))}
+                </nav>
+            </div>
+        </footer>
+    );
+}
+
+export function PublicPageShell({
+    children
+}: {
+    readonly children: ReactNode;
+}) {
+    return (
+        <div className="min-h-dvh bg-background text-foreground">
+            <a
+                className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm font-medium shadow-lg ring-2 ring-ring focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+                href="#main-content"
+            >
+                Skip to main content
+            </a>
+            <PublicSiteHeader />
+            <main id="main-content" tabIndex={-1}>
+                {children}
+            </main>
+            <PublicSiteFooter />
+        </div>
+    );
+}
+
+export function CtaPanel() {
+    return (
+        <section className="border-t bg-background">
+            <div className="mx-auto max-w-6xl px-4 py-10">
+                <div className="flex flex-col gap-5 rounded-lg border bg-muted/35 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                    <div className="max-w-xl">
+                        <h2 className="text-2xl font-semibold">
+                            Use it, self-host it, or study the source
+                        </h2>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                            Create an account for the hosted app, review the
+                            source on GitHub, or follow the Cleverbrush docs
+                            behind the contracts, forms, APIs, and telemetry.
+                        </p>
+                    </div>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                        <Button asChild size="lg">
+                            <Link href="/register">Create account</Link>
+                        </Button>
+                        <Button asChild size="lg" variant="outline">
+                            <Link href="/login">Sign in</Link>
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+export function LandingPage() {
+    const homePage = getPublicMarketingPage('/');
+
+    return (
+        <PublicPageShell>
             <section className="border-b bg-muted/35">
                 <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-center lg:py-16">
                     <div className="py-2 lg:py-6">
                         <Badge className="mb-5 w-fit" variant="secondary">
-                            Early open-source personal finance
+                            {homePage.eyebrow}
                         </Badge>
                         <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
-                            xpenser
+                            {homePage.h1}
                         </h1>
                         <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
                             Track and analyze income and expenses with
@@ -301,8 +450,8 @@ export function LandingPage() {
                         </p>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
-                                <Link href="/login">
-                                    Sign in
+                                <Link href="/register">
+                                    Create account
                                     <ArrowRightIcon
                                         aria-hidden
                                         className="size-4"
@@ -315,18 +464,32 @@ export function LandingPage() {
                                 size="lg"
                                 variant="outline"
                             >
-                                <Link href="/register">Create account</Link>
+                                <Link href="/login">Sign in</Link>
                             </Button>
                         </div>
                         <div className="mt-5">
                             <ResourceButtons />
                         </div>
                         <div className="mt-6">
-                            <HeroProofs />
+                            <ProofGrid items={homePage.proofItems} />
                         </div>
                     </div>
                     <ProductPreview />
                 </div>
+            </section>
+
+            <section className="mx-auto max-w-6xl px-4 py-14 sm:py-16">
+                <div className="mb-8 max-w-2xl">
+                    <h2 className="text-2xl font-semibold">
+                        Product-led paths for finance tracking
+                    </h2>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        Start with the angle that fits your evaluation:
+                        self-hosting, open-source expense tracking, or API and
+                        MCP access for finance workflows.
+                    </p>
+                </div>
+                <InternalSeoLinks />
             </section>
 
             <section className="mx-auto max-w-6xl px-4 py-14 sm:py-16">
@@ -430,71 +593,7 @@ export function LandingPage() {
                 </div>
             </section>
 
-            <section className="border-t bg-background">
-                <div className="mx-auto max-w-6xl px-4 py-10">
-                    <div className="flex flex-col gap-5 rounded-lg border bg-muted/35 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                        <div className="max-w-xl">
-                            <h2 className="text-2xl font-semibold">
-                                Use it, self-host it, or study the source
-                            </h2>
-                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                                Sign in to use the hosted app, review the source
-                                on GitHub, or follow the Cleverbrush docs behind
-                                the contracts, forms, APIs, and telemetry.
-                            </p>
-                        </div>
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                            <Button asChild size="lg">
-                                <Link href="/login">Sign in</Link>
-                            </Button>
-                            <Button asChild size="lg" variant="outline">
-                                <Link href="/register">Create account</Link>
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <footer className="border-t bg-background">
-                <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-7 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                        <Image
-                            alt=""
-                            aria-hidden
-                            className="rounded-md"
-                            height={28}
-                            src="/icon.svg"
-                            width={28}
-                        />
-                        <div>
-                            <div className="font-semibold text-foreground">
-                                xpenser
-                            </div>
-                            <p>
-                                Self-hostable personal finance built with
-                                Cleverbrush Framework.
-                            </p>
-                        </div>
-                    </div>
-                    <nav className="flex flex-wrap gap-3">
-                        {resourceLinks.map(({ href, label }) => (
-                            <a
-                                className="inline-flex items-center gap-1 font-medium text-foreground transition-colors hover:text-primary"
-                                href={href}
-                                key={href}
-                                rel="noreferrer"
-                                target="_blank"
-                            >
-                                {label}
-                                <ExternalLinkIcon
-                                    aria-hidden
-                                    className="size-3"
-                                />
-                            </a>
-                        ))}
-                    </nav>
-                </div>
-            </footer>
-        </main>
+            <CtaPanel />
+        </PublicPageShell>
     );
 }
