@@ -1,5 +1,6 @@
 'use client';
 
+import { cn } from '@xpenser/ui';
 import { useRouter } from 'next/navigation';
 import {
     type MouseEvent,
@@ -116,6 +117,7 @@ function DashboardPanelSkeleton() {
 export function DashboardSwipeArea({
     basePath = '/dashboard',
     children,
+    className,
     date,
     onNavigate,
     onPreview,
@@ -126,6 +128,7 @@ export function DashboardSwipeArea({
 }: {
     readonly basePath?: string;
     readonly children: ReactNode;
+    readonly className?: string;
     readonly date: string;
     readonly onNavigate?: (selection: {
         readonly date: string;
@@ -378,7 +381,8 @@ export function DashboardSwipeArea({
 
     return (
         <div
-            className="relative overflow-hidden touch-pan-y"
+            className={cn('relative overflow-hidden touch-pan-y', className)}
+            data-testid="dashboard-swipe-area"
             onClickCapture={handleClickCapture}
             onPointerCancel={handlePointerCancel}
             onPointerDown={handlePointerDown}

@@ -71,6 +71,26 @@ async function createTransaction(
     await expect(addDialog).toBeHidden({ timeout: 15_000 });
 }
 
+async function swipeReportAreaFromBlankSpace(
+    page: import('@playwright/test').Page
+): Promise<void> {
+    const swipeArea = page.getByTestId('dashboard-swipe-area');
+    await expect(swipeArea).toBeVisible();
+    const box = await swipeArea.boundingBox();
+    if (!box) {
+        throw new Error('Report swipe area was not visible.');
+    }
+
+    const y = box.y + box.height - 24;
+    const startX = box.x + 48;
+    const endX = Math.min(box.x + box.width - 24, startX + 260);
+
+    await page.mouse.move(startX, y);
+    await page.mouse.down();
+    await page.mouse.move(endX, y, { steps: 8 });
+    await page.mouse.up();
+}
+
 test.describe('authenticated app workflows', () => {
     test('opens the main authenticated sections', async ({ page }) => {
         await page.goto('/dashboard');
@@ -95,6 +115,38 @@ test.describe('authenticated app workflows', () => {
         ).toBeVisible();
         await expect(page.getByText('MCP server')).toBeVisible();
         await expect(page.getByText('/external-api/mcp').first()).toBeVisible();
+    });
+
+    test('swipes sparse dashboard and vendor reports from empty body space', async ({
+        page
+    }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+
+        await page.goto('/dashboard?period=day&date=2001-01-02');
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Dashboard' })
+        ).toBeVisible();
+        await swipeReportAreaFromBlankSpace(page);
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/dashboard' &&
+                url.searchParams.get('period') === 'day' &&
+                url.searchParams.get('date') === '2001-01-01'
+            );
+        });
+
+        await page.goto('/vendors?period=day&date=2001-01-02');
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Vendors' })
+        ).toBeVisible();
+        await swipeReportAreaFromBlankSpace(page);
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/vendors' &&
+                url.searchParams.get('period') === 'day' &&
+                url.searchParams.get('date') === '2001-01-01'
+            );
+        });
     });
 
     test('creates categories and manages a transaction lifecycle', async ({
