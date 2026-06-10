@@ -348,7 +348,7 @@ export function DashboardWindowExplorer({
     }
 
     return (
-        <div className="flex flex-col gap-5 sm:gap-6">
+        <div className="flex min-h-[calc(100dvh-11rem)] flex-col gap-5 sm:min-h-[calc(100dvh-9.5rem)] sm:gap-6">
             {renderHeader(currentContext)}
             <DashboardPeriodNav
                 basePath={basePath}
@@ -361,6 +361,7 @@ export function DashboardWindowExplorer({
             />
             <DashboardSwipeArea
                 basePath={basePath}
+                className="min-h-64 flex-1"
                 date={currentDate}
                 onNavigate={navigateSwipe}
                 onPreview={previewDate}
