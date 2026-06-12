@@ -63,6 +63,18 @@ function vendorShare(
     return Math.max(0, Math.min(100, share));
 }
 
+function compareVendorsByShare(
+    summary: Pick<DashboardSummary, 'expenseTotal' | 'incomeTotal'>,
+    left: DashboardVendor,
+    right: DashboardVendor
+): number {
+    return (
+        vendorShare(summary, right) - vendorShare(summary, left) ||
+        Math.abs(right.total) - Math.abs(left.total) ||
+        left.vendorName.localeCompare(right.vendorName)
+    );
+}
+
 function VendorRow({
     vendor,
     summary,
@@ -206,7 +218,9 @@ function VendorGroup({
     readonly title: string;
     readonly type: DashboardVendor['type'];
 }) {
-    const vendors = summary.topVendors.filter(vendor => vendor.type === type);
+    const vendors = summary.topVendors
+        .filter(vendor => vendor.type === type)
+        .sort((left, right) => compareVendorsByShare(summary, left, right));
     if (vendors.length === 0) {
         return null;
     }

@@ -43,6 +43,14 @@ function summary(overrides: Partial<DashboardSummary> = {}): DashboardSummary {
     };
 }
 
+function renderedVendorNames(names: readonly string[]): string[] {
+    return screen.getAllByRole('link').flatMap(link => {
+        const text = link.textContent ?? '';
+        const name = names.find(candidate => text.includes(candidate));
+        return name ? [name] : [];
+    });
+}
+
 describe('VendorAnalyticsPanel', () => {
     it('renders vendor rows with charts and transaction links', () => {
         const vendors = [vendor(1), vendor(2)];
@@ -84,6 +92,51 @@ describe('VendorAnalyticsPanel', () => {
         expect(vendorLink.getAttribute('href')).toContain('vendorId=1');
         expect(vendorLink.getAttribute('href')).toContain('from=2026-05-01');
         expect(vendorLink.getAttribute('href')).toContain('to=2026-05-31');
+    });
+
+    it('sorts vendor rows by displayed share within each group', () => {
+        const names = [
+            'Large Income',
+            'Small Income',
+            'Large Expense',
+            'Small Expense'
+        ];
+        render(
+            <VendorAnalyticsPanel
+                summary={summary({
+                    expenseTotal: 400,
+                    incomeTotal: 1000,
+                    vendorCount: 4,
+                    topVendors: [
+                        vendor(1, {
+                            vendorName: 'Small Expense',
+                            total: 40,
+                            transactionCount: 5
+                        }),
+                        vendor(2, {
+                            vendorName: 'Large Expense',
+                            total: 200,
+                            transactionCount: 1
+                        }),
+                        vendor(3, {
+                            vendorName: 'Small Income',
+                            type: 'income',
+                            total: 250,
+                            transactionCount: 5
+                        }),
+                        vendor(4, {
+                            vendorName: 'Large Income',
+                            type: 'income',
+                            total: 500,
+                            transactionCount: 1
+                        })
+                    ]
+                })}
+                timezone="UTC"
+            />
+        );
+
+        expect(renderedVendorNames(names)).toEqual(names);
     });
 
     it('renders no vendor income and expense groups', () => {
