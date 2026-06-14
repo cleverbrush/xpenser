@@ -13,6 +13,10 @@
             "types": "./dist/api.d.ts",
             "import": "./dist/api.js"
         },
+        "./hosted-auth": {
+            "types": "./dist/hosted-auth.d.ts",
+            "import": "./dist/hosted-auth.js"
+        },
         "./schemas": {
             "types": "./dist/schemas.d.ts",
             "import": "./dist/schemas.js"
