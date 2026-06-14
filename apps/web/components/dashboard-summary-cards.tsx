@@ -6,10 +6,14 @@ import { dateParam } from '@/lib/dashboard-periods';
 import {
     amountClassNameForCategoryTotal,
     amountClassNameForValue,
+    formatSignedPercent,
+    percentChangeClassNameForMetric,
+    percentChangeFromPrevious,
     signedCategoryTotal
 } from '@/lib/format';
 
 type AggregateType = DashboardSummary['byCategory'][number]['type'];
+type SummaryMetricType = AggregateType | 'net';
 
 function aggregateHref(
     summary: DashboardSummary,
@@ -24,7 +28,36 @@ function aggregateHref(
     return `/transactions?${params.toString()}`;
 }
 
+function PreviousPeriodChange({
+    current,
+    period,
+    previous,
+    type
+}: {
+    readonly current: number;
+    readonly period: DashboardSummary['period'];
+    readonly previous: number;
+    readonly type: SummaryMetricType;
+}) {
+    const percentChange = percentChangeFromPrevious(current, previous);
+    const label = formatSignedPercent(percentChange);
+
+    return (
+        <span
+            className={`mt-1 block truncate text-xs font-medium tabular-nums ${percentChangeClassNameForMetric(
+                percentChange,
+                type
+            )}`}
+            title={`Change from previous ${period}: ${label}`}
+        >
+            <span className="sr-only">Change from previous {period}: </span>
+            {label}
+        </span>
+    );
+}
+
 function AggregateCard({
+    previousValue,
     summary,
     timezone,
     title,
@@ -36,6 +69,7 @@ function AggregateCard({
     readonly title: string;
     readonly type: AggregateType;
     readonly value: number;
+    readonly previousValue: number;
 }) {
     return (
         <Link
@@ -58,6 +92,12 @@ function AggregateCard({
                             value={signedCategoryTotal(value, type)}
                         />
                     </CardTitle>
+                    <PreviousPeriodChange
+                        current={value}
+                        period={summary.period}
+                        previous={previousValue}
+                        type={type}
+                    />
                 </CardHeader>
             </Card>
         </Link>
@@ -74,6 +114,7 @@ export function DashboardSummaryCards({
     return (
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <AggregateCard
+                previousValue={summary.comparison.previousPeriod.incomeTotal}
                 summary={summary}
                 timezone={timezone}
                 title="Income"
@@ -81,6 +122,7 @@ export function DashboardSummaryCards({
                 value={summary.incomeTotal}
             />
             <AggregateCard
+                previousValue={summary.comparison.previousPeriod.expenseTotal}
                 summary={summary}
                 timezone={timezone}
                 title="Expenses"
@@ -100,6 +142,12 @@ export function DashboardSummaryCards({
                             value={summary.incomeTotal - summary.expenseTotal}
                         />
                     </CardTitle>
+                    <PreviousPeriodChange
+                        current={summary.incomeTotal - summary.expenseTotal}
+                        period={summary.period}
+                        previous={summary.comparison.previousPeriod.netTotal}
+                        type="net"
+                    />
                 </CardHeader>
             </Card>
         </div>

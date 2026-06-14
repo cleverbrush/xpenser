@@ -12,9 +12,12 @@ import {
     formatDirectionalMoney,
     formatMoney,
     formatPercent,
+    formatPreviousPeriodPercentChange,
     formatSignedPercent,
     formatTransactionMoney,
     percentChangeClassNameForCategory,
+    percentChangeClassNameForMetric,
+    percentChangeFromPrevious,
     signedAmountForTransaction,
     signedAmountForType,
     signedCategoryTotal
@@ -74,6 +77,14 @@ describe('date and percent formatting', () => {
         expect(formatSignedPercent(12.34)).toBe('+12.3%');
         expect(formatSignedPercent(-12.34)).toBe('-12.3%');
     });
+
+    it('formats previous-period percentage changes', () => {
+        expect(percentChangeFromPrevious(150, 100)).toBe(50);
+        expect(percentChangeFromPrevious(75, 100)).toBe(-25);
+        expect(percentChangeFromPrevious(100, 0)).toBe(100);
+        expect(percentChangeFromPrevious(0, 0)).toBe(0);
+        expect(formatPreviousPeriodPercentChange(150, 100)).toBe('+50%');
+    });
 });
 
 describe('semantic class helpers', () => {
@@ -91,5 +102,15 @@ describe('semantic class helpers', () => {
         expect(percentChangeClassNameForCategory(10, 'expense')).toContain(
             'rose'
         );
+        expect(percentChangeClassNameForMetric(10, 'expense')).toContain(
+            'rose'
+        );
+        expect(percentChangeClassNameForMetric(-10, 'expense')).toContain(
+            'emerald'
+        );
+        expect(percentChangeClassNameForMetric(10, 'income')).toContain(
+            'emerald'
+        );
+        expect(percentChangeClassNameForMetric(-10, 'net')).toContain('rose');
     });
 });

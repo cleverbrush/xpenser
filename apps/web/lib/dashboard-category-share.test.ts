@@ -11,6 +11,15 @@ const baseSummary: DashboardSummary = {
     expenseTotal: 400,
     from: new Date('2026-05-01T00:00:00.000Z'),
     incomeTotal: 800,
+    comparison: {
+        previousPeriod: {
+            from: new Date('2026-04-01T00:00:00.000Z'),
+            to: new Date('2026-04-30T23:59:59.999Z'),
+            expenseTotal: 300,
+            incomeTotal: 600,
+            netTotal: 300
+        }
+    },
     vendorCount: 0,
     period: 'month',
     topVendors: [],

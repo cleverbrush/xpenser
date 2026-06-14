@@ -163,6 +163,15 @@ function dashboardSummary(): DashboardSummary {
         currency: 'USD',
         expenseTotal: 50,
         incomeTotal: 100,
+        comparison: {
+            previousPeriod: {
+                from: new Date('2026-04-01T00:00:00.000Z'),
+                to: new Date('2026-04-30T23:59:59.999Z'),
+                expenseTotal: 40,
+                incomeTotal: 90,
+                netTotal: 50
+            }
+        },
         vendorCount: 0,
         topVendors: [],
         byCategory: [],
