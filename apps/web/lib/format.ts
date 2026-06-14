@@ -2,6 +2,7 @@ import { defaultTimeZone, formatDateInTimeZone } from '@xpenser/timezone';
 
 type DateInput = Date | string | number;
 type TransactionType = 'expense' | 'income';
+type ComparisonMetricType = TransactionType | 'net';
 type CategoryKind = 'normal' | 'offset';
 type MoneyFormatOptions = {
     readonly compact?: boolean;
@@ -184,9 +185,37 @@ export function formatSignedPercent(value: number): string {
     return value > 0 ? `+${formatted}` : formatted;
 }
 
+export function percentChangeFromPrevious(
+    current: number,
+    previous: number
+): number {
+    if (previous === 0) {
+        if (current === 0) {
+            return 0;
+        }
+        return current > 0 ? 100 : -100;
+    }
+
+    return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+export function formatPreviousPeriodPercentChange(
+    current: number,
+    previous: number
+): string {
+    return formatSignedPercent(percentChangeFromPrevious(current, previous));
+}
+
+export function percentChangeClassNameForMetric(
+    value: number,
+    type: ComparisonMetricType
+): string {
+    return amountClassNameForValue(type === 'expense' ? -value : value);
+}
+
 export function percentChangeClassNameForCategory(
     value: number,
     type: TransactionType
 ): string {
-    return amountClassNameForValue(type === 'expense' ? -value : value);
+    return percentChangeClassNameForMetric(value, type);
 }

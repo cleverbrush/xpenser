@@ -35,6 +35,15 @@ function summary(overrides: Partial<DashboardSummary> = {}): DashboardSummary {
         expenseTotal: 400,
         from: new Date('2026-05-01T00:00:00.000Z'),
         incomeTotal: 800,
+        comparison: {
+            previousPeriod: {
+                from: new Date('2026-04-01T00:00:00.000Z'),
+                to: new Date('2026-04-30T23:59:59.999Z'),
+                expenseTotal: 200,
+                incomeTotal: 400,
+                netTotal: 200
+            }
+        },
         vendorCount: 0,
         period: 'month',
         to: new Date('2026-05-31T23:59:59.999Z'),

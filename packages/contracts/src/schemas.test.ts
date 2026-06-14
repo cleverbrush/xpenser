@@ -756,6 +756,15 @@ describe('shared schemas', () => {
                 currency: 'USD',
                 expenseTotal: 100,
                 incomeTotal: 0,
+                comparison: {
+                    previousPeriod: {
+                        from: new Date('2026-04-01T00:00:00.000Z'),
+                        to: new Date('2026-04-30T23:59:59.999Z'),
+                        expenseTotal: 80,
+                        incomeTotal: 20,
+                        netTotal: -60
+                    }
+                },
                 vendorCount: 1,
                 topVendors: [
                     {

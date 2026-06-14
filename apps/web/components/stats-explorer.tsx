@@ -16,7 +16,14 @@ import {
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from 'react';
 import { AmountDisplay } from '@/components/amount-display';
 import {
     DashboardPeriodNav,
@@ -37,6 +44,9 @@ import {
     amountClassNameForCategoryTotal,
     amountClassNameForValue,
     formatMoney,
+    formatSignedPercent,
+    percentChangeClassNameForMetric,
+    percentChangeFromPrevious,
     signedCategoryTotal
 } from '@/lib/format';
 import {
@@ -145,6 +155,17 @@ function signedComparisonDelta(
     return type === 'expense' ? previous - current : current - previous;
 }
 
+type StatsCard = {
+    readonly label: string;
+    readonly value: ReactNode;
+    readonly className: string;
+    readonly previous: number;
+    readonly previousYear: number;
+    readonly money: boolean;
+    readonly previousPercent?: number;
+    readonly changeType?: 'expense' | 'income' | 'net';
+};
+
 function mergeStatsItems(
     cache: StatsCache,
     period: DashboardPeriod,
@@ -203,7 +224,7 @@ function itemForSelection(
     ];
 }
 
-function StatsCards({ stats }: { readonly stats: StatsOverview }) {
+export function StatsCards({ stats }: { readonly stats: StatsOverview }) {
     const netDeltaPrevious =
         stats.netTotal - stats.comparison.previousPeriod.netTotal;
     const netDeltaYear =
@@ -214,7 +235,7 @@ function StatsCards({ stats }: { readonly stats: StatsOverview }) {
     const countDeltaYear =
         stats.transactionCount - stats.comparison.previousYear.transactionCount;
 
-    const cards = [
+    const cards: StatsCard[] = [
         {
             label: 'Income',
             value: (
@@ -237,7 +258,12 @@ function StatsCards({ stats }: { readonly stats: StatsOverview }) {
                 stats.comparison.previousYear.incomeTotal,
                 'income'
             ),
-            money: true
+            money: true,
+            previousPercent: percentChangeFromPrevious(
+                stats.incomeTotal,
+                stats.comparison.previousPeriod.incomeTotal
+            ),
+            changeType: 'income'
         },
         {
             label: 'Expenses',
@@ -261,7 +287,12 @@ function StatsCards({ stats }: { readonly stats: StatsOverview }) {
                 stats.comparison.previousYear.expenseTotal,
                 'expense'
             ),
-            money: true
+            money: true,
+            previousPercent: percentChangeFromPrevious(
+                stats.expenseTotal,
+                stats.comparison.previousPeriod.expenseTotal
+            ),
+            changeType: 'expense'
         },
         {
             label: 'Net',
@@ -274,7 +305,12 @@ function StatsCards({ stats }: { readonly stats: StatsOverview }) {
             className: amountClassNameForValue(stats.netTotal),
             previous: netDeltaPrevious,
             previousYear: netDeltaYear,
-            money: true
+            money: true,
+            previousPercent: percentChangeFromPrevious(
+                stats.netTotal,
+                stats.comparison.previousPeriod.netTotal
+            ),
+            changeType: 'net'
         },
         {
             label: 'Transactions',
@@ -314,6 +350,24 @@ function StatsCards({ stats }: { readonly stats: StatsOverview }) {
                                           )
                                         : formatCountDelta(card.previous)}
                                 </span>
+                                {card.previousPercent !== undefined &&
+                                card.changeType ? (
+                                    <>
+                                        {' '}
+                                        <span
+                                            className={percentChangeClassNameForMetric(
+                                                card.previousPercent,
+                                                card.changeType
+                                            )}
+                                        >
+                                            (
+                                            {formatSignedPercent(
+                                                card.previousPercent
+                                            )}
+                                            )
+                                        </span>
+                                    </>
+                                ) : null}
                             </span>
                             <span>
                                 Previous year:{' '}

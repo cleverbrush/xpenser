@@ -152,6 +152,80 @@ describe('transaction category signs', () => {
         ]);
     });
 
+    it('includes previous-period comparison totals in dashboard summaries', () => {
+        const timestamp = new Date('2026-05-10T12:00:00.000Z');
+        const previousTimestamp = new Date('2026-04-10T12:00:00.000Z');
+        const groceries = {
+            id: 1,
+            userId: 1,
+            name: 'Groceries',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        } as const;
+        const salary = {
+            ...groceries,
+            id: 2,
+            name: 'Salary',
+            type: 'income'
+        } as const;
+        const row = (
+            id: number,
+            categoryId: number,
+            amount: string,
+            occurredAt: Date
+        ) =>
+            ({
+                id,
+                userId: 1,
+                categoryId,
+                type: categoryId === salary.id ? 'income' : 'expense',
+                amount,
+                currency: 'USD',
+                defaultCurrencyAmount: amount,
+                defaultCurrency: 'USD',
+                exchangeRate: '1',
+                exchangeRateDate: '2026-05-10',
+                occurredAt,
+                createdAt: occurredAt,
+                updatedAt: occurredAt
+            }) as const;
+        const summary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            {
+                from: new Date('2026-05-01T00:00:00.000Z'),
+                to: new Date('2026-05-31T23:59:59.999Z')
+            },
+            [
+                row(1, groceries.id, '100', timestamp),
+                row(2, salary.id, '300', timestamp)
+            ],
+            [
+                row(3, groceries.id, '75', previousTimestamp),
+                row(4, groceries.id, '50', previousTimestamp),
+                row(5, salary.id, '250', previousTimestamp)
+            ],
+            new Map<number, CategoryDb>([
+                [groceries.id, groceries],
+                [salary.id, salary]
+            ]),
+            new Map<number, VendorDb>()
+        );
+
+        expect(summary.expenseTotal).toBe(100);
+        expect(summary.incomeTotal).toBe(300);
+        expect(summary.comparison.previousPeriod).toEqual({
+            from: new Date('2026-04-01T00:00:00.000Z'),
+            to: new Date('2026-04-30T23:59:59.999Z'),
+            expenseTotal: 125,
+            incomeTotal: 250,
+            netTotal: 125
+        });
+    });
+
     it('uses fresh category lookup metadata for dashboard hierarchy summaries', () => {
         const timestamp = new Date('2026-05-10T12:00:00.000Z');
         const car = {

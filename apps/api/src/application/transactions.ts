@@ -1655,16 +1655,28 @@ export function summarizeDashboardRows(
     const totalsByCategory = new Map<string, DashboardCategory>();
     const totalsByVendor = new Map<string, DashboardVendor>();
     const previousTotalsByCategory = new Map<string, number>();
+    const comparisonRange = resolveDashboardComparisonRange(
+        period,
+        range,
+        user.timezone
+    );
+    let previousExpenseTotal = 0;
+    let previousIncomeTotal = 0;
 
     for (const row of previousRows) {
         const category = categoryForTransaction(row, categoriesById);
         const fields = categoryFields(category, row, categoriesById);
         const key = `${fields.type}:${fields.categoryId}`;
+        const total = transactionSignedDefaultAmount(row, category);
         previousTotalsByCategory.set(
             key,
-            (previousTotalsByCategory.get(key) ?? 0) +
-                transactionSignedDefaultAmount(row, category)
+            (previousTotalsByCategory.get(key) ?? 0) + total
         );
+        if (fields.type === 'income') {
+            previousIncomeTotal += total;
+        } else {
+            previousExpenseTotal += total;
+        }
     }
 
     for (const row of rows) {
@@ -1770,18 +1782,29 @@ export function summarizeDashboardRows(
                 left.vendorName.localeCompare(right.vendorName)
         )
         .slice(0, Math.max(0, vendorLimit));
+    const expenseTotal = byCategory
+        .filter(item => item.type === 'expense')
+        .reduce((sum, item) => sum + item.total, 0);
+    const incomeTotal = byCategory
+        .filter(item => item.type === 'income')
+        .reduce((sum, item) => sum + item.total, 0);
 
     return {
         period,
         from: range.from,
         to: range.to,
         currency: user.defaultCurrency,
-        expenseTotal: byCategory
-            .filter(item => item.type === 'expense')
-            .reduce((sum, item) => sum + item.total, 0),
-        incomeTotal: byCategory
-            .filter(item => item.type === 'income')
-            .reduce((sum, item) => sum + item.total, 0),
+        expenseTotal,
+        incomeTotal,
+        comparison: {
+            previousPeriod: {
+                from: comparisonRange.from,
+                to: comparisonRange.to,
+                expenseTotal: previousExpenseTotal,
+                incomeTotal: previousIncomeTotal,
+                netTotal: previousIncomeTotal - previousExpenseTotal
+            }
+        },
         vendorCount: totalsByVendor.size,
         topVendors,
         byCategory,

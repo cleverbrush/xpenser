@@ -1952,6 +1952,21 @@ export const StatsComparisonSchema = object({
     )
 }).schemaName('StatsComparison');
 
+export const DashboardComparisonSchema = object({
+    /** Comparison period start timestamp. */
+    from: date().coerce().describe('Comparison period start timestamp.'),
+    /** Comparison period end timestamp. */
+    to: date().coerce().describe('Comparison period end timestamp.'),
+    /** Expenses in the default currency. */
+    expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
+    /** Income in the default currency. */
+    incomeTotal: decimalNumber().describe('Income in the default currency.'),
+    /** Income minus expenses in the default currency. */
+    netTotal: decimalNumber().describe(
+        'Income minus expenses in the default currency.'
+    )
+}).schemaName('DashboardComparison');
+
 export const StatsOverviewSchema = object({
     /** Stats trend grouping. */
     groupBy: StatsGroupBySchema.describe('Stats trend grouping.'),
@@ -2035,6 +2050,11 @@ export const DashboardSummarySchema = object({
     expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
     /** Income in the default currency. */
     incomeTotal: decimalNumber().describe('Income in the default currency.'),
+    /** Comparison totals for matching prior periods. */
+    comparison: object({
+        /** Matching previous period totals. */
+        previousPeriod: DashboardComparisonSchema
+    }).describe('Comparison totals for matching prior periods.'),
     /** Number of vendor groups in the selected period. */
     vendorCount: number().describe(
         'Number of vendor groups in the selected period.'
