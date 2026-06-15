@@ -1,5 +1,6 @@
 import { env, parseEnv } from '@cleverbrush/env';
 import { number, string } from '@cleverbrush/schema';
+import { applyHostedPassportDefaults } from '@xpenser/contracts/hosted-auth';
 import { UserSessionMaxAgeSeconds } from '@xpenser/contracts/session';
 
 /**
@@ -145,8 +146,18 @@ export const config = parseEnv(
         const schedulerEnabled = ['1', 'true', 'yes'].includes(
             base.emailReportsEnv.schedulerEnabled.toLowerCase()
         );
+        const passport = applyHostedPassportDefaults(
+            base.app.url,
+            base.passport
+        );
 
         return {
+            passport: {
+                ...base.passport,
+                baseUrl: passport.baseUrl ?? '',
+                project: passport.project ?? '',
+                environment: passport.environment ?? ''
+            },
             db: {
                 connectionString: `postgresql://${base.db.user}:${base.db.password}@${base.db.host}:${base.db.port}/${base.db.name}`
             },

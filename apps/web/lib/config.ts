@@ -1,5 +1,6 @@
 import { env, parseEnv } from '@cleverbrush/env';
 import { string } from '@cleverbrush/schema';
+import { applyHostedPassportDefaults } from '@xpenser/contracts/hosted-auth';
 import { GoogleSignInModes, resolveGoogleSignInProvider } from './google-auth';
 
 /**
@@ -7,37 +8,45 @@ import { GoogleSignInModes, resolveGoogleSignInProvider } from './google-auth';
  * the API. Only server-side modules should import this object; browser-exposed
  * configuration must stay behind explicit `NEXT_PUBLIC_*` variables.
  */
-export const webConfig = parseEnv({
-    nodeEnv: env('NODE_ENV', string().default('production')),
-    appUrl: env('APP_URL', string().default('http://localhost:3000')),
-    apiBaseUrl: env('API_BASE_URL', string().default('http://localhost:4000')),
-    logLevel: env(
-        'LOG_LEVEL',
-        string()
-            .oneOf([
-                'trace',
-                'debug',
-                'information',
-                'warning',
-                'error',
-                'fatal'
-            ] as const)
-            .default('information')
-    ),
-    googleSignInMode: env(
-        'GOOGLE_SIGN_IN_MODE',
-        string().oneOf(GoogleSignInModes).default('auto')
-    ),
-    google: {
-        clientId: env('AUTH_GOOGLE_ID', string().optional()),
-        clientSecret: env('AUTH_GOOGLE_SECRET', string().optional())
+export const webConfig = parseEnv(
+    {
+        nodeEnv: env('NODE_ENV', string().default('production')),
+        appUrl: env('APP_URL', string().default('http://localhost:3000')),
+        apiBaseUrl: env(
+            'API_BASE_URL',
+            string().default('http://localhost:4000')
+        ),
+        logLevel: env(
+            'LOG_LEVEL',
+            string()
+                .oneOf([
+                    'trace',
+                    'debug',
+                    'information',
+                    'warning',
+                    'error',
+                    'fatal'
+                ] as const)
+                .default('information')
+        ),
+        googleSignInMode: env(
+            'GOOGLE_SIGN_IN_MODE',
+            string().oneOf(GoogleSignInModes).default('auto')
+        ),
+        google: {
+            clientId: env('AUTH_GOOGLE_ID', string().optional()),
+            clientSecret: env('AUTH_GOOGLE_SECRET', string().optional())
+        },
+        passport: {
+            baseUrl: env('PASSPORT_BASE_URL', string().optional()),
+            project: env('PASSPORT_PROJECT', string().optional()),
+            environment: env('PASSPORT_ENVIRONMENT', string().optional())
+        }
     },
-    passport: {
-        baseUrl: env('PASSPORT_BASE_URL', string().optional()),
-        project: env('PASSPORT_PROJECT', string().optional()),
-        environment: env('PASSPORT_ENVIRONMENT', string().optional())
-    }
-});
+    base => ({
+        passport: applyHostedPassportDefaults(base.appUrl, base.passport)
+    })
+);
 
 export function getGoogleSignInProvider() {
     return resolveGoogleSignInProvider({

@@ -8,6 +8,10 @@ export default defineConfig({
                 './packages/contracts/src/session.ts',
                 import.meta.url
             ).pathname,
+            '@xpenser/contracts/hosted-auth': new URL(
+                './packages/contracts/src/hosted-auth.ts',
+                import.meta.url
+            ).pathname,
             '@xpenser/contracts': new URL(
                 './packages/contracts/src/index.ts',
                 import.meta.url
