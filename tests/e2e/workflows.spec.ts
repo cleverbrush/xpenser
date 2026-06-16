@@ -43,7 +43,8 @@ async function createTransaction(
     type: 'expense' | 'income',
     amount: string,
     note: string,
-    occurredAt = dateTimeLocalValue()
+    occurredAt = dateTimeLocalValue(),
+    vendor?: string
 ): Promise<void> {
     await page.goto('/dashboard');
     await page
@@ -67,6 +68,13 @@ async function createTransaction(
     await addDialog.getByLabel('Amount').fill(amount);
     await addDialog.getByLabel('Date and time').fill(occurredAt);
     await addDialog.getByLabel('Note').fill(note);
+    if (vendor) {
+        await addDialog.getByLabel('Vendor').fill(vendor);
+        await addDialog.getByRole('button', { name: `Add ${vendor}` }).click();
+        await expect(addDialog.getByText(vendor)).toBeVisible({
+            timeout: 15_000
+        });
+    }
     await addDialog.getByRole('button', { name: 'Save' }).click();
     await expect(addDialog).toBeHidden({ timeout: 15_000 });
 }
@@ -151,6 +159,83 @@ test.describe('authenticated app workflows', () => {
                 url.searchParams.get('date') === '2001-01-01'
             );
         });
+    });
+
+    test('expands dashboard vendor and vendor category breakdowns', async ({
+        page
+    }) => {
+        const expenseCategory = uniqueName('E2E nested expense');
+        const firstVendor = uniqueName('E2E nested small');
+        const secondVendor = uniqueName('E2E nested large');
+
+        await createCategory(page, expenseCategory, 'expense');
+        await page.goto('/dashboard');
+        const expensesUrl = new URL(
+            (await page
+                .getByRole('link', {
+                    name: 'View expenses transactions for this period'
+                })
+                .getAttribute('href')) ?? '/transactions',
+            page.url()
+        );
+        const periodDate =
+            expensesUrl.searchParams.get('from') ??
+            dateTimeLocalValue().slice(0, 10);
+        const occurredAt = startOfDayDateTime(periodDate);
+
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '20',
+            uniqueName('E2E nested small note'),
+            occurredAt,
+            firstVendor
+        );
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '80',
+            uniqueName('E2E nested large note'),
+            occurredAt,
+            secondVendor
+        );
+
+        await page.goto(`/dashboard?period=day&date=${periodDate}`);
+        await page
+            .getByRole('button', { name: `Expand ${expenseCategory}` })
+            .click();
+        await expect(page.getByText(secondVendor)).toBeVisible();
+        await expect(page.getByText(firstVendor)).toBeVisible();
+        const dashboardText = (await page.locator('body').textContent()) ?? '';
+        expect(dashboardText.indexOf(secondVendor)).toBeLessThan(
+            dashboardText.indexOf(firstVendor)
+        );
+        const dashboardLink =
+            (await page
+                .getByRole('link', { name: new RegExp(secondVendor) })
+                .first()
+                .getAttribute('href')) ?? '';
+        expect(dashboardLink).toContain('/transactions?');
+        expect(dashboardLink).toContain('type=expense');
+        expect(dashboardLink).toContain('categoryId=');
+        expect(dashboardLink).toContain('vendorId=');
+
+        await page.goto(`/vendors?period=day&date=${periodDate}`);
+        await page
+            .getByRole('button', { name: `Expand ${secondVendor}` })
+            .click();
+        await expect(page.getByText(expenseCategory)).toBeVisible();
+        const vendorsLink =
+            (await page
+                .getByRole('link', { name: new RegExp(expenseCategory) })
+                .first()
+                .getAttribute('href')) ?? '';
+        expect(vendorsLink).toContain('/transactions?');
+        expect(vendorsLink).toContain('type=expense');
+        expect(vendorsLink).toContain('categoryId=');
+        expect(vendorsLink).toContain('vendorId=');
     });
 
     test('creates categories and manages a transaction lifecycle', async ({

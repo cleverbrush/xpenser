@@ -787,6 +787,24 @@ describe('shared schemas', () => {
                         trend: [0, 50]
                     }
                 ],
+                categoryVendorBreakdown: [
+                    {
+                        categoryId: 1,
+                        categoryName: 'Groceries',
+                        categoryDisplayName: 'Groceries',
+                        categoryParentId: null,
+                        categoryKind: 'normal',
+                        vendorId: 7,
+                        vendorName: 'Walmart',
+                        vendorDomain: 'walmart.com',
+                        vendorLogoUrl: 'https://walmart.com/logo.svg',
+                        vendorPrimaryColor: '#0071ce',
+                        type: 'expense',
+                        total: 100,
+                        transactionCount: 3,
+                        trend: [20, 80]
+                    }
+                ],
                 byCategory: [],
                 byParentCategory: []
             }).valid

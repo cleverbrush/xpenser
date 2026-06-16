@@ -10,6 +10,7 @@ import type {
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@xpenser/ui';
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
 import { DashboardSummaryCards } from '@/components/dashboard-summary-cards';
@@ -20,6 +21,7 @@ import {
     datatypePieExpression
 } from '@/components/datatype-chart';
 import { CollapsibleReportCategoryGroup } from '@/components/report-category-group';
+import { VendorLogo } from '@/components/vendor-display';
 import { categoryTypeLabel } from '@/lib/category-display';
 import { dashboardCategoryShare } from '@/lib/dashboard-category-share';
 import { dateParam, formatDashboardRangeLabel } from '@/lib/dashboard-periods';
@@ -38,6 +40,8 @@ import {
 
 type DashboardPeriod = DashboardSummary['period'];
 type DashboardCategory = DashboardSummary['byCategory'][number];
+type DashboardCategoryVendor =
+    DashboardSummary['categoryVendorBreakdown'][number];
 type AggregateType = DashboardCategory['type'];
 const dashboardWindowQueryParams = { vendorLimit: 0 } as const;
 
@@ -55,6 +59,24 @@ function categoryHref(
     params.set(
         parentRollup ? 'parentCategoryId' : 'categoryId',
         String(category.categoryId)
+    );
+    return `/transactions?${params.toString()}`;
+}
+
+function categoryVendorHref(
+    summary: DashboardSummary,
+    item: DashboardCategoryVendor,
+    timezone: string
+): string {
+    const params = new URLSearchParams({
+        type: item.type,
+        from: dateParam(summary.from, timezone),
+        to: dateParam(summary.to, timezone),
+        categoryId: String(item.categoryId)
+    });
+    params.set(
+        'vendorId',
+        item.vendorId === null ? 'none' : String(item.vendorId)
     );
     return `/transactions?${params.toString()}`;
 }
@@ -120,17 +142,55 @@ function categoryRowLabel(
     return 'General';
 }
 
+function vendorTransactionLabel(count: number): string {
+    return `${count} ${count === 1 ? 'transaction' : 'transactions'}`;
+}
+
+function shareOfTotal(total: number, basis: number): number {
+    const magnitudeBasis = Math.abs(basis);
+    if (magnitudeBasis <= 0) {
+        return 0;
+    }
+
+    const share = (Math.abs(total) / magnitudeBasis) * 100;
+    return Math.max(0, Math.min(100, share));
+}
+
 function childCategoryShare(
     parent: DashboardCategory,
     category: DashboardCategory
 ): number {
-    const basis = Math.abs(parent.total);
-    if (basis <= 0) {
-        return 0;
-    }
+    return shareOfTotal(category.total, parent.total);
+}
 
-    const share = (Math.abs(category.total) / basis) * 100;
-    return Math.max(0, Math.min(100, share));
+function categoryVendorShare(
+    category: DashboardCategory,
+    item: DashboardCategoryVendor
+): number {
+    return shareOfTotal(item.total, category.total);
+}
+
+function categoryVendorKey(item: DashboardCategoryVendor): string {
+    return `${item.type}:${item.categoryId}:${item.vendorId ?? 'none'}`;
+}
+
+function categoryVendorRows(
+    summary: DashboardSummary,
+    category: DashboardCategory
+): DashboardCategoryVendor[] {
+    return summary.categoryVendorBreakdown
+        .filter(
+            item =>
+                item.type === category.type &&
+                item.categoryId === category.categoryId
+        )
+        .sort(
+            (left, right) =>
+                categoryVendorShare(category, right) -
+                    categoryVendorShare(category, left) ||
+                Math.abs(right.total) - Math.abs(left.total) ||
+                left.vendorName.localeCompare(right.vendorName)
+        );
 }
 
 function CategoryRow({
@@ -144,7 +204,8 @@ function CategoryRow({
     shareOverride,
     shareTitleOverride,
     summary,
-    timezone
+    timezone,
+    toggleLabel
 }: {
     readonly category: DashboardCategory;
     readonly depth?: number;
@@ -157,6 +218,7 @@ function CategoryRow({
     readonly shareTitleOverride?: string;
     readonly summary: DashboardSummary;
     readonly timezone: string;
+    readonly toggleLabel?: string;
 }) {
     const showPeriodDetails = summary.period !== 'day';
     const effectiveType = category.type;
@@ -168,6 +230,7 @@ function CategoryRow({
         (category.type === 'income' ? 'Share of income' : 'Share of expenses');
     const href = categoryHref(summary, category, timezone, parentRollup);
     const displayLabel = label ?? category.categoryDisplayName;
+    const accessibleToggleLabel = toggleLabel ?? displayLabel;
     const isChild = depth > 0;
     const rowClassName = `grid items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2 ${
         showPeriodDetails
@@ -186,7 +249,7 @@ function CategoryRow({
                     <Button
                         aria-label={`${
                             expanded ? 'Collapse' : 'Expand'
-                        } ${category.categoryDisplayName}`}
+                        } ${accessibleToggleLabel}`}
                         className="-left-3 absolute top-1/2 size-4 -translate-y-1/2 rounded-sm"
                         onClick={onToggle}
                         size="icon-xs"
@@ -308,6 +371,157 @@ function CategoryRow({
     );
 }
 
+function CategoryVendorRow({
+    category,
+    categoryLabel,
+    item,
+    summary,
+    timezone
+}: {
+    readonly category: DashboardCategory;
+    readonly categoryLabel: string;
+    readonly item: DashboardCategoryVendor;
+    readonly summary: DashboardSummary;
+    readonly timezone: string;
+}) {
+    const showPeriodDetails = summary.period !== 'day';
+    const share = categoryVendorShare(category, item);
+    const shareLabel = formatPercent(share);
+    const href = categoryVendorHref(summary, item, timezone);
+    const amountClassName = amountClassNameForCategoryTotal(
+        item.total,
+        item.type
+    );
+    const rowClassName = `grid items-center gap-3 py-3 text-sm transition-colors hover:bg-muted/40 sm:px-2 ${
+        showPeriodDetails
+            ? 'grid-cols-[minmax(0,1fr)_auto_74px] sm:grid-cols-[minmax(0,1fr)_auto_104px]'
+            : 'grid-cols-[minmax(0,1fr)_auto]'
+    }`;
+
+    return (
+        <div className={rowClassName}>
+            <Link
+                className="flex min-w-0 items-center gap-3 pl-6"
+                draggable={false}
+                href={href}
+                prefetch={false}
+            >
+                <span
+                    className={`flex w-10 shrink-0 justify-center text-xs font-medium tabular-nums ${amountClassNameForType(
+                        item.type
+                    )}`}
+                    title={`Share of ${categoryLabel}: ${shareLabel}`}
+                >
+                    <span className="sr-only">Share of {categoryLabel}: </span>
+                    {shareLabel}
+                </span>
+                <VendorLogo
+                    vendor={{
+                        displayName: item.vendorName,
+                        logoUrl: item.vendorLogoUrl,
+                        name: item.vendorName
+                    }}
+                    size="sm"
+                />
+                <span className="min-w-0">
+                    <span className="block truncate font-medium">
+                        {item.vendorName}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                        {item.vendorDomain
+                            ? `${item.vendorDomain} · ${vendorTransactionLabel(
+                                  item.transactionCount
+                              )}`
+                            : vendorTransactionLabel(item.transactionCount)}
+                    </span>
+                </span>
+            </Link>
+            <Link
+                className="min-w-0 text-right"
+                draggable={false}
+                href={href}
+                prefetch={false}
+            >
+                <span className={`font-semibold ${amountClassName}`}>
+                    <AmountDisplay
+                        currency={summary.currency}
+                        value={signedCategoryTotal(item.total, item.type)}
+                    />
+                </span>
+            </Link>
+            {showPeriodDetails ? (
+                <Link
+                    aria-label={`${item.vendorName} ${categoryLabel} transactions`}
+                    className="flex min-w-0 justify-end overflow-hidden"
+                    draggable={false}
+                    href={href}
+                    prefetch={false}
+                >
+                    <DatatypeChart
+                        className={`text-xl ${amountClassName}`}
+                        expression={datatypeExpression('l', item.trend)}
+                    />
+                </Link>
+            ) : null}
+        </div>
+    );
+}
+
+function CategoryRowWithVendors({
+    category,
+    depth = 0,
+    label,
+    shareOverride,
+    shareTitleOverride,
+    summary,
+    timezone
+}: {
+    readonly category: DashboardCategory;
+    readonly depth?: number;
+    readonly label?: string;
+    readonly shareOverride?: number;
+    readonly shareTitleOverride?: string;
+    readonly summary: DashboardSummary;
+    readonly timezone: string;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const vendors = categoryVendorRows(summary, category);
+    const displayLabel = label ?? category.categoryDisplayName;
+    const expandable = vendors.length > 0;
+
+    return (
+        <div className="flex flex-col">
+            <CategoryRow
+                category={category}
+                depth={depth}
+                expandable={expandable}
+                expanded={expanded}
+                label={label}
+                onToggle={() => setExpanded(current => !current)}
+                shareOverride={shareOverride}
+                shareTitleOverride={shareTitleOverride}
+                summary={summary}
+                timezone={timezone}
+                toggleLabel={displayLabel}
+            />
+            {expandable && expanded ? (
+                <div className="border-t">
+                    {vendors.map(item => (
+                        <CategoryVendorRow
+                            category={category}
+                            categoryLabel={displayLabel}
+                            item={item}
+                            key={categoryVendorKey(item)}
+                            summary={summary}
+                            timezone={timezone}
+                        />
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
 function CategoryGroup({
     nodes,
     summary,
@@ -332,7 +546,7 @@ function CategoryGroup({
                 empty={null}
                 nodes={nodes}
                 renderChild={({ child, parent }) => (
-                    <CategoryRow
+                    <CategoryRowWithVendors
                         category={child}
                         depth={1}
                         label={categoryRowLabel(child, parent)}
@@ -342,17 +556,25 @@ function CategoryGroup({
                         timezone={timezone}
                     />
                 )}
-                renderParent={({ expandable, expanded, node, onToggle }) => (
-                    <CategoryRow
-                        category={node.category}
-                        expandable={expandable}
-                        expanded={expanded}
-                        onToggle={onToggle}
-                        parentRollup={expandable}
-                        summary={summary}
-                        timezone={timezone}
-                    />
-                )}
+                renderParent={({ expandable, expanded, node, onToggle }) =>
+                    expandable ? (
+                        <CategoryRow
+                            category={node.category}
+                            expandable={expandable}
+                            expanded={expanded}
+                            onToggle={onToggle}
+                            parentRollup
+                            summary={summary}
+                            timezone={timezone}
+                        />
+                    ) : (
+                        <CategoryRowWithVendors
+                            category={node.category}
+                            summary={summary}
+                            timezone={timezone}
+                        />
+                    )
+                }
             />
         </div>
     );
@@ -397,7 +619,7 @@ function CategoryPanel({
     );
 }
 
-function DashboardPeriodPanel({
+export function DashboardPeriodPanel({
     summary,
     timezone
 }: {

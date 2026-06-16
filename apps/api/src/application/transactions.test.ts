@@ -439,6 +439,7 @@ describe('transaction category signs', () => {
         expect(summary.topVendors).toHaveLength(24);
         expect(emptyVendorSummary.vendorCount).toBe(30);
         expect(emptyVendorSummary.topVendors).toEqual([]);
+        expect(emptyVendorSummary.categoryVendorBreakdown).toHaveLength(30);
         expect(expandedVendorSummary.topVendors).toHaveLength(30);
         expect(summary.topVendors.slice(0, 3)).toEqual([
             {
@@ -510,6 +511,64 @@ describe('transaction category signs', () => {
                 trend: [0, 1, 0, 0, 0]
             }
         ]);
+        expect(
+            emptyVendorSummary.categoryVendorBreakdown
+                .slice(0, 3)
+                .map(item => ({
+                    categoryId: item.categoryId,
+                    categoryName: item.categoryName,
+                    vendorId: item.vendorId,
+                    vendorName: item.vendorName,
+                    total: item.total,
+                    transactionCount: item.transactionCount,
+                    trend: item.trend
+                }))
+        ).toEqual([
+            {
+                categoryId: groceries.id,
+                categoryName: 'Groceries',
+                vendorId: 2,
+                vendorName: 'Corner Shop',
+                total: 100,
+                transactionCount: 1,
+                trend: [0, 100, 0, 0, 0]
+            },
+            {
+                categoryId: groceries.id,
+                categoryName: 'Groceries',
+                vendorId: 1,
+                vendorName: 'Big Store',
+                total: 50,
+                transactionCount: 2,
+                trend: [0, 50, 0, 0, 0]
+            },
+            {
+                categoryId: groceries.id,
+                categoryName: 'Groceries',
+                vendorId: null,
+                vendorName: 'No vendor',
+                total: 10,
+                transactionCount: 1,
+                trend: [0, 10, 0, 0, 0]
+            }
+        ]);
+        expect(expandedVendorSummary.categoryVendorBreakdown).toContainEqual({
+            categoryId: salary.id,
+            categoryName: 'Salary',
+            categoryDisplayName: 'Salary',
+            categoryParentId: null,
+            categoryParentName: undefined,
+            categoryKind: 'normal',
+            vendorId: null,
+            vendorName: 'No vendor',
+            vendorDomain: undefined,
+            vendorLogoUrl: undefined,
+            vendorPrimaryColor: undefined,
+            type: 'income',
+            total: 25,
+            transactionCount: 1,
+            trend: [0, 25, 0, 0, 0]
+        });
         expect(
             expandedVendorSummary.topVendors
                 .filter(vendor => vendor.type === 'expense')

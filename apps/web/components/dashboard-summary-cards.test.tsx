@@ -11,6 +11,7 @@ function summary(overrides: Partial<DashboardSummary> = {}): DashboardSummary {
     return {
         byCategory: [],
         byParentCategory: [],
+        categoryVendorBreakdown: [],
         comparison: {
             previousPeriod: {
                 from: new Date('2026-04-01T00:00:00.000Z'),

@@ -174,6 +174,7 @@ function dashboardSummary(): DashboardSummary {
         },
         vendorCount: 0,
         topVendors: [],
+        categoryVendorBreakdown: [],
         byCategory: [],
         byParentCategory: []
     };

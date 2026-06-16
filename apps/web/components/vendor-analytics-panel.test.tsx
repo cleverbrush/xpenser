@@ -2,12 +2,14 @@
  * @vitest-environment jsdom
  */
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { DashboardSummary } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
 import { VendorAnalyticsPanel } from './vendor-analytics-panel';
 
 type DashboardVendor = DashboardSummary['topVendors'][number];
+type DashboardCategoryVendor =
+    DashboardSummary['categoryVendorBreakdown'][number];
 
 function vendor(
     id: number,
@@ -27,10 +29,35 @@ function vendor(
     };
 }
 
+function categoryVendor(
+    vendorRow: DashboardVendor,
+    categoryId: number,
+    categoryName: string,
+    total: number
+): DashboardCategoryVendor {
+    return {
+        categoryId,
+        categoryName,
+        categoryDisplayName: categoryName,
+        categoryParentId: null,
+        categoryKind: 'normal',
+        vendorId: vendorRow.vendorId,
+        vendorName: vendorRow.vendorName,
+        vendorDomain: vendorRow.vendorDomain,
+        vendorLogoUrl: vendorRow.vendorLogoUrl,
+        vendorPrimaryColor: vendorRow.vendorPrimaryColor,
+        type: vendorRow.type,
+        total,
+        transactionCount: 1,
+        trend: [0, total]
+    };
+}
+
 function summary(overrides: Partial<DashboardSummary> = {}): DashboardSummary {
     return {
         byCategory: [],
         byParentCategory: [],
+        categoryVendorBreakdown: [],
         currency: 'USD',
         expenseTotal: 400,
         from: new Date('2026-05-01T00:00:00.000Z'),
@@ -146,6 +173,54 @@ describe('VendorAnalyticsPanel', () => {
         );
 
         expect(renderedVendorNames(names)).toEqual(names);
+    });
+
+    it('nests category rows under vendors by displayed share', () => {
+        const sharedVendor = vendor(1, {
+            vendorName: 'Shared Vendor',
+            total: 200,
+            transactionCount: 2
+        });
+        const { container } = render(
+            <VendorAnalyticsPanel
+                summary={summary({
+                    expenseTotal: 200,
+                    vendorCount: 1,
+                    topVendors: [sharedVendor],
+                    categoryVendorBreakdown: [
+                        categoryVendor(sharedVendor, 1, 'Meals', 40),
+                        categoryVendor(sharedVendor, 2, 'Rent', 160)
+                    ]
+                })}
+                timezone="UTC"
+            />
+        );
+
+        expect(screen.queryByText('Rent')).toBeNull();
+
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Expand Shared Vendor' })
+        );
+
+        expect(screen.getByText('Rent')).toBeTruthy();
+        expect(screen.getByText('Meals')).toBeTruthy();
+        expect(screen.getByText('80%')).toBeTruthy();
+        expect((container.textContent ?? '').indexOf('Rent')).toBeLessThan(
+            (container.textContent ?? '').indexOf('Meals')
+        );
+
+        const rentLink = screen
+            .getAllByRole('link')
+            .find(link => link.textContent?.includes('Rent'));
+        if (!rentLink) {
+            throw new Error('Rent link was not rendered.');
+        }
+        expect(rentLink.getAttribute('href')).toContain('/transactions?');
+        expect(rentLink.getAttribute('href')).toContain('type=expense');
+        expect(rentLink.getAttribute('href')).toContain('categoryId=2');
+        expect(rentLink.getAttribute('href')).toContain('vendorId=1');
+        expect(rentLink.getAttribute('href')).toContain('from=2026-05-01');
+        expect(rentLink.getAttribute('href')).toContain('to=2026-05-31');
     });
 
     it('renders no vendor income and expense groups', () => {
