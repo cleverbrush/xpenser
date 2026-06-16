@@ -64,6 +64,8 @@ type DashboardPeriod = NonNullable<DashboardSummary['period']>;
 type DashboardCategory = DashboardSummary['byCategory'][number];
 
 type DashboardVendor = DashboardSummary['topVendors'][number];
+type DashboardCategoryVendor =
+    DashboardSummary['categoryVendorBreakdown'][number];
 type TransactionScanAttachment = NonNullable<Transaction['scanAttachment']>;
 type TransactionScanAttachmentRow = {
     readonly createdAt: Date;
@@ -213,6 +215,41 @@ function parentCategoryFields(
         categoryParentName: undefined,
         categoryKind: 'normal' as const,
         type: category.type
+    };
+}
+
+function dashboardVendorFields(
+    row: Pick<TransactionDb, 'vendorId'>,
+    vendorsById: ReadonlyMap<number, VendorDb>
+): Pick<
+    DashboardVendor,
+    | 'vendorId'
+    | 'vendorName'
+    | 'vendorDomain'
+    | 'vendorLogoUrl'
+    | 'vendorPrimaryColor'
+> | null {
+    if (!row.vendorId) {
+        return {
+            vendorId: null,
+            vendorName: noVendorName,
+            vendorDomain: undefined,
+            vendorLogoUrl: undefined,
+            vendorPrimaryColor: undefined
+        };
+    }
+
+    const vendor = vendorsById.get(row.vendorId);
+    if (!vendor) {
+        return null;
+    }
+
+    return {
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        vendorDomain: vendor.domain ?? undefined,
+        vendorLogoUrl: vendor.logoUrl ?? undefined,
+        vendorPrimaryColor: vendor.primaryColor ?? undefined
     };
 }
 
@@ -1654,6 +1691,7 @@ export function summarizeDashboardRows(
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
     const totalsByVendor = new Map<string, DashboardVendor>();
+    const totalsByCategoryVendor = new Map<string, DashboardCategoryVendor>();
     const previousTotalsByCategory = new Map<string, number>();
     const comparisonRange = resolveDashboardComparisonRange(
         period,
@@ -1707,53 +1745,49 @@ export function summarizeDashboardRows(
         }
         totalsByCategory.set(key, current);
 
-        if (row.vendorId) {
-            const vendor = vendorsById.get(row.vendorId);
-            if (vendor) {
-                const vendorKey = `${fields.type}:${vendor.id}`;
-                const currentVendor = totalsByVendor.get(vendorKey) ?? {
-                    vendorId: vendor.id,
-                    vendorName: vendor.name,
-                    vendorDomain: vendor.domain ?? undefined,
-                    vendorLogoUrl: vendor.logoUrl ?? undefined,
-                    vendorPrimaryColor: vendor.primaryColor ?? undefined,
-                    type: fields.type,
-                    total: 0,
-                    transactionCount: 0,
-                    trend: Array.from({ length: bucketCount }, () => 0)
-                };
-                currentVendor.total += total;
-                currentVendor.transactionCount += 1;
-                if (
-                    bucketIndex >= 0 &&
-                    bucketIndex < currentVendor.trend.length
-                ) {
-                    currentVendor.trend[bucketIndex] =
-                        (currentVendor.trend[bucketIndex] ?? 0) + total;
-                }
-                totalsByVendor.set(vendorKey, currentVendor);
-            }
-        } else {
-            const vendorKey = `${fields.type}:none`;
-            const currentVendor = totalsByVendor.get(vendorKey) ?? {
-                vendorId: null,
-                vendorName: noVendorName,
-                vendorDomain: undefined,
-                vendorLogoUrl: undefined,
-                vendorPrimaryColor: undefined,
-                type: fields.type,
+        const rowVendorFields = dashboardVendorFields(row, vendorsById);
+        if (!rowVendorFields) {
+            continue;
+        }
+
+        const vendorKey = `${fields.type}:${rowVendorFields.vendorId ?? 'none'}`;
+        const currentVendor = totalsByVendor.get(vendorKey) ?? {
+            ...rowVendorFields,
+            type: fields.type,
+            total: 0,
+            transactionCount: 0,
+            trend: Array.from({ length: bucketCount }, () => 0)
+        };
+        currentVendor.total += total;
+        currentVendor.transactionCount += 1;
+        if (bucketIndex >= 0 && bucketIndex < currentVendor.trend.length) {
+            currentVendor.trend[bucketIndex] =
+                (currentVendor.trend[bucketIndex] ?? 0) + total;
+        }
+        totalsByVendor.set(vendorKey, currentVendor);
+
+        const categoryVendorKey = `${key}:${
+            rowVendorFields.vendorId ?? 'none'
+        }`;
+        const currentCategoryVendor =
+            totalsByCategoryVendor.get(categoryVendorKey) ??
+            ({
+                ...fields,
+                ...rowVendorFields,
                 total: 0,
                 transactionCount: 0,
                 trend: Array.from({ length: bucketCount }, () => 0)
-            };
-            currentVendor.total += total;
-            currentVendor.transactionCount += 1;
-            if (bucketIndex >= 0 && bucketIndex < currentVendor.trend.length) {
-                currentVendor.trend[bucketIndex] =
-                    (currentVendor.trend[bucketIndex] ?? 0) + total;
-            }
-            totalsByVendor.set(vendorKey, currentVendor);
+            } satisfies DashboardCategoryVendor);
+        currentCategoryVendor.total += total;
+        currentCategoryVendor.transactionCount += 1;
+        if (
+            bucketIndex >= 0 &&
+            bucketIndex < currentCategoryVendor.trend.length
+        ) {
+            currentCategoryVendor.trend[bucketIndex] =
+                (currentCategoryVendor.trend[bucketIndex] ?? 0) + total;
         }
+        totalsByCategoryVendor.set(categoryVendorKey, currentCategoryVendor);
     }
 
     for (const [key, category] of totalsByCategory) {
@@ -1788,6 +1822,15 @@ export function summarizeDashboardRows(
     const incomeTotal = byCategory
         .filter(item => item.type === 'income')
         .reduce((sum, item) => sum + item.total, 0);
+    const categoryVendorBreakdown = Array.from(
+        totalsByCategoryVendor.values()
+    ).sort(
+        (left, right) =>
+            left.type.localeCompare(right.type) ||
+            left.categoryDisplayName.localeCompare(right.categoryDisplayName) ||
+            Math.abs(right.total) - Math.abs(left.total) ||
+            left.vendorName.localeCompare(right.vendorName)
+    );
 
     return {
         period,
@@ -1807,6 +1850,7 @@ export function summarizeDashboardRows(
         },
         vendorCount: totalsByVendor.size,
         topVendors,
+        categoryVendorBreakdown,
         byCategory,
         byParentCategory
     };

@@ -7,6 +7,7 @@ type DashboardCategory = DashboardSummary['byCategory'][number];
 const baseSummary: DashboardSummary = {
     byCategory: [],
     byParentCategory: [],
+    categoryVendorBreakdown: [],
     currency: 'USD',
     expenseTotal: 400,
     from: new Date('2026-05-01T00:00:00.000Z'),

@@ -1857,6 +1857,63 @@ export const DashboardCategoryTotalSchema = object({
     )
 }).schemaName('DashboardCategoryTotal');
 
+export const DashboardCategoryVendorTotalSchema = object({
+    /** Category identifier. */
+    categoryId: number().describe('Category identifier.'),
+    /** Category name. */
+    categoryName: string().describe('Category name.'),
+    /** Category path. */
+    categoryDisplayName: string().describe('Category path.'),
+    /** Optional parent category identifier. */
+    categoryParentId: number()
+        .nullable()
+        .describe('Optional parent category identifier.'),
+    /** Optional parent category name. */
+    categoryParentName: string()
+        .optional()
+        .describe('Optional parent category name.'),
+    /** Whether this category reports on its own side or the opposite side. */
+    categoryKind: CategoryKindSchema.describe(
+        'Whether this category reports on its own side or the opposite side.'
+    ),
+    /** Vendor identifier, or null for transactions without a vendor. */
+    vendorId: number()
+        .nullable()
+        .describe(
+            'Vendor identifier, or null for transactions without a vendor.'
+        ),
+    /** Vendor display name. */
+    vendorName: string().describe('Vendor display name.'),
+    /** Vendor domain, when available. */
+    vendorDomain: string()
+        .optional()
+        .describe('Vendor domain, when available.'),
+    /** Vendor logo URL, when available. */
+    vendorLogoUrl: string()
+        .optional()
+        .describe('Vendor logo URL, when available.'),
+    /** Vendor primary color, when available. */
+    vendorPrimaryColor: string()
+        .optional()
+        .describe('Vendor primary color, when available.'),
+    /** Transaction direction for this category/vendor group. */
+    type: CategoryTypeSchema.describe(
+        'Transaction direction for this category/vendor group.'
+    ),
+    /** Total in the user's default currency for this category/vendor group. */
+    total: decimalNumber().describe(
+        "Total in the user's default currency for this category/vendor group."
+    ),
+    /** Number of selected-period transactions in this category/vendor group. */
+    transactionCount: number().describe(
+        'Number of selected-period transactions in this category/vendor group.'
+    ),
+    /** Selected-period bucket totals for lightweight charts. */
+    trend: array(decimalNumber()).describe(
+        'Selected-period bucket totals for lightweight charts.'
+    )
+}).schemaName('DashboardCategoryVendorTotal');
+
 export const StatsTrendPointSchema = object({
     /** Stable date or month bucket key. */
     bucket: string().describe('Stable date or month bucket key.'),
@@ -2062,6 +2119,10 @@ export const DashboardSummarySchema = object({
     /** Top vendor groups for the selected period. */
     topVendors: array(DashboardVendorTotalSchema).describe(
         'Top vendor groups for the selected period.'
+    ),
+    /** Category/vendor totals for the selected period. */
+    categoryVendorBreakdown: array(DashboardCategoryVendorTotalSchema).describe(
+        'Category/vendor totals for the selected period.'
     ),
     /** Category totals for the selected period. */
     byCategory: array(DashboardCategoryTotalSchema).describe(
