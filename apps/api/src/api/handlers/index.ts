@@ -43,6 +43,7 @@ import {
     transactionScanProgressHandler
 } from './transaction-scans.js';
 import {
+    cashFlowForecastHandler,
     categoryTrendHandler,
     createTransactionHandler,
     dashboardSummaryHandler,
@@ -135,6 +136,7 @@ export const handlers = {
     stats: {
         overview: statsOverviewHandler,
         window: statsWindowHandler,
-        categoryTrend: categoryTrendHandler
+        categoryTrend: categoryTrendHandler,
+        cashFlowForecast: cashFlowForecastHandler
     }
 };

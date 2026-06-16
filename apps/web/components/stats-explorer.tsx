@@ -13,7 +13,11 @@ import {
     CardHeader,
     CardTitle
 } from '@xpenser/ui';
-import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
+import {
+    ChevronDownIcon,
+    ChevronRightIcon,
+    TrendingUpIcon
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -856,17 +860,25 @@ export function StatsExplorer({
 
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
-            <div>
-                <h1 className="text-2xl font-semibold">Reports</h1>
-                <p className="text-sm text-muted-foreground">
-                    {formatDashboardRangeLabel({
-                        from: stats.from,
-                        period: selection.period,
-                        to: stats.to,
-                        timeZone: timezone
-                    })}{' '}
-                    in {stats.currency}.
-                </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h1 className="text-2xl font-semibold">Reports</h1>
+                    <p className="text-sm text-muted-foreground">
+                        {formatDashboardRangeLabel({
+                            from: stats.from,
+                            period: selection.period,
+                            to: stats.to,
+                            timeZone: timezone
+                        })}{' '}
+                        in {stats.currency}.
+                    </p>
+                </div>
+                <Button asChild className="w-fit" size="sm" variant="outline">
+                    <Link href="/stats/forecast">
+                        <TrendingUpIcon aria-hidden className="size-4" />
+                        Forecast
+                    </Link>
+                </Button>
             </div>
 
             <DashboardPeriodNav

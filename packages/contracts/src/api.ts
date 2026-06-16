@@ -2,6 +2,8 @@ import { array, number } from '@cleverbrush/schema';
 import { defineApi, endpoint, route } from '@cleverbrush/server/contract';
 import {
     ApiKeySchema,
+    CashFlowForecastQuerySchema,
+    CashFlowForecastResponseSchema,
     CategoryListQuerySchema,
     CategorySchema,
     CategoryTrendQuerySchema,
@@ -547,6 +549,17 @@ export const api = defineApi({
             .responses({
                 200: CategoryTrendResponseSchema,
                 400: ErrorResponseSchema
+            }),
+        cashFlowForecast: endpoint
+            .get('/api/stats/cash-flow-forecast')
+            .authorize(PrincipalSchema)
+            .query(CashFlowForecastQuerySchema)
+            .cacheTag('stats', request => ({
+                date: request.query.date
+            }))
+            .responses({
+                200: CashFlowForecastResponseSchema,
+                401: ErrorResponseSchema
             })
     }
 });

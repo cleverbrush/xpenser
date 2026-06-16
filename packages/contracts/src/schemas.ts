@@ -1775,6 +1775,246 @@ export const CategoryTrendQuerySchema = object({
     })
     .schemaName('CategoryTrendQuery');
 
+export const CashFlowForecastQuerySchema = object({
+    /** Date used as the local forecast anchor. Defaults to today. */
+    date: date()
+        .coerce()
+        .optional()
+        .describe('Date used as the local forecast anchor. Defaults to today.')
+}).schemaName('CashFlowForecastQuery');
+
+export const CashFlowForecastConfidenceSchema = enumOf(
+    'high',
+    'low',
+    'medium'
+).describe('Forecast confidence based on available history and patterns.');
+
+export const CashFlowForecastInsightStatusSchema = enumOf(
+    'available',
+    'failed',
+    'unavailable'
+).describe('Whether AI forecast insights were returned.');
+
+export const CashFlowRecurringCadenceSchema = enumOf(
+    'biweekly',
+    'monthly',
+    'weekly'
+).describe('Detected recurring transaction cadence.');
+
+export const CashFlowForecastInsightSchema = object({
+    /** AI-generated one-line forecast headline. */
+    headline: string().describe('AI-generated one-line forecast headline.'),
+    /** AI-generated concise forecast summary. */
+    summary: string().describe('AI-generated concise forecast summary.'),
+    /** Forecast risks grounded in the computed projection. */
+    risks: array(string()).describe(
+        'Forecast risks grounded in the computed projection.'
+    ),
+    /** Forecast opportunities grounded in the computed projection. */
+    opportunities: array(string()).describe(
+        'Forecast opportunities grounded in the computed projection.'
+    ),
+    /** Notes about detected recurring patterns. */
+    recurringNotes: array(string()).describe(
+        'Notes about detected recurring patterns.'
+    ),
+    /** Suggested user actions grounded in the computed projection. */
+    actions: array(string()).describe(
+        'Suggested user actions grounded in the computed projection.'
+    )
+}).schemaName('CashFlowForecastInsight');
+
+export const CashFlowForecastBucketSchema = object({
+    /** Bucket start timestamp. */
+    from: date().coerce().describe('Bucket start timestamp.'),
+    /** Bucket end timestamp. */
+    to: date().coerce().describe('Bucket end timestamp.'),
+    /** Short label shown on forecast charts. */
+    label: string().describe('Short label shown on forecast charts.'),
+    /** Projected income in the user's default currency. */
+    incomeTotal: decimalNumber().describe(
+        "Projected income in the user's default currency."
+    ),
+    /** Projected expenses in the user's default currency. */
+    expenseTotal: decimalNumber().describe(
+        "Projected expenses in the user's default currency."
+    ),
+    /** Projected income minus expenses for the bucket. */
+    netTotal: decimalNumber().describe(
+        'Projected income minus expenses for the bucket.'
+    ),
+    /** Baseline income derived from non-recurring history. */
+    baselineIncomeTotal: decimalNumber().describe(
+        'Baseline income derived from non-recurring history.'
+    ),
+    /** Baseline expenses derived from non-recurring history. */
+    baselineExpenseTotal: decimalNumber().describe(
+        'Baseline expenses derived from non-recurring history.'
+    ),
+    /** Income projected from detected recurring patterns. */
+    recurringIncomeTotal: decimalNumber().describe(
+        'Income projected from detected recurring patterns.'
+    ),
+    /** Expenses projected from detected recurring patterns. */
+    recurringExpenseTotal: decimalNumber().describe(
+        'Expenses projected from detected recurring patterns.'
+    )
+}).schemaName('CashFlowForecastBucket');
+
+export const CashFlowRecurringPatternSchema = object({
+    /** Stable pattern key. */
+    id: string().describe('Stable pattern key.'),
+    /** Detected transaction direction on the reporting side. */
+    type: CategoryTypeSchema.describe(
+        'Detected transaction direction on the reporting side.'
+    ),
+    /** Detected recurring cadence. */
+    cadence: CashFlowRecurringCadenceSchema.describe(
+        'Detected recurring cadence.'
+    ),
+    /** Median transaction amount in the user's default currency. */
+    amount: decimalNumber().describe(
+        "Median transaction amount in the user's default currency."
+    ),
+    /** Number of matching historical occurrences. */
+    occurrenceCount: number().describe(
+        'Number of matching historical occurrences.'
+    ),
+    /** Average gap between historical occurrences in local days. */
+    averageIntervalDays: decimalNumber().describe(
+        'Average gap between historical occurrences in local days.'
+    ),
+    /** Category identifier for the pattern. */
+    categoryId: number().describe('Category identifier for the pattern.'),
+    /** Category path for the pattern. */
+    categoryDisplayName: string().describe('Category path for the pattern.'),
+    /** Vendor identifier, when the pattern is vendor-backed. */
+    vendorId: number()
+        .nullable()
+        .describe('Vendor identifier, when the pattern is vendor-backed.'),
+    /** Vendor name, when the pattern is vendor-backed. */
+    vendorName: string()
+        .optional()
+        .describe('Vendor name, when the pattern is vendor-backed.'),
+    /** Normalized note used when no vendor is linked. */
+    note: string()
+        .optional()
+        .describe('Normalized note used when no vendor is linked.'),
+    /** Next projected local occurrence timestamp. */
+    nextOccurrenceAt: date()
+        .coerce()
+        .optional()
+        .describe('Next projected local occurrence timestamp.'),
+    /** Number of projected occurrences in the 90-day forecast window. */
+    projectedCount: number().describe(
+        'Number of projected occurrences in the 90-day forecast window.'
+    ),
+    /** Projected 90-day total for this pattern. */
+    projectedTotal: decimalNumber().describe(
+        'Projected 90-day total for this pattern.'
+    ),
+    /** Pattern confidence based on amount and cadence stability. */
+    confidence: CashFlowForecastConfidenceSchema.describe(
+        'Pattern confidence based on amount and cadence stability.'
+    )
+}).schemaName('CashFlowRecurringPattern');
+
+export const CashFlowForecastWindowSchema = object({
+    /** Forecast horizon in local days. */
+    horizonDays: number().describe('Forecast horizon in local days.'),
+    /** Forecast window start timestamp. */
+    from: date().coerce().describe('Forecast window start timestamp.'),
+    /** Forecast window end timestamp. */
+    to: date().coerce().describe('Forecast window end timestamp.'),
+    /** Projected income in the user's default currency. */
+    incomeTotal: decimalNumber().describe(
+        "Projected income in the user's default currency."
+    ),
+    /** Projected expenses in the user's default currency. */
+    expenseTotal: decimalNumber().describe(
+        "Projected expenses in the user's default currency."
+    ),
+    /** Projected income minus expenses. */
+    netTotal: decimalNumber().describe('Projected income minus expenses.'),
+    /** Projected average daily net cash flow. */
+    averageDailyNet: decimalNumber().describe(
+        'Projected average daily net cash flow.'
+    ),
+    /** Baseline income derived from non-recurring history. */
+    baselineIncomeTotal: decimalNumber().describe(
+        'Baseline income derived from non-recurring history.'
+    ),
+    /** Baseline expenses derived from non-recurring history. */
+    baselineExpenseTotal: decimalNumber().describe(
+        'Baseline expenses derived from non-recurring history.'
+    ),
+    /** Income projected from detected recurring patterns. */
+    recurringIncomeTotal: decimalNumber().describe(
+        'Income projected from detected recurring patterns.'
+    ),
+    /** Expenses projected from detected recurring patterns. */
+    recurringExpenseTotal: decimalNumber().describe(
+        'Expenses projected from detected recurring patterns.'
+    ),
+    /** Number of recurring occurrences projected into this window. */
+    projectedRecurringCount: number().describe(
+        'Number of recurring occurrences projected into this window.'
+    ),
+    /** Forecast confidence for this horizon. */
+    confidence: CashFlowForecastConfidenceSchema.describe(
+        'Forecast confidence for this horizon.'
+    ),
+    /** Weekly forecast buckets. */
+    buckets: array(CashFlowForecastBucketSchema).describe(
+        'Weekly forecast buckets.'
+    )
+}).schemaName('CashFlowForecastWindow');
+
+export const CashFlowForecastResponseSchema = object({
+    /** Local forecast anchor date. */
+    anchorDate: date().coerce().describe('Local forecast anchor date.'),
+    /** Timestamp when the forecast was generated. */
+    generatedAt: date()
+        .coerce()
+        .describe('Timestamp when the forecast was generated.'),
+    /** Currency used for all forecast totals. */
+    currency: CurrencyCodeSchema.describe(
+        'Currency used for all forecast totals.'
+    ),
+    /** Historical range start timestamp used for the forecast. */
+    historyFrom: date()
+        .coerce()
+        .describe('Historical range start timestamp used for the forecast.'),
+    /** Historical range end timestamp used for the forecast. */
+    historyTo: date()
+        .coerce()
+        .describe('Historical range end timestamp used for the forecast.'),
+    /** Number of historical local days used for baseline projection. */
+    historyDays: number().describe(
+        'Number of historical local days used for baseline projection.'
+    ),
+    /** Number of historical transactions used for projection. */
+    transactionCount: number().describe(
+        'Number of historical transactions used for projection.'
+    ),
+    /** Forecast windows for supported horizons. */
+    windows: array(CashFlowForecastWindowSchema).describe(
+        'Forecast windows for supported horizons.'
+    ),
+    /** Detected recurring transaction patterns. */
+    recurringPatterns: array(CashFlowRecurringPatternSchema).describe(
+        'Detected recurring transaction patterns.'
+    ),
+    /** Whether AI forecast insights were returned. */
+    insightsStatus: CashFlowForecastInsightStatusSchema.describe(
+        'Whether AI forecast insights were returned.'
+    ),
+    /** AI-generated forecast insights, when available. */
+    insights: CashFlowForecastInsightSchema.optional().describe(
+        'AI-generated forecast insights, when available.'
+    )
+}).schemaName('CashFlowForecastResponse');
+
 export const DashboardVendorTotalSchema = object({
     /** Vendor identifier, or null for transactions without a vendor. */
     vendorId: number()
@@ -2346,4 +2586,28 @@ export type CategoryTrendRange = InferType<typeof CategoryTrendRangeSchema>;
 export type CategoryTrendQuery = InferType<typeof CategoryTrendQuerySchema>;
 export type CategoryTrendResponse = InferType<
     typeof CategoryTrendResponseSchema
+>;
+export type CashFlowForecastQuery = InferType<
+    typeof CashFlowForecastQuerySchema
+>;
+export type CashFlowForecastConfidence = InferType<
+    typeof CashFlowForecastConfidenceSchema
+>;
+export type CashFlowForecastInsightStatus = InferType<
+    typeof CashFlowForecastInsightStatusSchema
+>;
+export type CashFlowForecastInsight = InferType<
+    typeof CashFlowForecastInsightSchema
+>;
+export type CashFlowForecastBucket = InferType<
+    typeof CashFlowForecastBucketSchema
+>;
+export type CashFlowRecurringPattern = InferType<
+    typeof CashFlowRecurringPatternSchema
+>;
+export type CashFlowForecastWindow = InferType<
+    typeof CashFlowForecastWindowSchema
+>;
+export type CashFlowForecastResponse = InferType<
+    typeof CashFlowForecastResponseSchema
 >;

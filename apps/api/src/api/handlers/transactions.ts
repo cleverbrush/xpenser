@@ -1,4 +1,5 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
+import { cashFlowForecast } from '../../application/cash-flow-forecast.js';
 import {
     categoryTrend,
     createTransaction,
@@ -15,6 +16,7 @@ import {
 } from '../../application/transactions.js';
 import { TransactionCreated } from '../../log-templates.js';
 import type {
+    CashFlowForecastEndpoint,
     CategoryTrendEndpoint,
     CreateTransactionEndpoint,
     DashboardSummaryEndpoint,
@@ -161,4 +163,10 @@ export const categoryTrendHandler: Handler<
         }
         throw err;
     }
+};
+
+export const cashFlowForecastHandler: Handler<
+    typeof CashFlowForecastEndpoint
+> = async ({ query, principal }, { db, config, logger }) => {
+    return cashFlowForecast(db, config, logger, principal.userId, query);
 };

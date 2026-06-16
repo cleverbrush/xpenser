@@ -115,6 +115,23 @@ test.describe('authenticated app workflows', () => {
             page.getByRole('heading', { level: 1, name: 'Transactions' })
         ).toBeVisible();
 
+        await page.getByRole('link', { name: 'Reports' }).first().click();
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Reports' })
+        ).toBeVisible();
+        await page.getByRole('link', { name: 'Forecast' }).click();
+        await expect(
+            page.getByRole('heading', {
+                level: 1,
+                name: 'Cash-flow forecast'
+            })
+        ).toBeVisible();
+        await expect(page.getByRole('button', { name: /30 days/ })).toBeVisible();
+        await page.getByRole('button', { name: /90 days/ }).click();
+        await expect(
+            page.getByText(/projected recurring occurrences/)
+        ).toBeVisible();
+
         await page.getByRole('link', { name: 'Add' }).first().click();
         await expect(
             page.getByRole('button', { name: 'Save transaction' })

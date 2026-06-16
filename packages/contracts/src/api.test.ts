@@ -61,7 +61,8 @@ describe('api contract authorization metadata', () => {
             api.dashboard.window,
             api.stats.overview,
             api.stats.window,
-            api.stats.categoryTrend
+            api.stats.categoryTrend,
+            api.stats.cashFlowForecast
         ];
 
         for (const endpoint of protectedEndpoints) {

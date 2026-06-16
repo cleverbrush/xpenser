@@ -432,6 +432,16 @@ export const CategoryTrendEndpoint = api.stats.categoryTrend
     .tags('stats')
     .operationId('categoryTrend');
 
+export const CashFlowForecastEndpoint = api.stats.cashFlowForecast
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken, logger: LoggerToken })
+    .summary('Cash-flow forecast')
+    .description(
+        'Projects 30-day and 90-day cash flow from historical transactions and detected recurring patterns.'
+    )
+    .tags('stats')
+    .operationId('cashFlowForecast');
+
 export const endpoints = {
     auth: {
         register: RegisterEndpoint,
@@ -503,6 +513,7 @@ export const endpoints = {
     stats: {
         overview: StatsOverviewEndpoint,
         window: StatsWindowEndpoint,
-        categoryTrend: CategoryTrendEndpoint
+        categoryTrend: CategoryTrendEndpoint,
+        cashFlowForecast: CashFlowForecastEndpoint
     }
 };
