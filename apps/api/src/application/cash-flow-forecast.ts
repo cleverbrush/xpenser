@@ -55,7 +55,7 @@ type ProjectedOccurrence = {
 
 const forecastHistoryDays = 180;
 const forecastHorizons = [30, 90] as const;
-const forecastInsightTimeoutMs = 8000;
+const forecastInsightTimeoutMs = 3000;
 const maxInsightItems = 4;
 
 function roundMoney(value: number): number {

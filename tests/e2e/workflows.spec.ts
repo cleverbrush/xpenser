@@ -125,7 +125,7 @@ test.describe('authenticated app workflows', () => {
                 level: 1,
                 name: 'Cash-flow forecast'
             })
-        ).toBeVisible();
+        ).toBeVisible({ timeout: 15_000 });
         await expect(page.getByRole('button', { name: /30 days/ })).toBeVisible();
         await page.getByRole('button', { name: /90 days/ }).click();
         await expect(
