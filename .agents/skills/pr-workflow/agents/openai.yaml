@@ -1,4 +1,4 @@
 interface:
   display_name: "PR Workflow"
-  short_description: "Ship PRs with preview QA"
-  default_prompt: "Use $pr-workflow to implement this change through a PR with preview QA."
+  short_description: "Ship PRs with QA and notification"
+  default_prompt: "Use $pr-workflow to implement this change through a PR with preview QA and a ready notification."
