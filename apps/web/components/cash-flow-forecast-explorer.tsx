@@ -127,8 +127,12 @@ function ForecastChart({
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="h-72">
-                    <ResponsiveContainer height="100%" width="100%">
+                <div className="h-72 min-w-0">
+                    <ResponsiveContainer
+                        height="100%"
+                        initialDimension={{ height: 288, width: 320 }}
+                        width="100%"
+                    >
                         <BarChart data={data}>
                             <CartesianGrid
                                 stroke="hsl(var(--border))"
