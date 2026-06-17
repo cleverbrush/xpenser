@@ -125,6 +125,16 @@ export const config = parseEnv(
                 number().coerce().default(3)
             )
         },
+        cashFlowForecastsEnv: {
+            schedulerEnabled: env(
+                'CASH_FLOW_FORECAST_SCHEDULER_ENABLED',
+                string().default('1')
+            ),
+            insightTimeoutMs: env(
+                'CASH_FLOW_FORECAST_INSIGHT_TIMEOUT_MS',
+                number().coerce().default(45_000)
+            )
+        },
         logLevel: env(
             'LOG_LEVEL',
             string()
@@ -146,6 +156,9 @@ export const config = parseEnv(
         const schedulerEnabled = ['1', 'true', 'yes'].includes(
             base.emailReportsEnv.schedulerEnabled.toLowerCase()
         );
+        const cashFlowForecastSchedulerEnabled = ['1', 'true', 'yes'].includes(
+            base.cashFlowForecastsEnv.schedulerEnabled.toLowerCase()
+        );
         const passport = applyHostedPassportDefaults(
             base.app.url,
             base.passport
@@ -166,6 +179,10 @@ export const config = parseEnv(
                 schedulerEnabled,
                 deliveryHourLocal: base.emailReportsEnv.deliveryHourLocal,
                 maxAttempts: base.emailReportsEnv.maxAttempts
+            },
+            cashFlowForecasts: {
+                schedulerEnabled: cashFlowForecastSchedulerEnabled,
+                insightTimeoutMs: base.cashFlowForecastsEnv.insightTimeoutMs
             },
             vendorEnrichment: {
                 enabled:

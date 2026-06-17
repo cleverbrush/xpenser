@@ -20,6 +20,7 @@ describe('api contract authorization metadata', () => {
         expect(authRoles(api.telegram.link)).toBeNull();
         expect(authRoles(api.telegram.token)).toBeNull();
         expect(authRoles(api.transactionScans.progress)).toBeNull();
+        expect(authRoles(api.stats.cashFlowForecastProgress)).toBeNull();
     });
 
     it('marks user-scoped endpoints as authenticated', () => {
@@ -62,7 +63,8 @@ describe('api contract authorization metadata', () => {
             api.stats.overview,
             api.stats.window,
             api.stats.categoryTrend,
-            api.stats.cashFlowForecast
+            api.stats.cashFlowForecast,
+            api.stats.cashFlowForecastJob
         ];
 
         for (const endpoint of protectedEndpoints) {

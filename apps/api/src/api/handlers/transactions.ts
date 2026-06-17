@@ -1,5 +1,13 @@
-import { ActionResult, type Handler } from '@cleverbrush/server';
+import {
+    ActionResult,
+    type Handler,
+    type SubscriptionHandler
+} from '@cleverbrush/server';
 import { cashFlowForecast } from '../../application/cash-flow-forecast.js';
+import {
+    startCashFlowForecastJob,
+    subscribeCashFlowForecastJob
+} from '../../application/cash-flow-forecast-jobs.js';
 import {
     categoryTrend,
     createTransaction,
@@ -17,6 +25,8 @@ import {
 import { TransactionCreated } from '../../log-templates.js';
 import type {
     CashFlowForecastEndpoint,
+    CashFlowForecastJobEndpoint,
+    CashFlowForecastProgressEndpoint,
     CategoryTrendEndpoint,
     CreateTransactionEndpoint,
     DashboardSummaryEndpoint,
@@ -167,6 +177,26 @@ export const categoryTrendHandler: Handler<
 
 export const cashFlowForecastHandler: Handler<
     typeof CashFlowForecastEndpoint
-> = async ({ query, principal }, { db, config, logger }) => {
-    return cashFlowForecast(db, config, logger, principal.userId, query);
+> = async ({ query, principal }, { db, knex, config, logger }) => {
+    return cashFlowForecast(db, knex, config, logger, principal.userId, query);
+};
+
+export const startCashFlowForecastJobHandler: Handler<
+    typeof CashFlowForecastJobEndpoint
+> = async ({ body, principal }, { db, knex, config, logger }) => {
+    const job = startCashFlowForecastJob(
+        db,
+        knex,
+        config,
+        logger,
+        principal.userId,
+        body
+    );
+    return ActionResult.accepted(job);
+};
+
+export const cashFlowForecastProgressHandler: SubscriptionHandler<
+    typeof CashFlowForecastProgressEndpoint
+> = async function* ({ query, signal }) {
+    yield* subscribeCashFlowForecastJob(query, signal);
 };

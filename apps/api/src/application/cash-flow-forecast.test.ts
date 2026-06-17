@@ -1,11 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import type { Knex } from 'knex';
+import { describe, expect, it, vi } from 'vitest';
+import type { Config } from '../config.js';
 import type {
+    AppDb,
     CategoryDb,
     TransactionDb,
     UserDb,
     VendorDb
 } from '../db/schemas.js';
-import { buildCashFlowForecast } from './cash-flow-forecast.js';
+import {
+    buildCashFlowForecast,
+    generateAndPersistCashFlowForecast
+} from './cash-flow-forecast.js';
 
 const timestamp = new Date('2026-06-16T12:00:00.000Z');
 
@@ -81,6 +87,66 @@ function transaction(
         type,
         updatedAt: new Date(occurredAt),
         ...overrides
+    };
+}
+
+function queryRows<T>(rows: readonly T[]) {
+    let whereCalls = 0;
+    const query = {
+        include: () => query,
+        where: () => {
+            whereCalls += 1;
+            return whereCalls >= 3 ? Promise.resolve(rows) : query;
+        }
+    };
+    return query;
+}
+
+function forecastDb({
+    categories,
+    transactions,
+    user,
+    vendors
+}: {
+    readonly categories: readonly CategoryDb[];
+    readonly transactions: readonly TransactionDb[];
+    readonly user: UserDb;
+    readonly vendors: readonly VendorDb[];
+}): AppDb {
+    return {
+        users: {
+            find: vi.fn().mockResolvedValue(user)
+        },
+        categories: {
+            where: vi.fn().mockResolvedValue(categories)
+        },
+        vendors: {
+            where: vi.fn().mockResolvedValue(vendors)
+        },
+        transactions: queryRows(transactions)
+    } as unknown as AppDb;
+}
+
+function forecastKnex() {
+    const inserts: Record<string, unknown>[] = [];
+    const merges: Record<string, unknown>[] = [];
+    const knex = vi.fn(() => ({
+        insert: vi.fn((values: Record<string, unknown>) => {
+            inserts.push(values);
+            return {
+                onConflict: vi.fn(() => ({
+                    merge: vi.fn(async (values: Record<string, unknown>) => {
+                        merges.push(values);
+                    })
+                }))
+            };
+        })
+    }));
+
+    return {
+        inserts,
+        knex: knex as unknown as Knex,
+        merges
     };
 }
 
@@ -298,5 +364,44 @@ describe('buildCashFlowForecast', () => {
 
         expect(thirty?.baselineIncomeTotal).toBe(0);
         expect(thirty?.incomeTotal).toBe(3000);
+    });
+
+    it('persists deterministic forecast when OpenAI is not configured', async () => {
+        const salary = category(1, 'Salary', 'income');
+        const db = forecastDb({
+            categories: [salary],
+            transactions: [],
+            user: user(),
+            vendors: []
+        });
+        const { inserts, knex } = forecastKnex();
+        const config = {
+            openai: {
+                apiKey: undefined,
+                reportModel: 'gpt-5-mini'
+            },
+            cashFlowForecasts: {
+                insightTimeoutMs: 45_000
+            }
+        } as Config;
+
+        const result = await generateAndPersistCashFlowForecast(
+            db,
+            knex,
+            config,
+            { warn: vi.fn() },
+            1,
+            { date: new Date('2026-06-16T08:00:00.000Z') },
+            { force: true }
+        );
+
+        expect(result.status).toBe('complete');
+        expect(result.forecast.insightsStatus).toBe('unavailable');
+        expect(inserts).toHaveLength(2);
+        expect(inserts[0]?.status).toBe('pending');
+        expect(inserts[1]?.status).toBe('complete');
+        expect(
+            JSON.parse(String(inserts[1]?.forecast_json)).insightsStatus
+        ).toBe('unavailable');
     });
 });

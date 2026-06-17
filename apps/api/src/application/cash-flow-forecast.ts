@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import type { Logger } from '@cleverbrush/log';
 import type {
     CashFlowForecastConfidence,
     CashFlowForecastInsight,
+    CashFlowForecastJobBody,
     CashFlowForecastQuery,
     CashFlowForecastResponse,
     CashFlowForecastWindow,
@@ -16,6 +18,7 @@ import {
     localEndOfDay,
     localStartOfDay
 } from '@xpenser/timezone';
+import type { Knex } from 'knex';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -28,6 +31,7 @@ import { categoryDisplayName, categoryReportingType } from './categories.js';
 import { generateStructuredJson, OpenAIConfigError } from './openai.js';
 
 type ForecastType = 'expense' | 'income';
+type ForecastLogger = Pick<Logger, 'warn'>;
 type ForecastUser = Pick<UserDb, 'defaultCurrency' | 'id' | 'timezone'>;
 type ForecastEvent = {
     readonly id: number;
@@ -55,8 +59,45 @@ type ProjectedOccurrence = {
 
 const forecastHistoryDays = 180;
 const forecastHorizons = [30, 90] as const;
-const forecastInsightTimeoutMs = 3000;
+export const cashFlowForecastVersion = '1';
 const maxInsightItems = 4;
+
+type StoredCashFlowForecastStatus = 'complete' | 'failed' | 'pending';
+type StoredCashFlowForecastRow = {
+    readonly id: number;
+    readonly user_id: number;
+    readonly forecast_date: string;
+    readonly forecast_version: string;
+    readonly input_hash: string;
+    readonly model: string;
+    readonly status: StoredCashFlowForecastStatus;
+    readonly forecast_json: string;
+    readonly error_message?: string | null;
+    readonly generated_at?: Date | string | null;
+    readonly created_at: Date | string;
+    readonly updated_at: Date | string;
+};
+type ForecastInput = {
+    readonly categories: readonly CategoryDb[];
+    readonly forecast: CashFlowForecastResponse;
+    readonly forecastDate: string;
+    readonly inputHash: string;
+    readonly transactions: readonly TransactionDb[];
+    readonly user: UserDb;
+    readonly vendors: readonly VendorDb[];
+};
+type ForecastGenerationResult = {
+    readonly errorMessage?: string;
+    readonly forecast: CashFlowForecastResponse;
+    readonly status: StoredCashFlowForecastStatus;
+};
+type ForecastGenerationStage = 'preparing' | 'analyzing' | 'saving';
+type ForecastGenerationOptions = {
+    readonly force?: boolean;
+    readonly onProgress?: (stage: ForecastGenerationStage) => void;
+};
+
+const autoGenerationKeys = new Set<string>();
 
 function roundMoney(value: number): number {
     return Math.round(value * 100) / 100;
@@ -654,6 +695,112 @@ function forecastOpenAiPayload(forecast: CashFlowForecastResponse) {
     };
 }
 
+function cashFlowForecastInputHash(forecast: CashFlowForecastResponse): string {
+    return createHash('sha256')
+        .update(JSON.stringify(forecastOpenAiPayload(forecast)))
+        .digest('hex');
+}
+
+function coerceDate(value: Date | string | undefined): Date | undefined {
+    return value ? new Date(value) : undefined;
+}
+
+function coerceForecastDates(
+    value: CashFlowForecastResponse
+): CashFlowForecastResponse {
+    return {
+        ...value,
+        anchorDate: coerceDate(value.anchorDate)!,
+        generatedAt: coerceDate(value.generatedAt)!,
+        historyFrom: coerceDate(value.historyFrom)!,
+        historyTo: coerceDate(value.historyTo)!,
+        recurringPatterns: value.recurringPatterns.map(pattern => ({
+            ...pattern,
+            nextOccurrenceAt: coerceDate(pattern.nextOccurrenceAt)
+        })),
+        windows: value.windows.map(window => ({
+            ...window,
+            from: coerceDate(window.from)!,
+            to: coerceDate(window.to)!,
+            buckets: window.buckets.map(bucket => ({
+                ...bucket,
+                from: coerceDate(bucket.from)!,
+                to: coerceDate(bucket.to)!
+            }))
+        }))
+    };
+}
+
+function parseStoredForecast(
+    row: StoredCashFlowForecastRow
+): CashFlowForecastResponse | undefined {
+    try {
+        return coerceForecastDates(JSON.parse(row.forecast_json));
+    } catch {
+        return undefined;
+    }
+}
+
+async function readStoredForecast(
+    knex: Knex,
+    userId: number,
+    forecastDate: string
+): Promise<StoredCashFlowForecastRow | undefined> {
+    const rows = await knex<StoredCashFlowForecastRow>('cash_flow_forecasts')
+        .where({
+            user_id: userId,
+            forecast_date: forecastDate,
+            forecast_version: cashFlowForecastVersion
+        })
+        .limit(1);
+    return rows[0];
+}
+
+async function upsertStoredForecast(
+    knex: Knex,
+    values: {
+        readonly errorMessage?: string | null;
+        readonly forecast: CashFlowForecastResponse;
+        readonly forecastDate: string;
+        readonly inputHash: string;
+        readonly model: string;
+        readonly status: StoredCashFlowForecastStatus;
+        readonly userId: number;
+    }
+): Promise<void> {
+    const now = new Date();
+    await knex('cash_flow_forecasts')
+        .insert({
+            user_id: values.userId,
+            forecast_date: values.forecastDate,
+            forecast_version: cashFlowForecastVersion,
+            input_hash: values.inputHash,
+            model: values.model,
+            status: values.status,
+            forecast_json: JSON.stringify(values.forecast),
+            error_message: values.errorMessage ?? null,
+            generated_at:
+                values.status === 'complete' || values.status === 'failed'
+                    ? values.forecast.generatedAt
+                    : null,
+            created_at: now,
+            updated_at: now
+        })
+        .onConflict(['user_id', 'forecast_date', 'forecast_version'])
+        .merge({
+            input_hash: values.inputHash,
+            model: values.model,
+            status: values.status,
+            forecast_json: JSON.stringify(values.forecast),
+            error_message: values.errorMessage ?? null,
+            generated_at:
+                values.status === 'complete' || values.status === 'failed'
+                    ? values.forecast.generatedAt
+                    : null,
+            updated_at: now
+        });
+}
+
 function cleanStringArray(value: unknown): string[] {
     return Array.isArray(value)
         ? value
@@ -741,21 +888,24 @@ function withTimeout<T>(
     timeoutMs: number,
     message: string
 ): Promise<T> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     return Promise.race([
         promise,
         new Promise<T>((_, reject) => {
-            setTimeout(() => reject(new Error(message)), timeoutMs);
+            timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
         })
-    ]);
+    ]).finally(() => {
+        if (timeout) {
+            clearTimeout(timeout);
+        }
+    });
 }
 
-export async function cashFlowForecast(
+async function loadForecastInput(
     db: AppDb,
-    config: Config,
-    logger: Pick<Logger, 'warn'>,
     userId: number,
-    query: CashFlowForecastQuery
-): Promise<CashFlowForecastResponse> {
+    query: CashFlowForecastQuery = {}
+): Promise<ForecastInput> {
     const user = (await db.users.find(userId)) as UserDb | undefined;
     if (!user) {
         throw new Error('User was not found.');
@@ -763,6 +913,7 @@ export async function cashFlowForecast(
 
     const now = new Date();
     const forecastFrom = localStartOfDay(query.date ?? now, user.timezone);
+    const forecastDate = dateToLocalDateParam(forecastFrom, user.timezone);
     const historyFrom = addLocalDays(
         forecastFrom,
         -forecastHistoryDays,
@@ -786,29 +937,184 @@ export async function cashFlowForecast(
         user,
         vendors: vendors as VendorDb[]
     });
+    const inputHash = cashFlowForecastInputHash(forecast);
+
+    return {
+        categories: categories as CategoryDb[],
+        forecast,
+        forecastDate,
+        inputHash,
+        transactions: transactions as TransactionDb[],
+        user,
+        vendors: vendors as VendorDb[]
+    };
+}
+
+function failedForecastMessage(err: unknown): string {
+    if (err instanceof Error && err.message.includes('timed out')) {
+        return 'AI forecast insight timed out. Try regenerating later.';
+    }
+    return 'AI forecast insight unavailable. Try regenerating later.';
+}
+
+export async function generateAndPersistCashFlowForecast(
+    db: AppDb,
+    knex: Knex,
+    config: Config,
+    logger: ForecastLogger,
+    userId: number,
+    body: CashFlowForecastJobBody = {},
+    options: ForecastGenerationOptions = {}
+): Promise<ForecastGenerationResult> {
+    options.onProgress?.('preparing');
+    const input = await loadForecastInput(db, userId, body);
+    const stored = options.force
+        ? undefined
+        : await readStoredForecast(knex, userId, input.forecastDate);
+    if (
+        stored &&
+        stored.input_hash === input.inputHash &&
+        (stored.status === 'complete' || stored.status === 'failed')
+    ) {
+        const forecast = parseStoredForecast(stored);
+        if (forecast) {
+            return {
+                errorMessage: stored.error_message ?? undefined,
+                forecast,
+                status: stored.status
+            };
+        }
+    }
+
+    await upsertStoredForecast(knex, {
+        forecast: {
+            ...input.forecast,
+            insightsStatus: 'pending'
+        },
+        forecastDate: input.forecastDate,
+        inputHash: input.inputHash,
+        model: config.openai.reportModel,
+        status: 'pending',
+        userId
+    });
+
+    let errorMessage: string | undefined;
+    let finalForecast: CashFlowForecastResponse;
+    let status: StoredCashFlowForecastStatus = 'complete';
 
     try {
+        options.onProgress?.('analyzing');
         const insights = await withTimeout(
-            generateForecastInsight(config, forecast),
-            forecastInsightTimeoutMs,
+            generateForecastInsight(config, input.forecast),
+            config.cashFlowForecasts.insightTimeoutMs,
             'OpenAI forecast insights timed out.'
         );
-        return {
-            ...forecast,
+        finalForecast = {
+            ...input.forecast,
+            generatedAt: new Date(),
             insights,
             insightsStatus: 'available'
         };
     } catch (err) {
         if (err instanceof OpenAIConfigError) {
+            finalForecast = {
+                ...input.forecast,
+                generatedAt: new Date(),
+                insightsStatus: 'unavailable'
+            };
+        } else {
+            errorMessage = failedForecastMessage(err);
+            status = 'failed';
+            logger.warn('Cash-flow forecast insights failed', {
+                Error: err instanceof Error ? err.message : String(err),
+                ForecastDate: input.forecastDate,
+                UserId: userId
+            });
+            finalForecast = {
+                ...input.forecast,
+                generatedAt: new Date(),
+                insightsStatus: 'failed'
+            };
+        }
+    }
+
+    options.onProgress?.('saving');
+    await upsertStoredForecast(knex, {
+        errorMessage,
+        forecast: finalForecast,
+        forecastDate: input.forecastDate,
+        inputHash: input.inputHash,
+        model: config.openai.reportModel,
+        status,
+        userId
+    });
+
+    return {
+        errorMessage,
+        forecast: finalForecast,
+        status
+    };
+}
+
+function scheduleMissingForecastGeneration(
+    db: AppDb,
+    knex: Knex,
+    config: Config,
+    logger: ForecastLogger,
+    userId: number,
+    input: ForecastInput
+): void {
+    if (!config.openai.apiKey) {
+        return;
+    }
+
+    const key = `${userId}:${input.forecastDate}:${input.inputHash}`;
+    if (autoGenerationKeys.has(key)) {
+        return;
+    }
+
+    autoGenerationKeys.add(key);
+    void generateAndPersistCashFlowForecast(
+        db,
+        knex,
+        config,
+        logger,
+        userId,
+        { date: input.forecast.anchorDate },
+        { force: false }
+    )
+        .catch(err => {
+            logger.warn('Cash-flow forecast background generation failed', {
+                Error: err instanceof Error ? err.message : String(err),
+                ForecastDate: input.forecastDate,
+                UserId: userId
+            });
+        })
+        .finally(() => {
+            autoGenerationKeys.delete(key);
+        });
+}
+
+export async function cashFlowForecast(
+    db: AppDb,
+    knex: Knex,
+    config: Config,
+    logger: ForecastLogger,
+    userId: number,
+    query: CashFlowForecastQuery
+): Promise<CashFlowForecastResponse> {
+    const input = await loadForecastInput(db, userId, query);
+    const stored = await readStoredForecast(knex, userId, input.forecastDate);
+    if (stored && stored.input_hash === input.inputHash) {
+        const forecast = parseStoredForecast(stored);
+        if (forecast) {
             return forecast;
         }
-        logger.warn('Cash-flow forecast insights failed', {
-            Error: err instanceof Error ? err.message : String(err),
-            UserId: userId
-        });
-        return {
-            ...forecast,
-            insightsStatus: 'failed'
-        };
     }
+
+    scheduleMissingForecastGeneration(db, knex, config, logger, userId, input);
+    return {
+        ...input.forecast,
+        insightsStatus: config.openai.apiKey ? 'pending' : 'unavailable'
+    };
 }

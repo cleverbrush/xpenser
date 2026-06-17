@@ -347,6 +347,25 @@ export const TransactionScanImageDbSchema = object({
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 }).hasTableName('transaction_scan_images');
 
+export const CashFlowForecastDbSchema = object({
+    id: number().primaryKey(),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_cash_flow_forecasts_user_id'),
+    forecastDate: string().hasColumnName('forecast_date'),
+    forecastVersion: string().hasColumnName('forecast_version'),
+    inputHash: string().hasColumnName('input_hash'),
+    model: string(),
+    status: string(),
+    forecastJson: string().hasColumnName('forecast_json'),
+    errorMessage: string().hasColumnName('error_message').optional(),
+    generatedAt: date().hasColumnName('generated_at').optional(),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('cash_flow_forecasts');
+
 export const ExchangeRateDbSchema = object({
     id: number().primaryKey(),
     baseCurrency: string().hasColumnName('base_currency'),
@@ -398,6 +417,7 @@ export const TransactionScanItemEntity = defineEntity(
 export const TransactionScanImageEntity = defineEntity(
     TransactionScanImageDbSchema
 );
+export const CashFlowForecastEntity = defineEntity(CashFlowForecastDbSchema);
 export const ExchangeRateEntity = defineEntity(ExchangeRateDbSchema);
 
 export const entityMap = {
@@ -417,6 +437,7 @@ export const entityMap = {
     transactionScans: TransactionScanEntity,
     transactionScanItems: TransactionScanItemEntity,
     transactionScanImages: TransactionScanImageEntity,
+    cashFlowForecasts: CashFlowForecastEntity,
     exchangeRates: ExchangeRateEntity
 };
 
@@ -609,6 +630,21 @@ export type TransactionScanImageDb = {
     readonly fileName?: string | null;
     readonly sizeBytes: number;
     readonly imageBase64: string;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+};
+
+export type CashFlowForecastDb = {
+    readonly id: number;
+    readonly userId: number;
+    readonly forecastDate: string;
+    readonly forecastVersion: string;
+    readonly inputHash: string;
+    readonly model: string;
+    readonly status: string;
+    readonly forecastJson: string;
+    readonly errorMessage?: string | null;
+    readonly generatedAt?: Date | null;
     readonly createdAt: Date;
     readonly updatedAt: Date;
 };

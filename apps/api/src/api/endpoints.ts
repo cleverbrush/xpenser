@@ -434,13 +434,42 @@ export const CategoryTrendEndpoint = api.stats.categoryTrend
 
 export const CashFlowForecastEndpoint = api.stats.cashFlowForecast
     .authorize(PrincipalSchema)
-    .inject({ db: DbToken, config: ConfigToken, logger: LoggerToken })
+    .inject({
+        db: DbToken,
+        knex: KnexToken,
+        config: ConfigToken,
+        logger: LoggerToken
+    })
     .summary('Cash-flow forecast')
     .description(
-        'Projects 30-day and 90-day cash flow from historical transactions and detected recurring patterns.'
+        'Returns the persisted daily cash-flow forecast, queueing generation when needed.'
     )
     .tags('stats')
     .operationId('cashFlowForecast');
+
+export const CashFlowForecastJobEndpoint = api.stats.cashFlowForecastJob
+    .authorize(PrincipalSchema)
+    .inject({
+        db: DbToken,
+        knex: KnexToken,
+        config: ConfigToken,
+        logger: LoggerToken
+    })
+    .summary('Start cash-flow forecast generation')
+    .description(
+        'Starts an asynchronous forecast generation job and returns a short-lived progress token.'
+    )
+    .tags('stats')
+    .operationId('startCashFlowForecastJob');
+
+export const CashFlowForecastProgressEndpoint =
+    api.stats.cashFlowForecastProgress
+        .summary('Cash-flow forecast generation progress')
+        .description(
+            'Streams progress and the final stored forecast for a short-lived forecast job token.'
+        )
+        .tags('stats')
+        .operationId('cashFlowForecastProgress');
 
 export const endpoints = {
     auth: {
@@ -514,6 +543,8 @@ export const endpoints = {
         overview: StatsOverviewEndpoint,
         window: StatsWindowEndpoint,
         categoryTrend: CategoryTrendEndpoint,
-        cashFlowForecast: CashFlowForecastEndpoint
+        cashFlowForecast: CashFlowForecastEndpoint,
+        cashFlowForecastJob: CashFlowForecastJobEndpoint,
+        cashFlowForecastProgress: CashFlowForecastProgressEndpoint
     }
 };

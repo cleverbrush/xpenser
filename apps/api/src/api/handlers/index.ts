@@ -44,6 +44,7 @@ import {
 } from './transaction-scans.js';
 import {
     cashFlowForecastHandler,
+    cashFlowForecastProgressHandler,
     categoryTrendHandler,
     createTransactionHandler,
     dashboardSummaryHandler,
@@ -51,6 +52,7 @@ import {
     deleteTransactionHandler,
     getTransactionScanImageHandler,
     listTransactionsHandler,
+    startCashFlowForecastJobHandler,
     statsOverviewHandler,
     statsWindowHandler,
     updateTransactionHandler
@@ -137,6 +139,8 @@ export const handlers = {
         overview: statsOverviewHandler,
         window: statsWindowHandler,
         categoryTrend: categoryTrendHandler,
-        cashFlowForecast: cashFlowForecastHandler
+        cashFlowForecast: cashFlowForecastHandler,
+        cashFlowForecastJob: startCashFlowForecastJobHandler,
+        cashFlowForecastProgress: cashFlowForecastProgressHandler
     }
 };

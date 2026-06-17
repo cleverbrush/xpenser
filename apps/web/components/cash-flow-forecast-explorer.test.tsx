@@ -8,6 +8,19 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { CashFlowForecastExplorer } from './cash-flow-forecast-explorer';
 
+const mocks = vi.hoisted(() => ({
+    createXpenserClient: vi.fn(),
+    refresh: vi.fn()
+}));
+
+vi.mock('@xpenser/client', () => ({
+    createXpenserClient: mocks.createXpenserClient
+}));
+
+vi.mock('next/navigation', () => ({
+    useRouter: () => ({ refresh: mocks.refresh })
+}));
+
 vi.mock('recharts', () => ({
     Bar: () => null,
     BarChart: ({ children }: { readonly children: ReactNode }) => (
@@ -101,6 +114,8 @@ describe('CashFlowForecastExplorer', () => {
             screen.getByRole('heading', { name: 'Cash-flow forecast' })
         ).toBeTruthy();
         expect(screen.getByText('$2,900.00')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Regenerate' })).toBeTruthy();
+        expect(screen.getByText(/Generated/)).toBeTruthy();
         expect(screen.getByText('AI insight unavailable')).toBeTruthy();
         expect(screen.getByText('Acme Payroll')).toBeTruthy();
 
@@ -135,5 +150,18 @@ describe('CashFlowForecastExplorer', () => {
         expect(
             screen.getByText('Review recurring subscriptions.')
         ).toBeTruthy();
+    });
+
+    it('renders pending AI insight progress', () => {
+        render(
+            <CashFlowForecastExplorer
+                forecast={forecast({ insightsStatus: 'pending' })}
+                timezone="UTC"
+            />
+        );
+
+        expect(screen.getByText('AI insight generating')).toBeTruthy();
+        expect(screen.getByRole('status')).toBeTruthy();
+        expect(screen.getByText('20%')).toBeTruthy();
     });
 });

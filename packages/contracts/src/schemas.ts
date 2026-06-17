@@ -1783,6 +1783,20 @@ export const CashFlowForecastQuerySchema = object({
         .describe('Date used as the local forecast anchor. Defaults to today.')
 }).schemaName('CashFlowForecastQuery');
 
+export const CashFlowForecastJobBodySchema = object({
+    /** Date used as the local forecast anchor. Defaults to today. */
+    date: date()
+        .coerce()
+        .optional()
+        .describe('Date used as the local forecast anchor. Defaults to today.'),
+    /** Force regeneration even when a cached forecast already exists. */
+    force: boolean()
+        .optional()
+        .describe(
+            'Force regeneration even when a cached forecast already exists.'
+        )
+}).schemaName('CashFlowForecastJobBody');
+
 export const CashFlowForecastConfidenceSchema = enumOf(
     'high',
     'low',
@@ -1792,6 +1806,7 @@ export const CashFlowForecastConfidenceSchema = enumOf(
 export const CashFlowForecastInsightStatusSchema = enumOf(
     'available',
     'failed',
+    'pending',
     'unavailable'
 ).describe('Whether AI forecast insights were returned.');
 
@@ -2014,6 +2029,60 @@ export const CashFlowForecastResponseSchema = object({
         'AI-generated forecast insights, when available.'
     )
 }).schemaName('CashFlowForecastResponse');
+
+export const CashFlowForecastJobResponseSchema = object({
+    /** Short-lived forecast job identifier used by the progress subscription. */
+    jobId: string().describe(
+        'Short-lived forecast job identifier used by the progress subscription.'
+    ),
+    /** One-time token scoped to this forecast job. */
+    token: string().describe('One-time token scoped to this forecast job.')
+}).schemaName('CashFlowForecastJobResponse');
+
+export const CashFlowForecastProgressQuerySchema = object({
+    /** Short-lived forecast job identifier returned by the start endpoint. */
+    jobId: string()
+        .required('forecast job is required')
+        .nonempty('forecast job is required')
+        .describe(
+            'Short-lived forecast job identifier returned by the start endpoint.'
+        ),
+    /** One-time token scoped to this forecast job. */
+    token: string()
+        .required('forecast token is required')
+        .nonempty('forecast token is required')
+        .describe('One-time token scoped to this forecast job.')
+}).schemaName('CashFlowForecastProgressQuery');
+
+export const CashFlowForecastProgressStageSchema = enumOf(
+    'queued',
+    'preparing',
+    'analyzing',
+    'saving',
+    'complete',
+    'failed'
+).describe('Current forecast job stage.');
+
+export const CashFlowForecastProgressEventSchema = object({
+    /** Short-lived forecast job identifier. */
+    jobId: string().describe('Short-lived forecast job identifier.'),
+    /** Current forecast job stage. */
+    stage: CashFlowForecastProgressStageSchema.describe(
+        'Current forecast job stage.'
+    ),
+    /** User-facing progress message. */
+    message: string().describe('User-facing progress message.'),
+    /** Approximate forecast progress from 0 to 100. */
+    progress: number().describe('Approximate forecast progress from 0 to 100.'),
+    /** Final forecast result when the job completed successfully. */
+    forecast: union(CashFlowForecastResponseSchema)
+        .or(nul())
+        .describe('Final forecast result when the job completed successfully.'),
+    /** Safe user-facing failure message when the job failed. */
+    error: string()
+        .nullable()
+        .describe('Safe user-facing failure message when the job failed.')
+}).schemaName('CashFlowForecastProgressEvent');
 
 export const DashboardVendorTotalSchema = object({
     /** Vendor identifier, or null for transactions without a vendor. */
@@ -2590,6 +2659,9 @@ export type CategoryTrendResponse = InferType<
 export type CashFlowForecastQuery = InferType<
     typeof CashFlowForecastQuerySchema
 >;
+export type CashFlowForecastJobBody = InferType<
+    typeof CashFlowForecastJobBodySchema
+>;
 export type CashFlowForecastConfidence = InferType<
     typeof CashFlowForecastConfidenceSchema
 >;
@@ -2610,4 +2682,13 @@ export type CashFlowForecastWindow = InferType<
 >;
 export type CashFlowForecastResponse = InferType<
     typeof CashFlowForecastResponseSchema
+>;
+export type CashFlowForecastJobResponse = InferType<
+    typeof CashFlowForecastJobResponseSchema
+>;
+export type CashFlowForecastProgressQuery = InferType<
+    typeof CashFlowForecastProgressQuerySchema
+>;
+export type CashFlowForecastProgressEvent = InferType<
+    typeof CashFlowForecastProgressEventSchema
 >;

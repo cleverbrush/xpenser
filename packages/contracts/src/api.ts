@@ -2,6 +2,10 @@ import { array, number } from '@cleverbrush/schema';
 import { defineApi, endpoint, route } from '@cleverbrush/server/contract';
 import {
     ApiKeySchema,
+    CashFlowForecastJobBodySchema,
+    CashFlowForecastJobResponseSchema,
+    CashFlowForecastProgressEventSchema,
+    CashFlowForecastProgressQuerySchema,
     CashFlowForecastQuerySchema,
     CashFlowForecastResponseSchema,
     CategoryListQuerySchema,
@@ -77,6 +81,7 @@ const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
 const VendorEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
 const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
+const CashFlowForecastJobs = route`/cash-flow-forecast/jobs`;
 const TransactionScanDecision = route({
     scanId: number().coerce(),
     itemId: number().coerce()
@@ -560,7 +565,21 @@ export const api = defineApi({
             .responses({
                 200: CashFlowForecastResponseSchema,
                 401: ErrorResponseSchema
-            })
+            }),
+        cashFlowForecastJob: stats
+            .post(CashFlowForecastJobs)
+            .body(CashFlowForecastJobBodySchema)
+            .clearsCacheTag('stats')
+            .responses({
+                202: CashFlowForecastJobResponseSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        cashFlowForecastProgress: endpoint
+            .subscription('/api/stats/cash-flow-forecast/jobs/progress')
+            .public()
+            .query(CashFlowForecastProgressQuerySchema)
+            .outgoing(CashFlowForecastProgressEventSchema)
     }
 });
 

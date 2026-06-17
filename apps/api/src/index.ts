@@ -6,6 +6,7 @@ import {
 } from '@cleverbrush/log';
 import { otelLogSink, traceEnricher } from '@cleverbrush/otel';
 import knex from 'knex';
+import { startCashFlowForecastScheduler } from './application/cash-flow-forecast-scheduler.js';
 import { startEmailReportScheduler } from './application/email-report-scheduler.js';
 import { config } from './config.js';
 import { runMigrations } from './db/migrate.js';
@@ -43,6 +44,12 @@ async function main() {
         knex: dbResources.knex,
         logger
     });
+    const cashFlowForecastScheduler = startCashFlowForecastScheduler({
+        config,
+        db: dbResources.db,
+        knex: dbResources.knex,
+        logger
+    });
     const server = buildServer(config, logger, dbResources);
     const httpServer = await server.listen(config.api.port, config.api.host);
     logger.info(ApiListening, {
@@ -56,6 +63,7 @@ async function main() {
             await httpServer.close();
         } finally {
             emailReportScheduler.stop();
+            cashFlowForecastScheduler.stop();
             await dbResources.knex.destroy();
             await logger.dispose();
             await otel.shutdown();
