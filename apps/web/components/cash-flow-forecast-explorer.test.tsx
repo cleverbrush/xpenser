@@ -9,12 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CashFlowForecastExplorer } from './cash-flow-forecast-explorer';
 
 const mocks = vi.hoisted(() => ({
-    createXpenserClient: vi.fn(),
     refresh: vi.fn()
-}));
-
-vi.mock('@xpenser/client', () => ({
-    createXpenserClient: mocks.createXpenserClient
 }));
 
 vi.mock('next/navigation', () => ({

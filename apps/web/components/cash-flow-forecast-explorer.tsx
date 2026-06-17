@@ -1,9 +1,7 @@
 'use client';
 
-import { createXpenserClient } from '@xpenser/client';
 import type {
     CashFlowForecastJobResponse,
-    CashFlowForecastProgressEvent,
     CashFlowForecastResponse,
     CashFlowForecastWindow,
     CashFlowRecurringPattern
@@ -55,6 +53,12 @@ type ForecastJobRouteResponse =
           readonly error?: undefined;
           readonly job: CashFlowForecastJobResponse;
       };
+type ForecastRouteResponse =
+    | { readonly error: string; readonly forecast?: undefined }
+    | {
+          readonly error?: undefined;
+          readonly forecast: CashFlowForecastResponse;
+      };
 type RegenerationState = {
     readonly error?: string;
     readonly message: string;
@@ -66,58 +70,65 @@ const incomeColor = '#047857';
 const expenseColor = '#be123c';
 const netColor = 'hsl(var(--accent))';
 
-function browserApiBaseUrl(): string {
-    const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (configured) {
-        return configured.replace(/\/$/, '');
-    }
-    if (
-        window.location.hostname === 'localhost' &&
-        window.location.port === '3000'
-    ) {
-        return 'http://localhost:4000';
-    }
-    return new URL('/external-api', window.location.href)
-        .toString()
-        .replace(/\/$/, '');
+function delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function forecastError(event: CashFlowForecastProgressEvent): string {
-    return event.error ?? 'Forecast generation failed. Try again.';
+function forecastAnchorDate(value: Date | string): string {
+    return value instanceof Date ? value.toISOString() : value;
 }
 
-async function waitForForecastJob(
-    job: CashFlowForecastJobResponse,
-    onProgress: (update: RegenerationState) => void
-): Promise<void> {
-    const client = createXpenserClient({
-        baseUrl: browserApiBaseUrl(),
-        retryOnTimeout: false
+async function fetchStoredForecast(
+    anchorDate: Date | string
+): Promise<CashFlowForecastResponse> {
+    const params = new URLSearchParams({
+        date: forecastAnchorDate(anchorDate)
     });
-    const subscription = client.stats.cashFlowForecastProgress({
-        query: { jobId: job.jobId, token: job.token },
-        reconnect: { maxRetries: 3, backoffLimit: 5_000 }
-    });
+    const response = await fetch(`/api/stats/cash-flow-forecast?${params}`);
+    const result = (await response
+        .json()
+        .catch(() => null)) as ForecastRouteResponse | null;
+    if (!response.ok || !result || result.error || !result.forecast) {
+        throw new Error(result?.error ?? 'Could not load forecast.');
+    }
+    return result.forecast;
+}
 
-    try {
-        for await (const event of subscription) {
-            onProgress({
-                message: event.message,
-                progress: Math.min(100, Math.max(0, event.progress)),
-                running: event.stage !== 'complete' && event.stage !== 'failed'
-            });
-            if (event.stage === 'failed') {
-                throw new Error(forecastError(event));
-            }
-            if (event.stage === 'complete') {
-                return;
-            }
+async function waitForStoredForecast({
+    anchorDate,
+    onProgress,
+    previousGeneratedAt
+}: {
+    readonly anchorDate: Date | string;
+    readonly onProgress: (update: RegenerationState) => void;
+    readonly previousGeneratedAt: Date | string;
+}): Promise<void> {
+    const previousTime = new Date(previousGeneratedAt).getTime();
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < 90_000) {
+        await delay(2_000);
+        const forecast = await fetchStoredForecast(anchorDate);
+        const generatedAt = new Date(forecast.generatedAt).getTime();
+        if (
+            forecast.insightsStatus !== 'pending' &&
+            generatedAt > previousTime
+        ) {
+            return;
         }
-    } finally {
-        subscription.close();
+        onProgress({
+            message:
+                forecast.insightsStatus === 'pending'
+                    ? 'Generating AI forecast insight.'
+                    : 'Waiting for stored forecast.',
+            progress: Math.min(
+                90,
+                Math.round(35 + ((Date.now() - startedAt) / 90_000) * 55)
+            ),
+            running: true
+        });
     }
 
-    throw new Error('Could not connect to forecast progress. Try again.');
+    throw new Error('Forecast generation is still running. Try again shortly.');
 }
 
 function forecastWindow(
@@ -472,14 +483,12 @@ export function CashFlowForecastExplorer({
         });
 
         try {
+            const anchorDate = forecastAnchorDate(forecast.anchorDate);
             const response = await fetch('/api/stats/cash-flow-forecast/jobs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    date:
-                        forecast.anchorDate instanceof Date
-                            ? forecast.anchorDate.toISOString()
-                            : forecast.anchorDate,
+                    date: anchorDate,
                     force: true
                 })
             });
@@ -492,8 +501,17 @@ export function CashFlowForecastExplorer({
                 );
             }
 
-            await waitForForecastJob(result.job, update => {
-                setRegeneration(update);
+            setRegeneration({
+                message: 'Forecast generation queued.',
+                progress: 15,
+                running: true
+            });
+            await waitForStoredForecast({
+                anchorDate,
+                previousGeneratedAt: forecast.generatedAt,
+                onProgress: update => {
+                    setRegeneration(update);
+                }
             });
             setRegeneration({
                 message: 'Forecast ready.',
