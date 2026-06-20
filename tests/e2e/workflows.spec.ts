@@ -748,7 +748,7 @@ test.describe('authenticated app workflows', () => {
         const periodDate =
             expensesUrl.searchParams.get('from') ??
             dateTimeLocalValue().slice(0, 10);
-        const periodOccurredAt = startOfDayDateTime(periodDate);
+        const periodOccurredAt = `${periodDate}T12:00`;
 
         await createTransaction(
             page,
@@ -767,7 +767,7 @@ test.describe('authenticated app workflows', () => {
             periodOccurredAt
         );
 
-        await page.goto('/dashboard');
+        await page.goto(`/dashboard?period=day&date=${periodDate}`);
         await page
             .getByRole('link', {
                 name: 'View expenses transactions for this period'
@@ -789,7 +789,7 @@ test.describe('authenticated app workflows', () => {
             page.getByRole('row').filter({ hasText: incomeCategory })
         ).toHaveCount(0);
 
-        await page.goto('/dashboard');
+        await page.goto(`/dashboard?period=day&date=${periodDate}`);
         await page
             .getByRole('link', {
                 name: 'View income transactions for this period'
