@@ -10,7 +10,7 @@ import {
     string,
     union
 } from '@cleverbrush/schema';
-import { FieldLimits } from './limits.js';
+import { FieldLimits, TransactionTagLimits } from './limits.js';
 
 export const CurrencyCodeSchema = string()
     .required('currency is required')
@@ -116,6 +116,47 @@ function hasAtMostTwoDecimalPlaces(value: number): boolean {
     const nearestCent = Math.round(scaled);
     const tolerance = Number.EPSILON * Math.max(1, Math.abs(scaled)) * 8;
     return Math.abs(scaled - nearestCent) <= tolerance;
+}
+
+function normalizedTransactionTagName(value: string): string {
+    return value.replace(/\s+/g, ' ').trim();
+}
+
+function validateTransactionTagNames(
+    tags: readonly string[] | undefined,
+    property: (field: any) => any
+) {
+    if (!tags) {
+        return { valid: true };
+    }
+
+    const names = tags.map(normalizedTransactionTagName);
+    if (names.some(name => name === '')) {
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'tag name is required',
+                    property
+                }
+            ]
+        };
+    }
+
+    const uniqueNames = new Set(names.map(name => name.toLowerCase()));
+    if (uniqueNames.size > TransactionTagLimits.maxTagsPerTransaction) {
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: `transactions can have at most ${TransactionTagLimits.maxTagsPerTransaction} tags`,
+                    property
+                }
+            ]
+        };
+    }
+
+    return { valid: true };
 }
 
 export const ErrorResponseSchema = object({
@@ -1145,6 +1186,49 @@ export const UpdateVendorBodySchema = object({
     })
     .schemaName('UpdateVendorBody');
 
+export const TransactionTagNameSchema = string()
+    .maxLength(FieldLimits.transactionTagName, 'tag name is too long')
+    .describe('User-entered transaction tag name.');
+
+export const TransactionTagSchema = object({
+    /** Unique transaction tag identifier. */
+    id: number().describe('Unique transaction tag identifier.'),
+    /** User-entered transaction tag name. */
+    name: string().describe('User-entered transaction tag name.'),
+    /** Number of transactions currently using this tag. */
+    transactionCount: number().describe(
+        'Number of transactions currently using this tag.'
+    ),
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last update timestamp. */
+    updatedAt: date().coerce().describe('Last update timestamp.')
+}).schemaName('TransactionTag');
+
+export const TransactionTagListQuerySchema = object({
+    /** Text search applied to transaction tag names. */
+    search: string()
+        .optional()
+        .maxLength(
+            FieldLimits.transactionTagSearch,
+            'transaction tag search query is too long'
+        )
+        .describe('Text search applied to transaction tag names.'),
+    /** Maximum number of tags to return. */
+    limit: number()
+        .coerce()
+        .default(25)
+        .describe('Maximum number of tags to return.')
+}).schemaName('TransactionTagListQuery');
+
+const TransactionTagNamesBodySchema = array(TransactionTagNameSchema)
+    .maxLength(
+        TransactionTagLimits.maxTagsPerTransaction,
+        `transactions can have at most ${TransactionTagLimits.maxTagsPerTransaction} tags`
+    )
+    .optional()
+    .describe('Transaction tag names.');
+
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
     id: number().describe('Unique transaction identifier.'),
@@ -1214,6 +1298,10 @@ export const TransactionSchema = object({
         .describe('Date and time when the transaction happened.'),
     /** Optional note entered by the user. */
     note: string().optional().describe('Optional note entered by the user.'),
+    /** Tags assigned to this transaction. */
+    tags: array(TransactionTagSchema).describe(
+        'Tags assigned to this transaction.'
+    ),
     /** Original scanner image metadata when this transaction came from a scan. */
     scanAttachment: object({
         /** Scan session identifier. */
@@ -1274,7 +1362,9 @@ export const CreateTransactionBodySchema = object({
     note: string()
         .maxLength(FieldLimits.transactionNote, 'note is too long')
         .optional()
-        .describe('Optional note entered by the user.')
+        .describe('Optional note entered by the user.'),
+    /** Optional tag names assigned to this transaction. */
+    tags: TransactionTagNamesBodySchema
 })
     .addValidator(value => {
         if (value.amount === undefined || Number.isNaN(value.amount)) {
@@ -1310,6 +1400,9 @@ export const CreateTransactionBodySchema = object({
             ]
         };
     })
+    .addValidator(value =>
+        validateTransactionTagNames(value.tags, field => field.tags)
+    )
     .schemaName('CreateTransactionBody');
 
 export const UpdateTransactionBodySchema =
@@ -1346,6 +1439,20 @@ export const TransactionListQuerySchema = object({
         .optional()
         .describe(
             'Filter by vendor identifier, or "none" for transactions without a vendor.'
+        ),
+    /** Comma-separated tag identifiers. Matches transactions with every selected tag. */
+    tagIds: string()
+        .optional()
+        .maxLength(
+            FieldLimits.transactionSearch,
+            'transaction tag filters are too long'
+        )
+        .matches(
+            /^\d+(?:,\d+)*$/,
+            'tag filters must be comma-separated tag ids'
+        )
+        .describe(
+            'Comma-separated tag identifiers. Matches transactions with every selected tag.'
         ),
     /** Inclusive start date for transaction occurrence. */
     from: date()
@@ -1602,7 +1709,9 @@ export const TransactionScanCorrectedTransactionSchema = object({
     /** Confirmed transaction date. */
     occurredAt: date().coerce().describe('Confirmed transaction date.'),
     /** Confirmed note. */
-    note: string().nullable().describe('Confirmed note.')
+    note: string().nullable().describe('Confirmed note.'),
+    /** Confirmed tag names. */
+    tags: TransactionTagNamesBodySchema
 }).schemaName('TransactionScanCorrectedTransaction');
 
 export const TransactionScanDecisionBodySchema = object({
@@ -2310,6 +2419,10 @@ export type VendorCandidate = InferType<typeof VendorCandidateSchema>;
 export type CreateVendorBody = InferType<typeof CreateVendorBodySchema>;
 export type UpdateVendorBody = InferType<typeof UpdateVendorBodySchema>;
 export type Transaction = InferType<typeof TransactionSchema>;
+export type TransactionTag = InferType<typeof TransactionTagSchema>;
+export type TransactionTagListQuery = InferType<
+    typeof TransactionTagListQuerySchema
+>;
 export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema
 >;

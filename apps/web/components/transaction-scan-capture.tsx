@@ -12,6 +12,7 @@ import {
     TransactionScanLimits,
     type TransactionScanProgressEvent,
     type TransactionScanResponse,
+    type TransactionTag,
     type Vendor
 } from '@xpenser/contracts';
 import {
@@ -74,6 +75,7 @@ import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { CategoryForm } from './forms/category-form';
 import { QuickCaptureForm } from './quick-capture-form';
+import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
 
 type CaptureMode = 'manual' | 'scan';
@@ -722,6 +724,7 @@ function ScanWizard({
     setCategories,
     setVendors,
     timezone,
+    transactionTags,
     transactionCurrencies,
     vendors
 }: {
@@ -734,6 +737,7 @@ function ScanWizard({
     readonly setCategories: (categories: readonly Category[]) => void;
     readonly setVendors: (vendors: readonly Vendor[]) => void;
     readonly timezone: string;
+    readonly transactionTags: readonly TransactionTag[];
     readonly transactionCurrencies: readonly string[];
     readonly vendors: readonly Vendor[];
 }) {
@@ -781,6 +785,7 @@ function ScanWizard({
         values?.occurredAtText ?? dateToLocalDateTimeInput(new Date(), timezone)
     );
     const [note, setNote] = useState(values?.note ?? '');
+    const [selectedTags, setSelectedTags] = useState<readonly string[]>([]);
     const [selectedType, setSelectedType] = useState<TransactionType>(
         values?.type ?? 'expense'
     );
@@ -810,6 +815,7 @@ function ScanWizard({
         setCurrency(next.currency);
         setOccurredAtText(next.occurredAtText);
         setNote(next.note);
+        setSelectedTags([]);
         setSelectedType(next.type);
         setVendorId(next.vendorId);
         setCreatedCategoryId(null);
@@ -941,6 +947,9 @@ function ScanWizard({
         if (note.trim()) {
             formData.set('note', note.trim());
         }
+        for (const tag of selectedTags) {
+            formData.append('tags', tag);
+        }
 
         setPending(true);
         setError(null);
@@ -961,7 +970,8 @@ function ScanWizard({
                         currency,
                         occurredAt,
                         vendorId: vendorId ?? null,
-                        note: note.trim() || null
+                        note: note.trim() || null,
+                        tags: [...selectedTags]
                     },
                     attachment: shouldSubmitAttachment ? attachment : undefined
                 }
@@ -1209,6 +1219,12 @@ function ScanWizard({
                             />
                         ) : null}
 
+                        <TransactionTagPicker
+                            tags={transactionTags}
+                            selectedTags={selectedTags}
+                            onChange={setSelectedTags}
+                        />
+
                         <Field className="gap-2">
                             <FieldLabel htmlFor="scan-amount">
                                 Amount
@@ -1323,6 +1339,7 @@ export function TransactionCaptureWorkspace({
     currencies,
     defaultCurrency,
     timezone,
+    transactionTags,
     transactionCurrencies,
     vendors
 }: {
@@ -1330,6 +1347,7 @@ export function TransactionCaptureWorkspace({
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
     readonly timezone: string;
+    readonly transactionTags: readonly TransactionTag[];
     readonly transactionCurrencies: readonly string[];
     readonly vendors: readonly Vendor[];
 }) {
@@ -1371,6 +1389,7 @@ export function TransactionCaptureWorkspace({
                     categories={localCategories}
                     currencies={currencies}
                     defaultCurrency={defaultCurrency}
+                    transactionTags={transactionTags}
                     vendors={localVendors}
                     timezone={timezone}
                     transactionCurrencies={transactionCurrencies}
@@ -1386,6 +1405,7 @@ export function TransactionCaptureWorkspace({
                     setCategories={setLocalCategories}
                     setVendors={setLocalVendors}
                     timezone={timezone}
+                    transactionTags={transactionTags}
                     transactionCurrencies={transactionCurrencies}
                     vendors={localVendors}
                 />

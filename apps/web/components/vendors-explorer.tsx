@@ -5,6 +5,7 @@ import type {
     Currency,
     DashboardSummary,
     DashboardWindowResponse,
+    TransactionTag,
     Vendor
 } from '@xpenser/contracts';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
@@ -29,6 +30,7 @@ export function VendorsExplorer({
     initialPeriod,
     initialWindow,
     vendors,
+    transactionTags,
     transactionCurrencies,
     timezone
 }: {
@@ -39,6 +41,7 @@ export function VendorsExplorer({
     readonly initialPeriod: DashboardPeriod;
     readonly initialWindow: DashboardWindowResponse;
     readonly vendors: readonly Vendor[];
+    readonly transactionTags: readonly TransactionTag[];
     readonly transactionCurrencies: readonly string[];
     readonly timezone: string;
 }) {
@@ -74,6 +77,7 @@ export function VendorsExplorer({
                             currencies={currencies}
                             defaultCurrency={defaultCurrency}
                             vendors={vendors}
+                            transactionTags={transactionTags}
                             transactionCurrencies={transactionCurrencies}
                             timezone={timezone}
                         />

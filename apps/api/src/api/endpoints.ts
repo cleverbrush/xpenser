@@ -336,6 +336,14 @@ export const UpdateTransactionEndpoint = api.transactions.update
     .tags('transactions')
     .operationId('updateTransaction');
 
+export const ListTransactionTagsEndpoint = api.transactionTags.list
+    .authorize(PrincipalSchema)
+    .inject({ knex: KnexToken })
+    .summary('List transaction tags')
+    .description('Lists transaction tags owned by the authenticated user.')
+    .tags('transaction-tags')
+    .operationId('listTransactionTags');
+
 export const DeleteTransactionEndpoint = api.transactions.delete
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -489,6 +497,9 @@ export const endpoints = {
         update: UpdateTransactionEndpoint,
         delete: DeleteTransactionEndpoint,
         scanImage: GetTransactionScanImageEndpoint
+    },
+    transactionTags: {
+        list: ListTransactionTagsEndpoint
     },
     transactionScans: {
         create: CreateTransactionScanEndpoint,

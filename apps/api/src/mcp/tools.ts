@@ -1,5 +1,6 @@
 import type { Logger } from '@cleverbrush/log';
 import {
+    array,
     boolean,
     enumOf,
     type InferType,
@@ -31,6 +32,9 @@ import {
     type StatsQuery,
     type Transaction,
     type TransactionListQuery,
+    type TransactionTag,
+    TransactionTagLimits,
+    type TransactionTagListQuery,
     type UpdateVendorBody,
     type UserPreference,
     type Vendor,
@@ -51,6 +55,10 @@ import {
     moveAndDeleteCategory as moveAndDeleteUserCategory,
     updateCategory as updateUserCategory
 } from '../application/categories.js';
+import {
+    listTransactionTags,
+    TransactionTagError
+} from '../application/transaction-tags.js';
 import {
     createTransaction as createUserTransaction,
     dashboardSummary,
@@ -173,6 +181,10 @@ export type XpenserMcpDataAccess = {
         userId: number,
         query: TransactionListQuery
     ) => Promise<TransactionListResult>;
+    readonly listTransactionTags: (
+        userId: number,
+        query: TransactionTagListQuery
+    ) => Promise<TransactionTag[]>;
     readonly createTransaction: (
         userId: number,
         body: CreateTransactionBody
@@ -474,6 +486,9 @@ const TransactionListInputSchema = object({
         .describe(
             'Filter by vendor identifier, or "none" for transactions without a vendor.'
         ),
+    tagIds: array(id('Transaction tag identifier.'))
+        .optional()
+        .describe('Filter to transactions that have every listed tag.'),
     from: dateString
         .optional()
         .describe('Inclusive occurrence start date or timestamp.'),
@@ -486,6 +501,28 @@ const TransactionListInputSchema = object({
         .optional()
         .describe('Sort direction by occurrence date. Defaults to desc.')
 });
+
+const TransactionTagListInputSchema = object({
+    search: optionalText(
+        'Text search applied to tag names.',
+        FieldLimits.transactionTagSearch
+    ),
+    limit: number()
+        .isInteger()
+        .positive()
+        .optional()
+        .describe('Maximum number of tags to return. Defaults to 25.')
+});
+
+const transactionTagNames = array(
+    string()
+        .trim()
+        .maxLength(FieldLimits.transactionTagName)
+        .describe('Transaction tag name.')
+)
+    .maxLength(TransactionTagLimits.maxTagsPerTransaction)
+    .optional()
+    .describe('Tag names to assign to the transaction.');
 
 const CreateTransactionInputSchema = object({
     categoryId: id('Category identifier selected for the transaction.'),
@@ -500,7 +537,8 @@ const CreateTransactionInputSchema = object({
     note: string()
         .maxLength(FieldLimits.transactionNote)
         .optional()
-        .describe('Optional note entered by the user.')
+        .describe('Optional note entered by the user.'),
+    tags: transactionTagNames
 });
 
 const UpdateTransactionInputSchema = object({
@@ -517,7 +555,10 @@ const UpdateTransactionInputSchema = object({
     note: string()
         .maxLength(FieldLimits.transactionNote)
         .optional()
-        .describe('Updated note. Pass an empty string to clear the note.')
+        .describe('Updated note. Pass an empty string to clear the note.'),
+    tags: transactionTagNames.describe(
+        'Updated tag names. Pass an empty list to clear tags.'
+    )
 });
 
 const TransactionIdInputSchema = object({
@@ -579,6 +620,7 @@ type VendorCandidateDetailsInput = InferType<
 type CreateVendorInput = InferType<typeof CreateVendorInputSchema>;
 type UpdateVendorInput = InferType<typeof UpdateVendorInputSchema>;
 type TransactionListInput = InferType<typeof TransactionListInputSchema>;
+type TransactionTagListInput = InferType<typeof TransactionTagListInputSchema>;
 type CreateTransactionInput = InferType<typeof CreateTransactionInputSchema>;
 type UpdateTransactionInput = InferType<typeof UpdateTransactionInputSchema>;
 type TransactionIdInput = InferType<typeof TransactionIdInputSchema>;
@@ -619,6 +661,8 @@ export function createXpenserMcpDataAccess(
             retryVendorEnrichment(db, config, userId, vendorId),
         listTransactions: (userId, query) =>
             listTransactions(db, userId, query, knex),
+        listTransactionTags: (userId, query) =>
+            listTransactionTags(knex, userId, query),
         createTransaction: (userId, body) =>
             createUserTransaction(db, config, userId, body),
         updateTransaction: (userId, transactionId, body) =>
@@ -696,11 +740,24 @@ export function normalizeTransactionListInput(
         categoryId: input.categoryId,
         parentCategoryId: input.parentCategoryId,
         vendorId: input.vendorId,
+        tagIds:
+            input.tagIds && input.tagIds.length > 0
+                ? input.tagIds.join(',')
+                : undefined,
         from: parseOptionalDate(input.from, 'from'),
         to: parseOptionalDate(input.to, 'to'),
         page,
         limit,
         direction: input.direction ?? 'desc'
+    };
+}
+
+export function normalizeTransactionTagListInput(
+    input: TransactionTagListInput
+): TransactionTagListQuery {
+    return {
+        search: nonempty(input.search),
+        limit: Math.min(100, Math.max(1, input.limit ?? 25))
     };
 }
 
@@ -713,7 +770,8 @@ export function normalizeCreateTransactionInput(
         amount: input.amount,
         currency: input.currency,
         occurredAt: parseRequiredDate(input.occurredAt, 'occurredAt'),
-        note: input.note
+        note: input.note,
+        tags: input.tags
     };
 }
 
@@ -726,7 +784,8 @@ export function normalizeUpdateTransactionInput(
         amount: input.amount,
         currency: input.currency,
         occurredAt: parseOptionalDate(input.occurredAt, 'occurredAt'),
-        note: input.note
+        note: input.note,
+        tags: input.tags
     };
 }
 
@@ -853,6 +912,7 @@ function mapExpectedError(err: unknown): never {
         err instanceof LastCategoryError ||
         err instanceof TransactionCategoryError ||
         err instanceof TransactionNotFoundError ||
+        err instanceof TransactionTagError ||
         err instanceof VendorMetadataError ||
         err instanceof VendorNameError ||
         err instanceof VendorNotFoundError
@@ -1101,6 +1161,20 @@ export async function handleListTransactions(
     });
 }
 
+export async function handleListTransactionTags(
+    context: XpenserMcpToolContext,
+    input: TransactionTagListInput
+): Promise<CallToolResult> {
+    const toolName = 'xpenser_list_transaction_tags';
+    logToolCall(context, toolName);
+    return toolResult({
+        tags: await context.data.listTransactionTags(
+            context.principal.userId,
+            normalizeTransactionTagListInput(input)
+        )
+    });
+}
+
 export async function handleCreateTransaction(
     context: XpenserMcpToolContext,
     input: CreateTransactionInput
@@ -1337,6 +1411,19 @@ export function createXpenserMcpTools(
             annotations: readOnlyAnnotations,
             handler: input =>
                 handleListTransactions(context, input as TransactionListInput)
+        },
+        {
+            name: 'xpenser_list_transaction_tags',
+            title: 'List xpenser transaction tags',
+            description:
+                'Return transaction tags owned by the authenticated xpenser user, including usage counts.',
+            inputSchema: TransactionTagListInputSchema,
+            annotations: readOnlyAnnotations,
+            handler: input =>
+                handleListTransactionTags(
+                    context,
+                    input as TransactionTagListInput
+                )
         },
         {
             name: 'xpenser_create_transaction',

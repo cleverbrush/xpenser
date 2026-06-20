@@ -42,6 +42,7 @@ import {
     startTransactionScanJobHandler,
     transactionScanProgressHandler
 } from './transaction-scans.js';
+import { listTransactionTagsHandler } from './transaction-tags.js';
 import {
     categoryTrendHandler,
     createTransactionHandler,
@@ -121,6 +122,9 @@ export const handlers = {
         update: updateTransactionHandler,
         delete: deleteTransactionHandler,
         scanImage: getTransactionScanImageHandler
+    },
+    transactionTags: {
+        list: listTransactionTagsHandler
     },
     transactionScans: {
         create: createTransactionScanHandler,

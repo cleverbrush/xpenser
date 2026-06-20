@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FieldLimits } from './limits.js';
+import { FieldLimits, TransactionTagLimits } from './limits.js';
 import {
     CategoryListQuerySchema,
     CategorySchema,
@@ -678,6 +678,15 @@ describe('shared schemas', () => {
                 exchangeRate: 1,
                 exchangeRateDate: '2026-06-01',
                 occurredAt: new Date('2026-06-01T12:00:00.000Z'),
+                tags: [
+                    {
+                        id: 1,
+                        name: 'wife',
+                        transactionCount: 2,
+                        createdAt: new Date('2026-06-01T12:00:00.000Z'),
+                        updatedAt: new Date('2026-06-01T12:00:00.000Z')
+                    }
+                ],
                 scanAttachment: {
                     scanId: 10,
                     scanItemId: 20,
@@ -820,6 +829,52 @@ describe('shared schemas', () => {
             TransactionListQuerySchema.validate({ vendorId: 42 }).object
                 ?.vendorId
         ).toBe(42);
+    });
+
+    it('validates transaction tag assignments and filters', () => {
+        const body = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 12,
+            currency: 'USD',
+            occurredAt: new Date(),
+            tags: [' wife ', 'wife', 'travel']
+        });
+        expect(body.valid).toBe(true);
+
+        const emptyTag = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 12,
+            currency: 'USD',
+            occurredAt: new Date(),
+            tags: ['   ']
+        });
+        expect(emptyTag.valid).toBe(false);
+        expect(emptyTag.getErrorsFor(field => field.tags).errors).toContain(
+            'tag name is required'
+        );
+
+        const tooManyTags = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 12,
+            currency: 'USD',
+            occurredAt: new Date(),
+            tags: Array.from(
+                { length: TransactionTagLimits.maxTagsPerTransaction + 1 },
+                (_, index) => `tag-${index}`
+            )
+        });
+        expect(tooManyTags.valid).toBe(false);
+        expect(tooManyTags.getErrorsFor(field => field.tags).errors).toContain(
+            `transactions can have at most ${TransactionTagLimits.maxTagsPerTransaction} tags`
+        );
+
+        expect(
+            TransactionListQuerySchema.validate({ tagIds: '1,2,3' }).object
+                ?.tagIds
+        ).toBe('1,2,3');
+        expect(
+            TransactionListQuerySchema.validate({ tagIds: '1,nope' }).valid
+        ).toBe(false);
     });
 
     it('rejects transaction note and search text over the configured limits', () => {

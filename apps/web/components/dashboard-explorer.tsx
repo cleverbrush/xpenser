@@ -5,6 +5,7 @@ import type {
     Currency,
     DashboardSummary,
     DashboardWindowResponse,
+    TransactionTag,
     Vendor
 } from '@xpenser/contracts';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@xpenser/ui';
@@ -698,6 +699,7 @@ export function DashboardExplorer({
     initialDate,
     initialPeriod,
     initialWindow,
+    transactionTags,
     vendors,
     timezone,
     transactionCurrencies
@@ -708,6 +710,7 @@ export function DashboardExplorer({
     readonly initialDate: string;
     readonly initialPeriod: DashboardPeriod;
     readonly initialWindow: DashboardWindowResponse;
+    readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
@@ -744,6 +747,7 @@ export function DashboardExplorer({
                             currencies={currencies}
                             defaultCurrency={defaultCurrency}
                             vendors={vendors}
+                            transactionTags={transactionTags}
                             transactionCurrencies={transactionCurrencies}
                             timezone={timezone}
                         />

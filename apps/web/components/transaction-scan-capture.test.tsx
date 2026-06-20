@@ -99,6 +99,7 @@ function renderWorkspace() {
                 currencies={currencies}
                 defaultCurrency="USD"
                 timezone="UTC"
+                transactionTags={[]}
                 transactionCurrencies={['USD']}
                 vendors={[]}
             />

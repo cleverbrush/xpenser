@@ -9,17 +9,19 @@ import {
 describe('transaction query helpers', () => {
     it('builds a sanitized transaction list query from URL params', () => {
         const query = buildTransactionListQuery(
-            new URLSearchParams({
-                categoryId: '12',
-                direction: 'asc',
-                from: '2026-05-01',
-                limit: '40',
-                page: '3',
-                search: ' coffee ',
-                to: '2026-05-10',
-                type: 'expense',
-                vendorId: 'none'
-            })
+            new URLSearchParams([
+                ['categoryId', '12'],
+                ['direction', 'asc'],
+                ['from', '2026-05-01'],
+                ['limit', '40'],
+                ['page', '3'],
+                ['search', ' coffee '],
+                ['tagId', '2'],
+                ['tagId', '5'],
+                ['to', '2026-05-10'],
+                ['type', 'expense'],
+                ['vendorId', 'none']
+            ])
         );
 
         expect(query).toMatchObject({
@@ -28,6 +30,35 @@ describe('transaction query helpers', () => {
             limit: 40,
             page: 3,
             search: 'coffee',
+            tagIds: '2,5',
+            type: 'expense',
+            vendorId: 'none'
+        });
+        expect(query.from).toEqual(new Date('2026-05-01T00:00:00.000Z'));
+        expect(query.to).toEqual(new Date('2026-05-10T23:59:59.999Z'));
+    });
+
+    it('builds a sanitized transaction list query from plain params', () => {
+        const query = buildTransactionListQuery({
+            categoryId: '12',
+            direction: 'asc',
+            from: '2026-05-01',
+            limit: '40',
+            page: '3',
+            search: ' coffee ',
+            to: '2026-05-10',
+            type: 'expense',
+            vendorId: 'none',
+            tagId: ['2', 'bad', '5']
+        });
+
+        expect(query).toMatchObject({
+            categoryId: 12,
+            direction: 'asc',
+            limit: 40,
+            page: 3,
+            search: 'coffee',
+            tagIds: '2,5',
             type: 'expense',
             vendorId: 'none'
         });
@@ -75,6 +106,9 @@ describe('transaction query helpers', () => {
         expect(
             hasTransactionFilters(new URLSearchParams({ search: 'rent' }))
         ).toBe(true);
+        expect(hasTransactionFilters(new URLSearchParams({ tagId: '2' }))).toBe(
+            true
+        );
         expect(hasTransactionFilters(new URLSearchParams({ page: '2' }))).toBe(
             false
         );

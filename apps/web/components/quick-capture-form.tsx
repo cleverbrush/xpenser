@@ -7,6 +7,7 @@ import {
     type Currency,
     FieldLimits,
     type Transaction,
+    type TransactionTag,
     type Vendor
 } from '@xpenser/contracts';
 import {
@@ -44,6 +45,7 @@ import {
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { valuesToFormData } from './forms/form-utils';
+import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
 
 type TransactionType = Category['type'];
@@ -100,6 +102,7 @@ export function QuickCaptureForm({
     currencies,
     defaultCurrency,
     vendors,
+    transactionTags,
     timezone,
     transactionCurrencies
 }: {
@@ -107,6 +110,7 @@ export function QuickCaptureForm({
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
     readonly vendors: readonly Vendor[];
+    readonly transactionTags: readonly TransactionTag[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
@@ -138,6 +142,7 @@ export function QuickCaptureForm({
     const [currency, setCurrency] = useState(() =>
         firstCurrency(currencyOptions, defaultCurrency)
     );
+    const [selectedTags, setSelectedTags] = useState<readonly string[]>([]);
     const [occurredAtText, setOccurredAtText] = useState(() =>
         dateToLocalDateTimeInput(new Date(), timezone)
     );
@@ -196,6 +201,7 @@ export function QuickCaptureForm({
         const nextOccurredAt = new Date();
         setAmount('');
         setVendorId(null);
+        setSelectedTags([]);
         setOccurredAtText(dateToLocalDateTimeInput(nextOccurredAt, timezone));
         form.reset({
             amount: undefined,
@@ -203,7 +209,8 @@ export function QuickCaptureForm({
             vendorId: null,
             currency,
             occurredAt: nextOccurredAt,
-            note: undefined
+            note: undefined,
+            tags: []
         });
     }
 
@@ -234,7 +241,8 @@ export function QuickCaptureForm({
             categoryId: activeCategoryId,
             vendorId,
             currency,
-            occurredAt
+            occurredAt,
+            tags: [...selectedTags]
         });
 
         const result = await form.submit();
@@ -242,7 +250,10 @@ export function QuickCaptureForm({
             return;
         }
 
-        const formData = valuesToFormData(result.object);
+        const formData = valuesToFormData({
+            ...result.object,
+            tags: selectedTags
+        });
 
         setPending(true);
         setError(null);
@@ -361,6 +372,12 @@ export function QuickCaptureForm({
                                 vendors={vendors}
                                 onChange={handleVendorChange}
                                 selectedVendorId={vendorId}
+                            />
+
+                            <TransactionTagPicker
+                                tags={transactionTags}
+                                selectedTags={selectedTags}
+                                onChange={setSelectedTags}
                             />
 
                             <Field>

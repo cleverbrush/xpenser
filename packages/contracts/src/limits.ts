@@ -23,6 +23,8 @@ export const FieldLimits = {
     telegramUserId: 64,
     telegramUsername: 64,
     timeZone: 64,
+    transactionTagName: 60,
+    transactionTagSearch: 160,
     transactionNote: 2000,
     transactionSearch: 500,
     vendorDescription: 1000,
@@ -31,6 +33,10 @@ export const FieldLimits = {
     vendorName: 160,
     vendorPrimaryColor: 7,
     vendorSearch: 160
+} as const;
+
+export const TransactionTagLimits = {
+    maxTagsPerTransaction: 12
 } as const;
 
 /**

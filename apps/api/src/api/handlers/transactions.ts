@@ -1,4 +1,5 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
+import { TransactionTagError } from '../../application/transaction-tags.js';
 import {
     categoryTrend,
     createTransaction,
@@ -52,6 +53,9 @@ export const createTransactionHandler: Handler<
             `/api/transactions/${transaction.id}`
         );
     } catch (err) {
+        if (err instanceof TransactionTagError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
         if (err instanceof TransactionCategoryError) {
             return ActionResult.badRequest({ message: err.message });
         }
@@ -75,6 +79,9 @@ export const updateTransactionHandler: Handler<
             return ActionResult.notFound({ message: err.message });
         }
         if (err instanceof TransactionCategoryError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        if (err instanceof TransactionTagError) {
             return ActionResult.badRequest({ message: err.message });
         }
         throw err;

@@ -98,8 +98,21 @@ function editableString(formData: FormData, key: string): string | undefined {
     return typeof value === 'string' ? normalizeFormText(value) : undefined;
 }
 
+function transactionTags(formData: FormData): string[] | undefined {
+    const tags = formData
+        .getAll('tags')
+        .filter((value): value is string => typeof value === 'string')
+        .map(normalizeFormText)
+        .filter(Boolean);
+    if (tags.length > 0 || formData.get('tagsTouched') === 'true') {
+        return tags;
+    }
+    return undefined;
+}
+
 function transactionBody(formData: FormData, editableNote = false) {
     const vendorId = optionalString(formData, 'vendorId');
+    const tags = transactionTags(formData);
     return {
         categoryId: Number(requiredString(formData, 'categoryId')),
         vendorId: vendorId ? Number(vendorId) : null,
@@ -108,7 +121,8 @@ function transactionBody(formData: FormData, editableNote = false) {
         occurredAt: new Date(requiredString(formData, 'occurredAt')),
         note: editableNote
             ? editableString(formData, 'note')
-            : optionalString(formData, 'note')
+            : optionalString(formData, 'note'),
+        ...(tags !== undefined ? { tags } : {})
     };
 }
 
@@ -631,6 +645,7 @@ export async function createTransactionAction(formData: FormData) {
     });
     revalidateTag('categories', 'max');
     revalidateTag('vendors', 'max');
+    revalidateTag('transaction-tags', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -651,6 +666,7 @@ export async function createCaptureTransactionAction(
     });
     revalidateTag('categories', 'max');
     revalidateTag('vendors', 'max');
+    revalidateTag('transaction-tags', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -716,6 +732,7 @@ export async function updateTransactionAction(formData: FormData) {
     });
     revalidateTag('categories', 'max');
     revalidateTag('vendors', 'max');
+    revalidateTag('transaction-tags', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');
@@ -735,6 +752,7 @@ export async function deleteTransactionAction(formData: FormData) {
     });
     revalidateTag('categories', 'max');
     revalidateTag('vendors', 'max');
+    revalidateTag('transaction-tags', 'max');
     revalidateTag('transactions', 'max');
     revalidateTag('user-profile', 'max');
     revalidateTag('dashboard', 'max');

@@ -5,6 +5,7 @@ import type {
     Category,
     Currency,
     Transaction,
+    TransactionTag,
     Vendor
 } from '@xpenser/contracts';
 import { CreateTransactionBodySchema, FieldLimits } from '@xpenser/contracts';
@@ -48,11 +49,12 @@ import {
     transactionCategoryOptions
 } from '@/lib/category-display';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
+import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
 
 type TransactionDialogValues = Pick<
     Transaction,
-    'amount' | 'categoryId' | 'currency' | 'vendorId' | 'note' | 'type'
+    'amount' | 'categoryId' | 'currency' | 'vendorId' | 'note' | 'tags' | 'type'
 > & {
     readonly categoryKind?: Transaction['categoryKind'];
     readonly occurredAt: Date | string | number;
@@ -74,6 +76,7 @@ export function TransactionDialog({
     submittingLabel = 'Saving...',
     title,
     transactionId,
+    transactionTags,
     trigger,
     timezone
 }: {
@@ -90,6 +93,7 @@ export function TransactionDialog({
     readonly submittingLabel?: string;
     readonly title: string;
     readonly transactionId?: number;
+    readonly transactionTags: readonly TransactionTag[];
     readonly trigger: ReactNode;
     readonly timezone: string;
 }) {
@@ -108,6 +112,7 @@ export function TransactionDialog({
         number | null | undefined
     >();
     const [selectedCurrency, setSelectedCurrency] = useState(defaultCurrency);
+    const [selectedTags, setSelectedTags] = useState<readonly string[]>([]);
     const [occurredAtText, setOccurredAtText] = useState('');
     const initialCategoryId = initialValues?.categoryId;
     const initialValueType = initialValues?.type;
@@ -211,6 +216,7 @@ export function TransactionDialog({
         setSelectedCategoryId(initialValues?.categoryId);
         setSelectedVendorId(initialValues?.vendorId ?? undefined);
         setSelectedCurrency(initialCurrency);
+        setSelectedTags(initialValues?.tags.map(tag => tag.name) ?? []);
         setOccurredAtText(
             dateToLocalDateTimeInput(initialOccurredAt, timezone)
         );
@@ -220,7 +226,8 @@ export function TransactionDialog({
             vendorId: initialValues?.vendorId ?? null,
             currency: initialCurrency,
             occurredAt: initialOccurredAt,
-            note: initialValues?.note ?? undefined
+            note: initialValues?.note ?? undefined,
+            tags: initialValues?.tags.map(tag => tag.name) ?? []
         });
         setFormVersion(version => version + 1);
     }, [form, initialCurrency, initialType, initialValues, timezone]);
@@ -289,7 +296,8 @@ export function TransactionDialog({
         form.setValue({
             categoryId: activeCategoryId,
             vendorId: selectedVendorId ?? null,
-            currency: selectedCurrency
+            currency: selectedCurrency,
+            tags: [...selectedTags]
         });
 
         const result = await form.submit();
@@ -297,9 +305,13 @@ export function TransactionDialog({
             return;
         }
 
-        const formData = valuesToFormData(result.object);
+        const formData = valuesToFormData({
+            ...result.object,
+            tags: selectedTags
+        });
         if (transactionId !== undefined) {
             formData.append('id', String(transactionId));
+            formData.append('tagsTouched', 'true');
         }
 
         setPending(true);
@@ -383,6 +395,11 @@ export function TransactionDialog({
                             vendors={vendors}
                             onChange={handleVendorChange}
                             selectedVendorId={selectedVendorId}
+                        />
+                        <TransactionTagPicker
+                            tags={transactionTags}
+                            selectedTags={selectedTags}
+                            onChange={setSelectedTags}
                         />
                         <div className="grid gap-4 sm:grid-cols-2">
                             <SchemaField

@@ -44,7 +44,8 @@ async function createTransaction(
     amount: string,
     note: string,
     occurredAt = dateTimeLocalValue(),
-    vendor?: string
+    vendor?: string,
+    tags: readonly string[] = []
 ): Promise<void> {
     await page.goto('/dashboard');
     await page
@@ -74,6 +75,13 @@ async function createTransaction(
         await expect(addDialog.getByText(vendor)).toBeVisible({
             timeout: 15_000
         });
+    }
+    for (const tag of tags) {
+        await addDialog.getByLabel('Tags').fill(tag);
+        await addDialog.getByRole('button', { name: `Add ${tag}` }).click();
+        await expect(
+            addDialog.getByRole('button', { name: `Remove tag ${tag}` })
+        ).toBeVisible();
     }
     await addDialog.getByRole('button', { name: 'Save' }).click();
     await expect(addDialog).toBeHidden({ timeout: 15_000 });
@@ -303,6 +311,50 @@ test.describe('authenticated app workflows', () => {
         await deleteDialog.getByRole('button', { name: 'Delete' }).click();
         await expect(deleteDialog).toBeHidden({ timeout: 15_000 });
         await expect(row).toHaveCount(0, { timeout: 15_000 });
+    });
+
+    test('filters transactions by tags', async ({ page }) => {
+        const expenseCategory = uniqueName('E2E tagged expense');
+        const meTag = uniqueName('E2E me tag');
+        const wifeTag = uniqueName('E2E wife tag');
+
+        await createCategory(page, expenseCategory, 'expense');
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '10.00',
+            uniqueName('E2E tagged me note'),
+            dateTimeLocalValue(),
+            undefined,
+            [meTag]
+        );
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '20.00',
+            uniqueName('E2E tagged wife note'),
+            dateTimeLocalValue(),
+            undefined,
+            [wifeTag]
+        );
+
+        await page.goto('/transactions');
+        await page.getByRole('button', { name: /Filters/ }).click();
+        await expect(page.getByLabel(meTag)).toBeVisible({
+            timeout: 15_000
+        });
+        await page.getByLabel(meTag).check();
+        await page.getByRole('button', { name: 'Apply' }).click();
+
+        await expect(page).toHaveURL(/\/transactions\?.*tagId=/);
+        await expect(
+            page.getByRole('row').filter({ hasText: meTag })
+        ).toHaveCount(1, { timeout: 15_000 });
+        await expect(
+            page.getByRole('row').filter({ hasText: wifeTag })
+        ).toHaveCount(0);
     });
 
     test('creates subcategories and hides archived trees from transaction creation', async ({
