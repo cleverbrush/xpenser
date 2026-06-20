@@ -44,7 +44,9 @@ export function AppNav() {
                             <Link href="/transactions">Transactions</Link>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <Link href="/stats">Reports</Link>
+                            <PeriodStateLink href="/stats">
+                                Reports
+                            </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
                             <Link href="/settings/preferences">
