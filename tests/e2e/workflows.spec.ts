@@ -78,7 +78,7 @@ async function createTransaction(
     }
     for (const tag of tags) {
         await addDialog.getByLabel('Tags').fill(tag);
-        await addDialog.getByRole('button', { name: `Add ${tag}` }).click();
+        await addDialog.getByLabel('Tags').press('Enter');
         await expect(
             addDialog.getByRole('button', { name: `Remove tag ${tag}` })
         ).toBeVisible();
@@ -364,6 +364,9 @@ test.describe('authenticated app workflows', () => {
         const meNote = uniqueName('E2E report me note');
         const sharedNote = uniqueName('E2E report shared note');
         const untaggedNote = uniqueName('E2E report untagged note');
+        const meVendor = uniqueName('E2E report me vendor');
+        const sharedVendor = uniqueName('E2E report shared vendor');
+        const untaggedVendor = uniqueName('E2E report untagged vendor');
         const reportDate = dateTimeLocalValue().slice(0, 10);
         const occurredAt = startOfDayDateTime(reportDate);
 
@@ -375,7 +378,7 @@ test.describe('authenticated app workflows', () => {
             '10.00',
             meNote,
             occurredAt,
-            undefined,
+            meVendor,
             [meTag]
         );
         await createTransaction(
@@ -385,7 +388,7 @@ test.describe('authenticated app workflows', () => {
             '20.00',
             sharedNote,
             occurredAt,
-            undefined,
+            sharedVendor,
             [meTag, wifeTag]
         );
         await createTransaction(
@@ -394,7 +397,8 @@ test.describe('authenticated app workflows', () => {
             'expense',
             '5.00',
             untaggedNote,
-            occurredAt
+            occurredAt,
+            untaggedVendor
         );
 
         await page.goto(`/stats?period=day&date=${reportDate}&view=tags`);
@@ -441,9 +445,15 @@ test.describe('authenticated app workflows', () => {
                 Boolean(url.searchParams.get('tagId'))
             );
         });
-        await expect(page.getByText(meNote)).toBeVisible({ timeout: 15_000 });
-        await expect(page.getByText(sharedNote)).toBeVisible();
-        await expect(page.getByText(untaggedNote)).toHaveCount(0);
+        await expect(
+            page.getByRole('row').filter({ hasText: meVendor })
+        ).toHaveCount(1, { timeout: 15_000 });
+        await expect(
+            page.getByRole('row').filter({ hasText: sharedVendor })
+        ).toHaveCount(1);
+        await expect(
+            page.getByRole('row').filter({ hasText: untaggedVendor })
+        ).toHaveCount(0);
     });
 
     test('creates subcategories and hides archived trees from transaction creation', async ({
@@ -832,7 +842,9 @@ test.describe('authenticated app workflows', () => {
             occurredAt
         );
 
-        await page.goto(`/stats?period=day&date=${occurredAt.slice(0, 10)}`);
+        await page.goto(
+            `/stats?period=day&date=${occurredAt.slice(0, 10)}&view=categories`
+        );
         await page
             .getByRole('link', { name: new RegExp(expenseCategory) })
             .click();
