@@ -406,16 +406,16 @@ test.describe('authenticated app workflows', () => {
             'true'
         );
         await expect(
-            page.getByRole('button', { name: new RegExp(meTag) })
+            page.getByRole('link', { name: new RegExp(meTag) })
         ).toBeVisible({ timeout: 15_000 });
         await expect(
-            page.getByRole('button', { name: new RegExp(wifeTag) })
+            page.getByRole('link', { name: new RegExp(wifeTag) })
         ).toBeVisible();
         await expect(
-            page.getByRole('button', { name: /Untagged/ })
+            page.getByRole('link', { name: /Untagged/ })
         ).toBeVisible();
 
-        await page.getByRole('button', { name: new RegExp(meTag) }).click();
+        await page.getByRole('link', { name: new RegExp(meTag) }).click();
         await expect(page).toHaveURL(url => {
             return (
                 url.pathname === '/stats' &&

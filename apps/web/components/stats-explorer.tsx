@@ -811,12 +811,12 @@ function CategoryTrendPanel({
 }
 
 function TagDistributionPanel({
-    onSelectTag,
+    date,
     report,
     selectedTag,
     timezone
 }: {
-    readonly onSelectTag: (tag: ReportTagSelection) => void;
+    readonly date: string;
     readonly report: StatsTagReport;
     readonly selectedTag: ReportTagSelection;
     readonly timezone: string;
@@ -862,13 +862,17 @@ function TagDistributionPanel({
                                 className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
                                 key={`${tag.kind}:${tag.tagId ?? 'none'}`}
                             >
-                                <button
-                                    aria-pressed={selected}
+                                <Link
+                                    aria-current={selected ? 'page' : undefined}
                                     className="min-w-0 text-left"
-                                    onClick={() => {
-                                        onSelectTag(tagSelection);
-                                    }}
-                                    type="button"
+                                    href={reportHref({
+                                        date,
+                                        period: report.period,
+                                        tag: tagSelection,
+                                        timezone,
+                                        view: 'tags'
+                                    })}
+                                    prefetch={false}
                                 >
                                     <div className="mb-1 flex min-w-0 items-center gap-2">
                                         <span className="truncate font-medium">
@@ -898,7 +902,7 @@ function TagDistributionPanel({
                                             ? 'transaction'
                                             : 'transactions'}
                                     </div>
-                                </button>
+                                </Link>
                                 <div className="flex items-center justify-between gap-4 sm:justify-end">
                                     <Link
                                         className={`font-semibold ${amountClassNameForCategoryTotal(
@@ -1145,13 +1149,13 @@ function TagDetailPanel({
 }
 
 function StatsTagReportPanel({
-    onSelectTag,
+    date,
     report,
     selectedTag,
     status,
     timezone
 }: {
-    readonly onSelectTag: (tag: ReportTagSelection) => void;
+    readonly date: string;
     readonly report: StatsTagReport | null;
     readonly selectedTag: ReportTagSelection;
     readonly status: TagReportStatus;
@@ -1180,7 +1184,7 @@ function StatsTagReportPanel({
     return (
         <div className="grid gap-4 xl:grid-cols-[minmax(20rem,0.8fr)_minmax(0,1.2fr)]">
             <TagDistributionPanel
-                onSelectTag={onSelectTag}
+                date={date}
                 report={report}
                 selectedTag={selectedTag}
                 timezone={timezone}
@@ -1556,13 +1560,6 @@ export function StatsExplorer({
         [commitSelection, currentDate, selection.period, selection.tag]
     );
 
-    const selectTag = useCallback(
-        (tag: ReportTagSelection) => {
-            commitSelection(selection.period, currentDate, true, 'tags', tag);
-        },
-        [commitSelection, currentDate, selection.period]
-    );
-
     const panelForDate = useCallback(
         (date: string) => {
             const item = itemForSelection(
@@ -1662,7 +1659,7 @@ export function StatsExplorer({
 
             {selection.view === 'tags' ? (
                 <StatsTagReportPanel
-                    onSelectTag={selectTag}
+                    date={currentDate}
                     report={tagReport}
                     selectedTag={selection.tag}
                     status={tagReportStatus}
