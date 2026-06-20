@@ -55,8 +55,18 @@ describe('TransactionDialog', () => {
                         vendorId: null,
                         note: 'Original',
                         occurredAt: new Date('2026-05-10T12:30:00.000Z'),
+                        tags: [
+                            {
+                                id: 1,
+                                name: 'wife',
+                                transactionCount: 1,
+                                createdAt: new Date('2026-05-01T00:00:00.000Z'),
+                                updatedAt: new Date('2026-05-01T00:00:00.000Z')
+                            }
+                        ],
                         type: 'expense'
                     }}
+                    transactionTags={[]}
                     vendors={[]}
                     submitLabel="Save changes"
                     title="Edit transaction"
@@ -85,6 +95,8 @@ describe('TransactionDialog', () => {
         expect(formData?.get('amount')).toBe('23.45');
         expect(formData?.get('currency')).toBe('USD');
         expect(formData?.get('note')).toBe('Updated note\nItem line');
+        expect(formData?.getAll('tags')).toEqual(['wife']);
+        expect(formData?.get('tagsTouched')).toBe('true');
         expect(refresh).toHaveBeenCalledOnce();
     });
 });

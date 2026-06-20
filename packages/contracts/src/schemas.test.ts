@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FieldLimits } from './limits.js';
+import { FieldLimits, TransactionTagLimits } from './limits.js';
 import {
     CategoryListQuerySchema,
     CategorySchema,
@@ -25,6 +25,8 @@ import {
     ResendEmailConfirmationBodySchema,
     SessionTokenBodySchema,
     StatsQuerySchema,
+    StatsTagReportQuerySchema,
+    StatsTagReportSchema,
     TimeZoneSchema,
     TokenResponseSchema,
     TransactionListQuerySchema,
@@ -678,6 +680,15 @@ describe('shared schemas', () => {
                 exchangeRate: 1,
                 exchangeRateDate: '2026-06-01',
                 occurredAt: new Date('2026-06-01T12:00:00.000Z'),
+                tags: [
+                    {
+                        id: 1,
+                        name: 'wife',
+                        transactionCount: 2,
+                        createdAt: new Date('2026-06-01T12:00:00.000Z'),
+                        updatedAt: new Date('2026-06-01T12:00:00.000Z')
+                    }
+                ],
                 scanAttachment: {
                     scanId: 10,
                     scanItemId: 20,
@@ -726,6 +737,50 @@ describe('shared schemas', () => {
                 timeframe: 'this-month'
             } as never).valid
         ).toBe(false);
+        expect(
+            StatsTagReportQuerySchema.validate({
+                period: 'month',
+                tag: 'untagged'
+            }).object?.tag
+        ).toBe('untagged');
+        expect(
+            StatsTagReportQuerySchema.validate({
+                period: 'month',
+                tag: '12'
+            } as never).object?.tag
+        ).toBe(12);
+        expect(
+            StatsTagReportSchema.validate({
+                period: 'month',
+                from: new Date('2026-05-01T00:00:00.000Z'),
+                to: new Date('2026-05-31T23:59:59.999Z'),
+                currency: 'USD',
+                expenseTotal: 35,
+                expenseCount: 3,
+                untaggedCount: 1,
+                tags: [
+                    {
+                        tagId: 10,
+                        tagName: 'me',
+                        kind: 'tag',
+                        total: 30,
+                        share: 85.7,
+                        transactionCount: 2,
+                        averageExpense: 15
+                    },
+                    {
+                        tagId: null,
+                        tagName: 'Untagged',
+                        kind: 'untagged',
+                        total: 5,
+                        share: 14.3,
+                        transactionCount: 1,
+                        averageExpense: 5
+                    }
+                ],
+                selectedTag: null
+            }).valid
+        ).toBe(true);
     });
 
     it('validates dashboard vendor window limits separately from generic period windows', () => {
@@ -820,6 +875,56 @@ describe('shared schemas', () => {
             TransactionListQuerySchema.validate({ vendorId: 42 }).object
                 ?.vendorId
         ).toBe(42);
+    });
+
+    it('validates transaction tag assignments and filters', () => {
+        const body = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 12,
+            currency: 'USD',
+            occurredAt: new Date(),
+            tags: [' wife ', 'wife', 'travel']
+        });
+        expect(body.valid).toBe(true);
+
+        const emptyTag = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 12,
+            currency: 'USD',
+            occurredAt: new Date(),
+            tags: ['   ']
+        });
+        expect(emptyTag.valid).toBe(false);
+        expect(emptyTag.getErrorsFor(field => field.tags).errors).toContain(
+            'tag name is required'
+        );
+
+        const tooManyTags = CreateTransactionBodySchema.validate({
+            categoryId: 1,
+            amount: 12,
+            currency: 'USD',
+            occurredAt: new Date(),
+            tags: Array.from(
+                { length: TransactionTagLimits.maxTagsPerTransaction + 1 },
+                (_, index) => `tag-${index}`
+            )
+        });
+        expect(tooManyTags.valid).toBe(false);
+        expect(tooManyTags.getErrorsFor(field => field.tags).errors).toContain(
+            `transactions can have at most ${TransactionTagLimits.maxTagsPerTransaction} tags`
+        );
+
+        expect(
+            TransactionListQuerySchema.validate({ tagIds: '1,2,3' }).object
+                ?.tagIds
+        ).toBe('1,2,3');
+        expect(
+            TransactionListQuerySchema.validate({ tagIds: '1,nope' }).valid
+        ).toBe(false);
+        expect(
+            TransactionListQuerySchema.validate({ untagged: 'true' } as never)
+                .object?.untagged
+        ).toBe(true);
     });
 
     it('rejects transaction note and search text over the configured limits', () => {

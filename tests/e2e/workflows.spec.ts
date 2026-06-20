@@ -44,7 +44,8 @@ async function createTransaction(
     amount: string,
     note: string,
     occurredAt = dateTimeLocalValue(),
-    vendor?: string
+    vendor?: string,
+    tags: readonly string[] = []
 ): Promise<void> {
     await page.goto('/dashboard');
     await page
@@ -74,6 +75,13 @@ async function createTransaction(
         await expect(addDialog.getByText(vendor)).toBeVisible({
             timeout: 15_000
         });
+    }
+    for (const tag of tags) {
+        await addDialog.getByLabel('Tags').fill(tag);
+        await addDialog.getByLabel('Tags').press('Enter');
+        await expect(
+            addDialog.getByRole('button', { name: `Remove tag ${tag}` })
+        ).toBeVisible();
     }
     await addDialog.getByRole('button', { name: 'Save' }).click();
     await expect(addDialog).toBeHidden({ timeout: 15_000 });
@@ -303,6 +311,149 @@ test.describe('authenticated app workflows', () => {
         await deleteDialog.getByRole('button', { name: 'Delete' }).click();
         await expect(deleteDialog).toBeHidden({ timeout: 15_000 });
         await expect(row).toHaveCount(0, { timeout: 15_000 });
+    });
+
+    test('filters transactions by tags', async ({ page }) => {
+        const expenseCategory = uniqueName('E2E tagged expense');
+        const meTag = uniqueName('E2E me tag');
+        const wifeTag = uniqueName('E2E wife tag');
+
+        await createCategory(page, expenseCategory, 'expense');
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '10.00',
+            uniqueName('E2E tagged me note'),
+            dateTimeLocalValue(),
+            undefined,
+            [meTag]
+        );
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '20.00',
+            uniqueName('E2E tagged wife note'),
+            dateTimeLocalValue(),
+            undefined,
+            [wifeTag]
+        );
+
+        await page.goto('/transactions');
+        await page.getByRole('button', { name: /Filters/ }).click();
+        await expect(page.getByLabel(meTag)).toBeVisible({
+            timeout: 15_000
+        });
+        await page.getByLabel(meTag).check();
+        await page.getByRole('button', { name: 'Apply' }).click();
+
+        await expect(page).toHaveURL(/\/transactions\?.*tagId=/);
+        await expect(
+            page.getByRole('row').filter({ hasText: meTag })
+        ).toHaveCount(1, { timeout: 15_000 });
+        await expect(
+            page.getByRole('row').filter({ hasText: wifeTag })
+        ).toHaveCount(0);
+    });
+
+    test('reports expense distribution by tags', async ({ page }) => {
+        const expenseCategory = uniqueName('E2E report tag expense');
+        const meTag = uniqueName('E2E report me tag');
+        const wifeTag = uniqueName('E2E report wife tag');
+        const meNote = uniqueName('E2E report me note');
+        const sharedNote = uniqueName('E2E report shared note');
+        const untaggedNote = uniqueName('E2E report untagged note');
+        const meVendor = uniqueName('E2E report me vendor');
+        const sharedVendor = uniqueName('E2E report shared vendor');
+        const untaggedVendor = uniqueName('E2E report untagged vendor');
+        const reportDate = dateTimeLocalValue().slice(0, 10);
+        const occurredAt = startOfDayDateTime(reportDate);
+
+        await createCategory(page, expenseCategory, 'expense');
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '10.00',
+            meNote,
+            occurredAt,
+            meVendor,
+            [meTag]
+        );
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '20.00',
+            sharedNote,
+            occurredAt,
+            sharedVendor,
+            [meTag, wifeTag]
+        );
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '5.00',
+            untaggedNote,
+            occurredAt,
+            untaggedVendor
+        );
+
+        await page.goto(`/stats?period=day&date=${reportDate}&view=tags`);
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Reports' })
+        ).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Tags' })).toHaveAttribute(
+            'aria-selected',
+            'true'
+        );
+        await expect(
+            page.getByRole('link', { name: new RegExp(meTag) })
+        ).toBeVisible({ timeout: 15_000 });
+        await expect(
+            page.getByRole('link', { name: new RegExp(wifeTag) })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('link', { name: /Untagged/ })
+        ).toBeVisible();
+
+        await page.getByRole('link', { name: new RegExp(meTag) }).click();
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/stats' &&
+                url.searchParams.get('view') === 'tags' &&
+                Boolean(url.searchParams.get('tag'))
+            );
+        });
+        await expect(
+            page.getByRole('heading', { level: 3, name: meTag })
+        ).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByText(expenseCategory).first()).toBeVisible();
+
+        const tagTransactionsHref =
+            (await page
+                .getByRole('link', { name: /-\$30\.00/ })
+                .last()
+                .getAttribute('href')) ?? '/transactions';
+        await page.goto(tagTransactionsHref);
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/transactions' &&
+                url.searchParams.get('type') === 'expense' &&
+                Boolean(url.searchParams.get('tagId'))
+            );
+        });
+        await expect(
+            page.getByRole('row').filter({ hasText: meVendor })
+        ).toHaveCount(1, { timeout: 15_000 });
+        await expect(
+            page.getByRole('row').filter({ hasText: sharedVendor })
+        ).toHaveCount(1);
+        await expect(
+            page.getByRole('row').filter({ hasText: untaggedVendor })
+        ).toHaveCount(0);
     });
 
     test('creates subcategories and hides archived trees from transaction creation', async ({
@@ -597,7 +748,7 @@ test.describe('authenticated app workflows', () => {
         const periodDate =
             expensesUrl.searchParams.get('from') ??
             dateTimeLocalValue().slice(0, 10);
-        const periodOccurredAt = startOfDayDateTime(periodDate);
+        const periodOccurredAt = `${periodDate}T12:00`;
 
         await createTransaction(
             page,
@@ -616,7 +767,7 @@ test.describe('authenticated app workflows', () => {
             periodOccurredAt
         );
 
-        await page.goto('/dashboard');
+        await page.goto(`/dashboard?period=day&date=${periodDate}`);
         await page
             .getByRole('link', {
                 name: 'View expenses transactions for this period'
@@ -638,7 +789,7 @@ test.describe('authenticated app workflows', () => {
             page.getByRole('row').filter({ hasText: incomeCategory })
         ).toHaveCount(0);
 
-        await page.goto('/dashboard');
+        await page.goto(`/dashboard?period=day&date=${periodDate}`);
         await page
             .getByRole('link', {
                 name: 'View income transactions for this period'
@@ -691,7 +842,9 @@ test.describe('authenticated app workflows', () => {
             occurredAt
         );
 
-        await page.goto(`/stats?period=day&date=${occurredAt.slice(0, 10)}`);
+        await page.goto(
+            `/stats?period=day&date=${occurredAt.slice(0, 10)}&view=categories`
+        );
         await page
             .getByRole('link', { name: new RegExp(expenseCategory) })
             .click();

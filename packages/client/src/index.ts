@@ -72,6 +72,7 @@ export function createXpenserClient(options: XpenserClientOptions) {
                     currencies: 24 * 60 * 60 * 1_000,
                     dashboard: 60_000,
                     vendors: 30_000,
+                    'transaction-tags': 30_000,
                     transactions: 30_000,
                     categories: 30_000,
                     'user-profile': 30_000

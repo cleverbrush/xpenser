@@ -83,6 +83,7 @@ function savedTransaction(): Transaction {
         exchangeRate: 1,
         exchangeRateDate: '2026-05-10',
         occurredAt: timestamp,
+        tags: [],
         createdAt: timestamp,
         updatedAt: timestamp
     };
@@ -117,6 +118,7 @@ function renderQuickCaptureForm({
                 currencies={currencies}
                 defaultCurrency="USD"
                 vendors={vendors}
+                transactionTags={[]}
                 timezone="UTC"
                 transactionCurrencies={transactionCurrencies}
             />

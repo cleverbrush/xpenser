@@ -18,21 +18,23 @@ export default async function TransactionsPage({
     const params = await searchParams;
     const client = await getApiClient();
     const me = await client.auth.me();
-    const [categories, currencies, vendors, transactions] = await Promise.all([
-        client.categories.list({ query: {} }),
-        client.currencies.list(),
-        client.vendors.list({ query: { limit: 100 } }),
-        client.transactions.list({
-            query: buildTransactionListQuery(
-                params,
-                {
-                    limit: transactionPageSize,
-                    page: 1
-                },
-                me.timezone
-            )
-        })
-    ]);
+    const [categories, currencies, vendors, transactionTags, transactions] =
+        await Promise.all([
+            client.categories.list({ query: {} }),
+            client.currencies.list(),
+            client.vendors.list({ query: { limit: 100 } }),
+            client.transactionTags.list({ query: { limit: 100 } }),
+            client.transactions.list({
+                query: buildTransactionListQuery(
+                    params,
+                    {
+                        limit: transactionPageSize,
+                        page: 1
+                    },
+                    me.timezone
+                )
+            })
+        ]);
     const hasFilters = hasTransactionFilters(params);
 
     return (
@@ -49,6 +51,7 @@ export default async function TransactionsPage({
                 defaultCurrency={me.defaultCurrency}
                 hasInitialFilters={hasFilters}
                 vendors={vendors}
+                transactionTags={transactionTags}
                 initialResponse={{
                     ...transactions,
                     hasMore: transactionHasMore(transactions)

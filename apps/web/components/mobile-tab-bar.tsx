@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PeriodStateLink } from './period-state-link';
+import { isPeriodStatePath, PeriodStateLink } from './period-state-link';
 
 const items = [
     {
@@ -53,10 +53,9 @@ export function MobileTabBar() {
                 {items.map(item => {
                     const active = isActive(pathname, item.href);
                     const Icon = item.icon;
-                    const LinkComponent =
-                        item.href === '/dashboard' || item.href === '/vendors'
-                            ? PeriodStateLink
-                            : Link;
+                    const LinkComponent = isPeriodStatePath(item.href)
+                        ? PeriodStateLink
+                        : Link;
                     return (
                         <LinkComponent
                             aria-current={active ? 'page' : undefined}

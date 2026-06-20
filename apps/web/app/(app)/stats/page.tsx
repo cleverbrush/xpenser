@@ -1,4 +1,4 @@
-import type { StatsWindowResponse } from '@xpenser/contracts';
+import type { StatsTagReport, StatsWindowResponse } from '@xpenser/contracts';
 import { StatsExplorer } from '@/components/stats-explorer';
 import { getApiClient } from '@/lib/api';
 import {
@@ -10,7 +10,12 @@ import {
 type StatsSearchParams = {
     readonly date?: string;
     readonly period?: string;
+    readonly tag?: string;
+    readonly view?: string;
 };
+
+type ReportView = 'categories' | 'overview' | 'tags';
+type ReportTagSelection = number | 'untagged' | undefined;
 
 function initialStatsDate(
     window: StatsWindowResponse,
@@ -26,6 +31,18 @@ function initialStatsDate(
     );
 }
 
+function reportView(value?: string): ReportView {
+    return value === 'categories' || value === 'tags' ? value : 'overview';
+}
+
+function reportTag(value?: string): ReportTagSelection {
+    if (value === 'untagged') {
+        return 'untagged';
+    }
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 export const dynamic = 'force-dynamic';
 
 export default async function StatsPage({
@@ -39,6 +56,8 @@ export default async function StatsPage({
     const me = await client.auth.me();
     const selectedDate = parseDateParam(params.date, me.timezone);
     const anchorDate = selectedDate ?? new Date();
+    const initialView = reportView(params.view);
+    const initialTag = reportTag(params.tag);
     const window = await client.stats.window({
         query: {
             after: 2,
@@ -47,11 +66,24 @@ export default async function StatsPage({
             ...(selectedDate ? { date: selectedDate } : {})
         }
     });
+    const initialTagReport: StatsTagReport | null =
+        initialView === 'tags'
+            ? await client.stats.tags({
+                  query: {
+                      period,
+                      ...(selectedDate ? { date: selectedDate } : {}),
+                      ...(initialTag ? { tag: initialTag } : {})
+                  }
+              })
+            : null;
 
     return (
         <StatsExplorer
             initialDate={initialStatsDate(window, anchorDate, me.timezone)}
             initialPeriod={period}
+            initialTag={initialTag}
+            initialTagReport={initialTagReport}
+            initialView={initialView}
             initialWindow={window}
             timezone={me.timezone}
         />

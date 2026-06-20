@@ -5,6 +5,7 @@ import type {
     StatsOverview,
     Transaction,
     TransactionListQuery,
+    TransactionTag,
     Vendor,
     VendorCandidate
 } from '@xpenser/contracts';
@@ -24,12 +25,14 @@ import {
     handleGetVendorCandidateDetails,
     handleListCategories,
     handleListTransactions,
+    handleListTransactionTags,
     handleMoveAndDeleteCategory,
     handleSearchVendorCandidates,
     handleUpdateTransaction,
     handleUpdateVendor,
     normalizeCreateTransactionInput,
     normalizeTransactionListInput,
+    normalizeTransactionTagListInput,
     serializeMcpData,
     type XpenserMcpDataAccess,
     type XpenserMcpToolContext
@@ -102,9 +105,23 @@ function transaction(overrides: Partial<Transaction> = {}): Transaction {
         exchangeRateDate: '2026-05-14',
         occurredAt: new Date('2026-05-14T00:00:00.000Z'),
         note: 'Lunch',
+        tags: [],
         scanAttachment: null,
         createdAt: new Date('2026-05-14T01:00:00.000Z'),
         updatedAt: new Date('2026-05-14T01:00:00.000Z'),
+        ...overrides
+    };
+}
+
+function transactionTag(
+    overrides: Partial<TransactionTag> = {}
+): TransactionTag {
+    return {
+        id: 9,
+        name: 'wife',
+        transactionCount: 2,
+        createdAt: new Date('2026-05-06T00:00:00.000Z'),
+        updatedAt: new Date('2026-05-07T00:00:00.000Z'),
         ...overrides
     };
 }
@@ -262,6 +279,7 @@ describe('MCP tool helpers', () => {
                     limit: query.limit ?? 50
                 })
             ),
+            listTransactionTags: vi.fn(async () => [transactionTag()]),
             createTransaction: vi.fn(async (_userId, body) =>
                 transaction({
                     id: 101,
@@ -270,7 +288,10 @@ describe('MCP tool helpers', () => {
                     amount: body.amount,
                     currency: body.currency,
                     occurredAt: body.occurredAt,
-                    note: body.note
+                    note: body.note,
+                    tags: (body.tags ?? []).map((name: string, index: number) =>
+                        transactionTag({ id: index + 1, name })
+                    )
                 })
             ),
             updateTransaction: vi.fn(async (_userId, id, body) =>
@@ -282,7 +303,10 @@ describe('MCP tool helpers', () => {
                     currency: body.currency ?? 'USD',
                     occurredAt:
                         body.occurredAt ?? new Date('2026-05-14T00:00:00.000Z'),
-                    note: body.note
+                    note: body.note,
+                    tags: (body.tags ?? []).map((name: string, index: number) =>
+                        transactionTag({ id: index + 1, name })
+                    )
                 })
             ),
             deleteTransaction: vi.fn(async () => undefined),
@@ -314,6 +338,7 @@ describe('MCP tool helpers', () => {
             'xpenser_update_vendor',
             'xpenser_enrich_vendor',
             'xpenser_list_transactions',
+            'xpenser_list_transaction_tags',
             'xpenser_create_transaction',
             'xpenser_update_transaction',
             'xpenser_delete_transaction',
@@ -343,17 +368,31 @@ describe('MCP tool helpers', () => {
             search: '  food  ',
             from: '2026-05-01T00:00:00.000Z',
             vendorId: 12,
+            tagIds: [2, 5],
             limit: 250
         });
 
         expect(query).toMatchObject({
             search: 'food',
             vendorId: 12,
+            tagIds: '2,5',
             page: 1,
             limit: 100,
             direction: 'desc'
         } satisfies Partial<TransactionListQuery>);
         expect(query.from).toEqual(new Date('2026-05-01T00:00:00.000Z'));
+    });
+
+    it('normalizes transaction tag list filters', () => {
+        expect(
+            normalizeTransactionTagListInput({
+                search: '  wife  ',
+                limit: 500
+            })
+        ).toEqual({
+            search: 'wife',
+            limit: 100
+        });
     });
 
     it('normalizes transaction creation dates', () => {
@@ -478,6 +517,7 @@ describe('MCP tool helpers', () => {
     it('delegates transaction reads with capped query params', async () => {
         const result = await handleListTransactions(context, {
             from: '2026-05-14T00:00:00.000Z',
+            tagIds: [2, 5],
             limit: 1000
         });
 
@@ -485,6 +525,7 @@ describe('MCP tool helpers', () => {
             7,
             expect.objectContaining({
                 from: new Date('2026-05-14T00:00:00.000Z'),
+                tagIds: '2,5',
                 page: 1,
                 limit: 100,
                 direction: 'desc'
@@ -502,6 +543,28 @@ describe('MCP tool helpers', () => {
         });
     });
 
+    it('delegates transaction tag reads', async () => {
+        const result = await handleListTransactionTags(context, {
+            search: 'wife',
+            limit: 10
+        });
+
+        expect(data.listTransactionTags).toHaveBeenCalledWith(7, {
+            search: 'wife',
+            limit: 10
+        });
+        expect(result.structuredContent).toMatchObject({
+            tags: [
+                {
+                    id: 9,
+                    name: 'wife',
+                    transactionCount: 2,
+                    createdAt: '2026-05-06T00:00:00.000Z'
+                }
+            ]
+        });
+    });
+
     it('delegates transaction writes with normalized dates', async () => {
         const created = await handleCreateTransaction(context, {
             categoryId: 1,
@@ -509,13 +572,15 @@ describe('MCP tool helpers', () => {
             amount: 12.34,
             currency: 'USD',
             occurredAt: '2026-05-15T00:00:00.000Z',
-            note: 'Dinner'
+            note: 'Dinner',
+            tags: ['wife']
         });
         const updated = await handleUpdateTransaction(context, {
             id: 101,
             amount: 20,
             occurredAt: '2026-05-16T00:00:00.000Z',
-            note: ''
+            note: '',
+            tags: []
         });
         const deleted = await handleDeleteTransaction(context, { id: 101 });
 
@@ -524,6 +589,7 @@ describe('MCP tool helpers', () => {
             expect.objectContaining({
                 categoryId: 1,
                 vendorId: 5,
+                tags: ['wife'],
                 occurredAt: new Date('2026-05-15T00:00:00.000Z')
             })
         );
@@ -540,7 +606,8 @@ describe('MCP tool helpers', () => {
             expect.objectContaining({
                 amount: 20,
                 occurredAt: new Date('2026-05-16T00:00:00.000Z'),
-                note: ''
+                note: '',
+                tags: []
             })
         );
         expect(updated.structuredContent).toMatchObject({

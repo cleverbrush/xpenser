@@ -4,6 +4,7 @@ import type {
     Category,
     Currency,
     Transaction,
+    TransactionTag,
     Vendor
 } from '@xpenser/contracts';
 import { FieldLimits } from '@xpenser/contracts';
@@ -77,7 +78,7 @@ type TransactionFeedResponse = {
 };
 
 function activeFilterCount(searchParams: URLSearchParams): number {
-    return [
+    const basicFilters = [
         'search',
         'type',
         'categoryId',
@@ -86,6 +87,12 @@ function activeFilterCount(searchParams: URLSearchParams): number {
         'from',
         'to'
     ].filter(key => Boolean(searchParams.get(key))).length;
+    return (
+        basicFilters +
+        (searchParams.getAll('tagId').some(value => value.trim() !== '')
+            ? 1
+            : 0)
+    );
 }
 
 function fieldValue(formData: FormData, key: string): string {
@@ -256,10 +263,27 @@ function transactionVendor(transaction: Transaction) {
     );
 }
 
+function transactionTagBadges(transaction: Transaction) {
+    if (transaction.tags.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="mt-2 flex flex-wrap gap-1">
+            {transaction.tags.map(tag => (
+                <Badge key={tag.id} variant="secondary">
+                    {tag.name}
+                </Badge>
+            ))}
+        </div>
+    );
+}
+
 function EditTransactionButton({
     categories,
     currencies,
     defaultCurrency,
+    transactionTags,
     vendors,
     timezone,
     transaction
@@ -267,6 +291,7 @@ function EditTransactionButton({
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transaction: Transaction;
@@ -280,6 +305,7 @@ function EditTransactionButton({
             description="Update the transaction details and converted report values."
             errorMessage="Could not update the transaction."
             initialValues={transaction}
+            transactionTags={transactionTags}
             vendors={vendors}
             submitLabel="Save changes"
             title="Edit transaction"
@@ -359,6 +385,7 @@ function TransactionActions({
     categories,
     currencies,
     defaultCurrency,
+    transactionTags,
     vendors,
     timezone,
     transaction
@@ -366,6 +393,7 @@ function TransactionActions({
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transaction: Transaction;
@@ -376,6 +404,7 @@ function TransactionActions({
                 categories={categories}
                 currencies={currencies}
                 defaultCurrency={defaultCurrency}
+                transactionTags={transactionTags}
                 vendors={vendors}
                 timezone={timezone}
                 transaction={transaction}
@@ -392,6 +421,7 @@ function TransactionCards({
     categories,
     currencies,
     defaultCurrency,
+    transactionTags: availableTransactionTags,
     vendors,
     timezone,
     transactions
@@ -399,6 +429,7 @@ function TransactionCards({
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactions: readonly Transaction[];
@@ -429,12 +460,14 @@ function TransactionCards({
                             categories={categories}
                             currencies={currencies}
                             defaultCurrency={defaultCurrency}
+                            transactionTags={availableTransactionTags}
                             vendors={vendors}
                             timezone={timezone}
                             transaction={transaction}
                         />
                     </div>
                     {transactionVendor(transaction)}
+                    {transactionTagBadges(transaction)}
                     <div className="mt-3">{transactionAmount(transaction)}</div>
                 </article>
             ))}
@@ -446,6 +479,7 @@ function TransactionTable({
     categories,
     currencies,
     defaultCurrency,
+    transactionTags: availableTransactionTags,
     vendors,
     timezone,
     transactions
@@ -453,6 +487,7 @@ function TransactionTable({
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactions: readonly Transaction[];
@@ -465,6 +500,7 @@ function TransactionTable({
                         <TableRow>
                             <TableHead>Category</TableHead>
                             <TableHead>Vendor</TableHead>
+                            <TableHead>Tags</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>When</TableHead>
@@ -479,6 +515,13 @@ function TransactionTable({
                                 </TableCell>
                                 <TableCell>
                                     {transactionVendor(transaction) ?? (
+                                        <span className="text-xs text-muted-foreground">
+                                            -
+                                        </span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {transactionTagBadges(transaction) ?? (
                                         <span className="text-xs text-muted-foreground">
                                             -
                                         </span>
@@ -503,6 +546,9 @@ function TransactionTable({
                                         categories={categories}
                                         currencies={currencies}
                                         defaultCurrency={defaultCurrency}
+                                        transactionTags={
+                                            availableTransactionTags
+                                        }
                                         vendors={vendors}
                                         timezone={timezone}
                                         transaction={transaction}
@@ -523,6 +569,7 @@ export function TransactionsBrowser({
     defaultCurrency,
     hasInitialFilters,
     vendors,
+    transactionTags,
     initialResponse,
     transactionCurrencies,
     timezone
@@ -532,6 +579,7 @@ export function TransactionsBrowser({
     readonly defaultCurrency: string;
     readonly hasInitialFilters: boolean;
     readonly vendors: readonly Vendor[];
+    readonly transactionTags: readonly TransactionTag[];
     readonly initialResponse: TransactionFeedResponse;
     readonly transactionCurrencies: readonly string[];
     readonly timezone: string;
@@ -597,6 +645,11 @@ export function TransactionsBrowser({
             const value = fieldValue(formData, key);
             if (value) {
                 params.set(key, value);
+            }
+        }
+        for (const value of formData.getAll('tagId')) {
+            if (typeof value === 'string' && value.trim()) {
+                params.append('tagId', value.trim());
             }
         }
         if (!params.has('categoryId')) {
@@ -777,6 +830,50 @@ export function TransactionsBrowser({
                                 ))}
                             </select>
                         </Field>
+                        <Field className="md:col-span-2">
+                            <FieldLabel>Tags</FieldLabel>
+                            <div className="flex min-h-10 flex-wrap gap-2 rounded-md border border-input px-3 py-2">
+                                {transactionTags.length === 0 ? (
+                                    <span className="text-sm text-muted-foreground">
+                                        No tags yet
+                                    </span>
+                                ) : (
+                                    transactionTags.map(tag => {
+                                        const id = String(tag.id);
+                                        return (
+                                            <label
+                                                className="flex items-center gap-1.5 text-sm"
+                                                key={tag.id}
+                                            >
+                                                <input
+                                                    className="size-4"
+                                                    defaultChecked={searchParams
+                                                        .getAll('tagId')
+                                                        .includes(id)}
+                                                    name="tagId"
+                                                    type="checkbox"
+                                                    value={id}
+                                                />
+                                                <span>{tag.name}</span>
+                                            </label>
+                                        );
+                                    })
+                                )}
+                                <label className="flex items-center gap-1.5 text-sm">
+                                    <input
+                                        className="size-4"
+                                        defaultChecked={
+                                            searchParams.get('untagged') ===
+                                            'true'
+                                        }
+                                        name="untagged"
+                                        type="checkbox"
+                                        value="true"
+                                    />
+                                    <span>Untagged</span>
+                                </label>
+                            </div>
+                        </Field>
                         <Field>
                             <FieldLabel htmlFor="from">From</FieldLabel>
                             <Input
@@ -817,6 +914,7 @@ export function TransactionsBrowser({
                         categories={categories}
                         currencies={dialogCurrencies}
                         defaultCurrency={defaultCurrency}
+                        transactionTags={transactionTags}
                         vendors={vendors}
                         timezone={timezone}
                         transactions={items}
@@ -825,6 +923,7 @@ export function TransactionsBrowser({
                         categories={categories}
                         currencies={dialogCurrencies}
                         defaultCurrency={defaultCurrency}
+                        transactionTags={transactionTags}
                         vendors={vendors}
                         timezone={timezone}
                         transactions={items}

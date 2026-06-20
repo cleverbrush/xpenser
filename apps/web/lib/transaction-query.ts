@@ -8,6 +8,8 @@ export type TransactionSearchParams = {
     readonly type?: string | readonly string[];
     readonly categoryId?: string | readonly string[];
     readonly vendorId?: string | readonly string[];
+    readonly tagId?: string | readonly string[];
+    readonly untagged?: string | readonly string[];
     readonly parentCategoryId?: string | readonly string[];
     readonly from?: string | readonly string[];
     readonly to?: string | readonly string[];
@@ -18,13 +20,34 @@ export type TransactionSearchParams = {
 
 type QuerySource = TransactionSearchParams | URLSearchParams;
 
-function readParam(params: QuerySource, key: keyof TransactionSearchParams) {
+function readParam(
+    params: QuerySource,
+    key: keyof TransactionSearchParams
+): string | undefined {
     if (params instanceof URLSearchParams) {
         return params.get(key) ?? undefined;
     }
 
     const value = params[key];
-    return Array.isArray(value) ? value[0] : value;
+    if (Array.isArray(value)) {
+        return value[0];
+    }
+    return typeof value === 'string' ? value : undefined;
+}
+
+function readParams(
+    params: QuerySource,
+    key: keyof TransactionSearchParams
+): string[] {
+    if (params instanceof URLSearchParams) {
+        return params.getAll(key).filter(Boolean);
+    }
+
+    const value = params[key];
+    if (Array.isArray(value)) {
+        return value.filter(Boolean);
+    }
+    return typeof value === 'string' && value ? [value] : [];
 }
 
 export function parseTransactionType(
@@ -40,6 +63,16 @@ export function parseTransactionId(value?: string): number | undefined {
 
     const id = Number(value);
     return Number.isFinite(id) && id > 0 ? id : undefined;
+}
+
+export function parseTransactionIds(values: readonly string[]): number[] {
+    return [
+        ...new Set(
+            values
+                .map(parseTransactionId)
+                .filter((value): value is number => value !== undefined)
+        )
+    ];
 }
 
 export function parseVendorFilter(value?: string): number | 'none' | undefined {
@@ -75,6 +108,8 @@ export function hasTransactionFilters(params: QuerySource): boolean {
             parseTransactionType(readParam(params, 'type')) ||
             parseTransactionId(readParam(params, 'categoryId')) ||
             parseVendorFilter(readParam(params, 'vendorId')) ||
+            parseTransactionIds(readParams(params, 'tagId')).length > 0 ||
+            readParam(params, 'untagged') === 'true' ||
             parseTransactionId(readParam(params, 'parentCategoryId')) ||
             readParam(params, 'from') ||
             readParam(params, 'to')
@@ -91,12 +126,15 @@ export function buildTransactionListQuery(
 ): TransactionListQuery {
     const search = readParam(params, 'search')?.trim();
     const direction = readParam(params, 'direction') === 'asc' ? 'asc' : 'desc';
+    const tagIds = parseTransactionIds(readParams(params, 'tagId'));
 
     return {
         search: search || undefined,
         type: parseTransactionType(readParam(params, 'type')),
         categoryId: parseTransactionId(readParam(params, 'categoryId')),
         vendorId: parseVendorFilter(readParam(params, 'vendorId')),
+        tagIds: tagIds.length > 0 ? tagIds.join(',') : undefined,
+        untagged: readParam(params, 'untagged') === 'true' || undefined,
         parentCategoryId: parseTransactionId(
             readParam(params, 'parentCategoryId')
         ),

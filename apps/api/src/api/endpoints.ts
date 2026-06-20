@@ -336,6 +336,14 @@ export const UpdateTransactionEndpoint = api.transactions.update
     .tags('transactions')
     .operationId('updateTransaction');
 
+export const ListTransactionTagsEndpoint = api.transactionTags.list
+    .authorize(PrincipalSchema)
+    .inject({ knex: KnexToken })
+    .summary('List transaction tags')
+    .description('Lists transaction tags owned by the authenticated user.')
+    .tags('transaction-tags')
+    .operationId('listTransactionTags');
+
 export const DeleteTransactionEndpoint = api.transactions.delete
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -424,6 +432,14 @@ export const StatsWindowEndpoint = api.stats.window
     .tags('stats')
     .operationId('statsWindow');
 
+export const StatsTagReportEndpoint = api.stats.tags
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Tag report')
+    .description('Returns expense tag distribution and selected tag detail.')
+    .tags('stats')
+    .operationId('statsTagReport');
+
 export const CategoryTrendEndpoint = api.stats.categoryTrend
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -490,6 +506,9 @@ export const endpoints = {
         delete: DeleteTransactionEndpoint,
         scanImage: GetTransactionScanImageEndpoint
     },
+    transactionTags: {
+        list: ListTransactionTagsEndpoint
+    },
     transactionScans: {
         create: CreateTransactionScanEndpoint,
         start: StartTransactionScanJobEndpoint,
@@ -503,6 +522,7 @@ export const endpoints = {
     stats: {
         overview: StatsOverviewEndpoint,
         window: StatsWindowEndpoint,
+        tags: StatsTagReportEndpoint,
         categoryTrend: CategoryTrendEndpoint
     }
 };

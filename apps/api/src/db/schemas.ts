@@ -276,6 +276,33 @@ export const TransactionDbSchema = object({
     category: CategoryDbSchema.optional()
 }).hasTableName('transactions');
 
+export const TransactionTagDbSchema = object({
+    id: number().primaryKey(),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_tags_user_id'),
+    name: string(),
+    normalizedName: string().hasColumnName('normalized_name'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('transaction_tags');
+
+export const TransactionTagLinkDbSchema = object({
+    transactionId: number()
+        .hasColumnName('transaction_id')
+        .references('transactions', 'id')
+        .onDelete('CASCADE'),
+    tagId: number()
+        .hasColumnName('tag_id')
+        .references('transaction_tags', 'id')
+        .onDelete('CASCADE'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now')
+})
+    .hasTableName('transaction_tag_links')
+    .hasPrimaryKey(['transactionId', 'tagId'] as const);
+
 export const TransactionScanDbSchema = object({
     id: number().primaryKey(),
     userId: number()
@@ -391,6 +418,10 @@ export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
     l => l.categoryId,
     r => r.id
 );
+export const TransactionTagEntity = defineEntity(TransactionTagDbSchema);
+export const TransactionTagLinkEntity = defineEntity(
+    TransactionTagLinkDbSchema
+);
 export const TransactionScanEntity = defineEntity(TransactionScanDbSchema);
 export const TransactionScanItemEntity = defineEntity(
     TransactionScanItemDbSchema
@@ -414,6 +445,8 @@ export const entityMap = {
     categories: CategoryEntity,
     vendors: VendorEntity,
     transactions: TransactionEntity,
+    transactionTags: TransactionTagEntity,
+    transactionTagLinks: TransactionTagLinkEntity,
     transactionScans: TransactionScanEntity,
     transactionScanItems: TransactionScanItemEntity,
     transactionScanImages: TransactionScanImageEntity,
@@ -572,6 +605,21 @@ export type TransactionDb = {
     readonly note?: string | null;
     readonly createdAt: Date;
     readonly updatedAt: Date;
+};
+
+export type TransactionTagDb = {
+    readonly id: number;
+    readonly userId: number;
+    readonly name: string;
+    readonly normalizedName: string;
+    readonly createdAt: Date;
+    readonly updatedAt: Date;
+};
+
+export type TransactionTagLinkDb = {
+    readonly transactionId: number;
+    readonly tagId: number;
+    readonly createdAt: Date;
 };
 
 export type TransactionScanDb = {

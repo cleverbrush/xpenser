@@ -3,9 +3,11 @@
 import type {
     DashboardSummary,
     StatsOverview,
+    StatsTagReport,
     StatsWindowResponse
 } from '@xpenser/contracts';
 import {
+    Badge,
     Button,
     Card,
     CardContent,
@@ -24,6 +26,15 @@ import {
     useRef,
     useState
 } from 'react';
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis
+} from 'recharts';
 import { AmountDisplay } from '@/components/amount-display';
 import {
     DashboardPeriodNav,
@@ -37,6 +48,7 @@ import { categoryTrendHref } from '@/lib/category-trend-query';
 import {
     dateParam,
     formatDashboardRangeLabel,
+    isDashboardPeriod,
     parseDateParam,
     periodHref
 } from '@/lib/dashboard-periods';
@@ -57,9 +69,50 @@ import {
 type DashboardPeriod = DashboardSummary['period'];
 type StatsWindowItem = StatsWindowResponse['items'][number];
 type StatsCategory = StatsOverview['byCategory'][number];
+type ReportView = 'categories' | 'overview' | 'tags';
+type ReportTagSelection = number | 'untagged' | undefined;
 type StatsCache = Partial<
     Record<DashboardPeriod, Record<string, StatsWindowItem>>
 >;
+type TagReportStatus = 'error' | 'idle' | 'loading';
+type TooltipPayload = {
+    readonly color?: string;
+    readonly name?: string;
+    readonly value?: number | string;
+};
+
+const reportViews = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'categories', label: 'Categories' },
+    { id: 'tags', label: 'Tags' }
+] as const satisfies readonly {
+    readonly id: ReportView;
+    readonly label: string;
+}[];
+
+function parseReportView(value: string | null | undefined): ReportView {
+    return value === 'categories' || value === 'tags' ? value : 'overview';
+}
+
+function parseReportTag(value: string | null | undefined): ReportTagSelection {
+    if (value === 'untagged') {
+        return 'untagged';
+    }
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function reportTagParam(value: ReportTagSelection): string | undefined {
+    return typeof value === 'number' ? String(value) : value;
+}
+
+function tagReportKey(
+    period: DashboardPeriod,
+    date: string,
+    tag: ReportTagSelection
+): string {
+    return `${period}:${date}:${reportTagParam(tag) ?? 'all'}`;
+}
 
 function statsCategoryTransactionsHref(
     stats: StatsOverview,
@@ -72,6 +125,86 @@ function statsCategoryTransactionsHref(
         to: dateParam(stats.to, timezone),
         parentCategoryId: String(category.categoryId)
     });
+    return `/transactions?${params.toString()}`;
+}
+
+function reportHref({
+    date,
+    period,
+    tag,
+    timezone,
+    view
+}: {
+    readonly date: string;
+    readonly period: DashboardPeriod;
+    readonly tag?: ReportTagSelection;
+    readonly timezone: string;
+    readonly view: ReportView;
+}): string {
+    const anchor = parseDateParam(date, timezone) ?? new Date();
+    const href = periodHref('/stats', period, anchor, {
+        cleanDefault: true,
+        timeZone: timezone
+    });
+    const url = new URL(href, 'http://xpenser.local');
+    if (view !== 'overview') {
+        url.searchParams.set('view', view);
+    }
+    if (view === 'tags') {
+        const tagParam = reportTagParam(tag);
+        if (tagParam) {
+            url.searchParams.set('tag', tagParam);
+        }
+    }
+    return `${url.pathname}${url.search}`;
+}
+
+function tagTransactionsHref({
+    from,
+    tag,
+    timezone,
+    to
+}: {
+    readonly from: Date | string;
+    readonly tag: Pick<StatsTagReport['tags'][number], 'kind' | 'tagId'>;
+    readonly timezone: string;
+    readonly to: Date | string;
+}): string {
+    const params = new URLSearchParams({
+        from: dateParam(new Date(from), timezone),
+        to: dateParam(new Date(to), timezone),
+        type: 'expense'
+    });
+    if (tag.kind === 'untagged') {
+        params.set('untagged', 'true');
+    } else if (tag.tagId !== null) {
+        params.append('tagId', String(tag.tagId));
+    }
+    return `/transactions?${params.toString()}`;
+}
+
+function tagCategoryTransactionsHref({
+    categoryId,
+    detail,
+    report,
+    timezone
+}: {
+    readonly categoryId: number;
+    readonly detail: NonNullable<StatsTagReport['selectedTag']>;
+    readonly report: StatsTagReport;
+    readonly timezone: string;
+}): string {
+    const params = new URLSearchParams({
+        from: dateParam(new Date(report.from), timezone),
+        parentCategoryId: String(categoryId),
+        to: dateParam(new Date(report.to), timezone),
+        type: 'expense'
+    });
+    if (detail.kind === 'untagged') {
+        params.set('untagged', 'true');
+    } else if (detail.tagId !== null) {
+        params.append('tagId', String(detail.tagId));
+    }
     return `/transactions?${params.toString()}`;
 }
 
@@ -122,10 +255,22 @@ function buildStatsCategoryNodes(
     stats: StatsOverview,
     type: StatsCategory['type']
 ): StatsCategoryNode[] {
+    return buildStatsCategoryNodesFromTotals(
+        stats.byCategory,
+        stats.byParentCategory,
+        type
+    );
+}
+
+function buildStatsCategoryNodesFromTotals(
+    categories: readonly StatsCategory[],
+    parentCategories: readonly StatsCategory[],
+    type: StatsCategory['type']
+): StatsCategoryNode[] {
     return buildReportCategoryNodes({
-        categories: stats.byCategory,
+        categories,
         createParentCategory: fallbackStatsParentCategory,
-        parentCategories: stats.byParentCategory,
+        parentCategories,
         type
     });
 }
@@ -145,6 +290,50 @@ function formatCountDelta(value: number): string {
         return '0';
     }
     return `${value > 0 ? '+' : ''}${value}`;
+}
+
+function formatPercent(value: number): string {
+    return `${value.toLocaleString('en-US', {
+        maximumFractionDigits: 1,
+        minimumFractionDigits: value > 0 && value < 1 ? 1 : 0
+    })}%`;
+}
+
+function TagChartTooltip({
+    active,
+    currency,
+    label,
+    payload
+}: {
+    readonly active?: boolean;
+    readonly currency: string;
+    readonly label?: string | number;
+    readonly payload?: readonly TooltipPayload[];
+}) {
+    if (!active || !payload?.length) {
+        return null;
+    }
+
+    return (
+        <div className="rounded-md border bg-background px-3 py-2 text-xs shadow-sm">
+            <p className="mb-1 font-medium">{label}</p>
+            <div className="flex flex-col gap-1">
+                {payload.map(item => (
+                    <div
+                        className="flex items-center justify-between gap-4"
+                        key={item.name}
+                    >
+                        <span style={{ color: item.color }}>{item.name}</span>
+                        <span className="font-medium">
+                            {typeof item.value === 'number'
+                                ? formatMoney(item.value, currency)
+                                : item.value}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 }
 
 function signedComparisonDelta(
@@ -621,14 +810,421 @@ function CategoryTrendPanel({
     );
 }
 
+function TagDistributionPanel({
+    date,
+    report,
+    selectedTag,
+    timezone
+}: {
+    readonly date: string;
+    readonly report: StatsTagReport;
+    readonly selectedTag: ReportTagSelection;
+    readonly timezone: string;
+}) {
+    if (report.tags.length === 0) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Tag distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                        No tagged or untagged expenses in this period.
+                    </p>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Tag distribution</CardTitle>
+                <CardDescription>
+                    {report.expenseCount}{' '}
+                    {report.expenseCount === 1 ? 'expense' : 'expenses'} ·{' '}
+                    <AmountDisplay
+                        currency={report.currency}
+                        value={-report.expenseTotal}
+                    />
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col divide-y">
+                    {report.tags.map(tag => {
+                        const tagSelection =
+                            tag.kind === 'untagged'
+                                ? 'untagged'
+                                : (tag.tagId ?? undefined);
+                        const selected = selectedTag === tagSelection;
+                        return (
+                            <div
+                                className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+                                key={`${tag.kind}:${tag.tagId ?? 'none'}`}
+                            >
+                                <Link
+                                    aria-current={selected ? 'page' : undefined}
+                                    className="min-w-0 text-left"
+                                    href={reportHref({
+                                        date,
+                                        period: report.period,
+                                        tag: tagSelection,
+                                        timezone,
+                                        view: 'tags'
+                                    })}
+                                    prefetch={false}
+                                >
+                                    <div className="mb-1 flex min-w-0 items-center gap-2">
+                                        <span className="truncate font-medium">
+                                            {tag.tagName}
+                                        </span>
+                                        {tag.kind === 'untagged' ? (
+                                            <Badge variant="outline">
+                                                Untagged
+                                            </Badge>
+                                        ) : null}
+                                    </div>
+                                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                                        <div
+                                            className="h-full rounded-full bg-primary"
+                                            style={{
+                                                width: `${Math.min(
+                                                    tag.share,
+                                                    100
+                                                )}%`
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="mt-1 text-xs text-muted-foreground">
+                                        {formatPercent(tag.share)} ·{' '}
+                                        {tag.transactionCount}{' '}
+                                        {tag.transactionCount === 1
+                                            ? 'transaction'
+                                            : 'transactions'}
+                                    </div>
+                                </Link>
+                                <div className="flex items-center justify-between gap-4 sm:justify-end">
+                                    <Link
+                                        className={`font-semibold ${amountClassNameForCategoryTotal(
+                                            tag.total,
+                                            'expense'
+                                        )}`}
+                                        href={tagTransactionsHref({
+                                            from: report.from,
+                                            tag,
+                                            timezone,
+                                            to: report.to
+                                        })}
+                                        prefetch={false}
+                                    >
+                                        <AmountDisplay
+                                            currency={report.currency}
+                                            value={-tag.total}
+                                        />
+                                    </Link>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function TagDetailCategoryPanel({
+    detail,
+    report,
+    timezone
+}: {
+    readonly detail: NonNullable<StatsTagReport['selectedTag']>;
+    readonly report: StatsTagReport;
+    readonly timezone: string;
+}) {
+    const categories = buildStatsCategoryNodesFromTotals(
+        detail.byCategory,
+        detail.byParentCategory,
+        'expense'
+    );
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Category structure</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <CollapsibleReportCategoryGroup
+                    empty={
+                        <p className="text-sm text-muted-foreground">
+                            No category totals.
+                        </p>
+                    }
+                    nodes={categories}
+                    renderChild={({ child, parent }) => (
+                        <CategoryTrendRow
+                            category={child}
+                            currency={report.currency}
+                            depth={1}
+                            href={tagCategoryTransactionsHref({
+                                categoryId: child.categoryId,
+                                detail,
+                                report,
+                                timezone
+                            })}
+                            label={statsCategoryRowLabel(child, parent)}
+                        />
+                    )}
+                    renderParent={({
+                        expandable,
+                        expanded,
+                        node,
+                        onToggle
+                    }) => (
+                        <CategoryTrendRow
+                            category={node.category}
+                            currency={report.currency}
+                            expandable={expandable}
+                            expanded={expanded}
+                            href={tagCategoryTransactionsHref({
+                                categoryId: node.category.categoryId,
+                                detail,
+                                report,
+                                timezone
+                            })}
+                            onToggle={onToggle}
+                        />
+                    )}
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
+function TagDetailPanel({
+    detail,
+    report,
+    timezone
+}: {
+    readonly detail: NonNullable<StatsTagReport['selectedTag']>;
+    readonly report: StatsTagReport;
+    readonly timezone: string;
+}) {
+    const chartData = detail.trend.map(point => ({
+        label: point.label,
+        Expenses: point.expenseTotal
+    }));
+
+    return (
+        <div className="flex flex-col gap-4">
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <CardTitle>{detail.tagName}</CardTitle>
+                            <CardDescription>
+                                {detail.transactionCount}{' '}
+                                {detail.transactionCount === 1
+                                    ? 'expense'
+                                    : 'expenses'}{' '}
+                                · {formatPercent(detail.share)}
+                            </CardDescription>
+                        </div>
+                        <Link
+                            className={`font-semibold ${amountClassNameForCategoryTotal(
+                                detail.total,
+                                'expense'
+                            )}`}
+                            href={tagTransactionsHref({
+                                from: report.from,
+                                tag: detail,
+                                timezone,
+                                to: report.to
+                            })}
+                            prefetch={false}
+                        >
+                            <AmountDisplay
+                                currency={report.currency}
+                                value={-detail.total}
+                            />
+                        </Link>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-64">
+                        <ResponsiveContainer height="100%" width="100%">
+                            <BarChart data={chartData}>
+                                <CartesianGrid
+                                    stroke="hsl(var(--border))"
+                                    strokeDasharray="3 3"
+                                    vertical={false}
+                                />
+                                <XAxis
+                                    dataKey="label"
+                                    fontSize={12}
+                                    stroke="hsl(var(--muted-foreground))"
+                                    tickLine={false}
+                                />
+                                <YAxis
+                                    fontSize={12}
+                                    stroke="hsl(var(--muted-foreground))"
+                                    tickFormatter={value =>
+                                        Number(value).toLocaleString('en-US', {
+                                            maximumFractionDigits: 0
+                                        })
+                                    }
+                                    tickLine={false}
+                                    width={48}
+                                />
+                                <Tooltip
+                                    content={
+                                        <TagChartTooltip
+                                            currency={report.currency}
+                                        />
+                                    }
+                                />
+                                <Bar
+                                    dataKey="Expenses"
+                                    fill="hsl(var(--primary))"
+                                    radius={[4, 4, 0, 0]}
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.6fr)]">
+                <TagDetailCategoryPanel
+                    detail={detail}
+                    report={report}
+                    timezone={timezone}
+                />
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Top vendors</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {detail.topVendors.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                                No vendors.
+                            </p>
+                        ) : (
+                            <div className="flex flex-col divide-y">
+                                {detail.topVendors.map(vendor => (
+                                    <div
+                                        className="flex items-center justify-between gap-3 py-3 text-sm"
+                                        key={vendor.vendorId ?? 'none'}
+                                    >
+                                        <div className="min-w-0">
+                                            <p className="truncate font-medium">
+                                                {vendor.vendorName}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {vendor.transactionCount}{' '}
+                                                {vendor.transactionCount === 1
+                                                    ? 'transaction'
+                                                    : 'transactions'}
+                                            </p>
+                                        </div>
+                                        <span
+                                            className={`font-semibold ${amountClassNameForCategoryTotal(
+                                                vendor.total,
+                                                'expense'
+                                            )}`}
+                                        >
+                                            <AmountDisplay
+                                                currency={report.currency}
+                                                value={-vendor.total}
+                                            />
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+}
+
+function StatsTagReportPanel({
+    date,
+    report,
+    selectedTag,
+    status,
+    timezone
+}: {
+    readonly date: string;
+    readonly report: StatsTagReport | null;
+    readonly selectedTag: ReportTagSelection;
+    readonly status: TagReportStatus;
+    readonly timezone: string;
+}) {
+    if (status === 'loading' && !report) {
+        return (
+            <div className="rounded-md border bg-card p-4 text-sm text-muted-foreground">
+                Loading tag report...
+            </div>
+        );
+    }
+
+    if (status === 'error') {
+        return (
+            <div className="rounded-md border bg-card p-4 text-sm text-destructive">
+                Could not load tag report.
+            </div>
+        );
+    }
+
+    if (!report) {
+        return null;
+    }
+
+    return (
+        <div className="grid gap-4 xl:grid-cols-[minmax(20rem,0.8fr)_minmax(0,1.2fr)]">
+            <TagDistributionPanel
+                date={date}
+                report={report}
+                selectedTag={selectedTag}
+                timezone={timezone}
+            />
+            {report.selectedTag ? (
+                <TagDetailPanel
+                    detail={report.selectedTag}
+                    report={report}
+                    timezone={timezone}
+                />
+            ) : (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Selected tag</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground">
+                            No tag selected.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    );
+}
+
 export function StatsExplorer({
     initialDate,
     initialPeriod,
+    initialTag,
+    initialTagReport,
+    initialView,
     initialWindow,
     timezone
 }: {
     readonly initialDate: string;
     readonly initialPeriod: DashboardPeriod;
+    readonly initialTag: ReportTagSelection;
+    readonly initialTagReport: StatsTagReport | null;
+    readonly initialView: ReportView;
     readonly initialWindow: StatsWindowResponse;
     readonly timezone: string;
 }) {
@@ -639,8 +1235,21 @@ export function StatsExplorer({
     );
     const [selection, setSelection] = useState({
         date: initialDate,
-        period: initialPeriod
+        period: initialPeriod,
+        tag: initialTag,
+        view: initialView
     });
+    const initialTagReportKey =
+        initialTagReport && initialView === 'tags'
+            ? tagReportKey(initialPeriod, initialDate, initialTag)
+            : '';
+    const [tagReport, setTagReport] = useState<StatsTagReport | null>(
+        initialTagReport
+    );
+    const [tagReportStatus, setTagReportStatus] =
+        useState<TagReportStatus>('idle');
+    const [tagReportCacheKey, setTagReportCacheKey] =
+        useState(initialTagReportKey);
     const currentItem = itemForSelection(
         cache,
         selection.period,
@@ -653,22 +1262,46 @@ export function StatsExplorer({
         setCache(current =>
             mergeStatsItems(current, initialPeriod, initialWindow.items, true)
         );
-        setSelection({ date: initialDate, period: initialPeriod });
-    }, [initialDate, initialPeriod, initialWindow]);
+        setSelection({
+            date: initialDate,
+            period: initialPeriod,
+            tag: initialTag,
+            view: initialView
+        });
+        setTagReport(initialTagReport);
+        setTagReportCacheKey(initialTagReportKey);
+    }, [
+        initialDate,
+        initialPeriod,
+        initialTag,
+        initialTagReport,
+        initialTagReportKey,
+        initialView,
+        initialWindow
+    ]);
 
     const commitSelection = useCallback(
-        (period: DashboardPeriod, date: string, pushHistory = true) => {
-            const anchor = parseDateParam(date, timezone) ?? new Date();
-            const href = periodHref('/stats', period, anchor, {
-                cleanDefault: true,
-                timeZone: timezone
+        (
+            period: DashboardPeriod,
+            date: string,
+            pushHistory = true,
+            view = selection.view,
+            tag = selection.tag
+        ) => {
+            const nextTag = view === 'tags' ? tag : undefined;
+            const href = reportHref({
+                date,
+                period,
+                tag: nextTag,
+                timezone,
+                view
             });
-            setSelection({ date, period });
+            setSelection({ date, period, tag: nextTag, view });
             if (pushHistory) {
                 window.history.pushState(null, '', href);
             }
         },
-        [timezone]
+        [selection.tag, selection.view, timezone]
     );
 
     const fetchWindow = useCallback(
@@ -717,8 +1350,53 @@ export function StatsExplorer({
         [router]
     );
 
+    const fetchTagReport = useCallback(
+        async (
+            period: DashboardPeriod,
+            date: string,
+            tag: ReportTagSelection
+        ) => {
+            const requestKey = tagReportKey(period, date, tag);
+            const params = new URLSearchParams({ date, period });
+            const tagParam = reportTagParam(tag);
+            if (tagParam) {
+                params.set('tag', tagParam);
+            }
+
+            setTagReportStatus('loading');
+            try {
+                const response = await fetch(
+                    `/api/stats/tags?${params.toString()}`,
+                    { headers: { Accept: 'application/json' } }
+                );
+                if (response.status === 401) {
+                    router.push('/auth/session-expired');
+                    return;
+                }
+                if (!response.ok) {
+                    throw new Error('Could not load tag report.');
+                }
+
+                setTagReport((await response.json()) as StatsTagReport);
+                setTagReportCacheKey(requestKey);
+                setTagReportStatus('idle');
+            } catch {
+                setTagReportStatus('error');
+            }
+        },
+        [router]
+    );
+
     const navigateTo = useCallback(
-        async (next: DashboardPeriodSelection, pushHistory = true) => {
+        async (
+            next: DashboardPeriodSelection & {
+                readonly tag?: ReportTagSelection;
+                readonly view?: ReportView;
+            },
+            pushHistory = true
+        ) => {
+            const nextView = next.view ?? selection.view;
+            const nextTag = next.tag ?? selection.tag;
             const cached = itemForSelection(
                 cache,
                 next.period,
@@ -726,7 +1404,13 @@ export function StatsExplorer({
                 timezone
             );
             if (cached) {
-                commitSelection(next.period, cached.date, pushHistory);
+                commitSelection(
+                    next.period,
+                    cached.date,
+                    pushHistory,
+                    nextView,
+                    nextTag
+                );
                 return;
             }
 
@@ -740,12 +1424,26 @@ export function StatsExplorer({
 
             const loadedDate = itemDateForAnchor(items, next.date, timezone);
             if (loadedDate) {
-                commitSelection(next.period, loadedDate, pushHistory);
+                commitSelection(
+                    next.period,
+                    loadedDate,
+                    pushHistory,
+                    nextView,
+                    nextTag
+                );
             } else {
                 router.push(next.href, { scroll: false });
             }
         },
-        [cache, commitSelection, fetchWindow, router, timezone]
+        [
+            cache,
+            commitSelection,
+            fetchWindow,
+            router,
+            selection.tag,
+            selection.view,
+            timezone
+        ]
     );
 
     const navigateSwipe = useCallback(
@@ -802,25 +1500,45 @@ export function StatsExplorer({
     }, [cache, currentDate, fetchWindow, selection.period]);
 
     useEffect(() => {
+        if (selection.view !== 'tags') {
+            return;
+        }
+
+        const key = tagReportKey(selection.period, currentDate, selection.tag);
+        if (tagReportCacheKey === key && tagReport) {
+            return;
+        }
+
+        void fetchTagReport(selection.period, currentDate, selection.tag).catch(
+            () => undefined
+        );
+    }, [
+        currentDate,
+        fetchTagReport,
+        selection.period,
+        selection.tag,
+        selection.view,
+        tagReport,
+        tagReportCacheKey
+    ]);
+
+    useEffect(() => {
         function handlePopState() {
             const params = new URLSearchParams(window.location.search);
-            const period = params.get('period') as DashboardPeriod | null;
+            const periodParam = params.get('period') ?? undefined;
             const date = params.get('date');
-            if (period && date) {
-                void navigateTo(
-                    { date, href: window.location.href, period },
-                    false
-                );
-            } else {
-                void navigateTo(
-                    {
-                        date: dateParam(new Date(), timezone),
-                        href: '/stats',
-                        period: 'day'
-                    },
-                    false
-                );
-            }
+            void navigateTo(
+                {
+                    date: date ?? dateParam(new Date(), timezone),
+                    href: window.location.href,
+                    period: isDashboardPeriod(periodParam)
+                        ? periodParam
+                        : 'day',
+                    tag: parseReportTag(params.get('tag')),
+                    view: parseReportView(params.get('view'))
+                },
+                false
+            );
         }
 
         window.addEventListener('popstate', handlePopState);
@@ -828,6 +1546,19 @@ export function StatsExplorer({
             window.removeEventListener('popstate', handlePopState);
         };
     }, [navigateTo, timezone]);
+
+    const selectView = useCallback(
+        (view: ReportView) => {
+            commitSelection(
+                selection.period,
+                currentDate,
+                true,
+                view,
+                view === 'tags' ? selection.tag : undefined
+            );
+        },
+        [commitSelection, currentDate, selection.period, selection.tag]
+    );
 
     const panelForDate = useCallback(
         (date: string) => {
@@ -879,22 +1610,62 @@ export function StatsExplorer({
                 timezone={timezone}
             />
 
-            <StatsCards stats={stats} />
-
-            <CategoryTrendPanel stats={stats} timezone={timezone} />
-
-            <DashboardSwipeArea
-                basePath="/stats"
-                date={currentDate}
-                onNavigate={navigateSwipe}
-                onPreview={previewDate}
-                panelForDate={panelForDate}
-                period={selection.period}
-                skeleton={<StatsChartsSkeleton />}
-                timezone={timezone}
+            <div
+                aria-label="Report views"
+                className="grid grid-cols-3 gap-1 rounded-md border bg-muted p-1"
+                role="tablist"
             >
-                {statsPanel}
-            </DashboardSwipeArea>
+                {reportViews.map(view => (
+                    <button
+                        aria-selected={selection.view === view.id}
+                        className={`rounded-sm px-3 py-2 text-sm font-medium transition-colors ${
+                            selection.view === view.id
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                        }`}
+                        key={view.id}
+                        onClick={() => {
+                            selectView(view.id);
+                        }}
+                        role="tab"
+                        type="button"
+                    >
+                        {view.label}
+                    </button>
+                ))}
+            </div>
+
+            {selection.view === 'overview' ? (
+                <>
+                    <StatsCards stats={stats} />
+                    <DashboardSwipeArea
+                        basePath="/stats"
+                        date={currentDate}
+                        onNavigate={navigateSwipe}
+                        onPreview={previewDate}
+                        panelForDate={panelForDate}
+                        period={selection.period}
+                        skeleton={<StatsChartsSkeleton />}
+                        timezone={timezone}
+                    >
+                        {statsPanel}
+                    </DashboardSwipeArea>
+                </>
+            ) : null}
+
+            {selection.view === 'categories' ? (
+                <CategoryTrendPanel stats={stats} timezone={timezone} />
+            ) : null}
+
+            {selection.view === 'tags' ? (
+                <StatsTagReportPanel
+                    date={currentDate}
+                    report={tagReport}
+                    selectedTag={selection.tag}
+                    status={tagReportStatus}
+                    timezone={timezone}
+                />
+            ) : null}
         </div>
     );
 }

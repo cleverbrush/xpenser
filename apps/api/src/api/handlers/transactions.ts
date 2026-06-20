@@ -1,4 +1,5 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
+import { TransactionTagError } from '../../application/transaction-tags.js';
 import {
     categoryTrend,
     createTransaction,
@@ -8,6 +9,7 @@ import {
     getTransactionScanImage,
     listTransactions,
     statsOverview,
+    statsTagReport,
     statsWindow,
     TransactionCategoryError,
     TransactionNotFoundError,
@@ -23,6 +25,7 @@ import type {
     GetTransactionScanImageEndpoint,
     ListTransactionsEndpoint,
     StatsOverviewEndpoint,
+    StatsTagReportEndpoint,
     StatsWindowEndpoint,
     UpdateTransactionEndpoint
 } from '../endpoints.js';
@@ -52,6 +55,9 @@ export const createTransactionHandler: Handler<
             `/api/transactions/${transaction.id}`
         );
     } catch (err) {
+        if (err instanceof TransactionTagError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
         if (err instanceof TransactionCategoryError) {
             return ActionResult.badRequest({ message: err.message });
         }
@@ -75,6 +81,9 @@ export const updateTransactionHandler: Handler<
             return ActionResult.notFound({ message: err.message });
         }
         if (err instanceof TransactionCategoryError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        if (err instanceof TransactionTagError) {
             return ActionResult.badRequest({ message: err.message });
         }
         throw err;
@@ -148,6 +157,12 @@ export const statsWindowHandler: Handler<typeof StatsWindowEndpoint> = async (
         date: query.date,
         period: query.period ?? 'day'
     });
+};
+
+export const statsTagReportHandler: Handler<
+    typeof StatsTagReportEndpoint
+> = async ({ query, principal }, { db }) => {
+    return statsTagReport(db, principal.userId, query);
 };
 
 export const categoryTrendHandler: Handler<

@@ -190,6 +190,7 @@ function transaction(overrides: Record<string, unknown> = {}) {
         defaultCurrency: 'USD',
         defaultCurrencyAmount: 12.5,
         id: 77,
+        tags: [],
         type: 'expense',
         vendorName: 'Market',
         ...overrides

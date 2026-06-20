@@ -10,7 +10,7 @@ import {
     string,
     union
 } from '@cleverbrush/schema';
-import { FieldLimits } from './limits.js';
+import { FieldLimits, TransactionTagLimits } from './limits.js';
 
 export const CurrencyCodeSchema = string()
     .required('currency is required')
@@ -116,6 +116,47 @@ function hasAtMostTwoDecimalPlaces(value: number): boolean {
     const nearestCent = Math.round(scaled);
     const tolerance = Number.EPSILON * Math.max(1, Math.abs(scaled)) * 8;
     return Math.abs(scaled - nearestCent) <= tolerance;
+}
+
+function normalizedTransactionTagName(value: string): string {
+    return value.replace(/\s+/g, ' ').trim();
+}
+
+function validateTransactionTagNames(
+    tags: readonly string[] | undefined,
+    property: (field: any) => any
+) {
+    if (!tags) {
+        return { valid: true };
+    }
+
+    const names = tags.map(normalizedTransactionTagName);
+    if (names.some(name => name === '')) {
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: 'tag name is required',
+                    property
+                }
+            ]
+        };
+    }
+
+    const uniqueNames = new Set(names.map(name => name.toLowerCase()));
+    if (uniqueNames.size > TransactionTagLimits.maxTagsPerTransaction) {
+        return {
+            valid: false,
+            errors: [
+                {
+                    message: `transactions can have at most ${TransactionTagLimits.maxTagsPerTransaction} tags`,
+                    property
+                }
+            ]
+        };
+    }
+
+    return { valid: true };
 }
 
 export const ErrorResponseSchema = object({
@@ -1145,6 +1186,49 @@ export const UpdateVendorBodySchema = object({
     })
     .schemaName('UpdateVendorBody');
 
+export const TransactionTagNameSchema = string()
+    .maxLength(FieldLimits.transactionTagName, 'tag name is too long')
+    .describe('User-entered transaction tag name.');
+
+export const TransactionTagSchema = object({
+    /** Unique transaction tag identifier. */
+    id: number().describe('Unique transaction tag identifier.'),
+    /** User-entered transaction tag name. */
+    name: string().describe('User-entered transaction tag name.'),
+    /** Number of transactions currently using this tag. */
+    transactionCount: number().describe(
+        'Number of transactions currently using this tag.'
+    ),
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last update timestamp. */
+    updatedAt: date().coerce().describe('Last update timestamp.')
+}).schemaName('TransactionTag');
+
+export const TransactionTagListQuerySchema = object({
+    /** Text search applied to transaction tag names. */
+    search: string()
+        .optional()
+        .maxLength(
+            FieldLimits.transactionTagSearch,
+            'transaction tag search query is too long'
+        )
+        .describe('Text search applied to transaction tag names.'),
+    /** Maximum number of tags to return. */
+    limit: number()
+        .coerce()
+        .default(25)
+        .describe('Maximum number of tags to return.')
+}).schemaName('TransactionTagListQuery');
+
+const TransactionTagNamesBodySchema = array(TransactionTagNameSchema)
+    .maxLength(
+        TransactionTagLimits.maxTagsPerTransaction,
+        `transactions can have at most ${TransactionTagLimits.maxTagsPerTransaction} tags`
+    )
+    .optional()
+    .describe('Transaction tag names.');
+
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
     id: number().describe('Unique transaction identifier.'),
@@ -1214,6 +1298,10 @@ export const TransactionSchema = object({
         .describe('Date and time when the transaction happened.'),
     /** Optional note entered by the user. */
     note: string().optional().describe('Optional note entered by the user.'),
+    /** Tags assigned to this transaction. */
+    tags: array(TransactionTagSchema).describe(
+        'Tags assigned to this transaction.'
+    ),
     /** Original scanner image metadata when this transaction came from a scan. */
     scanAttachment: object({
         /** Scan session identifier. */
@@ -1274,7 +1362,9 @@ export const CreateTransactionBodySchema = object({
     note: string()
         .maxLength(FieldLimits.transactionNote, 'note is too long')
         .optional()
-        .describe('Optional note entered by the user.')
+        .describe('Optional note entered by the user.'),
+    /** Optional tag names assigned to this transaction. */
+    tags: TransactionTagNamesBodySchema
 })
     .addValidator(value => {
         if (value.amount === undefined || Number.isNaN(value.amount)) {
@@ -1310,6 +1400,9 @@ export const CreateTransactionBodySchema = object({
             ]
         };
     })
+    .addValidator(value =>
+        validateTransactionTagNames(value.tags, field => field.tags)
+    )
     .schemaName('CreateTransactionBody');
 
 export const UpdateTransactionBodySchema =
@@ -1347,6 +1440,25 @@ export const TransactionListQuerySchema = object({
         .describe(
             'Filter by vendor identifier, or "none" for transactions without a vendor.'
         ),
+    /** Comma-separated tag identifiers. Matches transactions with every selected tag. */
+    tagIds: string()
+        .optional()
+        .maxLength(
+            FieldLimits.transactionSearch,
+            'transaction tag filters are too long'
+        )
+        .matches(
+            /^\d+(?:,\d+)*$/,
+            'tag filters must be comma-separated tag ids'
+        )
+        .describe(
+            'Comma-separated tag identifiers. Matches transactions with every selected tag.'
+        ),
+    /** True to match expense or income transactions without tags. */
+    untagged: boolean()
+        .coerce()
+        .optional()
+        .describe('True to match transactions without tags.'),
     /** Inclusive start date for transaction occurrence. */
     from: date()
         .coerce()
@@ -1602,7 +1714,9 @@ export const TransactionScanCorrectedTransactionSchema = object({
     /** Confirmed transaction date. */
     occurredAt: date().coerce().describe('Confirmed transaction date.'),
     /** Confirmed note. */
-    note: string().nullable().describe('Confirmed note.')
+    note: string().nullable().describe('Confirmed note.'),
+    /** Confirmed tag names. */
+    tags: TransactionTagNamesBodySchema
 }).schemaName('TransactionScanCorrectedTransaction');
 
 export const TransactionScanDecisionBodySchema = object({
@@ -1744,6 +1858,23 @@ export const StatsQuerySchema = object({
         .optional()
         .describe('Date used to choose the dashboard-style reporting period.')
 }).schemaName('StatsQuery');
+
+export const StatsTagReportQuerySchema = object({
+    /** Reporting period. */
+    period: PeriodSchema.default('day').describe('Reporting period.'),
+    /** Date used to choose the reporting period. */
+    date: date()
+        .coerce()
+        .optional()
+        .describe('Date used to choose the reporting period.'),
+    /** Selected tag identifier, or "untagged" for transactions without tags. */
+    tag: union(number().coerce())
+        .or(string('untagged'))
+        .optional()
+        .describe(
+            'Selected tag identifier, or "untagged" for transactions without tags.'
+        )
+}).schemaName('StatsTagReportQuery');
 
 export const CategoryTrendQuerySchema = object({
     /** Category trend timeframe. */
@@ -2008,6 +2139,157 @@ export const StatsComparisonSchema = object({
         'Income transaction count for the comparison period.'
     )
 }).schemaName('StatsComparison');
+
+export const StatsTagKindSchema = enumOf('tag', 'untagged').describe(
+    'Whether a tag report bucket is a saved tag or the untagged bucket.'
+);
+
+export const StatsTagTrendPointSchema = object({
+    /** Stable date or month bucket key. */
+    bucket: string().describe('Stable date or month bucket key.'),
+    /** Short label shown on charts. */
+    label: string().describe('Short label shown on charts.'),
+    /** Expense total in the user's default currency. */
+    expenseTotal: decimalNumber().describe(
+        "Expense total in the user's default currency."
+    ),
+    /** Number of expense transactions in the bucket. */
+    transactionCount: number().describe(
+        'Number of expense transactions in the bucket.'
+    )
+}).schemaName('StatsTagTrendPoint');
+
+export const StatsTagTotalSchema = object({
+    /** Saved tag identifier, or null for the untagged bucket. */
+    tagId: number()
+        .nullable()
+        .describe('Saved tag identifier, or null for the untagged bucket.'),
+    /** Tag name shown in reports. */
+    tagName: string().describe('Tag name shown in reports.'),
+    /** Tag bucket kind. */
+    kind: StatsTagKindSchema.describe('Tag bucket kind.'),
+    /** Tag total in the user's default currency. */
+    total: decimalNumber().describe(
+        "Tag total in the user's default currency."
+    ),
+    /** Share of selected period expenses, as a percentage. */
+    share: decimalNumber().describe(
+        'Share of selected period expenses, as a percentage.'
+    ),
+    /** Number of selected-period expense transactions using this tag. */
+    transactionCount: number().describe(
+        'Number of selected-period expense transactions using this tag.'
+    ),
+    /** Average selected-period expense transaction amount for this tag. */
+    averageExpense: decimalNumber().describe(
+        'Average selected-period expense transaction amount for this tag.'
+    )
+}).schemaName('StatsTagTotal');
+
+export const StatsTagVendorTotalSchema = object({
+    /** Vendor identifier, or null for transactions without a vendor. */
+    vendorId: number()
+        .nullable()
+        .describe(
+            'Vendor identifier, or null for transactions without a vendor.'
+        ),
+    /** Vendor display name. */
+    vendorName: string().describe('Vendor display name.'),
+    /** Vendor domain, when available. */
+    vendorDomain: string()
+        .optional()
+        .describe('Vendor domain, when available.'),
+    /** Vendor logo URL, when available. */
+    vendorLogoUrl: string()
+        .optional()
+        .describe('Vendor logo URL, when available.'),
+    /** Vendor primary color, when available. */
+    vendorPrimaryColor: string()
+        .optional()
+        .describe('Vendor primary color, when available.'),
+    /** Vendor total in the user's default currency. */
+    total: decimalNumber().describe(
+        "Vendor total in the user's default currency."
+    ),
+    /** Number of selected-period expense transactions for this vendor. */
+    transactionCount: number().describe(
+        'Number of selected-period expense transactions for this vendor.'
+    )
+}).schemaName('StatsTagVendorTotal');
+
+export const StatsTagDetailSchema = object({
+    /** Selected tag identifier, or null for the untagged bucket. */
+    tagId: number()
+        .nullable()
+        .describe('Selected tag identifier, or null for the untagged bucket.'),
+    /** Selected tag name shown in reports. */
+    tagName: string().describe('Selected tag name shown in reports.'),
+    /** Selected tag bucket kind. */
+    kind: StatsTagKindSchema.describe('Selected tag bucket kind.'),
+    /** Selected tag total in the user's default currency. */
+    total: decimalNumber().describe(
+        "Selected tag total in the user's default currency."
+    ),
+    /** Selected tag share of period expenses, as a percentage. */
+    share: decimalNumber().describe(
+        'Selected tag share of period expenses, as a percentage.'
+    ),
+    /** Number of selected-period expense transactions in this tag. */
+    transactionCount: number().describe(
+        'Number of selected-period expense transactions in this tag.'
+    ),
+    /** Average selected-period expense transaction amount in this tag. */
+    averageExpense: decimalNumber().describe(
+        'Average selected-period expense transaction amount in this tag.'
+    ),
+    /** Time buckets for selected tag expense trend. */
+    trend: array(StatsTagTrendPointSchema).describe(
+        'Time buckets for selected tag expense trend.'
+    ),
+    /** Category totals within the selected tag. */
+    byCategory: array(StatsCategoryTotalSchema).describe(
+        'Category totals within the selected tag.'
+    ),
+    /** Parent category totals within the selected tag. */
+    byParentCategory: array(StatsCategoryTotalSchema).describe(
+        'Parent category totals within the selected tag.'
+    ),
+    /** Top vendors within the selected tag. */
+    topVendors: array(StatsTagVendorTotalSchema).describe(
+        'Top vendors within the selected tag.'
+    )
+}).schemaName('StatsTagDetail');
+
+export const StatsTagReportSchema = object({
+    /** Reporting period used for this tag report. */
+    period: PeriodSchema.describe('Reporting period used for this tag report.'),
+    /** Period start timestamp. */
+    from: date().coerce().describe('Period start timestamp.'),
+    /** Period end timestamp. */
+    to: date().coerce().describe('Period end timestamp.'),
+    /** Currency used for totals. */
+    currency: CurrencyCodeSchema.describe('Currency used for totals.'),
+    /** Selected period expense total before tag attribution. */
+    expenseTotal: decimalNumber().describe(
+        'Selected period expense total before tag attribution.'
+    ),
+    /** Number of selected-period expense transactions. */
+    expenseCount: number().describe(
+        'Number of selected-period expense transactions.'
+    ),
+    /** Number of selected-period expense transactions without tags. */
+    untaggedCount: number().describe(
+        'Number of selected-period expense transactions without tags.'
+    ),
+    /** Tag totals for the selected period. */
+    tags: array(StatsTagTotalSchema).describe(
+        'Tag totals for the selected period.'
+    ),
+    /** Selected tag detail, when requested and present. */
+    selectedTag: union(StatsTagDetailSchema)
+        .or(nul())
+        .describe('Selected tag detail, when requested and present.')
+}).schemaName('StatsTagReport');
 
 export const DashboardComparisonSchema = object({
     /** Comparison period start timestamp. */
@@ -2310,6 +2592,10 @@ export type VendorCandidate = InferType<typeof VendorCandidateSchema>;
 export type CreateVendorBody = InferType<typeof CreateVendorBodySchema>;
 export type UpdateVendorBody = InferType<typeof UpdateVendorBodySchema>;
 export type Transaction = InferType<typeof TransactionSchema>;
+export type TransactionTag = InferType<typeof TransactionTagSchema>;
+export type TransactionTagListQuery = InferType<
+    typeof TransactionTagListQuerySchema
+>;
 export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema
 >;
@@ -2341,6 +2627,8 @@ export type DashboardWindowResponse = InferType<
 export type StatsWindowResponse = InferType<typeof StatsWindowResponseSchema>;
 export type StatsOverview = InferType<typeof StatsOverviewSchema>;
 export type StatsQuery = InferType<typeof StatsQuerySchema>;
+export type StatsTagReport = InferType<typeof StatsTagReportSchema>;
+export type StatsTagReportQuery = InferType<typeof StatsTagReportQuerySchema>;
 export type CategoryTrendGroupBy = InferType<typeof CategoryTrendGroupBySchema>;
 export type CategoryTrendRange = InferType<typeof CategoryTrendRangeSchema>;
 export type CategoryTrendQuery = InferType<typeof CategoryTrendQuerySchema>;

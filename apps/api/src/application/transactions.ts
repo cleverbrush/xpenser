@@ -8,10 +8,13 @@ import type {
     DashboardWindowResponse,
     StatsOverview,
     StatsQuery,
+    StatsTagReport,
+    StatsTagReportQuery,
     StatsWindowResponse,
     Transaction,
     TransactionListQuery,
-    TransactionScanImageResponse
+    TransactionScanImageResponse,
+    TransactionTag
 } from '@xpenser/contracts';
 import {
     addLocalDays,
@@ -54,6 +57,10 @@ import {
     getExchangeRate,
     transactionDate
 } from './currencies.js';
+import {
+    pruneUnusedTransactionTags,
+    replaceTransactionTags
+} from './transaction-tags.js';
 import { getVendor, VendorNotFoundError } from './vendors.js';
 
 export class TransactionNotFoundError extends Error {}
@@ -81,9 +88,30 @@ type TransactionScanImageRow = TransactionScanAttachmentRow & {
     readonly imageBase64: string;
 };
 
+type TransactionTagRow = {
+    readonly createdAt: Date;
+    readonly id: number;
+    readonly name: string;
+    readonly transactionId: number;
+    readonly updatedAt: Date;
+};
+
+type TransactionTagCountRow = {
+    readonly tagId: number;
+    readonly transactionCount: number | string;
+};
+
 type StatsBucket = StatsOverview['trend'][number];
 
 type StatsCategory = StatsOverview['byCategory'][number];
+
+type StatsTagTotal = StatsTagReport['tags'][number];
+
+type StatsTagDetail = NonNullable<StatsTagReport['selectedTag']>;
+
+type StatsTagTrendBucket = StatsTagDetail['trend'][number];
+
+type StatsTagVendor = StatsTagDetail['topVendors'][number];
 
 type StatsGroupBy = NonNullable<StatsQuery['groupBy']>;
 
@@ -264,7 +292,11 @@ function mapTransaction(
     row: TransactionDb,
     categoriesById: ReadonlyMap<number, CategoryDb>,
     vendorsById: ReadonlyMap<number, VendorDb>,
-    scanAttachments: ReadonlyMap<number, TransactionScanAttachment> = new Map()
+    scanAttachments: ReadonlyMap<number, TransactionScanAttachment> = new Map(),
+    tagsByTransaction: ReadonlyMap<
+        number,
+        readonly TransactionTag[]
+    > = new Map()
 ): Transaction {
     const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
@@ -290,10 +322,91 @@ function mapTransaction(
         exchangeRateDate: row.exchangeRateDate,
         occurredAt: row.occurredAt,
         note: row.note ?? undefined,
+        tags: [...(tagsByTransaction.get(row.id) ?? [])],
         scanAttachment: scanAttachments.get(row.id) ?? null,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt
     };
+}
+
+function transactionTagIds(value: string | undefined): number[] {
+    if (!value) {
+        return [];
+    }
+
+    return [
+        ...new Set(
+            value
+                .split(',')
+                .map(item => Number(item))
+                .filter(item => Number.isInteger(item) && item > 0)
+        )
+    ];
+}
+
+async function transactionTagCounts(
+    knex: Knex,
+    tagIds: readonly number[]
+): Promise<Map<number, number>> {
+    const uniqueIds = [...new Set(tagIds)];
+    if (uniqueIds.length === 0) {
+        return new Map();
+    }
+
+    const rows = (await knex('transaction_tag_links')
+        .whereIn('tag_id', uniqueIds)
+        .groupBy('tag_id')
+        .select({ tagId: 'tag_id' })
+        .count({
+            transactionCount: 'transaction_id'
+        })) as TransactionTagCountRow[];
+
+    return new Map(
+        rows.map(row => [Number(row.tagId), Number(row.transactionCount)])
+    );
+}
+
+async function transactionTagsByTransaction(
+    knex: Knex | undefined,
+    userId: number,
+    transactionIds: readonly number[]
+): Promise<Map<number, readonly TransactionTag[]>> {
+    const uniqueIds = [...new Set(transactionIds)];
+    if (!knex || uniqueIds.length === 0) {
+        return new Map();
+    }
+
+    const rows = (await knex('transaction_tag_links as link')
+        .join('transaction_tags as tag', 'tag.id', 'link.tag_id')
+        .where('tag.user_id', userId)
+        .whereIn('link.transaction_id', uniqueIds)
+        .orderBy('tag.name', 'asc')
+        .select({
+            transactionId: 'link.transaction_id',
+            id: 'tag.id',
+            name: 'tag.name',
+            createdAt: 'tag.created_at',
+            updatedAt: 'tag.updated_at'
+        })) as TransactionTagRow[];
+    const counts = await transactionTagCounts(
+        knex,
+        rows.map(row => row.id)
+    );
+    const tags = new Map<number, TransactionTag[]>();
+
+    for (const row of rows) {
+        const current = tags.get(row.transactionId) ?? [];
+        current.push({
+            id: Number(row.id),
+            name: row.name,
+            transactionCount: counts.get(Number(row.id)) ?? 0,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt
+        });
+        tags.set(row.transactionId, current);
+    }
+
+    return tags;
 }
 
 function scanAttachmentFromRow(
@@ -455,6 +568,16 @@ export async function listTransactions(
     ) as TransactionDb[];
 
     const search = query.search?.trim().toLowerCase();
+    const tagIds = transactionTagIds(query.tagIds);
+    const needsAllTagData =
+        Boolean(search) || tagIds.length > 0 || query.untagged === true;
+    const allTagsByTransaction = needsAllTagData
+        ? await transactionTagsByTransaction(
+              knex ?? db.knex,
+              userId,
+              sortedRows.map(transaction => transaction.id)
+          )
+        : new Map<number, readonly TransactionTag[]>();
     const filtered = sortedRows
         .filter(transaction => {
             if (query.vendorId === 'none') {
@@ -494,6 +617,17 @@ export async function listTransactions(
             );
         })
         .filter(transaction => {
+            if (tagIds.length === 0 && query.untagged !== true) {
+                return true;
+            }
+
+            const tags = allTagsByTransaction.get(transaction.id) ?? [];
+            if (query.untagged === true && tags.length > 0) {
+                return false;
+            }
+            return tagIds.every(tagId => tags.some(tag => tag.id === tagId));
+        })
+        .filter(transaction => {
             if (!search) {
                 return true;
             }
@@ -521,6 +655,9 @@ export async function listTransactions(
                           .toLowerCase()
                           .includes(search)
                     : false) ||
+                (allTagsByTransaction.get(transaction.id) ?? []).some(tag =>
+                    tag.name.toLowerCase().includes(search)
+                ) ||
                 transaction.note?.toLowerCase().includes(search)
             );
         });
@@ -531,6 +668,13 @@ export async function listTransactions(
         userId,
         pageRows.map(transaction => transaction.id)
     );
+    const pageTagsByTransaction = needsAllTagData
+        ? allTagsByTransaction
+        : await transactionTagsByTransaction(
+              knex ?? db.knex,
+              userId,
+              pageRows.map(transaction => transaction.id)
+          );
 
     return {
         items: pageRows.map(transaction =>
@@ -538,7 +682,8 @@ export async function listTransactions(
                 transaction,
                 categoriesById,
                 vendorsById,
-                scanAttachments
+                scanAttachments,
+                pageTagsByTransaction
             )
         ),
         total: filtered.length,
@@ -553,47 +698,56 @@ export async function createTransaction(
     userId: number,
     body: CreateTransactionBody
 ): Promise<Transaction> {
-    const [user, categoriesById] = await Promise.all([
-        getUser(db, userId),
-        loadCategoriesById(db, userId)
-    ]);
-    const category = categoriesById.get(body.categoryId);
-    if (!category) {
-        throw new TransactionCategoryError('Category was not found.');
-    }
-    if (!categoryAvailableForTransactions(category, categoriesById)) {
-        throw new TransactionCategoryError(
-            'Archived categories cannot be used for new transactions.'
+    return db.transaction(async trx => {
+        const [user, categoriesById] = await Promise.all([
+            getUser(trx, userId),
+            loadCategoriesById(trx, userId)
+        ]);
+        const category = categoriesById.get(body.categoryId);
+        if (!category) {
+            throw new TransactionCategoryError('Category was not found.');
+        }
+        if (!categoryAvailableForTransactions(category, categoriesById)) {
+            throw new TransactionCategoryError(
+                'Archived categories cannot be used for new transactions.'
+            );
+        }
+        if (body.vendorId !== undefined && body.vendorId !== null) {
+            await validateVendor(trx, userId, body.vendorId);
+        }
+        const date = transactionDate(body.occurredAt, user.timezone);
+        const exchange = await getExchangeRate(
+            trx,
+            config,
+            body.currency,
+            user.defaultCurrency,
+            date
         );
-    }
-    if (body.vendorId !== undefined && body.vendorId !== null) {
-        await validateVendor(db, userId, body.vendorId);
-    }
-    const date = transactionDate(body.occurredAt, user.timezone);
-    const exchange = await getExchangeRate(
-        db,
-        config,
-        body.currency,
-        user.defaultCurrency,
-        date
-    );
 
-    const created = await db.transactions.insert({
-        userId,
-        categoryId: body.categoryId,
-        vendorId: body.vendorId ?? undefined,
-        type: category.type,
-        amount: body.amount,
-        currency: body.currency,
-        defaultCurrencyAmount: convertAmount(body.amount, exchange.rate),
-        defaultCurrency: user.defaultCurrency,
-        exchangeRate: exchange.rate,
-        exchangeRateDate: exchange.rateDate,
-        occurredAt: body.occurredAt,
-        note: body.note ?? undefined
+        const created = await trx.transactions.insert({
+            userId,
+            categoryId: body.categoryId,
+            vendorId: body.vendorId ?? undefined,
+            type: category.type,
+            amount: body.amount,
+            currency: body.currency,
+            defaultCurrencyAmount: convertAmount(body.amount, exchange.rate),
+            defaultCurrency: user.defaultCurrency,
+            exchangeRate: exchange.rate,
+            exchangeRateDate: exchange.rateDate,
+            occurredAt: body.occurredAt,
+            note: body.note ?? undefined
+        });
+
+        await replaceTransactionTags(
+            trx.knex,
+            userId,
+            created.id,
+            body.tags ?? []
+        );
+
+        return getTransaction(trx, userId, created.id);
     });
-
-    return getTransaction(db, userId, created.id);
 }
 
 export async function getTransaction(
@@ -601,19 +755,27 @@ export async function getTransaction(
     userId: number,
     transactionId: number
 ): Promise<Transaction> {
-    const [row, categoriesById, vendorsById] = await Promise.all([
-        db.transactions
-            .include(transaction => transaction.category)
-            .where(transaction => transaction.id, transactionId)
-            .where(transaction => transaction.userId, userId)
-            .first(),
-        loadCategoriesById(db, userId),
-        loadVendorsById(db, userId)
-    ]);
+    const [row, categoriesById, vendorsById, tagsByTransaction] =
+        await Promise.all([
+            db.transactions
+                .include(transaction => transaction.category)
+                .where(transaction => transaction.id, transactionId)
+                .where(transaction => transaction.userId, userId)
+                .first(),
+            loadCategoriesById(db, userId),
+            loadVendorsById(db, userId),
+            transactionTagsByTransaction(db.knex, userId, [transactionId])
+        ]);
     if (!row) {
         throw new TransactionNotFoundError('Transaction was not found.');
     }
-    return mapTransaction(row as TransactionDb, categoriesById, vendorsById);
+    return mapTransaction(
+        row as TransactionDb,
+        categoriesById,
+        vendorsById,
+        new Map(),
+        tagsByTransaction
+    );
 }
 
 export async function getTransactionScanImage(
@@ -660,65 +822,80 @@ export async function updateTransaction(
     transactionId: number,
     body: Partial<CreateTransactionBody>
 ): Promise<Transaction> {
-    const current = await getTransaction(db, userId, transactionId);
-    const next = {
-        categoryId: body.categoryId ?? current.categoryId,
-        vendorId:
-            body.vendorId !== undefined ? body.vendorId : current.vendorId,
-        amount: body.amount ?? current.amount,
-        currency: body.currency ?? current.currency,
-        occurredAt: body.occurredAt ?? current.occurredAt,
-        note: body.note ?? current.note
-    };
+    return db.transaction(async trx => {
+        const current = await getTransaction(trx, userId, transactionId);
+        const next = {
+            categoryId: body.categoryId ?? current.categoryId,
+            vendorId:
+                body.vendorId !== undefined ? body.vendorId : current.vendorId,
+            amount: body.amount ?? current.amount,
+            currency: body.currency ?? current.currency,
+            occurredAt: body.occurredAt ?? current.occurredAt,
+            note: body.note ?? current.note
+        };
 
-    const [user, categoriesById] = await Promise.all([
-        getUser(db, userId),
-        loadCategoriesById(db, userId)
-    ]);
-    const category = categoriesById.get(next.categoryId);
-    if (!category) {
-        throw new TransactionCategoryError('Category was not found.');
-    }
-    const categoryChanged =
-        body.categoryId !== undefined && body.categoryId !== current.categoryId;
-    if (
-        categoryChanged &&
-        !categoryAvailableForTransactions(category, categoriesById)
-    ) {
-        throw new TransactionCategoryError(
-            'Archived categories cannot be used for new transactions.'
+        const [user, categoriesById] = await Promise.all([
+            getUser(trx, userId),
+            loadCategoriesById(trx, userId)
+        ]);
+        const category = categoriesById.get(next.categoryId);
+        if (!category) {
+            throw new TransactionCategoryError('Category was not found.');
+        }
+        const categoryChanged =
+            body.categoryId !== undefined &&
+            body.categoryId !== current.categoryId;
+        if (
+            categoryChanged &&
+            !categoryAvailableForTransactions(category, categoriesById)
+        ) {
+            throw new TransactionCategoryError(
+                'Archived categories cannot be used for new transactions.'
+            );
+        }
+        if (next.vendorId !== undefined && next.vendorId !== null) {
+            await validateVendor(trx, userId, next.vendorId);
+        }
+        const exchange = await getExchangeRate(
+            trx,
+            config,
+            next.currency,
+            user.defaultCurrency,
+            transactionDate(next.occurredAt, user.timezone)
         );
-    }
-    if (next.vendorId !== undefined && next.vendorId !== null) {
-        await validateVendor(db, userId, next.vendorId);
-    }
-    const exchange = await getExchangeRate(
-        db,
-        config,
-        next.currency,
-        user.defaultCurrency,
-        transactionDate(next.occurredAt, user.timezone)
-    );
 
-    await db.transactions
-        .where(transaction => transaction.id, transactionId)
-        .where(transaction => transaction.userId, userId)
-        .update({
-            categoryId: next.categoryId,
-            vendorId: (next.vendorId ?? null) as never,
-            type: category.type,
-            amount: next.amount,
-            currency: next.currency,
-            defaultCurrencyAmount: convertAmount(next.amount, exchange.rate),
-            defaultCurrency: user.defaultCurrency,
-            exchangeRate: exchange.rate,
-            exchangeRateDate: exchange.rateDate,
-            occurredAt: next.occurredAt,
-            note: next.note ?? undefined,
-            updatedAt: new Date()
-        });
+        await trx.transactions
+            .where(transaction => transaction.id, transactionId)
+            .where(transaction => transaction.userId, userId)
+            .update({
+                categoryId: next.categoryId,
+                vendorId: (next.vendorId ?? null) as never,
+                type: category.type,
+                amount: next.amount,
+                currency: next.currency,
+                defaultCurrencyAmount: convertAmount(
+                    next.amount,
+                    exchange.rate
+                ),
+                defaultCurrency: user.defaultCurrency,
+                exchangeRate: exchange.rate,
+                exchangeRateDate: exchange.rateDate,
+                occurredAt: next.occurredAt,
+                note: next.note ?? undefined,
+                updatedAt: new Date()
+            });
 
-    return getTransaction(db, userId, transactionId);
+        if (body.tags !== undefined) {
+            await replaceTransactionTags(
+                trx.knex,
+                userId,
+                transactionId,
+                body.tags
+            );
+        }
+
+        return getTransaction(trx, userId, transactionId);
+    });
 }
 
 export async function deleteTransaction(
@@ -726,13 +903,16 @@ export async function deleteTransaction(
     userId: number,
     transactionId: number
 ): Promise<void> {
-    const deleted = await db.transactions
-        .where(transaction => transaction.id, transactionId)
-        .where(transaction => transaction.userId, userId)
-        .delete();
-    if (deleted === 0) {
-        throw new TransactionNotFoundError('Transaction was not found.');
-    }
+    await db.transaction(async trx => {
+        const deleted = await trx.transactions
+            .where(transaction => transaction.id, transactionId)
+            .where(transaction => transaction.userId, userId)
+            .delete();
+        if (deleted === 0) {
+            throw new TransactionNotFoundError('Transaction was not found.');
+        }
+        await pruneUnusedTransactionTags(trx.knex, userId);
+    });
 }
 
 function isValidDate(value: unknown): value is Date {
@@ -1553,6 +1733,158 @@ function rollUpParentStatsCategories(
         );
 }
 
+function statsTagTrendBuckets(
+    groupBy: StatsGroupBy,
+    range: StatsRange,
+    timeZone: string
+): Map<string, StatsTagTrendBucket> {
+    return new Map(
+        Array.from(statsTrendBuckets(groupBy, range, timeZone).entries()).map(
+            ([key, bucket]) => [
+                key,
+                {
+                    bucket: bucket.bucket,
+                    label: bucket.label,
+                    expenseTotal: 0,
+                    transactionCount: 0
+                }
+            ]
+        )
+    );
+}
+
+function statsTagTotalFromState(
+    state: Omit<StatsTagTotal, 'averageExpense' | 'share'>,
+    expenseTotal: number
+): StatsTagTotal {
+    return {
+        ...state,
+        share: computeShare(state.total, expenseTotal),
+        averageExpense:
+            state.transactionCount > 0
+                ? state.total / state.transactionCount
+                : 0
+    };
+}
+
+function summarizeStatsTagDetail({
+    categoriesById,
+    groupBy,
+    kind,
+    range,
+    rows,
+    tagId,
+    tagName,
+    timeZone,
+    totalExpense,
+    vendorsById
+}: {
+    readonly categoriesById: ReadonlyMap<number, CategoryDb>;
+    readonly groupBy: StatsGroupBy;
+    readonly kind: StatsTagDetail['kind'];
+    readonly range: StatsRange;
+    readonly rows: readonly TransactionDb[];
+    readonly tagId: number | null;
+    readonly tagName: string;
+    readonly timeZone: string;
+    readonly totalExpense: number;
+    readonly vendorsById: ReadonlyMap<number, VendorDb>;
+}): StatsTagDetail {
+    const trend = statsTagTrendBuckets(groupBy, range, timeZone);
+    const bucketKeys = Array.from(trend.keys());
+    const bucketIndexes = new Map(
+        bucketKeys.map((key, index) => [key, index] as const)
+    );
+    const categories = new Map<string, StatsCategory>();
+    const vendors = new Map<string, StatsTagVendor>();
+    let total = 0;
+
+    for (const row of rows) {
+        const category = categoryForTransaction(row, categoriesById);
+        const fields = categoryFields(category, row, categoriesById);
+        if (fields.type !== 'expense') {
+            continue;
+        }
+
+        const amount = transactionSignedDefaultAmount(row, category);
+        total += amount;
+
+        const bucketKey = statsBucketKeyInTimeZone(
+            row.occurredAt,
+            groupBy,
+            timeZone
+        );
+        const bucket = trend.get(bucketKey);
+        if (bucket) {
+            bucket.expenseTotal += amount;
+            bucket.transactionCount += 1;
+        }
+
+        const categoryKey = `${fields.type}:${fields.categoryId}`;
+        const currentCategory =
+            categories.get(categoryKey) ??
+            emptyStatsCategory(fields, bucketKeys.length);
+        const bucketIndex = bucketIndexes.get(bucketKey);
+        currentCategory.total += amount;
+        currentCategory.transactionCount += 1;
+        if (bucketIndex !== undefined) {
+            currentCategory.trend[bucketIndex] =
+                (currentCategory.trend[bucketIndex] ?? 0) + amount;
+        }
+        categories.set(categoryKey, currentCategory);
+
+        const rowVendorFields = dashboardVendorFields(row, vendorsById);
+        if (rowVendorFields) {
+            const vendorKey = String(rowVendorFields.vendorId ?? 'none');
+            const currentVendor = vendors.get(vendorKey) ?? {
+                ...rowVendorFields,
+                total: 0,
+                transactionCount: 0
+            };
+            currentVendor.total += amount;
+            currentVendor.transactionCount += 1;
+            vendors.set(vendorKey, currentVendor);
+        }
+    }
+
+    const byCategory = Array.from(categories.values())
+        .map(category => ({
+            ...category,
+            share: computeShare(category.total, total)
+        }))
+        .sort(
+            (left, right) =>
+                right.total - left.total ||
+                left.categoryName.localeCompare(right.categoryName)
+        );
+
+    return {
+        tagId,
+        tagName,
+        kind,
+        total,
+        share: computeShare(total, totalExpense),
+        transactionCount: rows.length,
+        averageExpense: rows.length > 0 ? total / rows.length : 0,
+        trend: Array.from(trend.values()),
+        byCategory,
+        byParentCategory: rollUpParentStatsCategories(
+            byCategory,
+            bucketKeys.length,
+            categoriesById,
+            0,
+            total
+        ),
+        topVendors: Array.from(vendors.values())
+            .sort(
+                (left, right) =>
+                    right.total - left.total ||
+                    left.vendorName.localeCompare(right.vendorName)
+            )
+            .slice(0, dashboardVendorLimit)
+    };
+}
+
 function emptyDashboardCategory(
     category: Pick<
         DashboardCategory,
@@ -2096,6 +2428,161 @@ export async function statsOverview(
         previousYearRows,
         categoriesById
     );
+}
+
+async function transactionTagNameById(
+    db: AppDb,
+    userId: number,
+    tagId: number
+): Promise<string | undefined> {
+    const row = (await db
+        .knex('transaction_tags')
+        .where('user_id', userId)
+        .where('id', tagId)
+        .select({ name: 'name' })
+        .first()) as { readonly name: string } | undefined;
+
+    return row?.name;
+}
+
+export async function statsTagReport(
+    db: AppDb,
+    userId: number,
+    query: StatsTagReportQuery
+): Promise<StatsTagReport> {
+    const user = await getUser(db, userId);
+    const now = new Date();
+    const period = query.period ?? 'day';
+    const range = resolveDashboardRange(
+        period,
+        query.date ?? now,
+        now,
+        user.timezone
+    );
+    const [rows, categoriesById, vendorsById] = await Promise.all([
+        transactionsForRange(db, userId, range),
+        loadCategoriesById(db, userId),
+        loadVendorsById(db, userId)
+    ]);
+    const tagsByTransaction = await transactionTagsByTransaction(
+        db.knex,
+        userId,
+        rows.map(transaction => transaction.id)
+    );
+    const tagTotals = new Map<
+        number,
+        Omit<StatsTagTotal, 'averageExpense' | 'share'>
+    >();
+    const expenseRows: TransactionDb[] = [];
+    const untaggedRows: TransactionDb[] = [];
+    let expenseTotal = 0;
+    let untaggedTotal = 0;
+
+    for (const row of rows) {
+        const category = categoryForTransaction(row, categoriesById);
+        const fields = categoryFields(category, row, categoriesById);
+        if (fields.type !== 'expense') {
+            continue;
+        }
+
+        const amount = transactionSignedDefaultAmount(row, category);
+        const tags = tagsByTransaction.get(row.id) ?? [];
+        expenseRows.push(row);
+        expenseTotal += amount;
+
+        if (tags.length === 0) {
+            untaggedRows.push(row);
+            untaggedTotal += amount;
+            continue;
+        }
+
+        for (const tag of tags) {
+            const current = tagTotals.get(tag.id) ?? {
+                tagId: tag.id,
+                tagName: tag.name,
+                kind: 'tag' as const,
+                total: 0,
+                transactionCount: 0
+            };
+            current.total += amount;
+            current.transactionCount += 1;
+            tagTotals.set(tag.id, current);
+        }
+    }
+
+    const tags = Array.from(tagTotals.values()).map(tag =>
+        statsTagTotalFromState(tag, expenseTotal)
+    );
+    if (untaggedRows.length > 0 || query.tag === 'untagged') {
+        tags.push(
+            statsTagTotalFromState(
+                {
+                    tagId: null,
+                    tagName: 'Untagged',
+                    kind: 'untagged',
+                    total: untaggedTotal,
+                    transactionCount: untaggedRows.length
+                },
+                expenseTotal
+            )
+        );
+    }
+    tags.sort(
+        (left, right) =>
+            right.total - left.total ||
+            right.transactionCount - left.transactionCount ||
+            left.tagName.localeCompare(right.tagName)
+    );
+
+    let selectedTag: StatsTagReport['selectedTag'] = null;
+    if (query.tag === 'untagged') {
+        selectedTag = summarizeStatsTagDetail({
+            categoriesById,
+            groupBy: dashboardStatsGroupBy(period),
+            kind: 'untagged',
+            range,
+            rows: untaggedRows,
+            tagId: null,
+            tagName: 'Untagged',
+            timeZone: user.timezone,
+            totalExpense: expenseTotal,
+            vendorsById
+        });
+    } else if (typeof query.tag === 'number') {
+        const tagName =
+            tagTotals.get(query.tag)?.tagName ??
+            (await transactionTagNameById(db, userId, query.tag));
+        if (tagName) {
+            selectedTag = summarizeStatsTagDetail({
+                categoriesById,
+                groupBy: dashboardStatsGroupBy(period),
+                kind: 'tag',
+                range,
+                rows: expenseRows.filter(row =>
+                    (tagsByTransaction.get(row.id) ?? []).some(
+                        tag => tag.id === query.tag
+                    )
+                ),
+                tagId: query.tag,
+                tagName,
+                timeZone: user.timezone,
+                totalExpense: expenseTotal,
+                vendorsById
+            });
+        }
+    }
+
+    return {
+        period,
+        from: range.from,
+        to: range.to,
+        currency: user.defaultCurrency,
+        expenseTotal,
+        expenseCount: expenseRows.length,
+        untaggedCount: untaggedRows.length,
+        tags,
+        selectedTag
+    };
 }
 
 export async function statsWindow(

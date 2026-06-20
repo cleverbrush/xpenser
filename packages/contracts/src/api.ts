@@ -43,6 +43,8 @@ import {
     SessionTokenBodySchema,
     StatsOverviewSchema,
     StatsQuerySchema,
+    StatsTagReportQuerySchema,
+    StatsTagReportSchema,
     StatsWindowResponseSchema,
     TelegramConnectionStatusSchema,
     TelegramTokenBodySchema,
@@ -57,6 +59,8 @@ import {
     TransactionScanProgressQuerySchema,
     TransactionScanResponseSchema,
     TransactionSchema,
+    TransactionTagListQuerySchema,
+    TransactionTagSchema,
     UpdateCategoryBodySchema,
     UpdateTransactionBodySchema,
     UpdateUserPreferenceBodySchema,
@@ -75,6 +79,7 @@ const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
 const VendorEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
 const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
+const StatsTags = route`/tags`;
 const TransactionScanDecision = route({
     scanId: number().coerce(),
     itemId: number().coerce()
@@ -94,6 +99,9 @@ const vendorCandidateDetails = endpoint
     .authorize(PrincipalSchema);
 const transactions = endpoint
     .resource('/api/transactions')
+    .authorize(PrincipalSchema);
+const transactionTags = endpoint
+    .resource('/api/transaction-tags')
     .authorize(PrincipalSchema);
 const transactionScans = endpoint
     .resource('/api/transaction-scans')
@@ -422,6 +430,7 @@ export const api = defineApi({
             .body(CreateTransactionBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('vendors')
+            .clearsCacheTag('transaction-tags')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -432,6 +441,7 @@ export const api = defineApi({
             .body(UpdateTransactionBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('vendors')
+            .clearsCacheTag('transaction-tags')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -445,6 +455,7 @@ export const api = defineApi({
             .delete(ById)
             .clearsCacheTag('categories')
             .clearsCacheTag('vendors')
+            .clearsCacheTag('transaction-tags')
             .clearsCacheTag('transactions')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
@@ -454,6 +465,13 @@ export const api = defineApi({
             200: TransactionScanImageResponseSchema,
             404: ErrorResponseSchema
         })
+    },
+    transactionTags: {
+        list: transactionTags
+            .get()
+            .query(TransactionTagListQuerySchema)
+            .cacheTag('transaction-tags')
+            .responses({ 200: array(TransactionTagSchema) })
     },
     transactionScans: {
         create: transactionScans
@@ -534,6 +552,15 @@ export const api = defineApi({
                 period: request.query.period
             }))
             .responses({ 200: StatsWindowResponseSchema }),
+        tags: stats
+            .get(StatsTags)
+            .query(StatsTagReportQuerySchema)
+            .cacheTag('stats', request => ({
+                date: request.query.date,
+                period: request.query.period,
+                tag: request.query.tag
+            }))
+            .responses({ 200: StatsTagReportSchema }),
         categoryTrend: stats
             .get(StatsCategoryTrend)
             .query(CategoryTrendQuerySchema)
