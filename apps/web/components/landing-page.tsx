@@ -138,6 +138,14 @@ const resourceLinks = [
 const heroResourceLinkClassName =
     'inline-flex h-9 items-center justify-start gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
+const huzzlerBadge = {
+    alt: 'Huzzler Embed Badge',
+    height: 55,
+    href: 'https://huzzler.so/products/muk1OItiEN/xpenser?utm_source=huzzler_product_website&utm_medium=badge&utm_campaign=free_listing',
+    src: 'https://huzzler.so/assets/images/embeddable-badges/featured.png',
+    width: 159
+} as const;
+
 function FeatureCard({ description, icon: IconComponent, title }: Feature) {
     return (
         <Card className="h-full">
@@ -315,7 +323,30 @@ export function PublicSiteHeader() {
     );
 }
 
-export function PublicSiteFooter() {
+function HuzzlerBadge() {
+    return (
+        <a
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={huzzlerBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: Huzzler provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={huzzlerBadge.alt}
+                height={huzzlerBadge.height}
+                src={huzzlerBadge.src}
+                width={huzzlerBadge.width}
+            />
+        </a>
+    );
+}
+
+export function PublicSiteFooter({
+    footerSupplement
+}: {
+    readonly footerSupplement?: ReactNode;
+} = {}) {
     return (
         <footer className="border-t bg-background">
             <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-7 text-sm text-muted-foreground lg:flex-row lg:items-center lg:justify-between">
@@ -338,44 +369,56 @@ export function PublicSiteFooter() {
                         </p>
                     </div>
                 </div>
-                <nav className="flex flex-wrap gap-3">
-                    {publicMarketingPages.map(({ navLabel, path }) => (
-                        <Link
-                            className="font-medium text-foreground transition-colors hover:text-primary"
-                            href={path}
-                            key={path}
-                        >
-                            {navLabel}
-                        </Link>
-                    ))}
-                    <a
-                        className="font-medium text-foreground transition-colors hover:text-primary"
-                        href="/llms.txt"
-                    >
-                        llms.txt
-                    </a>
-                    {resourceLinks.map(({ href, label }) => (
+                <div className="flex flex-col gap-4 lg:items-end">
+                    <nav className="flex flex-wrap gap-3">
+                        {publicMarketingPages.map(({ navLabel, path }) => (
+                            <Link
+                                className="font-medium text-foreground transition-colors hover:text-primary"
+                                href={path}
+                                key={path}
+                            >
+                                {navLabel}
+                            </Link>
+                        ))}
                         <a
-                            className="inline-flex items-center gap-1 font-medium text-foreground transition-colors hover:text-primary"
-                            href={href}
-                            key={href}
-                            rel="noreferrer"
-                            target="_blank"
+                            className="font-medium text-foreground transition-colors hover:text-primary"
+                            href="/llms.txt"
                         >
-                            {label}
-                            <ExternalLinkIcon aria-hidden className="size-3" />
+                            llms.txt
                         </a>
-                    ))}
-                </nav>
+                        {resourceLinks.map(({ href, label }) => (
+                            <a
+                                className="inline-flex items-center gap-1 font-medium text-foreground transition-colors hover:text-primary"
+                                href={href}
+                                key={href}
+                                rel="noreferrer"
+                                target="_blank"
+                            >
+                                {label}
+                                <ExternalLinkIcon
+                                    aria-hidden
+                                    className="size-3"
+                                />
+                            </a>
+                        ))}
+                    </nav>
+                    {footerSupplement ? (
+                        <div className="flex justify-start lg:justify-end">
+                            {footerSupplement}
+                        </div>
+                    ) : null}
+                </div>
             </div>
         </footer>
     );
 }
 
 export function PublicPageShell({
-    children
+    children,
+    footerSupplement
 }: {
     readonly children: ReactNode;
+    readonly footerSupplement?: ReactNode;
 }) {
     return (
         <div className="min-h-dvh bg-background text-foreground">
@@ -389,7 +432,7 @@ export function PublicPageShell({
             <main id="main-content" tabIndex={-1}>
                 {children}
             </main>
-            <PublicSiteFooter />
+            <PublicSiteFooter footerSupplement={footerSupplement} />
         </div>
     );
 }
@@ -427,7 +470,7 @@ export function LandingPage() {
     const homePage = getPublicMarketingPage('/');
 
     return (
-        <PublicPageShell>
+        <PublicPageShell footerSupplement={<HuzzlerBadge />}>
             <section className="border-b bg-muted/35">
                 <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-center lg:py-16">
                     <div className="py-2 lg:py-6">

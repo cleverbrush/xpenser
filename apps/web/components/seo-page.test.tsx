@@ -37,5 +37,6 @@ describe('SeoPage', () => {
         expect(
             screen.getByRole('link', { name: /View source/i })
         ).toHaveProperty('href', 'https://github.com/cleverbrush/xpenser');
+        expect(screen.queryByAltText('Huzzler Embed Badge')).toBeNull();
     });
 });
