@@ -35,6 +35,24 @@ describe('LandingPage', () => {
         expect(
             screen.getAllByText(/Expense tracking workflows/i).length
         ).toBeGreaterThan(0);
+        const huzzlerBadgeLink = screen.getByRole('link', {
+            name: /Huzzler Embed Badge/i
+        });
+        expect(huzzlerBadgeLink).toHaveProperty(
+            'href',
+            'https://huzzler.so/products/muk1OItiEN/xpenser?utm_source=huzzler_product_website&utm_medium=badge&utm_campaign=free_listing'
+        );
+        expect(huzzlerBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(huzzlerBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const huzzlerBadgeImage = screen.getByAltText('Huzzler Embed Badge');
+        expect(huzzlerBadgeImage.getAttribute('src')).toBe(
+            'https://huzzler.so/assets/images/embeddable-badges/featured.png'
+        );
+        expect(huzzlerBadgeImage.getAttribute('width')).toBe('159');
+        expect(huzzlerBadgeImage.getAttribute('height')).toBe('55');
         expect(
             screen.getByText(
                 /read or manage vendors, categories, and transactions/i
