@@ -357,6 +357,95 @@ test.describe('authenticated app workflows', () => {
         ).toHaveCount(0);
     });
 
+    test('reports expense distribution by tags', async ({ page }) => {
+        const expenseCategory = uniqueName('E2E report tag expense');
+        const meTag = uniqueName('E2E report me tag');
+        const wifeTag = uniqueName('E2E report wife tag');
+        const meNote = uniqueName('E2E report me note');
+        const sharedNote = uniqueName('E2E report shared note');
+        const untaggedNote = uniqueName('E2E report untagged note');
+        const reportDate = dateTimeLocalValue().slice(0, 10);
+        const occurredAt = startOfDayDateTime(reportDate);
+
+        await createCategory(page, expenseCategory, 'expense');
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '10.00',
+            meNote,
+            occurredAt,
+            undefined,
+            [meTag]
+        );
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '20.00',
+            sharedNote,
+            occurredAt,
+            undefined,
+            [meTag, wifeTag]
+        );
+        await createTransaction(
+            page,
+            expenseCategory,
+            'expense',
+            '5.00',
+            untaggedNote,
+            occurredAt
+        );
+
+        await page.goto(`/stats?period=day&date=${reportDate}&view=tags`);
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Reports' })
+        ).toBeVisible();
+        await expect(page.getByRole('tab', { name: 'Tags' })).toHaveAttribute(
+            'aria-selected',
+            'true'
+        );
+        await expect(
+            page.getByRole('button', { name: new RegExp(meTag) })
+        ).toBeVisible({ timeout: 15_000 });
+        await expect(
+            page.getByRole('button', { name: new RegExp(wifeTag) })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('button', { name: /Untagged/ })
+        ).toBeVisible();
+
+        await page.getByRole('button', { name: new RegExp(meTag) }).click();
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/stats' &&
+                url.searchParams.get('view') === 'tags' &&
+                Boolean(url.searchParams.get('tag'))
+            );
+        });
+        await expect(
+            page.getByRole('heading', { level: 3, name: meTag })
+        ).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByText(expenseCategory).first()).toBeVisible();
+
+        const tagTransactionsHref =
+            (await page
+                .getByRole('link', { name: /-\$30\.00/ })
+                .last()
+                .getAttribute('href')) ?? '/transactions';
+        await page.goto(tagTransactionsHref);
+        await expect(page).toHaveURL(url => {
+            return (
+                url.pathname === '/transactions' &&
+                url.searchParams.get('type') === 'expense' &&
+                Boolean(url.searchParams.get('tagId'))
+            );
+        });
+        await expect(page.getByText(meNote)).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByText(sharedNote)).toBeVisible();
+        await expect(page.getByText(untaggedNote)).toHaveCount(0);
+    });
+
     test('creates subcategories and hides archived trees from transaction creation', async ({
         page
     }) => {

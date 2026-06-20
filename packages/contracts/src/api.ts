@@ -43,6 +43,8 @@ import {
     SessionTokenBodySchema,
     StatsOverviewSchema,
     StatsQuerySchema,
+    StatsTagReportQuerySchema,
+    StatsTagReportSchema,
     StatsWindowResponseSchema,
     TelegramConnectionStatusSchema,
     TelegramTokenBodySchema,
@@ -77,6 +79,7 @@ const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
 const VendorEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
 const StatsCategoryTrend = route({ id: number().coerce() })`/categories/${t =>
     t.id}/trend`;
+const StatsTags = route`/tags`;
 const TransactionScanDecision = route({
     scanId: number().coerce(),
     itemId: number().coerce()
@@ -549,6 +552,15 @@ export const api = defineApi({
                 period: request.query.period
             }))
             .responses({ 200: StatsWindowResponseSchema }),
+        tags: stats
+            .get(StatsTags)
+            .query(StatsTagReportQuerySchema)
+            .cacheTag('stats', request => ({
+                date: request.query.date,
+                period: request.query.period,
+                tag: request.query.tag
+            }))
+            .responses({ 200: StatsTagReportSchema }),
         categoryTrend: stats
             .get(StatsCategoryTrend)
             .query(CategoryTrendQuerySchema)

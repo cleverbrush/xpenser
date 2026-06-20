@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CategoryDb, VendorDb } from '../db/schemas.js';
+import type {
+    AppDb,
+    CategoryDb,
+    TransactionDb,
+    VendorDb
+} from '../db/schemas.js';
 import {
     categoryTrendMaxBuckets,
     compareTransactionsByOccurrenceAsc,
@@ -12,6 +17,7 @@ import {
     resolveDashboardPeriodWindow,
     resolveDashboardRange,
     resolveStatsRanges,
+    statsTagReport,
     summarizeCategoryTrendRows,
     summarizeDashboardRows,
     TransactionCategoryError,
@@ -1017,6 +1023,289 @@ describe('dashboard range resolution', () => {
         expect(dashboardStatsGroupBy('month')).toBe('week');
         expect(dashboardStatsGroupBy('quarter')).toBe('week');
         expect(dashboardStatsGroupBy('year')).toBe('month');
+    });
+});
+
+describe('stats tag reports', () => {
+    const timestamp = new Date('2026-05-10T12:00:00.000Z');
+    const categories = [
+        {
+            id: 1,
+            userId: 1,
+            name: 'Groceries',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        },
+        {
+            id: 2,
+            userId: 1,
+            name: 'Rent',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        },
+        {
+            id: 3,
+            userId: 1,
+            name: 'Salary',
+            type: 'income',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        }
+    ] as const satisfies readonly CategoryDb[];
+    const vendors = [
+        {
+            id: 1,
+            userId: 1,
+            name: 'Market',
+            normalizedName: 'market',
+            domain: null,
+            logoUrl: null,
+            primaryColor: null,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        },
+        {
+            id: 2,
+            userId: 1,
+            name: 'Landlord',
+            normalizedName: 'landlord',
+            domain: null,
+            logoUrl: null,
+            primaryColor: null,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        }
+    ] as const satisfies readonly VendorDb[];
+    const tags = [
+        {
+            id: 10,
+            userId: 1,
+            name: 'me',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        },
+        {
+            id: 11,
+            userId: 1,
+            name: 'wife',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        }
+    ] as const;
+    const tagLinks = [
+        { transactionId: 1, tagId: 10 },
+        { transactionId: 2, tagId: 10 },
+        { transactionId: 2, tagId: 11 },
+        { transactionId: 4, tagId: 10 }
+    ] as const;
+
+    function transaction(
+        id: number,
+        categoryId: number,
+        amount: string,
+        vendorId?: number
+    ): TransactionDb {
+        return {
+            id,
+            userId: 1,
+            categoryId,
+            vendorId,
+            type: categoryId === 3 ? 'income' : 'expense',
+            amount,
+            currency: 'USD',
+            defaultCurrencyAmount: amount,
+            defaultCurrency: 'USD',
+            exchangeRate: '1',
+            exchangeRateDate: '2026-05-10',
+            occurredAt: timestamp,
+            createdAt: timestamp,
+            updatedAt: timestamp
+        };
+    }
+
+    function testTagReportDb(): AppDb {
+        const transactions = [
+            transaction(1, 1, '10', 1),
+            transaction(2, 2, '20', 2),
+            transaction(3, 1, '5'),
+            transaction(4, 3, '100', 1)
+        ];
+        const knex = vi.fn((table: string) => {
+            if (table === 'transaction_tag_links as link') {
+                const query = {
+                    transactionIds: [] as number[],
+                    join: () => query,
+                    where: () => query,
+                    whereIn: (_field: string, ids: readonly number[]) => {
+                        query.transactionIds = [...ids];
+                        return query;
+                    },
+                    orderBy: () => query,
+                    select: () =>
+                        Promise.resolve(
+                            tagLinks
+                                .filter(link =>
+                                    query.transactionIds.includes(
+                                        link.transactionId
+                                    )
+                                )
+                                .flatMap(link => {
+                                    const tag = tags.find(
+                                        candidate => candidate.id === link.tagId
+                                    );
+                                    return tag
+                                        ? [
+                                              {
+                                                  transactionId:
+                                                      link.transactionId,
+                                                  id: tag.id,
+                                                  name: tag.name,
+                                                  createdAt: tag.createdAt,
+                                                  updatedAt: tag.updatedAt
+                                              }
+                                          ]
+                                        : [];
+                                })
+                        )
+                };
+                return query;
+            }
+            if (table === 'transaction_tag_links') {
+                const query = {
+                    tagIds: [] as number[],
+                    whereIn: (_field: string, ids: readonly number[]) => {
+                        query.tagIds = [...ids];
+                        return query;
+                    },
+                    groupBy: () => query,
+                    select: () => query,
+                    count: () =>
+                        Promise.resolve(
+                            query.tagIds.map(tagId => ({
+                                tagId,
+                                transactionCount: tagLinks.filter(
+                                    link => link.tagId === tagId
+                                ).length
+                            }))
+                        )
+                };
+                return query;
+            }
+            if (table === 'transaction_tags') {
+                const query = {
+                    tagId: 0,
+                    where: (field: string, value: number) => {
+                        if (field === 'id') {
+                            query.tagId = value;
+                        }
+                        return query;
+                    },
+                    select: () => query,
+                    first: () =>
+                        Promise.resolve(
+                            tags.find(tag => tag.id === query.tagId)
+                        )
+                };
+                return query;
+            }
+            throw new Error(`Unexpected table ${table}`);
+        });
+
+        return {
+            knex,
+            users: {
+                find: async () => ({
+                    id: 1,
+                    defaultCurrency: 'USD',
+                    timezone: 'UTC'
+                })
+            },
+            transactions: {
+                include: () => ({
+                    where: () => ({
+                        whereBetween: (
+                            _field: unknown,
+                            [from, to]: readonly [Date, Date]
+                        ) =>
+                            Promise.resolve(
+                                transactions.filter(
+                                    row =>
+                                        row.occurredAt >= from &&
+                                        row.occurredAt <= to
+                                )
+                            )
+                    })
+                })
+            },
+            categories: {
+                where: async () => categories
+            },
+            vendors: {
+                where: async () => vendors
+            }
+        } as unknown as AppDb;
+    }
+
+    it('uses full attribution for tag distribution and ignores income tags', async () => {
+        const report = await statsTagReport(testTagReportDb(), 1, {
+            period: 'month',
+            date: new Date('2026-05-15T12:00:00.000Z'),
+            tag: 10
+        });
+
+        expect(report.expenseTotal).toBe(35);
+        expect(report.expenseCount).toBe(3);
+        expect(report.untaggedCount).toBe(1);
+        expect(
+            report.tags.map(tag => ({
+                kind: tag.kind,
+                name: tag.tagName,
+                total: tag.total,
+                count: tag.transactionCount
+            }))
+        ).toEqual([
+            { kind: 'tag', name: 'me', total: 30, count: 2 },
+            { kind: 'tag', name: 'wife', total: 20, count: 1 },
+            { kind: 'untagged', name: 'Untagged', total: 5, count: 1 }
+        ]);
+        expect(report.tags[0]?.share).toBeCloseTo((30 / 35) * 100);
+        expect(report.selectedTag?.tagName).toBe('me');
+        expect(report.selectedTag?.total).toBe(30);
+        expect(report.selectedTag?.transactionCount).toBe(2);
+        expect(
+            report.selectedTag?.byCategory.map(category => ({
+                name: category.categoryName,
+                total: category.total
+            }))
+        ).toEqual([
+            { name: 'Rent', total: 20 },
+            { name: 'Groceries', total: 10 }
+        ]);
+        expect(report.selectedTag?.topVendors[0]?.vendorName).toBe('Landlord');
+    });
+
+    it('returns selected detail for the untagged bucket', async () => {
+        const report = await statsTagReport(testTagReportDb(), 1, {
+            period: 'month',
+            date: new Date('2026-05-15T12:00:00.000Z'),
+            tag: 'untagged'
+        });
+
+        expect(report.selectedTag).toMatchObject({
+            kind: 'untagged',
+            tagId: null,
+            tagName: 'Untagged',
+            total: 5,
+            transactionCount: 1
+        });
     });
 });
 

@@ -9,6 +9,7 @@ export type TransactionSearchParams = {
     readonly categoryId?: string | readonly string[];
     readonly vendorId?: string | readonly string[];
     readonly tagId?: string | readonly string[];
+    readonly untagged?: string | readonly string[];
     readonly parentCategoryId?: string | readonly string[];
     readonly from?: string | readonly string[];
     readonly to?: string | readonly string[];
@@ -108,6 +109,7 @@ export function hasTransactionFilters(params: QuerySource): boolean {
             parseTransactionId(readParam(params, 'categoryId')) ||
             parseVendorFilter(readParam(params, 'vendorId')) ||
             parseTransactionIds(readParams(params, 'tagId')).length > 0 ||
+            readParam(params, 'untagged') === 'true' ||
             parseTransactionId(readParam(params, 'parentCategoryId')) ||
             readParam(params, 'from') ||
             readParam(params, 'to')
@@ -132,6 +134,7 @@ export function buildTransactionListQuery(
         categoryId: parseTransactionId(readParam(params, 'categoryId')),
         vendorId: parseVendorFilter(readParam(params, 'vendorId')),
         tagIds: tagIds.length > 0 ? tagIds.join(',') : undefined,
+        untagged: readParam(params, 'untagged') === 'true' || undefined,
         parentCategoryId: parseTransactionId(
             readParam(params, 'parentCategoryId')
         ),

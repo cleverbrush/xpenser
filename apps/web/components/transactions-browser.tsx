@@ -859,6 +859,19 @@ export function TransactionsBrowser({
                                         );
                                     })
                                 )}
+                                <label className="flex items-center gap-1.5 text-sm">
+                                    <input
+                                        className="size-4"
+                                        defaultChecked={
+                                            searchParams.get('untagged') ===
+                                            'true'
+                                        }
+                                        name="untagged"
+                                        type="checkbox"
+                                        value="true"
+                                    />
+                                    <span>Untagged</span>
+                                </label>
                             </div>
                         </Field>
                         <Field>

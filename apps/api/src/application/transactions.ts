@@ -8,6 +8,8 @@ import type {
     DashboardWindowResponse,
     StatsOverview,
     StatsQuery,
+    StatsTagReport,
+    StatsTagReportQuery,
     StatsWindowResponse,
     Transaction,
     TransactionListQuery,
@@ -102,6 +104,14 @@ type TransactionTagCountRow = {
 type StatsBucket = StatsOverview['trend'][number];
 
 type StatsCategory = StatsOverview['byCategory'][number];
+
+type StatsTagTotal = StatsTagReport['tags'][number];
+
+type StatsTagDetail = NonNullable<StatsTagReport['selectedTag']>;
+
+type StatsTagTrendBucket = StatsTagDetail['trend'][number];
+
+type StatsTagVendor = StatsTagDetail['topVendors'][number];
 
 type StatsGroupBy = NonNullable<StatsQuery['groupBy']>;
 
@@ -559,7 +569,8 @@ export async function listTransactions(
 
     const search = query.search?.trim().toLowerCase();
     const tagIds = transactionTagIds(query.tagIds);
-    const needsAllTagData = Boolean(search) || tagIds.length > 0;
+    const needsAllTagData =
+        Boolean(search) || tagIds.length > 0 || query.untagged === true;
     const allTagsByTransaction = needsAllTagData
         ? await transactionTagsByTransaction(
               knex ?? db.knex,
@@ -606,11 +617,14 @@ export async function listTransactions(
             );
         })
         .filter(transaction => {
-            if (tagIds.length === 0) {
+            if (tagIds.length === 0 && query.untagged !== true) {
                 return true;
             }
 
             const tags = allTagsByTransaction.get(transaction.id) ?? [];
+            if (query.untagged === true && tags.length > 0) {
+                return false;
+            }
             return tagIds.every(tagId => tags.some(tag => tag.id === tagId));
         })
         .filter(transaction => {
@@ -1719,6 +1733,158 @@ function rollUpParentStatsCategories(
         );
 }
 
+function statsTagTrendBuckets(
+    groupBy: StatsGroupBy,
+    range: StatsRange,
+    timeZone: string
+): Map<string, StatsTagTrendBucket> {
+    return new Map(
+        Array.from(statsTrendBuckets(groupBy, range, timeZone).entries()).map(
+            ([key, bucket]) => [
+                key,
+                {
+                    bucket: bucket.bucket,
+                    label: bucket.label,
+                    expenseTotal: 0,
+                    transactionCount: 0
+                }
+            ]
+        )
+    );
+}
+
+function statsTagTotalFromState(
+    state: Omit<StatsTagTotal, 'averageExpense' | 'share'>,
+    expenseTotal: number
+): StatsTagTotal {
+    return {
+        ...state,
+        share: computeShare(state.total, expenseTotal),
+        averageExpense:
+            state.transactionCount > 0
+                ? state.total / state.transactionCount
+                : 0
+    };
+}
+
+function summarizeStatsTagDetail({
+    categoriesById,
+    groupBy,
+    kind,
+    range,
+    rows,
+    tagId,
+    tagName,
+    timeZone,
+    totalExpense,
+    vendorsById
+}: {
+    readonly categoriesById: ReadonlyMap<number, CategoryDb>;
+    readonly groupBy: StatsGroupBy;
+    readonly kind: StatsTagDetail['kind'];
+    readonly range: StatsRange;
+    readonly rows: readonly TransactionDb[];
+    readonly tagId: number | null;
+    readonly tagName: string;
+    readonly timeZone: string;
+    readonly totalExpense: number;
+    readonly vendorsById: ReadonlyMap<number, VendorDb>;
+}): StatsTagDetail {
+    const trend = statsTagTrendBuckets(groupBy, range, timeZone);
+    const bucketKeys = Array.from(trend.keys());
+    const bucketIndexes = new Map(
+        bucketKeys.map((key, index) => [key, index] as const)
+    );
+    const categories = new Map<string, StatsCategory>();
+    const vendors = new Map<string, StatsTagVendor>();
+    let total = 0;
+
+    for (const row of rows) {
+        const category = categoryForTransaction(row, categoriesById);
+        const fields = categoryFields(category, row, categoriesById);
+        if (fields.type !== 'expense') {
+            continue;
+        }
+
+        const amount = transactionSignedDefaultAmount(row, category);
+        total += amount;
+
+        const bucketKey = statsBucketKeyInTimeZone(
+            row.occurredAt,
+            groupBy,
+            timeZone
+        );
+        const bucket = trend.get(bucketKey);
+        if (bucket) {
+            bucket.expenseTotal += amount;
+            bucket.transactionCount += 1;
+        }
+
+        const categoryKey = `${fields.type}:${fields.categoryId}`;
+        const currentCategory =
+            categories.get(categoryKey) ??
+            emptyStatsCategory(fields, bucketKeys.length);
+        const bucketIndex = bucketIndexes.get(bucketKey);
+        currentCategory.total += amount;
+        currentCategory.transactionCount += 1;
+        if (bucketIndex !== undefined) {
+            currentCategory.trend[bucketIndex] =
+                (currentCategory.trend[bucketIndex] ?? 0) + amount;
+        }
+        categories.set(categoryKey, currentCategory);
+
+        const rowVendorFields = dashboardVendorFields(row, vendorsById);
+        if (rowVendorFields) {
+            const vendorKey = String(rowVendorFields.vendorId ?? 'none');
+            const currentVendor = vendors.get(vendorKey) ?? {
+                ...rowVendorFields,
+                total: 0,
+                transactionCount: 0
+            };
+            currentVendor.total += amount;
+            currentVendor.transactionCount += 1;
+            vendors.set(vendorKey, currentVendor);
+        }
+    }
+
+    const byCategory = Array.from(categories.values())
+        .map(category => ({
+            ...category,
+            share: computeShare(category.total, total)
+        }))
+        .sort(
+            (left, right) =>
+                right.total - left.total ||
+                left.categoryName.localeCompare(right.categoryName)
+        );
+
+    return {
+        tagId,
+        tagName,
+        kind,
+        total,
+        share: computeShare(total, totalExpense),
+        transactionCount: rows.length,
+        averageExpense: rows.length > 0 ? total / rows.length : 0,
+        trend: Array.from(trend.values()),
+        byCategory,
+        byParentCategory: rollUpParentStatsCategories(
+            byCategory,
+            bucketKeys.length,
+            categoriesById,
+            0,
+            total
+        ),
+        topVendors: Array.from(vendors.values())
+            .sort(
+                (left, right) =>
+                    right.total - left.total ||
+                    left.vendorName.localeCompare(right.vendorName)
+            )
+            .slice(0, dashboardVendorLimit)
+    };
+}
+
 function emptyDashboardCategory(
     category: Pick<
         DashboardCategory,
@@ -2262,6 +2428,161 @@ export async function statsOverview(
         previousYearRows,
         categoriesById
     );
+}
+
+async function transactionTagNameById(
+    db: AppDb,
+    userId: number,
+    tagId: number
+): Promise<string | undefined> {
+    const row = (await db
+        .knex('transaction_tags')
+        .where('user_id', userId)
+        .where('id', tagId)
+        .select({ name: 'name' })
+        .first()) as { readonly name: string } | undefined;
+
+    return row?.name;
+}
+
+export async function statsTagReport(
+    db: AppDb,
+    userId: number,
+    query: StatsTagReportQuery
+): Promise<StatsTagReport> {
+    const user = await getUser(db, userId);
+    const now = new Date();
+    const period = query.period ?? 'day';
+    const range = resolveDashboardRange(
+        period,
+        query.date ?? now,
+        now,
+        user.timezone
+    );
+    const [rows, categoriesById, vendorsById] = await Promise.all([
+        transactionsForRange(db, userId, range),
+        loadCategoriesById(db, userId),
+        loadVendorsById(db, userId)
+    ]);
+    const tagsByTransaction = await transactionTagsByTransaction(
+        db.knex,
+        userId,
+        rows.map(transaction => transaction.id)
+    );
+    const tagTotals = new Map<
+        number,
+        Omit<StatsTagTotal, 'averageExpense' | 'share'>
+    >();
+    const expenseRows: TransactionDb[] = [];
+    const untaggedRows: TransactionDb[] = [];
+    let expenseTotal = 0;
+    let untaggedTotal = 0;
+
+    for (const row of rows) {
+        const category = categoryForTransaction(row, categoriesById);
+        const fields = categoryFields(category, row, categoriesById);
+        if (fields.type !== 'expense') {
+            continue;
+        }
+
+        const amount = transactionSignedDefaultAmount(row, category);
+        const tags = tagsByTransaction.get(row.id) ?? [];
+        expenseRows.push(row);
+        expenseTotal += amount;
+
+        if (tags.length === 0) {
+            untaggedRows.push(row);
+            untaggedTotal += amount;
+            continue;
+        }
+
+        for (const tag of tags) {
+            const current = tagTotals.get(tag.id) ?? {
+                tagId: tag.id,
+                tagName: tag.name,
+                kind: 'tag' as const,
+                total: 0,
+                transactionCount: 0
+            };
+            current.total += amount;
+            current.transactionCount += 1;
+            tagTotals.set(tag.id, current);
+        }
+    }
+
+    const tags = Array.from(tagTotals.values()).map(tag =>
+        statsTagTotalFromState(tag, expenseTotal)
+    );
+    if (untaggedRows.length > 0 || query.tag === 'untagged') {
+        tags.push(
+            statsTagTotalFromState(
+                {
+                    tagId: null,
+                    tagName: 'Untagged',
+                    kind: 'untagged',
+                    total: untaggedTotal,
+                    transactionCount: untaggedRows.length
+                },
+                expenseTotal
+            )
+        );
+    }
+    tags.sort(
+        (left, right) =>
+            right.total - left.total ||
+            right.transactionCount - left.transactionCount ||
+            left.tagName.localeCompare(right.tagName)
+    );
+
+    let selectedTag: StatsTagReport['selectedTag'] = null;
+    if (query.tag === 'untagged') {
+        selectedTag = summarizeStatsTagDetail({
+            categoriesById,
+            groupBy: dashboardStatsGroupBy(period),
+            kind: 'untagged',
+            range,
+            rows: untaggedRows,
+            tagId: null,
+            tagName: 'Untagged',
+            timeZone: user.timezone,
+            totalExpense: expenseTotal,
+            vendorsById
+        });
+    } else if (typeof query.tag === 'number') {
+        const tagName =
+            tagTotals.get(query.tag)?.tagName ??
+            (await transactionTagNameById(db, userId, query.tag));
+        if (tagName) {
+            selectedTag = summarizeStatsTagDetail({
+                categoriesById,
+                groupBy: dashboardStatsGroupBy(period),
+                kind: 'tag',
+                range,
+                rows: expenseRows.filter(row =>
+                    (tagsByTransaction.get(row.id) ?? []).some(
+                        tag => tag.id === query.tag
+                    )
+                ),
+                tagId: query.tag,
+                tagName,
+                timeZone: user.timezone,
+                totalExpense: expenseTotal,
+                vendorsById
+            });
+        }
+    }
+
+    return {
+        period,
+        from: range.from,
+        to: range.to,
+        currency: user.defaultCurrency,
+        expenseTotal,
+        expenseCount: expenseRows.length,
+        untaggedCount: untaggedRows.length,
+        tags,
+        selectedTag
+    };
 }
 
 export async function statsWindow(

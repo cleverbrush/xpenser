@@ -52,6 +52,7 @@ import {
     getTransactionScanImageHandler,
     listTransactionsHandler,
     statsOverviewHandler,
+    statsTagReportHandler,
     statsWindowHandler,
     updateTransactionHandler
 } from './transactions.js';
@@ -139,6 +140,7 @@ export const handlers = {
     stats: {
         overview: statsOverviewHandler,
         window: statsWindowHandler,
+        tags: statsTagReportHandler,
         categoryTrend: categoryTrendHandler
     }
 };

@@ -20,6 +20,7 @@ describe('transaction query helpers', () => {
                 ['tagId', '5'],
                 ['to', '2026-05-10'],
                 ['type', 'expense'],
+                ['untagged', 'true'],
                 ['vendorId', 'none']
             ])
         );
@@ -32,6 +33,7 @@ describe('transaction query helpers', () => {
             search: 'coffee',
             tagIds: '2,5',
             type: 'expense',
+            untagged: true,
             vendorId: 'none'
         });
         expect(query.from).toEqual(new Date('2026-05-01T00:00:00.000Z'));
@@ -109,6 +111,9 @@ describe('transaction query helpers', () => {
         expect(hasTransactionFilters(new URLSearchParams({ tagId: '2' }))).toBe(
             true
         );
+        expect(
+            hasTransactionFilters(new URLSearchParams({ untagged: 'true' }))
+        ).toBe(true);
         expect(hasTransactionFilters(new URLSearchParams({ page: '2' }))).toBe(
             false
         );

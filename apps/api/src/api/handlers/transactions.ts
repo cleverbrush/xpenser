@@ -9,6 +9,7 @@ import {
     getTransactionScanImage,
     listTransactions,
     statsOverview,
+    statsTagReport,
     statsWindow,
     TransactionCategoryError,
     TransactionNotFoundError,
@@ -24,6 +25,7 @@ import type {
     GetTransactionScanImageEndpoint,
     ListTransactionsEndpoint,
     StatsOverviewEndpoint,
+    StatsTagReportEndpoint,
     StatsWindowEndpoint,
     UpdateTransactionEndpoint
 } from '../endpoints.js';
@@ -155,6 +157,12 @@ export const statsWindowHandler: Handler<typeof StatsWindowEndpoint> = async (
         date: query.date,
         period: query.period ?? 'day'
     });
+};
+
+export const statsTagReportHandler: Handler<
+    typeof StatsTagReportEndpoint
+> = async ({ query, principal }, { db }) => {
+    return statsTagReport(db, principal.userId, query);
 };
 
 export const categoryTrendHandler: Handler<
