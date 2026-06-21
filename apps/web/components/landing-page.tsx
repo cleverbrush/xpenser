@@ -146,6 +146,10 @@ const huzzlerBadge = {
     width: 159
 } as const;
 
+const tinyStartupsBadge = {
+    href: 'https://www.tinystartups.com/startup/xpenser'
+} as const;
+
 function FeatureCard({ description, icon: IconComponent, title }: Feature) {
     return (
         <Card className="h-full">
@@ -342,6 +346,64 @@ function HuzzlerBadge() {
     );
 }
 
+function TinyStartupsBadge() {
+    return (
+        <a
+            aria-label="Launched on Tiny Startups"
+            className="inline-flex w-fit items-center gap-3.5 rounded-[14px] border-2 border-transparent bg-[linear-gradient(#fff,#fff)_padding-box,linear-gradient(90deg,#3525E6,#D81FE0,#22B8F0)_border-box] py-3.5 pl-[18px] pr-[22px] font-sans text-[#0E0B1F] no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-[linear-gradient(#0E0B1F,#0E0B1F)_padding-box,linear-gradient(90deg,#3525E6,#D81FE0,#22B8F0)_border-box] dark:text-white"
+            href={tinyStartupsBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            <svg
+                aria-hidden
+                className="size-14 shrink-0"
+                focusable="false"
+                viewBox="0 0 100 100"
+            >
+                <title>Tiny Startups badge mark</title>
+                <defs>
+                    <linearGradient
+                        id="tiny-startups-gradient"
+                        x1=".1"
+                        x2=".9"
+                        y1="0"
+                        y2="1"
+                    >
+                        <stop offset="0%" stopColor="#3525E6" />
+                        <stop offset="55%" stopColor="#D81FE0" />
+                        <stop offset="100%" stopColor="#22B8F0" />
+                    </linearGradient>
+                </defs>
+                <path
+                    d="M50 6C52 32 68 48 94 50C68 52 52 68 50 94C48 68 32 52 6 50C32 48 48 32 50 6Z"
+                    fill="url(#tiny-startups-gradient)"
+                />
+            </svg>
+            <span className="flex flex-col leading-[1.15]">
+                <span className="font-mono text-[9px] font-semibold uppercase tracking-normal text-[#6A6585] dark:text-white/55">
+                    Launched on
+                </span>
+                <span className="text-[22px] font-extrabold tracking-normal text-inherit dark:text-white">
+                    Tiny Startups
+                </span>
+                <span className="mt-1 text-[11px] text-[#6A6585] dark:text-white/55">
+                    tinystartups.com
+                </span>
+            </span>
+        </a>
+    );
+}
+
+function FooterBadges() {
+    return (
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
+            <HuzzlerBadge />
+            <TinyStartupsBadge />
+        </div>
+    );
+}
+
 export function PublicSiteFooter({
     footerSupplement
 }: {
@@ -470,7 +532,7 @@ export function LandingPage() {
     const homePage = getPublicMarketingPage('/');
 
     return (
-        <PublicPageShell footerSupplement={<HuzzlerBadge />}>
+        <PublicPageShell footerSupplement={<FooterBadges />}>
             <section className="border-b bg-muted/35">
                 <div className="mx-auto grid max-w-6xl gap-6 px-4 py-10 sm:py-14 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,1.05fr)] lg:items-center lg:py-16">
                     <div className="py-2 lg:py-6">
