@@ -53,6 +53,18 @@ describe('LandingPage', () => {
         );
         expect(huzzlerBadgeImage.getAttribute('width')).toBe('159');
         expect(huzzlerBadgeImage.getAttribute('height')).toBe('55');
+
+        const tinyStartupsBadgeLink = screen.getByRole('link', {
+            name: /Launched on Tiny Startups/i
+        });
+        expect(tinyStartupsBadgeLink).toHaveProperty(
+            'href',
+            'https://www.tinystartups.com/startup/xpenser'
+        );
+        expect(tinyStartupsBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(tinyStartupsBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
         expect(
             screen.getByText(
                 /read or manage vendors, categories, and transactions/i
