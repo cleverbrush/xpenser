@@ -150,6 +150,15 @@ const tinyStartupsBadge = {
     href: 'https://www.tinystartups.com/startup/xpenser'
 } as const;
 
+const easyDoFollowBadge = {
+    alt: 'Featured on EasyDoFollow',
+    darkSrc: 'http://easydofollow.dev/badge/easydofollow-badge-dark.svg',
+    height: 56,
+    href: 'http://easydofollow.dev/finance/xpenser',
+    lightSrc: 'http://easydofollow.dev/badge/easydofollow-badge-light.svg',
+    width: 188
+} as const;
+
 function FeatureCard({ description, icon: IconComponent, title }: Feature) {
     return (
         <Card className="h-full">
@@ -395,11 +404,41 @@ function TinyStartupsBadge() {
     );
 }
 
+function EasyDoFollowBadge() {
+    return (
+        <a
+            aria-label={easyDoFollowBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={easyDoFollowBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: EasyDoFollow provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={easyDoFollowBadge.alt}
+                className="block dark:hidden"
+                height={easyDoFollowBadge.height}
+                src={easyDoFollowBadge.lightSrc}
+                width={easyDoFollowBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: EasyDoFollow provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={easyDoFollowBadge.alt}
+                className="hidden dark:block"
+                height={easyDoFollowBadge.height}
+                src={easyDoFollowBadge.darkSrc}
+                width={easyDoFollowBadge.width}
+            />
+        </a>
+    );
+}
+
 function FooterBadges() {
     return (
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
             <HuzzlerBadge />
             <TinyStartupsBadge />
+            <EasyDoFollowBadge />
         </div>
     );
 }

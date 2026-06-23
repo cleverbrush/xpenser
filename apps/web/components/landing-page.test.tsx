@@ -65,6 +65,45 @@ describe('LandingPage', () => {
         expect(tinyStartupsBadgeLink.getAttribute('rel')).toBe(
             'noopener noreferrer'
         );
+
+        const easyDoFollowBadgeLink = screen.getByRole('link', {
+            name: /Featured on EasyDoFollow/i
+        });
+        expect(easyDoFollowBadgeLink).toHaveProperty(
+            'href',
+            'http://easydofollow.dev/finance/xpenser'
+        );
+        expect(easyDoFollowBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(easyDoFollowBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const easyDoFollowBadgeImages = screen.getAllByAltText(
+            'Featured on EasyDoFollow'
+        );
+        expect(easyDoFollowBadgeImages).toHaveLength(2);
+
+        const easyDoFollowLightBadgeImage = easyDoFollowBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'http://easydofollow.dev/badge/easydofollow-badge-light.svg'
+        );
+        expect(easyDoFollowLightBadgeImage).toBeTruthy();
+        expect(easyDoFollowLightBadgeImage?.getAttribute('width')).toBe('188');
+        expect(easyDoFollowLightBadgeImage?.getAttribute('height')).toBe('56');
+        expect(easyDoFollowLightBadgeImage?.className).toContain('block');
+        expect(easyDoFollowLightBadgeImage?.className).toContain('dark:hidden');
+
+        const easyDoFollowDarkBadgeImage = easyDoFollowBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'http://easydofollow.dev/badge/easydofollow-badge-dark.svg'
+        );
+        expect(easyDoFollowDarkBadgeImage).toBeTruthy();
+        expect(easyDoFollowDarkBadgeImage?.getAttribute('width')).toBe('188');
+        expect(easyDoFollowDarkBadgeImage?.getAttribute('height')).toBe('56');
+        expect(easyDoFollowDarkBadgeImage?.className).toContain('hidden');
+        expect(easyDoFollowDarkBadgeImage?.className).toContain('dark:block');
         expect(
             screen.getByText(
                 /read or manage vendors, categories, and transactions/i
