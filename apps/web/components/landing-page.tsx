@@ -273,11 +273,11 @@ function CodeSample({
     readonly label: string;
 }) {
     return (
-        <div className="rounded-lg border bg-slate-950 text-slate-50 shadow-sm dark:bg-slate-900">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-slate-950 text-slate-50 shadow-sm dark:bg-slate-900">
             <div className="border-b border-white/10 px-4 py-2 text-xs font-medium uppercase tracking-normal text-slate-300">
                 {label}
             </div>
-            <pre className="overflow-x-auto p-4 text-sm leading-6">
+            <pre className="max-w-full overflow-x-auto p-4 text-sm leading-6">
                 <code>{children}</code>
             </pre>
         </div>
