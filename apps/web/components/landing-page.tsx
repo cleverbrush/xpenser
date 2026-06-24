@@ -159,6 +159,14 @@ const easyDoFollowBadge = {
     width: 188
 } as const;
 
+const scrollLaunchBadge = {
+    alt: 'Featured on ScrollLaunch',
+    height: 48,
+    href: 'https://www.scrolllaunch.com/products/xpenser?utm_source=badge&utm_medium=embed&utm_campaign=xpenser&ref=scrolllaunch',
+    src: 'https://www.scrolllaunch.com/api/badge/xpenser',
+    width: 220
+} as const;
+
 function FeatureCard({ description, icon: IconComponent, title }: Feature) {
     return (
         <Card className="h-full">
@@ -433,12 +441,33 @@ function EasyDoFollowBadge() {
     );
 }
 
+function ScrollLaunchBadge() {
+    return (
+        <a
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={scrollLaunchBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: ScrollLaunch provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={scrollLaunchBadge.alt}
+                height={scrollLaunchBadge.height}
+                loading="lazy"
+                src={scrollLaunchBadge.src}
+                width={scrollLaunchBadge.width}
+            />
+        </a>
+    );
+}
+
 function FooterBadges() {
     return (
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
             <HuzzlerBadge />
             <TinyStartupsBadge />
             <EasyDoFollowBadge />
+            <ScrollLaunchBadge />
         </div>
     );
 }

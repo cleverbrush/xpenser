@@ -104,6 +104,28 @@ describe('LandingPage', () => {
         expect(easyDoFollowDarkBadgeImage?.getAttribute('height')).toBe('56');
         expect(easyDoFollowDarkBadgeImage?.className).toContain('hidden');
         expect(easyDoFollowDarkBadgeImage?.className).toContain('dark:block');
+
+        const scrollLaunchBadgeLink = screen.getByRole('link', {
+            name: /Featured on ScrollLaunch/i
+        });
+        expect(scrollLaunchBadgeLink).toHaveProperty(
+            'href',
+            'https://www.scrolllaunch.com/products/xpenser?utm_source=badge&utm_medium=embed&utm_campaign=xpenser&ref=scrolllaunch'
+        );
+        expect(scrollLaunchBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(scrollLaunchBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const scrollLaunchBadgeImage = screen.getByAltText(
+            'Featured on ScrollLaunch'
+        );
+        expect(scrollLaunchBadgeImage.getAttribute('src')).toBe(
+            'https://www.scrolllaunch.com/api/badge/xpenser'
+        );
+        expect(scrollLaunchBadgeImage.getAttribute('width')).toBe('220');
+        expect(scrollLaunchBadgeImage.getAttribute('height')).toBe('48');
+        expect(scrollLaunchBadgeImage.getAttribute('loading')).toBe('lazy');
         expect(
             screen.getByText(
                 /read or manage vendors, categories, and transactions/i
