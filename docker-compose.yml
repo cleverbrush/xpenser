@@ -27,7 +27,7 @@ services:
     environment:
       NODE_ENV: production
       APP_URL: ${APP_URL:-http://localhost:3000}
-      API_BASE_URL: ${PUBLIC_API_BASE_URL:-${APP_URL:-http://localhost:3000}}
+      API_BASE_URL: ${APP_URL:-http://localhost:3000}
       HOST: 0.0.0.0
       PORT: 4000
       DB_HOST: postgres
