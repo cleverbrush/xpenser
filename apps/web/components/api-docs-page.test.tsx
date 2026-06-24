@@ -5,31 +5,34 @@
 import { render, screen } from '@testing-library/react';
 import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { ApiDocsPage } from './api-docs-page';
 
-vi.mock('swagger-ui-react', () => ({
-    default: (props: {
-        readonly defaultModelExpandDepth?: number;
-        readonly defaultModelsExpandDepth?: number;
-        readonly deepLinking?: boolean;
-        readonly displayOperationId?: boolean;
-        readonly filter?: boolean | string;
-        readonly url?: string;
-    }) =>
-        createElement('div', {
-            'data-default-model-expand-depth': String(
-                props.defaultModelExpandDepth
-            ),
-            'data-default-models-expand-depth': String(
-                props.defaultModelsExpandDepth
-            ),
-            'data-deep-linking': String(props.deepLinking),
-            'data-display-operation-id': String(props.displayOperationId),
-            'data-filter': String(props.filter),
-            'data-testid': 'swagger-ui',
-            'data-url': props.url
-        })
+vi.mock('next/dynamic', () => ({
+    default:
+        () =>
+        (props: {
+            readonly defaultModelExpandDepth?: number;
+            readonly defaultModelsExpandDepth?: number;
+            readonly deepLinking?: boolean;
+            readonly displayOperationId?: boolean;
+            readonly filter?: boolean | string;
+            readonly url?: string;
+        }) =>
+            createElement('div', {
+                'data-default-model-expand-depth': String(
+                    props.defaultModelExpandDepth
+                ),
+                'data-default-models-expand-depth': String(
+                    props.defaultModelsExpandDepth
+                ),
+                'data-deep-linking': String(props.deepLinking),
+                'data-display-operation-id': String(props.displayOperationId),
+                'data-filter': String(props.filter),
+                'data-testid': 'swagger-ui',
+                'data-url': props.url
+            })
 }));
+
+import { ApiDocsPage } from './api-docs-page';
 
 describe('ApiDocsPage', () => {
     it('renders the public API docs page and embedded OpenAPI viewer', () => {

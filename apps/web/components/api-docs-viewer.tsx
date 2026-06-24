@@ -1,7 +1,16 @@
 'use client';
 
-import SwaggerUI from 'swagger-ui-react';
+import dynamic from 'next/dynamic';
 import { openApiSpecPath } from '@/lib/public-site';
+
+const SwaggerUI = dynamic(() => import('swagger-ui-react'), {
+    loading: () => (
+        <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+            Loading API reference...
+        </div>
+    ),
+    ssr: false
+});
 
 const supportedSubmitMethods = [
     'delete',
