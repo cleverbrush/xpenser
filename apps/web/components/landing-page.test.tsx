@@ -20,9 +20,21 @@ describe('LandingPage', () => {
         expect(
             screen.getByText(/Track and analyze income and expenses/i)
         ).toBeTruthy();
-        expect(screen.getByText(/early and evolving/i)).toBeTruthy();
+        expect(
+            screen.getByText(/hosted account is for xpenser\.cleverbrush\.com/i)
+        ).toBeTruthy();
         expect(
             screen.getByAltText(/xpenser dashboard month view/i)
+        ).toBeTruthy();
+        expect(screen.getByAltText(/xpenser transactions table/i)).toBeTruthy();
+        expect(
+            screen.getByAltText(/API keys and MCP setup instructions/i)
+        ).toBeTruthy();
+        expect(
+            screen.getByText(/API access is a product surface/i)
+        ).toBeTruthy();
+        expect(
+            screen.getByText(/Real screens, not a placeholder finance app/i)
         ).toBeTruthy();
         expect(
             screen.getByText(/Learn Cleverbrush from a working app/i)
@@ -160,6 +172,18 @@ describe('LandingPage', () => {
             'href',
             'http://localhost:3000/personal-finance-api-mcp'
         );
+        expect(
+            screen.getAllByRole('link', { name: /^API docs$/i }).length
+        ).toBeGreaterThan(0);
+        expect(
+            screen.getByRole('link', { name: /OpenAPI JSON/i })
+        ).toHaveProperty(
+            'href',
+            'http://localhost:3000/external-api/openapi.json'
+        );
+        expect(
+            screen.getAllByText(/external-api\/mcp/i).length
+        ).toBeGreaterThan(0);
 
         const signInLinks = screen.getAllByRole('link', { name: /sign in/i });
         expect(
@@ -167,7 +191,7 @@ describe('LandingPage', () => {
         ).toBe(true);
 
         const registerLinks = screen.getAllByRole('link', {
-            name: /create account/i
+            name: /create hosted account/i
         });
         expect(
             registerLinks.some(

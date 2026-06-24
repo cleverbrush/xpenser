@@ -17,6 +17,15 @@ export type PublicMarketingPage = {
     readonly sections: readonly MarketingSection[];
 };
 
+export type PublicUtilityPage = {
+    readonly description: string;
+    readonly h1: string;
+    readonly metadataTitle: string;
+    readonly navLabel: string;
+    readonly path: string;
+    readonly priority: number;
+};
+
 export type JsonLdData = Record<string, unknown>;
 
 export const publicSiteOrigin = (
@@ -36,6 +45,33 @@ export const appScreenshot = {
     width: 1440
 } as const;
 
+export const transactionsScreenshot = {
+    alt: 'xpenser transactions table showing categories, vendors, amounts, and transaction dates',
+    height: 1440,
+    src: '/screenshots/transactions.png',
+    width: 1440
+} as const;
+
+export const apiSettingsScreenshot = {
+    alt: 'xpenser preferences screen showing API keys and MCP setup instructions',
+    height: 2307,
+    src: '/screenshots/preferences-mcp-email.png',
+    width: 1440
+} as const;
+
+export const openApiSpecPath = '/external-api/openapi.json';
+export const mcpEndpointPath = '/external-api/mcp';
+
+export const apiDocsPage = {
+    description:
+        'Explore the generated xpenser OpenAPI reference for categories, vendors, transactions, stats, API keys, and MCP-related endpoints.',
+    h1: 'xpenser API reference',
+    metadataTitle: 'API Reference',
+    navLabel: 'API docs',
+    path: '/api-docs',
+    priority: 0.7
+} as const satisfies PublicUtilityPage;
+
 export const publicMarketingPages = [
     {
         description:
@@ -50,7 +86,7 @@ export const publicMarketingPages = [
             'Expense tracking workflows',
             'Self-hostable finance app',
             'Multi-currency tracking',
-            'MCP/API access',
+            'OpenAPI and MCP access',
             'Telegram bot integration',
             'Cleverbrush reference code',
             'MIT licensed',
@@ -133,7 +169,7 @@ export const publicMarketingPages = [
     },
     {
         description:
-            'Use xpenser with API keys, typed client access, and MCP tools for personal finance data, including vendors, categories, transactions, and agent workflows.',
+            'Use xpenser with OpenAPI docs, API keys, typed client access, and MCP tools for personal finance data, including vendors, categories, transactions, and agent workflows.',
         eyebrow: 'API and MCP access',
         h1: 'Personal finance API and MCP access',
         metadataTitle: 'Personal Finance API and MCP Access',
@@ -141,6 +177,7 @@ export const publicMarketingPages = [
         path: '/personal-finance-api-mcp',
         priority: 0.8,
         proofItems: [
+            'OpenAPI reference',
             'API key access',
             'Typed Node client',
             'MCP server tools',
@@ -148,7 +185,7 @@ export const publicMarketingPages = [
         ],
         sections: [
             {
-                body: 'Create API keys for durable external access and use the typed client around the same contracts that drive the web app and API handlers.',
+                body: 'Create API keys for durable external access, inspect the generated OpenAPI reference, and use the typed client around the same contracts that drive the web app and API handlers.',
                 title: 'Typed API access'
             },
             {
@@ -166,6 +203,8 @@ export const publicMarketingPages = [
 export const publicSeoPages = publicMarketingPages.filter(
     page => page.path !== '/'
 );
+
+export const publicUtilityPages = [apiDocsPage] as const;
 
 export function publicUrl(path = '/') {
     return new URL(path, `${publicSiteOrigin}/`).toString();
@@ -215,7 +254,7 @@ export function createPublicPageMetadata(page: PublicMarketingPage): Metadata {
 }
 
 export function getPublicSitemap(): MetadataRoute.Sitemap {
-    return publicMarketingPages.map(page => ({
+    return [...publicMarketingPages, ...publicUtilityPages].map(page => ({
         url: publicUrl(page.path),
         lastModified: new Date(`${publicPageLastModified}T00:00:00.000Z`),
         changeFrequency: page.path === '/' ? 'weekly' : 'monthly',

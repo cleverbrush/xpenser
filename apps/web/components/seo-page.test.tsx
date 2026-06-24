@@ -20,6 +20,9 @@ describe('SeoPage', () => {
         expect(
             screen.getByAltText(/xpenser dashboard month view/i)
         ).toBeTruthy();
+        expect(
+            screen.getByText(/Create a hosted account for the public xpenser/i)
+        ).toBeTruthy();
 
         for (const section of page.sections) {
             expect(
@@ -32,11 +35,23 @@ describe('SeoPage', () => {
         }
 
         expect(
-            screen.getAllByRole('link', { name: /Create account/i }).length
+            screen.getAllByRole('link', { name: /Create hosted account/i })
+                .length
         ).toBeGreaterThan(0);
         expect(
-            screen.getByRole('link', { name: /View source/i })
-        ).toHaveProperty('href', 'https://github.com/cleverbrush/xpenser');
+            screen
+                .getAllByRole('link', { name: /View source/i })
+                .every(
+                    link =>
+                        link.getAttribute('href') ===
+                        'https://github.com/cleverbrush/xpenser'
+                )
+        ).toBe(true);
+        if (page.path === '/personal-finance-api-mcp') {
+            expect(
+                screen.getByRole('link', { name: /Open API docs/i })
+            ).toHaveProperty('href', 'http://localhost:3000/api-docs');
+        }
         expect(screen.queryByAltText('Huzzler Embed Badge')).toBeNull();
     });
 });

@@ -18,3 +18,57 @@
         'wght' 520;
     letter-spacing: 0;
 }
+
+.api-docs-viewer .swagger-ui {
+    color: hsl(var(--foreground));
+    font-family: inherit;
+}
+
+.api-docs-viewer .swagger-ui .information-container,
+.api-docs-viewer .swagger-ui .scheme-container {
+    background: hsl(var(--background));
+}
+
+.api-docs-viewer .swagger-ui .scheme-container {
+    border-bottom: 1px solid hsl(var(--border));
+    box-shadow: none;
+}
+
+.api-docs-viewer .swagger-ui .wrapper {
+    max-width: none;
+    padding-inline: 1rem;
+}
+
+.api-docs-viewer .swagger-ui .opblock-tag,
+.api-docs-viewer .swagger-ui .opblock .opblock-summary-description,
+.api-docs-viewer .swagger-ui .parameter__name,
+.api-docs-viewer .swagger-ui table thead tr td,
+.api-docs-viewer .swagger-ui table thead tr th {
+    color: hsl(var(--foreground));
+}
+
+.api-docs-viewer .swagger-ui .info .title,
+.api-docs-viewer .swagger-ui .info h1,
+.api-docs-viewer .swagger-ui .info h2,
+.api-docs-viewer .swagger-ui .info h3,
+.api-docs-viewer .swagger-ui .info h4,
+.api-docs-viewer .swagger-ui .info h5,
+.api-docs-viewer .swagger-ui .info li,
+.api-docs-viewer .swagger-ui .info p,
+.api-docs-viewer .swagger-ui .info table {
+    color: hsl(var(--foreground));
+}
+
+.api-docs-viewer .swagger-ui .info .base-url,
+.api-docs-viewer .swagger-ui .model-title,
+.api-docs-viewer .swagger-ui .parameter__type,
+.api-docs-viewer .swagger-ui .prop-type {
+    color: hsl(var(--muted-foreground));
+}
+
+.api-docs-viewer .swagger-ui input,
+.api-docs-viewer .swagger-ui select,
+.api-docs-viewer .swagger-ui textarea {
+    border-color: hsl(var(--input));
+    border-radius: calc(var(--radius) - 2px);
+}
