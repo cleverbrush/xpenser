@@ -390,6 +390,14 @@ export const TransactionScanProgressEndpoint = api.transactionScans.progress
     .tags('transaction-scans')
     .operationId('transactionScanProgress');
 
+export const TransactionScanJobStatusEndpoint = api.transactionScans.status
+    .summary('Transaction image scan job status')
+    .description(
+        'Returns the latest progress event for a short-lived scan job token.'
+    )
+    .tags('transaction-scans')
+    .operationId('transactionScanJobStatus');
+
 export const DecideTransactionScanItemEndpoint = api.transactionScans.decide
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -513,6 +521,7 @@ export const endpoints = {
         create: CreateTransactionScanEndpoint,
         start: StartTransactionScanJobEndpoint,
         progress: TransactionScanProgressEndpoint,
+        status: TransactionScanJobStatusEndpoint,
         decide: DecideTransactionScanItemEndpoint
     },
     dashboard: {

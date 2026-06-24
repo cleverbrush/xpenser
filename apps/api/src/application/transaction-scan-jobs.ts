@@ -228,6 +228,38 @@ function authorizedJob(query: TransactionScanProgressQuery) {
     return job && job.token === query.token ? job : undefined;
 }
 
+function jobNotFoundEvent(
+    query: TransactionScanProgressQuery
+): TransactionScanProgressEvent {
+    return {
+        jobId: query.jobId,
+        stage: 'failed',
+        message: 'Scan job was not found.',
+        progress: 100,
+        scan: null,
+        error: 'Scan job was not found.'
+    };
+}
+
+export function getTransactionScanJobStatus(
+    query: TransactionScanProgressQuery
+): TransactionScanProgressEvent {
+    const job = authorizedJob(query);
+    if (!job) {
+        return jobNotFoundEvent(query);
+    }
+
+    return (
+        job.events.at(-1) ??
+        event({
+            job,
+            message: 'Scan queued.',
+            progress: 0,
+            stage: 'queued'
+        })
+    );
+}
+
 function waitForEvent(job: MutableScanJob, signal: AbortSignal): Promise<void> {
     if (signal.aborted || job.done) {
         return Promise.resolve();
@@ -256,14 +288,7 @@ export async function* subscribeTransactionScanJob(
 ): AsyncGenerator<TransactionScanProgressEvent> {
     const job = authorizedJob(query);
     if (!job) {
-        yield {
-            jobId: query.jobId,
-            stage: 'failed',
-            message: 'Scan job was not found.',
-            progress: 100,
-            scan: null,
-            error: 'Scan job was not found.'
-        };
+        yield jobNotFoundEvent(query);
         return;
     }
 

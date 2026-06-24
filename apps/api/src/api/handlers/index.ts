@@ -40,6 +40,7 @@ import {
     createTransactionScanHandler,
     decideTransactionScanItemHandler,
     startTransactionScanJobHandler,
+    transactionScanJobStatusHandler,
     transactionScanProgressHandler
 } from './transaction-scans.js';
 import { listTransactionTagsHandler } from './transaction-tags.js';
@@ -131,6 +132,7 @@ export const handlers = {
         create: createTransactionScanHandler,
         start: startTransactionScanJobHandler,
         progress: transactionScanProgressHandler,
+        status: transactionScanJobStatusHandler,
         decide: decideTransactionScanItemHandler
     },
     dashboard: {
