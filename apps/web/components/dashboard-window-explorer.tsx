@@ -170,7 +170,7 @@ export function DashboardWindowExplorer({
 
             try {
                 const response = await fetch(
-                    `/api/dashboard/window?${params.toString()}`,
+                    `/app-api/dashboard/window?${params.toString()}`,
                     { headers: { Accept: 'application/json' } }
                 );
                 if (response.status === 401) {

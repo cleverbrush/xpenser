@@ -154,7 +154,7 @@ export default async function PreferencesPage() {
                     <ApiKeysSettings
                         apiKeys={apiKeys}
                         mcpConnections={mcpConnections}
-                        mcpUrl={publicAppUrl('/external-api/mcp').toString()}
+                        mcpUrl={publicAppUrl('/api/mcp').toString()}
                     />
                 </CardContent>
             </Card>

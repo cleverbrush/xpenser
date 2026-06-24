@@ -16,7 +16,8 @@ describe('metadata routes', () => {
                 allow: '/',
                 disallow: expect.arrayContaining([
                     '/api/',
-                    '/external-api/',
+                    '/app-api/',
+                    '/authjs/',
                     '/dashboard'
                 ])
             })
@@ -28,7 +29,8 @@ describe('metadata routes', () => {
             'https://xpenser.cleverbrush.com/',
             'https://xpenser.cleverbrush.com/self-hosted-personal-finance-tracker',
             'https://xpenser.cleverbrush.com/open-source-expense-tracker',
-            'https://xpenser.cleverbrush.com/personal-finance-api-mcp'
+            'https://xpenser.cleverbrush.com/personal-finance-api-mcp',
+            'https://xpenser.cleverbrush.com/api-docs'
         ]);
     });
 

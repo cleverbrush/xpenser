@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+    DEFAULT_BASE_URL,
     isRetryableStatus,
+    parseArgs,
     parseCategoryTypes,
     parseCsvLine,
     parseTransactionRow,
@@ -16,6 +18,11 @@ const categoryTypes = new Map([
 ]);
 
 describe('historical transaction import helpers', () => {
+    it('defaults to the public API namespace', () => {
+        expect(DEFAULT_BASE_URL).toBe('https://xpenser.cleverbrush.com/api');
+        expect(parseArgs([]).baseUrl).toBe(DEFAULT_BASE_URL);
+    });
+
     it('parses category type lines', () => {
         expect(
             parseCategoryTypes('Food - expense\nSalary - income')

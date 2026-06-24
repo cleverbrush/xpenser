@@ -31,7 +31,7 @@ export const mcpHandler: Handler<typeof McpEndpoint> = async (
         context.response.setHeader(
             'WWW-Authenticate',
             `Bearer resource_metadata="${new URL(
-                '/.well-known/oauth-protected-resource/external-api/mcp',
+                '/.well-known/oauth-protected-resource/api/mcp',
                 config.app.url
             ).toString()}"`
         );

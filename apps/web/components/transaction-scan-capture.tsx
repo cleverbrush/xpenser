@@ -164,9 +164,7 @@ function browserApiBaseUrl(): string {
     ) {
         return 'http://localhost:4000';
     }
-    return new URL('/external-api', window.location.href)
-        .toString()
-        .replace(/\/$/, '');
+    return new URL('/api', window.location.href).toString().replace(/\/$/, '');
 }
 
 function scanError(event: TransactionScanProgressEvent): string {
@@ -254,7 +252,7 @@ async function uploadAndScanImageFile(
 
     for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
         const start = chunkIndex * uploadChunkBytes;
-        const response = await fetch('/api/transaction-scans', {
+        const response = await fetch('/app-api/transaction-scans', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

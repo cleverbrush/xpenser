@@ -9,11 +9,16 @@ import {
 import {
     ArrowRightIcon,
     CheckCircle2Icon,
+    FileJsonIcon,
     GithubIcon,
     HomeIcon
 } from 'lucide-react';
 import Link from 'next/link';
-import { type PublicMarketingPage, publicSeoPages } from '@/lib/public-site';
+import {
+    apiDocsPage,
+    type PublicMarketingPage,
+    publicSeoPages
+} from '@/lib/public-site';
 import { CtaPanel, ProductPreview, PublicPageShell } from './landing-page';
 
 function Breadcrumbs({ page }: { readonly page: PublicMarketingPage }) {
@@ -112,6 +117,11 @@ export function SeoPage({ page }: { readonly page: PublicMarketingPage }) {
                         <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
                             {page.description}
                         </p>
+                        <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
+                            Create an account for xpenser.cleverbrush.com, or
+                            use the source link to inspect and self-host the
+                            same app.
+                        </p>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
                                 <Link href="/register">
@@ -141,6 +151,22 @@ export function SeoPage({ page }: { readonly page: PublicMarketingPage }) {
                                 </a>
                             </Button>
                         </div>
+                        {page.path === '/personal-finance-api-mcp' ? (
+                            <Button
+                                asChild
+                                className="mt-3"
+                                size="lg"
+                                variant="outline"
+                            >
+                                <Link href={apiDocsPage.path}>
+                                    <FileJsonIcon
+                                        aria-hidden
+                                        className="size-4"
+                                    />
+                                    Open API docs
+                                </Link>
+                            </Button>
+                        ) : null}
                         <div className="mt-6">
                             <ProofItems items={page.proofItems} />
                         </div>

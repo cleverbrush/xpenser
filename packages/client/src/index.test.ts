@@ -95,7 +95,7 @@ describe('createXpenserClient', () => {
     });
 
     it('skips batching when the base URL includes an API proxy path', () => {
-        createXpenserClient({ baseUrl: 'http://localhost:3000/external-api' });
+        createXpenserClient({ baseUrl: 'http://localhost:3000/api' });
 
         expect(middlewareMocks.batching).not.toHaveBeenCalled();
         expect(middlewareMocks.createClient).toHaveBeenCalledWith(

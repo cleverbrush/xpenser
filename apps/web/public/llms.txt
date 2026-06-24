@@ -10,6 +10,7 @@ xpenser is an early personal finance app and Cleverbrush Framework reference imp
 - [Self-hosted personal finance tracker](https://xpenser.cleverbrush.com/self-hosted-personal-finance-tracker): Deployment and self-hosting angle.
 - [Open-source expense tracker](https://xpenser.cleverbrush.com/open-source-expense-tracker): Expense, income, vendor, category, and report workflows.
 - [Personal finance API and MCP access](https://xpenser.cleverbrush.com/personal-finance-api-mcp): API keys, typed client access, MCP tools, and agent workflows.
+- [xpenser API reference](https://xpenser.cleverbrush.com/api-docs): Interactive OpenAPI reference generated from the live contract.
 
 ## Source and Docs
 

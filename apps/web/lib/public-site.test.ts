@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+    apiDocsPage,
     createPublicPageJsonLd,
     createPublicPageMetadata,
     getPublicMarketingPage,
     getPublicSitemap,
     publicMarketingPages,
     publicPageLastModified,
-    publicUrl
+    publicUrl,
+    publicUtilityPages
 } from './public-site';
 
 describe('public site SEO helpers', () => {
@@ -17,6 +19,10 @@ describe('public site SEO helpers', () => {
             '/open-source-expense-tracker',
             '/personal-finance-api-mcp'
         ]);
+        expect(publicUtilityPages.map(page => page.path)).toEqual([
+            '/api-docs'
+        ]);
+        expect(apiDocsPage.navLabel).toBe('API docs');
     });
 
     it('builds canonical metadata for each public page', () => {
@@ -33,7 +39,9 @@ describe('public site SEO helpers', () => {
         const sitemap = getPublicSitemap();
 
         expect(sitemap.map(entry => entry.url)).toEqual(
-            publicMarketingPages.map(page => publicUrl(page.path))
+            [...publicMarketingPages, ...publicUtilityPages].map(page =>
+                publicUrl(page.path)
+            )
         );
         expect(sitemap.some(entry => entry.url.includes('/dashboard'))).toBe(
             false

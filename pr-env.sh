@@ -162,7 +162,6 @@ write_compose_env() {
     cat >"$file" <<ENV
 NODE_ENV=production
 APP_URL=https://${DOMAIN}
-PUBLIC_API_BASE_URL=https://${DOMAIN}/external-api
 API_PORT=${API_PORT}
 WEB_PORT=${WEB_PORT}
 POSTGRES_DB=${POSTGRES_DB}
@@ -171,7 +170,8 @@ POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 JWT_SECRET=${JWT_SECRET}
 JWT_EXPIRES_IN=1209600
 WEB_API_SERVICE_SECRET=${WEB_API_SERVICE_SECRET}
-NEXTAUTH_URL=https://${DOMAIN}
+AUTH_URL=https://${DOMAIN}/authjs
+NEXTAUTH_URL=https://${DOMAIN}/authjs
 NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
 AUTH_SECRET=${NEXTAUTH_SECRET}
 GOOGLE_SIGN_IN_MODE=passport
@@ -445,7 +445,7 @@ upsert_passport_environment() {
     body="$(
         jq -n \
             --arg frontend_origin "https://${DOMAIN}" \
-            --arg backend_auth_url "https://${DOMAIN}/external-api/auth/passport" \
+            --arg backend_auth_url "https://${DOMAIN}/api/auth/passport" \
             '{
                 frontend_origin: $frontend_origin,
                 callback_path: "/auth/callback",
@@ -489,7 +489,7 @@ list_matching_passport_environment_names() {
         --arg env "$PASSPORT_ENVIRONMENT" \
         --arg host_env "$HOST_ENV_NAME" \
         --arg frontend_origin "https://${DOMAIN}" \
-        --arg backend_auth_url "https://${DOMAIN}/external-api/auth/passport" \
+        --arg backend_auth_url "https://${DOMAIN}/api/auth/passport" \
         '(. // [])[]? |
             select(
                 .name == $env or

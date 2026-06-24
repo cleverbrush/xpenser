@@ -168,7 +168,7 @@ function ScanImageReviewButton({
     if (!attachment) {
         return null;
     }
-    const imageSrc = `/api/transactions/${transaction.id}/scan-image`;
+    const imageSrc = `/app-api/transactions/${transaction.id}/scan-image`;
 
     return (
         <Dialog onOpenChange={setOpen} open={open}>
@@ -677,7 +677,7 @@ export function TransactionsBrowser({
         params.set('direction', 'desc');
 
         try {
-            const response = await fetch(`/api/transactions?${params}`, {
+            const response = await fetch(`/app-api/transactions?${params}`, {
                 cache: 'no-store'
             });
             if (response.status === 401) {

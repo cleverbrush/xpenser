@@ -12,9 +12,11 @@ import {
     BotIcon,
     BracesIcon,
     CheckCircle2Icon,
+    Code2Icon,
     CoinsIcon,
     DatabaseIcon,
     ExternalLinkIcon,
+    FileJsonIcon,
     GithubIcon,
     KeyRoundIcon,
     LayoutDashboardIcon,
@@ -32,10 +34,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
 import {
+    apiDocsPage,
+    apiSettingsScreenshot,
     appScreenshot,
     getPublicMarketingPage,
+    mcpEndpointPath,
+    openApiSpecPath,
     publicMarketingPages,
-    publicSeoPages
+    publicSeoPages,
+    transactionsScreenshot
 } from '@/lib/public-site';
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>;
@@ -44,6 +51,13 @@ type Feature = {
     readonly description: string;
     readonly icon: Icon;
     readonly title: string;
+};
+
+type ScreenshotAsset = {
+    readonly alt: string;
+    readonly height: number;
+    readonly src: string;
+    readonly width: number;
 };
 
 const appFeatures: readonly Feature[] = [
@@ -167,6 +181,15 @@ const scrollLaunchBadge = {
     width: 220
 } as const;
 
+const apiCurlExample = `curl ${openApiSpecPath}
+curl ${mcpEndpointPath} \\
+  -H "Authorization: Bearer \${XPENSER_API_KEY}"`;
+
+const typedClientExample = `const client = createXpenserClient({
+  baseUrl: process.env.XPENSER_API_BASE_URL,
+  getToken: () => process.env.XPENSER_API_KEY
+});`;
+
 function FeatureCard({ description, icon: IconComponent, title }: Feature) {
     return (
         <Card className="h-full">
@@ -208,6 +231,56 @@ export function ProductPreview({
                 />
             </div>
         </figure>
+    );
+}
+
+function ScreenshotPanel({
+    description,
+    image,
+    title
+}: {
+    readonly description: string;
+    readonly image: ScreenshotAsset;
+    readonly title: string;
+}) {
+    return (
+        <figure className="min-w-0">
+            <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+                <Image
+                    alt={image.alt}
+                    className="aspect-[1.24] w-full object-cover object-top"
+                    height={image.height}
+                    sizes="(min-width: 1024px) 520px, 100vw"
+                    src={image.src}
+                    width={image.width}
+                />
+            </div>
+            <figcaption className="mt-3">
+                <h3 className="text-base font-semibold">{title}</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {description}
+                </p>
+            </figcaption>
+        </figure>
+    );
+}
+
+function CodeSample({
+    children,
+    label
+}: {
+    readonly children: string;
+    readonly label: string;
+}) {
+    return (
+        <div className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-slate-950 text-slate-50 shadow-sm dark:bg-slate-900">
+            <div className="border-b border-white/10 px-4 py-2 text-xs font-medium uppercase tracking-normal text-slate-300">
+                {label}
+            </div>
+            <pre className="max-w-full overflow-x-auto p-4 text-sm leading-6">
+                <code>{children}</code>
+            </pre>
+        </div>
     );
 }
 
@@ -323,6 +396,11 @@ export function PublicSiteHeader() {
                                 <Link href={path}>{navLabel}</Link>
                             </Button>
                         ))}
+                        <Button asChild size="sm" variant="ghost">
+                            <Link href={apiDocsPage.path}>
+                                {apiDocsPage.navLabel}
+                            </Link>
+                        </Button>
                     </div>
                     <Button
                         asChild
@@ -510,6 +588,12 @@ export function PublicSiteFooter({
                                 {navLabel}
                             </Link>
                         ))}
+                        <Link
+                            className="font-medium text-foreground transition-colors hover:text-primary"
+                            href={apiDocsPage.path}
+                        >
+                            {apiDocsPage.navLabel}
+                        </Link>
                         <a
                             className="font-medium text-foreground transition-colors hover:text-primary"
                             href="/llms.txt"
@@ -574,19 +658,29 @@ export function CtaPanel() {
                 <div className="flex flex-col gap-5 rounded-lg border bg-muted/35 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                     <div className="max-w-xl">
                         <h2 className="text-2xl font-semibold">
-                            Use it, self-host it, or study the source
+                            Start hosted, then self-host when ready
                         </h2>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                            Create an account for the hosted app, review the
-                            source on GitHub, or follow the Cleverbrush docs
-                            behind the contracts, forms, APIs, and telemetry.
+                            Create a hosted xpenser account for the public
+                            instance, or review the MIT licensed source and run
+                            your own deployment from Docker Compose.
                         </p>
                     </div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
                         <Button asChild size="lg">
                             <Link href="/register">Create account</Link>
                         </Button>
                         <Button asChild size="lg" variant="outline">
+                            <a
+                                href="https://github.com/cleverbrush/xpenser"
+                                rel="noreferrer"
+                                target="_blank"
+                            >
+                                <GithubIcon aria-hidden className="size-4" />
+                                View source
+                            </a>
+                        </Button>
+                        <Button asChild size="lg" variant="ghost">
                             <Link href="/login">Sign in</Link>
                         </Button>
                     </div>
@@ -613,13 +707,13 @@ export function LandingPage() {
                         <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
                             Track and analyze income and expenses with
                             dashboards, categories, vendors, reports, and
-                            MCP/API access in a self-hostable app with source
-                            you can inspect.
+                            OpenAPI/MCP access in a self-hostable app with
+                            source you can inspect.
                         </p>
                         <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-                            xpenser is early and evolving; feedback on product
-                            fit, self-hosting, README clarity, and MCP workflows
-                            is welcome.
+                            Accounts are for xpenser.cleverbrush.com;
+                            self-hosted deployments run from the same MIT
+                            licensed source.
                         </p>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
@@ -637,7 +731,13 @@ export function LandingPage() {
                                 size="lg"
                                 variant="outline"
                             >
-                                <Link href="/login">Sign in</Link>
+                                <Link href={apiDocsPage.path}>
+                                    API docs
+                                    <FileJsonIcon
+                                        aria-hidden
+                                        className="size-4"
+                                    />
+                                </Link>
                             </Button>
                         </div>
                         <div className="mt-5">
@@ -663,6 +763,93 @@ export function LandingPage() {
                     </p>
                 </div>
                 <InternalSeoLinks />
+            </section>
+
+            <section className="border-y bg-muted/35">
+                <div className="mx-auto max-w-6xl px-4 py-14 sm:py-16">
+                    <div className="mb-8 max-w-2xl">
+                        <h2 className="text-2xl font-semibold">
+                            Real screens, not a placeholder finance app
+                        </h2>
+                        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                            The public page now shows the transaction browser,
+                            API key, and MCP setup surfaces directly, so users
+                            can evaluate the product and integration workflow
+                            before creating an account.
+                        </p>
+                    </div>
+                    <div className="grid gap-6 lg:grid-cols-2">
+                        <ScreenshotPanel
+                            description="Searchable transaction history shows categories, vendors, effects, amounts, and dates in the same data model exposed by the API."
+                            image={transactionsScreenshot}
+                            title="Transactions stay inspectable"
+                        />
+                        <ScreenshotPanel
+                            description="Preferences include API keys, MCP OAuth setup, bearer-token fallback instructions, Telegram linking, and email report settings."
+                            image={apiSettingsScreenshot}
+                            title="Integrations live in the product"
+                        />
+                    </div>
+                </div>
+            </section>
+
+            <section className="mx-auto grid max-w-6xl gap-8 px-4 py-14 sm:py-16 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-start">
+                <div className="min-w-0">
+                    <Badge className="mb-4 w-fit" variant="outline">
+                        OpenAPI and MCP
+                    </Badge>
+                    <h2 className="text-2xl font-semibold">
+                        API access is a product surface
+                    </h2>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        xpenser already generates OpenAPI from the same
+                        Cleverbrush contracts used by the server and typed
+                        client. The public site should expose that reference
+                        directly and point agent users to the MCP endpoint.
+                    </p>
+                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                        <Button asChild variant="outline">
+                            <Link href={apiDocsPage.path}>
+                                <FileJsonIcon aria-hidden className="size-4" />
+                                API docs
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline">
+                            <a href={openApiSpecPath}>
+                                <Code2Icon aria-hidden className="size-4" />
+                                OpenAPI JSON
+                            </a>
+                        </Button>
+                        <Button asChild variant="outline">
+                            <Link href="/personal-finance-api-mcp">
+                                <BotIcon aria-hidden className="size-4" />
+                                API and MCP guide
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline">
+                            <a
+                                href="https://github.com/cleverbrush/xpenser"
+                                rel="noreferrer"
+                                target="_blank"
+                            >
+                                <GithubIcon aria-hidden className="size-4" />
+                                Self-host source
+                                <ExternalLinkIcon
+                                    aria-hidden
+                                    className="size-3"
+                                />
+                            </a>
+                        </Button>
+                    </div>
+                </div>
+                <div className="grid min-w-0 gap-4">
+                    <CodeSample label="Generated API reference">
+                        {apiCurlExample}
+                    </CodeSample>
+                    <CodeSample label="Typed client access">
+                        {typedClientExample}
+                    </CodeSample>
+                </div>
             </section>
 
             <section className="mx-auto max-w-6xl px-4 py-14 sm:py-16">

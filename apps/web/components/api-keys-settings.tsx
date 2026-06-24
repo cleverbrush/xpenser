@@ -112,7 +112,7 @@ export function ApiKeysSettings({
     }, [apiKeys]);
 
     useEffect(() => {
-        setCurrentMcpUrl(`${window.location.origin}/external-api/mcp`);
+        setCurrentMcpUrl(`${window.location.origin}/api/mcp`);
     }, []);
 
     const codexSnippet = useMemo(

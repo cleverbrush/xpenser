@@ -27,14 +27,12 @@ describe('ApiKeysSettings', () => {
             <ApiKeysSettings
                 apiKeys={[]}
                 mcpConnections={[connection]}
-                mcpUrl="https://xpenser.example.com/external-api/mcp"
+                mcpUrl="https://xpenser.example.com/api/mcp"
             />
         );
 
         expect(screen.getByText('MCP server')).toBeTruthy();
-        expect(
-            screen.getAllByText(/\/external-api\/mcp/).length
-        ).toBeGreaterThan(0);
+        expect(screen.getAllByText(/\/api\/mcp/).length).toBeGreaterThan(0);
         expect(screen.getByText('Claude')).toBeTruthy();
         expect(screen.getAllByText('Codex').length).toBeGreaterThan(0);
         expect(screen.getByText('Cursor')).toBeTruthy();

@@ -228,18 +228,17 @@ describe('api endpoint map', () => {
                 issuer: 'http://localhost:3000',
                 authorization_endpoint:
                     'http://localhost:3000/mcp/oauth/authorize',
-                token_endpoint:
-                    'http://localhost:3000/external-api/oauth/token',
+                token_endpoint: 'http://localhost:3000/api/oauth/token',
                 registration_endpoint:
-                    'http://localhost:3000/external-api/oauth/register',
+                    'http://localhost:3000/api/oauth/register',
                 code_challenge_methods_supported: ['S256']
             });
 
             const protectedResource = await fetch(
-                `${baseUrl}/.well-known/oauth-protected-resource/external-api/mcp`
+                `${baseUrl}/.well-known/oauth-protected-resource/api/mcp`
             );
             await expect(protectedResource.json()).resolves.toMatchObject({
-                resource: 'http://localhost:3000/external-api/mcp',
+                resource: 'http://localhost:3000/api/mcp',
                 authorization_servers: ['http://localhost:3000'],
                 scopes_supported: ['mcp']
             });
@@ -247,7 +246,7 @@ describe('api endpoint map', () => {
             const mcp = await fetch(`${baseUrl}/api/mcp`, { method: 'POST' });
             expect(mcp.status).toBe(401);
             expect(mcp.headers.get('www-authenticate')).toBe(
-                'Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/external-api/mcp"'
+                'Bearer resource_metadata="http://localhost:3000/.well-known/oauth-protected-resource/api/mcp"'
             );
         } finally {
             await runningServer.close();

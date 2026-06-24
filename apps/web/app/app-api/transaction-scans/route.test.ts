@@ -26,7 +26,7 @@ const uploadId = '00000000-0000-4000-8000-000000000001';
 const userId = '1';
 
 function scanRequest(body: Record<string, unknown>) {
-    return new Request('https://app.example.test/api/transaction-scans', {
+    return new Request('https://app.example.test/app-api/transaction-scans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
