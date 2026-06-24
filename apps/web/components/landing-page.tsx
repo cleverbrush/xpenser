@@ -711,7 +711,7 @@ export function LandingPage() {
                             source you can inspect.
                         </p>
                         <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-                            The hosted account is for xpenser.cleverbrush.com;
+                            Accounts are for xpenser.cleverbrush.com;
                             self-hosted deployments run from the same MIT
                             licensed source.
                         </p>
@@ -775,7 +775,7 @@ export function LandingPage() {
                             The public page now shows the transaction browser,
                             API key, and MCP setup surfaces directly, so users
                             can evaluate the product and integration workflow
-                            before creating a hosted account.
+                            before creating an account.
                         </p>
                     </div>
                     <div className="grid gap-6 lg:grid-cols-2">

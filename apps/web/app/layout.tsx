@@ -1,6 +1,5 @@
 import { GoogleTagManager } from '@next/third-parties/google';
 import type { Metadata } from 'next';
-import 'swagger-ui-react/swagger-ui.css';
 import './globals.css';
 import { XpenserWebFormProvider } from '@/components/forms/schema-fields';
 import { ThemeProvider } from '@/components/theme-provider';

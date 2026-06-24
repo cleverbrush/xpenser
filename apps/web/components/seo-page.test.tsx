@@ -21,7 +21,7 @@ describe('SeoPage', () => {
             screen.getByAltText(/xpenser dashboard month view/i)
         ).toBeTruthy();
         expect(
-            screen.getByText(/Create a hosted account for the public xpenser/i)
+            screen.getByText(/Create an account for xpenser\.cleverbrush\.com/i)
         ).toBeTruthy();
 
         for (const section of page.sections) {

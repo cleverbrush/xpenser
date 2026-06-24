@@ -118,9 +118,9 @@ export function SeoPage({ page }: { readonly page: PublicMarketingPage }) {
                             {page.description}
                         </p>
                         <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-                            Create a hosted account for the public xpenser
-                            instance, or use the source link to inspect and
-                            self-host the same app.
+                            Create an account for xpenser.cleverbrush.com, or
+                            use the source link to inspect and self-host the
+                            same app.
                         </p>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">

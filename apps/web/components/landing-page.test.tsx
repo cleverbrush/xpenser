@@ -21,7 +21,7 @@ describe('LandingPage', () => {
             screen.getByText(/Track and analyze income and expenses/i)
         ).toBeTruthy();
         expect(
-            screen.getByText(/hosted account is for xpenser\.cleverbrush\.com/i)
+            screen.getByText(/Accounts are for xpenser\.cleverbrush\.com/i)
         ).toBeTruthy();
         expect(
             screen.getByAltText(/xpenser dashboard month view/i)
