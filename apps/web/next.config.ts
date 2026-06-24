@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
         return [
             {
                 source: '/.well-known/:path*',
-                destination: '/external-api/.well-known/:path*'
+                destination: '/api/.well-known/:path*'
             }
         ];
     }

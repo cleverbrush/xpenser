@@ -1326,7 +1326,7 @@ export function StatsExplorer({
 
             try {
                 const response = await fetch(
-                    `/api/stats/window?${params.toString()}`,
+                    `/app-api/stats/window?${params.toString()}`,
                     { headers: { Accept: 'application/json' } }
                 );
                 if (response.status === 401) {
@@ -1366,7 +1366,7 @@ export function StatsExplorer({
             setTagReportStatus('loading');
             try {
                 const response = await fetch(
-                    `/api/stats/tags?${params.toString()}`,
+                    `/app-api/stats/tags?${params.toString()}`,
                     { headers: { Accept: 'application/json' } }
                 );
                 if (response.status === 401) {

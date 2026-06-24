@@ -16,7 +16,8 @@ describe('metadata routes', () => {
                 allow: '/',
                 disallow: expect.arrayContaining([
                     '/api/',
-                    '/external-api/',
+                    '/app-api/',
+                    '/authjs/',
                     '/dashboard'
                 ])
             })

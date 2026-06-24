@@ -59,8 +59,8 @@ export const apiSettingsScreenshot = {
     width: 1440
 } as const;
 
-export const openApiSpecPath = '/external-api/openapi.json';
-export const mcpEndpointPath = '/external-api/mcp';
+export const openApiSpecPath = '/api/openapi.json';
+export const mcpEndpointPath = '/api/mcp';
 
 export const apiDocsPage = {
     description:

@@ -31,7 +31,7 @@ import { xpenserAuthScheme } from './security/api-auth.js';
  *
  * The allowed origin is intentionally the configured web app origin, because
  * browser traffic normally reaches the API through the Next.js app or the
- * `/external-api` proxy. Non-browser clients can still use bearer/API-key auth
+ * `/api` proxy. Non-browser clients can still use bearer/API-key auth
  * without relying on CORS.
  */
 function corsMiddleware(config: Config): Middleware {

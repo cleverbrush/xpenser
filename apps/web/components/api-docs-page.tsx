@@ -4,7 +4,8 @@ import {
     ExternalLinkIcon,
     FileJsonIcon,
     GithubIcon,
-    KeyRoundIcon
+    KeyRoundIcon,
+    TerminalSquareIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -12,7 +13,6 @@ import {
     mcpEndpointPath,
     openApiSpecPath
 } from '@/lib/public-site';
-import { ApiDocsViewer } from './api-docs-viewer';
 import { PublicPageShell } from './landing-page';
 
 const apiHighlights = [
@@ -57,6 +57,15 @@ export function ApiDocsPage() {
                             </p>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
+                            <Button asChild size="lg">
+                                <Link href="/api-docs/swagger">
+                                    <TerminalSquareIcon
+                                        aria-hidden
+                                        className="size-4"
+                                    />
+                                    Open Swagger UI
+                                </Link>
+                            </Button>
                             <Button asChild size="lg">
                                 <Link href="/register">Create account</Link>
                             </Button>
@@ -124,7 +133,29 @@ export function ApiDocsPage() {
             </section>
 
             <section className="mx-auto max-w-6xl px-4 pb-14 sm:pb-16">
-                <ApiDocsViewer />
+                <div className="rounded-lg border bg-card p-5 text-card-foreground shadow-sm sm:p-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <h2 className="text-xl font-semibold">
+                                Interactive Swagger reference
+                            </h2>
+                            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                                Open the full Swagger UI to expand endpoints,
+                                inspect schemas, and try authenticated requests
+                                against the same generated OpenAPI document.
+                            </p>
+                        </div>
+                        <Button asChild size="lg">
+                            <Link href="/api-docs/swagger">
+                                <TerminalSquareIcon
+                                    aria-hidden
+                                    className="size-4"
+                                />
+                                Open Swagger UI
+                            </Link>
+                        </Button>
+                    </div>
+                </div>
             </section>
         </PublicPageShell>
     );

@@ -8,8 +8,9 @@ export default function robots(): MetadataRoute.Robots {
             allow: '/',
             disallow: [
                 '/api/',
-                '/external-api/',
+                '/app-api/',
                 '/auth/',
+                '/authjs/',
                 '/mcp/oauth/',
                 '/dashboard',
                 '/transactions',

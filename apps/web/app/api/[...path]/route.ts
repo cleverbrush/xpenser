@@ -23,13 +23,16 @@ const hopByHopHeaders = new Set([
     'upgrade'
 ]);
 
-function apiPath(parts: readonly string[]): string {
+export function apiPath(parts: readonly string[]): string {
     const path = parts.join('/');
     if (path === '.well-known' || path.startsWith('.well-known/')) {
         return `/${path}`;
     }
     if (path === 'health' || path === 'openapi.json' || path === '__batch') {
         return `/${path}`;
+    }
+    if (path === 'api') {
+        return '/api';
     }
     if (path.startsWith('api/')) {
         return `/${path}`;

@@ -27,7 +27,7 @@ services:
     environment:
       NODE_ENV: production
       APP_URL: ${APP_URL:-http://localhost:3000}
-      API_BASE_URL: ${PUBLIC_API_BASE_URL:-${APP_URL:-http://localhost:3000}/external-api}
+      API_BASE_URL: ${PUBLIC_API_BASE_URL:-${APP_URL:-http://localhost:3000}}
       HOST: 0.0.0.0
       PORT: 4000
       DB_HOST: postgres
@@ -81,7 +81,8 @@ services:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
       APP_URL: ${APP_URL:-http://localhost:3000}
-      NEXTAUTH_URL: ${APP_URL:-http://localhost:3000}
+      AUTH_URL: ${APP_URL:-http://localhost:3000}/authjs
+      NEXTAUTH_URL: ${APP_URL:-http://localhost:3000}/authjs
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET required}
       AUTH_SECRET: ${AUTH_SECRET:-${NEXTAUTH_SECRET:?NEXTAUTH_SECRET required}}
       WEB_API_SERVICE_SECRET: ${WEB_API_SERVICE_SECRET:-${NEXTAUTH_SECRET:?NEXTAUTH_SECRET required}}
@@ -120,7 +121,7 @@ services:
     image: swaggerapi/swagger-ui:latest
     restart: always
     environment:
-      URL: http://localhost:${WEB_PORT:-3000}/external-api/openapi.json
+      URL: http://localhost:${WEB_PORT:-3000}/api/openapi.json
       DISPLAY_OPERATION_ID: "true"
     depends_on:
       api:

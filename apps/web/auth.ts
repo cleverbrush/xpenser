@@ -115,6 +115,7 @@ const nextAuth: NextAuthResult = NextAuth(() => {
     return {
         session: { strategy: 'jwt', maxAge: UserSessionMaxAgeSeconds },
         jwt: { maxAge: UserSessionMaxAgeSeconds },
+        basePath: '/authjs',
         secret: getNextAuthSecret(),
         trustHost: true,
         logger: {

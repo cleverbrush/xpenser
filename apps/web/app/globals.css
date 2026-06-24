@@ -18,3 +18,16 @@
         'wght' 520;
     letter-spacing: 0;
 }
+
+.swagger-docs-viewer .swagger-ui {
+    font-family: inherit;
+}
+
+.swagger-docs-viewer .swagger-ui .wrapper {
+    max-width: none;
+    padding-inline: 1rem;
+}
+
+.swagger-docs-viewer .swagger-ui .topbar {
+    display: none;
+}

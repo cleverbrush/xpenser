@@ -177,13 +177,8 @@ describe('LandingPage', () => {
         ).toBeGreaterThan(0);
         expect(
             screen.getByRole('link', { name: /OpenAPI JSON/i })
-        ).toHaveProperty(
-            'href',
-            'http://localhost:3000/external-api/openapi.json'
-        );
-        expect(
-            screen.getAllByText(/external-api\/mcp/i).length
-        ).toBeGreaterThan(0);
+        ).toHaveProperty('href', 'http://localhost:3000/api/openapi.json');
+        expect(screen.getAllByText(/api\/mcp/i).length).toBeGreaterThan(0);
 
         const signInLinks = screen.getAllByRole('link', { name: /sign in/i });
         expect(

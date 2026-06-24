@@ -44,8 +44,8 @@ function hasBasePath(baseUrl: string): boolean {
  * tracing propagates OTel context, retry/timeout handle transient failures,
  * dedupe and tag caching reduce repeated reads, and batching is enabled only
  * when the API base URL points at the API root. Batching is skipped for proxied
- * base paths such as `/external-api` because the batch endpoint is mounted at
- * the API root by `ServerBuilder.useBatching()`.
+ * base paths such as `/api` because the batch endpoint is mounted at the API
+ * root by `ServerBuilder.useBatching()`.
  */
 export function createXpenserClient(options: XpenserClientOptions) {
     const batchingMiddleware = hasBasePath(options.baseUrl)

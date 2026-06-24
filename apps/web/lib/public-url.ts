@@ -6,6 +6,7 @@ export function publicAppUrl(path = '/') {
 
 export function configureAuthPublicUrl() {
     // Auth.js reads these internally when constructing action and error URLs.
-    process.env.AUTH_URL = webConfig.appUrl;
-    process.env.NEXTAUTH_URL = webConfig.appUrl;
+    const authUrl = publicAppUrl('/authjs').toString().replace(/\/$/, '');
+    process.env.AUTH_URL = authUrl;
+    process.env.NEXTAUTH_URL = authUrl;
 }

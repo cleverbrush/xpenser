@@ -173,19 +173,20 @@ Create an OAuth 2.0 client in Google Cloud Console:
 
 - Application type: Web application
 - Authorized JavaScript origin: your public `APP_URL`
-- Authorized redirect URI: `${APP_URL}/api/auth/callback/google`
+- Authorized redirect URI: `${APP_URL}/authjs/callback/google`
 
 For local development with the default `APP_URL`, use:
 
 ```text
-http://localhost:3000/api/auth/callback/google
+http://localhost:3000/authjs/callback/google
 ```
 
 Configure the web app with Auth.js-standard Google variables:
 
 ```env
 APP_URL=https://xpenser.example.com
-NEXTAUTH_URL=https://xpenser.example.com
+AUTH_URL=https://xpenser.example.com/authjs
+NEXTAUTH_URL=https://xpenser.example.com/authjs
 NEXTAUTH_SECRET=replace-with-at-least-32-characters
 AUTH_SECRET=replace-with-the-same-value-as-NEXTAUTH_SECRET
 GOOGLE_SIGN_IN_MODE=auto
@@ -230,13 +231,14 @@ observability services defined in `docker-compose.yml`.
 Full Docker URLs:
 
 - Web app: http://localhost:3000
-- External API proxy: http://localhost:3000/external-api
-- Swagger UI: http://localhost:8090
+- Public API proxy: http://localhost:3000/api
+- App Swagger UI: http://localhost:3000/api-docs/swagger
+- Compose Swagger UI container: http://localhost:8090
 - SigNoz: http://localhost:8080
 
 For public deployments, put your reverse proxy in front of the web app and set
 `APP_URL` to the public origin. The API service stays private on the Docker
-network and the Next app exposes it under `/external-api`.
+network and the Next app exposes it under `/api`.
 
 For a smaller public deployment, use `docker-compose.prod.yml` as the starting
 point and provide production secrets for `NEXTAUTH_SECRET`, `AUTH_SECRET`,
@@ -257,13 +259,13 @@ their provider credentials:
 - Google sign-in: configure direct Google OAuth as described above, or leave
   it disabled and use email/password accounts.
 
-## External API
+## Public API
 
 Create an API key from Settings -> Preferences -> API keys. The API key can be
 used as a bearer token with curl or with the typed Node client:
 
 ```sh
-curl -X POST "$APP_URL/external-api/transactions" \
+curl -X POST "$APP_URL/api/transactions" \
   -H "Authorization: Bearer $XPENSER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"categoryId":1,"amount":12.34,"currency":"USD","effect":"normal","occurredAt":"2026-05-13T12:00:00.000Z"}'
@@ -275,7 +277,7 @@ import { createXpenserClient } from '@xpenser/client';
 const client = createXpenserClient({
     baseUrl:
         process.env.XPENSER_API_BASE_URL ??
-        'http://localhost:3000/external-api',
+        'http://localhost:3000/api',
     getToken: () => process.env.XPENSER_API_KEY ?? null
 });
 
@@ -300,8 +302,8 @@ subtract it from that category.
 ## MCP Server
 
 xpenser exposes an MCP Streamable HTTP endpoint for AI agents at
-`/external-api/mcp`. Use the same API key from Settings -> Preferences -> API
-keys as a bearer token. MCP tools can read and manage the API-key owner's
+`/api/mcp`. Use the same API key from Settings -> Preferences -> API keys as a
+bearer token. MCP tools can read and manage the API-key owner's
 vendors, categories, and transactions, so treat MCP access as full account data
 access. Use a dedicated API key for MCP clients and revoke it when access is no
 longer needed:
@@ -311,7 +313,7 @@ longer needed:
   "mcpServers": {
     "xpenser": {
       "type": "streamable-http",
-      "url": "https://xpenser.example.com/external-api/mcp",
+      "url": "https://xpenser.example.com/api/mcp",
       "headers": {
         "Authorization": "Bearer ${XPENSER_API_KEY}"
       }

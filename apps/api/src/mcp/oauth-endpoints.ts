@@ -18,7 +18,7 @@ export const OAuthProtectedResourceEndpoint = endpoint
     .operationId('mcpOAuthProtectedResource');
 
 export const OAuthProtectedResourceMcpEndpoint = endpoint
-    .get('/.well-known/oauth-protected-resource/external-api/mcp')
+    .get('/.well-known/oauth-protected-resource/api/mcp')
     .inject({ config: ConfigToken })
     .summary('MCP OAuth protected resource metadata')
     .description(
@@ -107,7 +107,7 @@ async function readTokenBody(
 
 function protectedResourceMetadata(appUrl: string) {
     return {
-        resource: new URL('/external-api/mcp', appUrl).toString(),
+        resource: new URL('/api/mcp', appUrl).toString(),
         authorization_servers: [appUrl],
         bearer_methods_supported: ['header'],
         scopes_supported: ['mcp'],
@@ -145,9 +145,9 @@ export const oauthAuthorizationServerHandler: Handler<
             '/mcp/oauth/authorize',
             appUrl
         ).toString(),
-        token_endpoint: new URL('/external-api/oauth/token', appUrl).toString(),
+        token_endpoint: new URL('/api/oauth/token', appUrl).toString(),
         registration_endpoint: new URL(
-            '/external-api/oauth/register',
+            '/api/oauth/register',
             appUrl
         ).toString(),
         response_types_supported: ['code'],
