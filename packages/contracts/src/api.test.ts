@@ -20,6 +20,7 @@ describe('api contract authorization metadata', () => {
         expect(authRoles(api.telegram.link)).toBeNull();
         expect(authRoles(api.telegram.token)).toBeNull();
         expect(authRoles(api.transactionScans.progress)).toBeNull();
+        expect(authRoles(api.transactionScans.status)).toBeNull();
     });
 
     it('marks user-scoped endpoints as authenticated', () => {

@@ -85,6 +85,7 @@ const TransactionScanDecision = route({
     itemId: number().coerce()
 })`/${t => t.scanId}/items/${t => t.itemId}/decision`;
 const TransactionScanJobs = route`/jobs`;
+const TransactionScanJobStatus = route`/jobs/status`;
 const TransactionScanImage = route({ id: number().coerce() })`/${t =>
     t.id}/scan-image`;
 const categories = endpoint
@@ -494,6 +495,13 @@ export const api = defineApi({
             .public()
             .query(TransactionScanProgressQuerySchema)
             .outgoing(TransactionScanProgressEventSchema),
+        status: transactionScans
+            .get(TransactionScanJobStatus)
+            .public()
+            .query(TransactionScanProgressQuerySchema)
+            .responses({
+                200: TransactionScanProgressEventSchema
+            }),
         decide: transactionScans
             .post(TransactionScanDecision)
             .body(TransactionScanDecisionBodySchema)

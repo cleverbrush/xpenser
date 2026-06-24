@@ -1,6 +1,5 @@
 'use client';
 
-import { createXpenserClient } from '@xpenser/client';
 import {
     type Category,
     type Currency,
@@ -92,6 +91,10 @@ type TransactionType = Category['type'];
 const maxImageBytes = TransactionScanLimits.maxImageBytes;
 const uploadChunkBytes = TransactionScanLimits.uploadChunkBytes;
 const allowedScanImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+const scanProgressPollIntervalMs = 750;
+const maxScanStatusFetchFailures = 3;
+const scanProgressConnectionError =
+    'Could not connect to scan progress. Try again.';
 const analyzingMessages = [
     'Reading visible text and totals.',
     'Matching vendors and categories.',
@@ -135,6 +138,9 @@ type ScanUploadRouteResponse =
           readonly error?: undefined;
           readonly job: TransactionScanJobResponse;
       };
+type ScanStatusRouteResponse =
+    | { readonly error: string; readonly stage?: undefined }
+    | TransactionScanProgressEvent;
 
 function blobBase64(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -151,20 +157,6 @@ function blobBase64(blob: Blob): Promise<string> {
         };
         reader.readAsDataURL(blob);
     });
-}
-
-function browserApiBaseUrl(): string {
-    const configured = process.env.NEXT_PUBLIC_API_BASE_URL;
-    if (configured) {
-        return configured.replace(/\/$/, '');
-    }
-    if (
-        window.location.hostname === 'localhost' &&
-        window.location.port === '3000'
-    ) {
-        return 'http://localhost:4000';
-    }
-    return new URL('/api', window.location.href).toString().replace(/\/$/, '');
 }
 
 function scanError(event: TransactionScanProgressEvent): string {
@@ -204,38 +196,81 @@ function readImageDimensions(
     });
 }
 
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
+function scanStatusUrl(job: TransactionScanJobResponse): string {
+    const url = new URL(
+        '/app-api/transaction-scans/jobs/status',
+        window.location.href
+    );
+    url.searchParams.set('jobId', job.jobId);
+    url.searchParams.set('token', job.token);
+    return url.toString();
+}
+
+function scanStatusEvent(
+    value: ScanStatusRouteResponse | null
+): TransactionScanProgressEvent | undefined {
+    return value && 'stage' in value && value.stage ? value : undefined;
+}
+
+async function fetchScanJobStatus(
+    job: TransactionScanJobResponse
+): Promise<TransactionScanProgressEvent> {
+    const response = await fetch(scanStatusUrl(job), {
+        headers: { Accept: 'application/json' }
+    });
+    const result = (await response
+        .json()
+        .catch(() => null)) as ScanStatusRouteResponse | null;
+    const event = scanStatusEvent(result);
+
+    if (!response.ok || !event) {
+        throw new Error(scanProgressConnectionError);
+    }
+
+    return event;
+}
+
 async function waitForScanJob(
     job: TransactionScanJobResponse,
     onProgress: (update: ScanProgressUpdate) => void
 ): Promise<TransactionScanResponse> {
-    const client = createXpenserClient({
-        baseUrl: browserApiBaseUrl(),
-        retryOnTimeout: false
-    });
-    const subscription = client.transactionScans.progress({
-        query: { jobId: job.jobId, token: job.token },
-        reconnect: { maxRetries: 3, backoffLimit: 5_000 }
-    });
+    let fetchFailures = 0;
 
-    try {
-        for await (const event of subscription) {
-            onProgress({
-                message: event.message,
-                progress: scanEventProgress(event),
-                stage: event.stage
-            });
-            if (event.stage === 'failed') {
-                throw new Error(scanError(event));
+    for (;;) {
+        let event: TransactionScanProgressEvent;
+        try {
+            event = await fetchScanJobStatus(job);
+            fetchFailures = 0;
+        } catch {
+            fetchFailures += 1;
+            if (fetchFailures >= maxScanStatusFetchFailures) {
+                throw new Error(scanProgressConnectionError);
             }
-            if (event.stage === 'complete' && event.scan) {
+            await sleep(scanProgressPollIntervalMs);
+            continue;
+        }
+
+        onProgress({
+            message: event.message,
+            progress: scanEventProgress(event),
+            stage: event.stage
+        });
+        if (event.stage === 'failed') {
+            throw new Error(scanError(event));
+        }
+        if (event.stage === 'complete') {
+            if (event.scan) {
                 return event.scan;
             }
+            throw new Error(scanProgressConnectionError);
         }
-    } finally {
-        subscription.close();
-    }
 
-    throw new Error('Could not connect to scan progress. Try again.');
+        await sleep(scanProgressPollIntervalMs);
+    }
 }
 
 async function uploadAndScanImageFile(

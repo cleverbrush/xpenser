@@ -4,6 +4,7 @@ import {
     type SubscriptionHandler
 } from '@cleverbrush/server';
 import {
+    getTransactionScanJobStatus,
     startTransactionScanJob,
     subscribeTransactionScanJob
 } from '../../application/transaction-scan-jobs.js';
@@ -17,6 +18,7 @@ import type {
     CreateTransactionScanEndpoint,
     DecideTransactionScanItemEndpoint,
     StartTransactionScanJobEndpoint,
+    TransactionScanJobStatusEndpoint,
     TransactionScanProgressEndpoint
 } from '../endpoints.js';
 
@@ -53,6 +55,12 @@ export const transactionScanProgressHandler: SubscriptionHandler<
     typeof TransactionScanProgressEndpoint
 > = async function* ({ query, signal }) {
     yield* subscribeTransactionScanJob(query, signal);
+};
+
+export const transactionScanJobStatusHandler: Handler<
+    typeof TransactionScanJobStatusEndpoint
+> = async ({ query }) => {
+    return ActionResult.ok(getTransactionScanJobStatus(query));
 };
 
 export const decideTransactionScanItemHandler: Handler<
