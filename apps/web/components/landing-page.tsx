@@ -793,8 +793,8 @@ export function LandingPage() {
                 </div>
             </section>
 
-            <section className="mx-auto grid max-w-6xl gap-8 px-4 py-14 sm:py-16 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
-                <div>
+            <section className="mx-auto grid max-w-6xl gap-8 px-4 py-14 sm:py-16 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)] lg:items-start">
+                <div className="min-w-0">
                     <Badge className="mb-4 w-fit" variant="outline">
                         OpenAPI and MCP
                     </Badge>
@@ -842,7 +842,7 @@ export function LandingPage() {
                         </Button>
                     </div>
                 </div>
-                <div className="grid gap-4">
+                <div className="grid min-w-0 gap-4">
                     <CodeSample label="Generated API reference">
                         {apiCurlExample}
                     </CodeSample>
