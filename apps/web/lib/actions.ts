@@ -413,7 +413,7 @@ export async function googleSignInAction(formData: FormData) {
 }
 
 export async function logoutAction() {
-    await signOut({ redirectTo: '/login' });
+    await signOut({ redirectTo: '/' });
 }
 
 export async function createCategoryAction(

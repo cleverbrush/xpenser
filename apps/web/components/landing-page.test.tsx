@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { LandingPage } from './landing-page';
@@ -179,6 +179,24 @@ describe('LandingPage', () => {
             screen.getByRole('link', { name: /OpenAPI JSON/i })
         ).toHaveProperty('href', 'http://localhost:3000/api/openapi.json');
         expect(screen.getAllByText(/api\/mcp/i).length).toBeGreaterThan(0);
+
+        const heroSection = screen
+            .getByRole('heading', {
+                level: 1,
+                name: /Self-hosted personal finance tracking with xpenser/i
+            })
+            .closest('section');
+        expect(heroSection).toBeTruthy();
+        expect(
+            within(heroSection as HTMLElement).getByRole('link', {
+                name: /^Sign in$/i
+            })
+        ).toHaveProperty('href', 'http://localhost:3000/login');
+        expect(
+            within(heroSection as HTMLElement).getByRole('link', {
+                name: /Create account/i
+            })
+        ).toHaveProperty('href', 'http://localhost:3000/register');
 
         const signInLinks = screen.getAllByRole('link', { name: /sign in/i });
         expect(

@@ -14,6 +14,20 @@ test('shows Google sign-in on the public login screen', async ({ page }) => {
     ).toBeVisible();
 });
 
+test('shows sign in and create account actions on the public index', async ({
+    page
+}) => {
+    await page.goto('/');
+
+    const main = page.locator('main');
+    await expect(
+        main.getByRole('link', { exact: true, name: 'Sign in' }).first()
+    ).toHaveAttribute('href', '/login');
+    await expect(
+        main.getByRole('link', { name: 'Create account' }).first()
+    ).toHaveAttribute('href', '/register');
+});
+
 test('serves the public API contract through Swagger UI', async ({
     page,
     request
