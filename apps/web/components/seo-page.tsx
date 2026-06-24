@@ -125,7 +125,7 @@ export function SeoPage({ page }: { readonly page: PublicMarketingPage }) {
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
                                 <Link href="/register">
-                                    Create hosted account
+                                    Create account
                                     <ArrowRightIcon
                                         aria-hidden
                                         className="size-4"

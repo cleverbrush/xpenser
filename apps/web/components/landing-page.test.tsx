@@ -191,7 +191,7 @@ describe('LandingPage', () => {
         ).toBe(true);
 
         const registerLinks = screen.getAllByRole('link', {
-            name: /create hosted account/i
+            name: /create account/i
         });
         expect(
             registerLinks.some(

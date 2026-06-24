@@ -9,19 +9,23 @@ import { ApiDocsPage } from './api-docs-page';
 
 vi.mock('swagger-ui-react', () => ({
     default: (props: {
+        readonly defaultModelExpandDepth?: number;
+        readonly defaultModelsExpandDepth?: number;
         readonly deepLinking?: boolean;
         readonly displayOperationId?: boolean;
         readonly filter?: boolean | string;
-        readonly requestSnippetsEnabled?: boolean;
         readonly url?: string;
     }) =>
         createElement('div', {
+            'data-default-model-expand-depth': String(
+                props.defaultModelExpandDepth
+            ),
+            'data-default-models-expand-depth': String(
+                props.defaultModelsExpandDepth
+            ),
             'data-deep-linking': String(props.deepLinking),
             'data-display-operation-id': String(props.displayOperationId),
             'data-filter': String(props.filter),
-            'data-request-snippets-enabled': String(
-                props.requestSnippetsEnabled
-            ),
             'data-testid': 'swagger-ui',
             'data-url': props.url
         })
@@ -42,7 +46,7 @@ describe('ApiDocsPage', () => {
         ).toBeTruthy();
         expect(
             screen
-                .getAllByRole('link', { name: /Create hosted account/i })
+                .getAllByRole('link', { name: /Create account/i })
                 .some(link => link.getAttribute('href') === '/register')
         ).toBe(true);
         expect(
@@ -70,8 +74,11 @@ describe('ApiDocsPage', () => {
             'true'
         );
         expect(swaggerUi.getAttribute('data-filter')).toBe('true');
-        expect(swaggerUi.getAttribute('data-request-snippets-enabled')).toBe(
-            'true'
+        expect(swaggerUi.getAttribute('data-default-model-expand-depth')).toBe(
+            '-1'
+        );
+        expect(swaggerUi.getAttribute('data-default-models-expand-depth')).toBe(
+            '-1'
         );
     });
 });

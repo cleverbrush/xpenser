@@ -35,8 +35,7 @@ describe('SeoPage', () => {
         }
 
         expect(
-            screen.getAllByRole('link', { name: /Create hosted account/i })
-                .length
+            screen.getAllByRole('link', { name: /Create account/i }).length
         ).toBeGreaterThan(0);
         expect(
             screen

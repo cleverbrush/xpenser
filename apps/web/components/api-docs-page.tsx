@@ -58,9 +58,7 @@ export function ApiDocsPage() {
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
                             <Button asChild size="lg">
-                                <Link href="/register">
-                                    Create hosted account
-                                </Link>
+                                <Link href="/register">Create account</Link>
                             </Button>
                             <Button asChild size="lg" variant="outline">
                                 <a href={openApiSpecPath}>

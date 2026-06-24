@@ -413,7 +413,7 @@ export function PublicSiteHeader() {
                     <Button asChild size="sm">
                         <Link href="/register">
                             <LogInIcon aria-hidden className="size-4" />
-                            Create hosted account
+                            Create account
                         </Link>
                     </Button>
                 </nav>
@@ -668,7 +668,7 @@ export function CtaPanel() {
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
                         <Button asChild size="lg">
-                            <Link href="/register">Create hosted account</Link>
+                            <Link href="/register">Create account</Link>
                         </Button>
                         <Button asChild size="lg" variant="outline">
                             <a
@@ -718,7 +718,7 @@ export function LandingPage() {
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
                                 <Link href="/register">
-                                    Create hosted account
+                                    Create account
                                     <ArrowRightIcon
                                         aria-hidden
                                         className="size-4"

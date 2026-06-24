@@ -18,23 +18,13 @@ export function ApiDocsViewer() {
             data-testid="api-docs-viewer"
         >
             <SwaggerUI
+                defaultModelExpandDepth={-1}
+                defaultModelsExpandDepth={-1}
                 deepLinking
                 displayOperationId
                 displayRequestDuration
                 docExpansion="list"
                 filter
-                requestSnippets={{
-                    defaultExpanded: false,
-                    generators: {
-                        curl_bash: {
-                            syntax: 'bash',
-                            title: 'cURL'
-                        }
-                    },
-                    languages: ['curl_bash']
-                }}
-                requestSnippetsEnabled
-                showCommonExtensions
                 supportedSubmitMethods={supportedSubmitMethods}
                 url={openApiSpecPath}
             />
