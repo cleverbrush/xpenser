@@ -3,7 +3,7 @@
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
-export const DEFAULT_BASE_URL = 'https://xpenser.cleverbrush.com/external-api';
+export const DEFAULT_BASE_URL = 'https://xpenser.cleverbrush.com/api';
 export const DEFAULT_TRANSACTIONS_FILE = '/root/transactions.csv';
 export const DEFAULT_CATEGORIES_FILE = '/root/categories.txt';
 export const API_KEY_PLACEHOLDER = '';
