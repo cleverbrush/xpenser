@@ -142,9 +142,6 @@ jobs:
             printf '%s' "$1" | base64 -w 0
             printf '\n'
           }
-          otel_api_service="$(printf '%q' "${PR_ENV_PROJECT_NAME}-api-pr-${PR_NUMBER}")"
-          otel_web_service="$(printf '%q' "${PR_ENV_PROJECT_NAME}-web-pr-${PR_NUMBER}")"
-          otel_telegram_service="$(printf '%q' "${PR_ENV_PROJECT_NAME}-telegram-bot-pr-${PR_NUMBER}")"
 
           {
             b64 "$PASSPORT_SERVICE_KEY"
@@ -179,7 +176,7 @@ jobs:
             b64 "$EMAIL_REPORTS_SCHEDULER_ENABLED"
           } | ssh -T -o BatchMode=yes -i ~/.ssh/pr-env-nginx -p "$ssh_port" \
             "$PR_ENV_NGINX_SSH_USER@$PR_ENV_NGINX_SSH_HOST" \
-            "PR_ENV_SECRET_STREAM=1 OTEL_API_SERVICE_NAME=${otel_api_service} OTEL_WEB_SERVICE_NAME=${otel_web_service} OTEL_TELEGRAM_SERVICE_NAME=${otel_telegram_service} ${remote_script} deploy '${PR_NUMBER}' '${PR_SHA}'"
+            "PR_ENV_SECRET_STREAM=1 ${remote_script} deploy '${PR_NUMBER}' '${PR_SHA}'"
 
   e2e:
     name: Playwright e2e
