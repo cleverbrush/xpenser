@@ -112,6 +112,19 @@ async function swipeReportAreaFromBlankSpace(
 }
 
 test.describe('authenticated app workflows', () => {
+    test('signs out to the public index page', async ({ page }) => {
+        await page.goto('/dashboard');
+        await page.getByRole('button', { name: 'Sign out' }).click();
+
+        await expect(page).toHaveURL('/');
+        await expect(
+            page.getByRole('heading', {
+                level: 1,
+                name: /Self-hosted personal finance tracking with xpenser/i
+            })
+        ).toBeVisible();
+    });
+
     test('opens the main authenticated sections', async ({ page }) => {
         await page.goto('/dashboard');
         await expect(

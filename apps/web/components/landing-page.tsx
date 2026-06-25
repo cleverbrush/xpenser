@@ -28,6 +28,7 @@ import {
     SendIcon,
     ShieldCheckIcon,
     SmartphoneIcon,
+    UserPlusIcon,
     WorkflowIcon
 } from 'lucide-react';
 import Image from 'next/image';
@@ -410,9 +411,19 @@ export function PublicSiteHeader() {
                     >
                         <Link href="/login">Sign in</Link>
                     </Button>
+                    <Button
+                        asChild
+                        className="sm:hidden"
+                        size="icon-sm"
+                        variant="ghost"
+                    >
+                        <Link aria-label="Sign in" href="/login">
+                            <LogInIcon aria-hidden className="size-4" />
+                        </Link>
+                    </Button>
                     <Button asChild size="sm">
                         <Link href="/register">
-                            <LogInIcon aria-hidden className="size-4" />
+                            <UserPlusIcon aria-hidden className="size-4" />
                             Create account
                         </Link>
                     </Button>
@@ -730,6 +741,17 @@ export function LandingPage() {
                                 className="sm:flex-1"
                                 size="lg"
                                 variant="outline"
+                            >
+                                <Link href="/login">
+                                    Sign in
+                                    <LogInIcon aria-hidden className="size-4" />
+                                </Link>
+                            </Button>
+                            <Button
+                                asChild
+                                className="sm:flex-1"
+                                size="lg"
+                                variant="ghost"
                             >
                                 <Link href={apiDocsPage.path}>
                                     API docs
