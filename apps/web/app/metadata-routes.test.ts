@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { noIndexRobots } from '@/lib/public-site';
 import robots from './robots';
 import sitemap from './sitemap';
 
 describe('metadata routes', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+    });
+
     it('serves robots rules with the public sitemap', () => {
         const robotsFile = robots();
 
@@ -36,5 +41,22 @@ describe('metadata routes', () => {
 
     it('marks app and auth route groups as noindex', () => {
         expect(noIndexRobots).toEqual({ index: false, follow: true });
+    });
+
+    it('hides public sitemap metadata in single-user mode', async () => {
+        vi.stubEnv('XPENSER_SINGLE_USER_MODE', '1');
+        vi.stubEnv('XPENSER_SINGLE_USER_EMAIL', 'owner@example.com');
+        vi.resetModules();
+
+        const [{ default: singleUserRobots }, { default: singleUserSitemap }] =
+            await Promise.all([import('./robots'), import('./sitemap')]);
+
+        expect(singleUserRobots()).toEqual({
+            rules: {
+                userAgent: '*',
+                disallow: '/'
+            }
+        });
+        expect(singleUserSitemap()).toEqual([]);
     });
 });

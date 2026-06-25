@@ -91,6 +91,46 @@ describe('API config', () => {
         });
     });
 
+    it('keeps single-user mode disabled by default', async () => {
+        stubRequiredApiEnv();
+        vi.resetModules();
+
+        const { config } = await import('./config.js');
+
+        expect(config.singleUser).toEqual({ enabled: false, email: '' });
+    });
+
+    it('normalizes configured single-user mode email', async () => {
+        stubRequiredApiEnv();
+        vi.stubEnv('XPENSER_SINGLE_USER_MODE', '1');
+        vi.stubEnv('XPENSER_SINGLE_USER_EMAIL', ' Owner@Example.COM ');
+        vi.resetModules();
+
+        const { config } = await import('./config.js');
+
+        expect(config.singleUser).toEqual({
+            enabled: true,
+            email: 'owner@example.com'
+        });
+    });
+
+    it('requires a valid email when single-user mode is enabled', async () => {
+        stubRequiredApiEnv();
+        vi.stubEnv('XPENSER_SINGLE_USER_MODE', 'true');
+        vi.resetModules();
+
+        await expect(import('./config.js')).rejects.toThrow(
+            'XPENSER_SINGLE_USER_EMAIL is required'
+        );
+
+        vi.resetModules();
+        vi.stubEnv('XPENSER_SINGLE_USER_EMAIL', 'not-an-email');
+
+        await expect(import('./config.js')).rejects.toThrow(
+            'XPENSER_SINGLE_USER_EMAIL must be a valid email address.'
+        );
+    });
+
     it('normalizes email report feature flags', async () => {
         stubRequiredApiEnv();
         vi.stubEnv('EMAIL_REPORTS_ENABLED', '1');

@@ -5,7 +5,7 @@ import { publicUrl } from '@/lib/public-site';
 const canonical = publicUrl('/api-docs/swagger');
 const imageUrl = publicUrl('/og-image.png');
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
     title: 'Swagger API Reference',

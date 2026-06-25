@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { logoutAction } from '@/lib/actions';
+import { webConfig } from '@/lib/config';
 import { MobileTabBar } from './mobile-tab-bar';
 import { PeriodStateLink } from './period-state-link';
 import { ThemeToggle } from './theme-toggle';
@@ -54,11 +55,17 @@ export function AppNav() {
                             </Link>
                         </Button>
                         <ThemeToggle />
-                        <form action={logoutAction}>
-                            <Button size="sm" type="submit" variant="outline">
-                                Sign out
-                            </Button>
-                        </form>
+                        {webConfig.singleUser?.enabled ? null : (
+                            <form action={logoutAction}>
+                                <Button
+                                    size="sm"
+                                    type="submit"
+                                    variant="outline"
+                                >
+                                    Sign out
+                                </Button>
+                            </form>
+                        )}
                     </nav>
                     <div className="flex items-center gap-1 sm:hidden">
                         <ThemeToggle />
@@ -72,16 +79,21 @@ export function AppNav() {
                                 <SettingsIcon aria-hidden className="size-4" />
                             </Link>
                         </Button>
-                        <form action={logoutAction}>
-                            <Button
-                                aria-label="Sign out"
-                                size="icon-sm"
-                                type="submit"
-                                variant="ghost"
-                            >
-                                <LogOutIcon aria-hidden className="size-4" />
-                            </Button>
-                        </form>
+                        {webConfig.singleUser?.enabled ? null : (
+                            <form action={logoutAction}>
+                                <Button
+                                    aria-label="Sign out"
+                                    size="icon-sm"
+                                    type="submit"
+                                    variant="ghost"
+                                >
+                                    <LogOutIcon
+                                        aria-hidden
+                                        className="size-4"
+                                    />
+                                </Button>
+                            </form>
+                        )}
                     </div>
                 </div>
             </header>

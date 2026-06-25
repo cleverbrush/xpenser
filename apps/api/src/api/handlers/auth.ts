@@ -10,12 +10,14 @@ import {
     InvalidPassportIdentityError,
     issueGoogleUserToken,
     issuePassportUserToken,
+    issueSingleUserToken,
     issueUserToken,
     loginUser,
     PasswordMismatchError,
     registerUser,
     resendEmailConfirmation,
     resolvePassportGoogleUser,
+    SingleUserModeDisabledError,
     updateUserPreference,
     verifyWebApiServiceSecret
 } from '../../application/users.js';
@@ -35,15 +37,33 @@ import type {
     RegisterEndpoint,
     ResendEmailConfirmationEndpoint,
     SessionTokenEndpoint,
+    SingleUserSessionTokenEndpoint,
     UpdatePreferencesEndpoint
 } from '../endpoints.js';
 
 const webServiceSecretHeader = 'x-xpenser-web-secret';
 
+function accountAuthDisabled(config: {
+    readonly singleUser?: { readonly enabled: boolean };
+}) {
+    if (!config.singleUser?.enabled) {
+        return undefined;
+    }
+
+    return ActionResult.unauthorized({
+        message: 'Account authentication is disabled in single-user mode.'
+    });
+}
+
 export const registerHandler: Handler<typeof RegisterEndpoint> = async (
     { body },
     { db, config }
 ) => {
+    const disabled = accountAuthDisabled(config);
+    if (disabled) {
+        return disabled;
+    }
+
     try {
         return ActionResult.created(
             await registerUser(db, config, body),
@@ -64,6 +84,11 @@ export const loginHandler: Handler<typeof LoginEndpoint> = async (
     { body },
     { db, config }
 ) => {
+    const disabled = accountAuthDisabled(config);
+    if (disabled) {
+        return disabled;
+    }
+
     try {
         return await loginUser(db, config, body.email, body.password);
     } catch (err) {
@@ -81,6 +106,11 @@ export const confirmEmailHandler: Handler<typeof ConfirmEmailEndpoint> = async (
     { body },
     { db, config }
 ) => {
+    const disabled = accountAuthDisabled(config);
+    if (disabled) {
+        return disabled;
+    }
+
     try {
         return await confirmEmail(db, config, body.token);
     } catch (err) {
@@ -94,12 +124,22 @@ export const confirmEmailHandler: Handler<typeof ConfirmEmailEndpoint> = async (
 export const resendEmailConfirmationHandler: Handler<
     typeof ResendEmailConfirmationEndpoint
 > = async ({ body }, { db, config }) => {
+    const disabled = accountAuthDisabled(config);
+    if (disabled) {
+        return disabled;
+    }
+
     return await resendEmailConfirmation(db, config, body.email);
 };
 
 export const passportResolveUserHandler: Handler<
     typeof PassportResolveUserEndpoint
 > = async ({ body, context }, { db, config }) => {
+    const disabled = accountAuthDisabled(config);
+    if (disabled) {
+        return disabled;
+    }
+
     try {
         await authenticatePassportInternalToken(
             config,
@@ -123,6 +163,11 @@ export const passportResolveUserHandler: Handler<
 export const passportExchangeHandler: Handler<
     typeof PassportExchangeEndpoint
 > = async ({ body }, { db, config }) => {
+    const disabled = accountAuthDisabled(config);
+    if (disabled) {
+        return disabled;
+    }
+
     try {
         const passportAccessToken = await exchangePassportCode(
             config,
@@ -152,6 +197,11 @@ export const googleSignInHandler: Handler<typeof GoogleSignInEndpoint> = async (
     { body, context },
     { db, config }
 ) => {
+    const disabled = accountAuthDisabled(config);
+    if (disabled) {
+        return disabled;
+    }
+
     if (
         !verifyWebApiServiceSecret(
             config,
@@ -177,6 +227,11 @@ export const sessionTokenHandler: Handler<typeof SessionTokenEndpoint> = async (
     { body, context },
     { db, config }
 ) => {
+    const disabled = accountAuthDisabled(config);
+    if (disabled) {
+        return disabled;
+    }
+
     if (
         !verifyWebApiServiceSecret(
             config,
@@ -194,6 +249,30 @@ export const sessionTokenHandler: Handler<typeof SessionTokenEndpoint> = async (
     }
 
     return response;
+};
+
+export const singleUserSessionTokenHandler: Handler<
+    typeof SingleUserSessionTokenEndpoint
+> = async ({ context }, { db, config }) => {
+    if (
+        !verifyWebApiServiceSecret(
+            config,
+            context.headers[webServiceSecretHeader]
+        )
+    ) {
+        return ActionResult.unauthorized({
+            message: 'Invalid web service credentials.'
+        });
+    }
+
+    try {
+        return await issueSingleUserToken(db, config);
+    } catch (err) {
+        if (err instanceof SingleUserModeDisabledError) {
+            return ActionResult.notFound({ message: err.message });
+        }
+        throw err;
+    }
 };
 
 export const getMeHandler: Handler<typeof GetMeEndpoint> = async (

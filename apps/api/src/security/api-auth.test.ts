@@ -13,6 +13,13 @@ const config = {
         secret: 'x'.repeat(32)
     }
 } as Config;
+const singleUserConfig = {
+    ...config,
+    singleUser: {
+        enabled: true,
+        email: 'owner@example.com'
+    }
+} as Config;
 
 function authContext(headers: Record<string, string>) {
     return {
@@ -114,5 +121,63 @@ describe('xpenser auth scheme', () => {
         );
 
         expect(result.succeeded).toBe(true);
+    });
+
+    it('rejects JWTs for non-owner users in single-user mode', async () => {
+        const token = signJwt(
+            {
+                sub: '42',
+                role: 'user',
+                exp: Math.floor(Date.now() / 1000) + 60
+            },
+            singleUserConfig.jwt.secret
+        );
+        const db = {
+            users: {
+                find: vi.fn(async () => ({
+                    id: 42,
+                    email: 'other@example.com',
+                    role: 'user'
+                }))
+            }
+        } as unknown as AppDb;
+        const scheme = xpenserAuthScheme(singleUserConfig, db);
+
+        const result = await scheme.authenticate(
+            authContext({ authorization: `Bearer ${token}` })
+        );
+
+        expect(result.succeeded).toBe(false);
+    });
+
+    it('rejects API keys for non-owner users in single-user mode', async () => {
+        const material = generateApiKeyMaterial();
+        const db = {
+            apiKeys: {
+                where: vi.fn(() => ({
+                    first: vi.fn(async () => ({
+                        id: 7,
+                        userId: 42,
+                        keyId: material.keyId,
+                        secretHash: hashApiKeySecret(material.secret)
+                    })),
+                    update: vi.fn(async () => undefined)
+                }))
+            },
+            users: {
+                find: vi.fn(async () => ({
+                    id: 42,
+                    email: 'other@example.com',
+                    role: 'user'
+                }))
+            }
+        } as unknown as AppDb;
+        const scheme = xpenserAuthScheme(singleUserConfig, db);
+
+        const result = await scheme.authenticate(
+            authContext({ 'x-api-key': material.key })
+        );
+
+        expect(result.succeeded).toBe(false);
     });
 });

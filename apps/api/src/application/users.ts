@@ -23,6 +23,7 @@ export class InvalidCredentialsError extends Error {}
 export class InvalidGoogleIdentityError extends Error {}
 export class InvalidPassportIdentityError extends Error {}
 export class PasswordMismatchError extends Error {}
+export class SingleUserModeDisabledError extends Error {}
 
 type CurrencyTransaction = Pick<TransactionDb, 'currency'>;
 type EmailConfirmationToken = {
@@ -39,6 +40,21 @@ const emailConfirmationResendMessage =
 function normalizeCountryCode(value: string | undefined): string {
     const countryCode = (value ?? 'US').trim().toUpperCase();
     return /^[A-Z]{2}$/.test(countryCode) ? countryCode : 'US';
+}
+
+function normalizedEmail(value: string): string {
+    return value.trim().toLowerCase();
+}
+
+function singleUserModeEnabled(config: Config): boolean {
+    return config.singleUser?.enabled === true;
+}
+
+function isConfiguredSingleUserEmail(config: Config, email: string): boolean {
+    return (
+        singleUserModeEnabled(config) &&
+        normalizedEmail(email) === config.singleUser.email
+    );
 }
 
 export function hashEmailConfirmationToken(token: string): string {
@@ -292,7 +308,14 @@ export async function issueUserToken(
     if (!user) {
         return undefined;
     }
-    if (isUnverifiedLocalUser(user)) {
+    const configuredSingleUser = isConfiguredSingleUserEmail(
+        config,
+        user.email
+    );
+    if (singleUserModeEnabled(config) && !configuredSingleUser) {
+        return undefined;
+    }
+    if (isUnverifiedLocalUser(user) && !configuredSingleUser) {
         return undefined;
     }
 
@@ -302,6 +325,62 @@ export async function issueUserToken(
         await hasCategories(db, userId),
         expiresInSeconds
     );
+}
+
+export async function issueSingleUserToken(
+    db: AppDb,
+    config: Config
+): Promise<TokenResponse> {
+    if (!singleUserModeEnabled(config)) {
+        throw new SingleUserModeDisabledError(
+            'Single-user mode is not enabled.'
+        );
+    }
+
+    const email = config.singleUser.email;
+    const user = await db.transaction(async trx => {
+        const existing = await trx.users
+            .projected('auth')
+            .where(candidate => candidate.email, email)
+            .first();
+        if (existing) {
+            return existing;
+        }
+
+        return trx.users.insert({
+            email,
+            passwordHash: undefined,
+            emailVerified: true,
+            emailVerificationTokenHash: undefined,
+            emailVerificationExpiresAt: undefined,
+            role: 'user',
+            authProvider: 'single_user',
+            defaultCurrency: 'USD',
+            countryCode: 'US',
+            timezone: defaultTimeZone
+        });
+    });
+
+    const response = await issueUserToken(db, config, user.id);
+    if (!response) {
+        throw new SingleUserModeDisabledError(
+            'Single-user account is not available.'
+        );
+    }
+    return response;
+}
+
+export async function isUserAllowedInSingleUserMode(
+    db: AppDb,
+    config: Config,
+    userId: number
+): Promise<boolean> {
+    if (!singleUserModeEnabled(config)) {
+        return true;
+    }
+
+    const user = await db.users.find(userId);
+    return Boolean(user && isConfiguredSingleUserEmail(config, user.email));
 }
 
 export async function registerUser(

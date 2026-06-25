@@ -41,11 +41,39 @@ export const webConfig = parseEnv(
             baseUrl: env('PASSPORT_BASE_URL', string().optional()),
             project: env('PASSPORT_PROJECT', string().optional()),
             environment: env('PASSPORT_ENVIRONMENT', string().optional())
+        },
+        singleUserEnv: {
+            enabled: env('XPENSER_SINGLE_USER_MODE', string().default('0')),
+            email: env('XPENSER_SINGLE_USER_EMAIL', string().optional())
         }
     },
-    base => ({
-        passport: applyHostedPassportDefaults(base.appUrl, base.passport)
-    })
+    base => {
+        const singleUserEnabled = ['1', 'true', 'yes'].includes(
+            base.singleUserEnv.enabled.toLowerCase()
+        );
+        const singleUserEmail = base.singleUserEnv.email?.trim().toLowerCase();
+        if (singleUserEnabled && !singleUserEmail) {
+            throw new Error(
+                'XPENSER_SINGLE_USER_EMAIL is required when XPENSER_SINGLE_USER_MODE is enabled.'
+            );
+        }
+        if (
+            singleUserEmail &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(singleUserEmail)
+        ) {
+            throw new Error(
+                'XPENSER_SINGLE_USER_EMAIL must be a valid email address.'
+            );
+        }
+
+        return {
+            passport: applyHostedPassportDefaults(base.appUrl, base.passport),
+            singleUser: {
+                enabled: singleUserEnabled,
+                email: singleUserEmail ?? ''
+            }
+        };
+    }
 );
 
 export function getGoogleSignInProvider() {
@@ -69,8 +97,19 @@ const PLACEHOLDER_SECRET = 'change-me-in-production-min32chars';
  */
 export function getNextAuthSecret(): string {
     const { nextAuthSecret } = parseEnv({
-        nextAuthSecret: env('NEXTAUTH_SECRET', string().minLength(32))
+        nextAuthSecret: env(
+            'NEXTAUTH_SECRET',
+            string().minLength(32).optional()
+        )
     });
+
+    if (webConfig.singleUser.enabled && !nextAuthSecret) {
+        return getWebApiServiceSecret();
+    }
+
+    if (!nextAuthSecret) {
+        throw new Error('NEXTAUTH_SECRET is required.');
+    }
 
     if (
         webConfig.nodeEnv === 'production' &&

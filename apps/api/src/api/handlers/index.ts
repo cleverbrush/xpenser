@@ -13,6 +13,7 @@ import {
     registerHandler,
     resendEmailConfirmationHandler,
     sessionTokenHandler,
+    singleUserSessionTokenHandler,
     updatePreferencesHandler
 } from './auth.js';
 import {
@@ -77,6 +78,7 @@ export const handlers = {
         passportExchange: passportExchangeHandler,
         googleSignIn: googleSignInHandler,
         sessionToken: sessionTokenHandler,
+        singleUserSessionToken: singleUserSessionTokenHandler,
         me: getMeHandler
     },
     users: {

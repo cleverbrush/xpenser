@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { ApiDocsPage } from '@/components/api-docs-page';
+import { webConfig } from '@/lib/config';
 import { apiDocsPage, publicUrl } from '@/lib/public-site';
 
 const canonical = publicUrl(apiDocsPage.path);
 const imageUrl = publicUrl('/og-image.png');
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
     title: apiDocsPage.metadataTitle,
@@ -37,5 +39,9 @@ export const metadata: Metadata = {
 };
 
 export default function ApiDocsRoutePage() {
+    if (webConfig.singleUser?.enabled) {
+        redirect('/api-docs/swagger');
+    }
+
     return <ApiDocsPage />;
 }

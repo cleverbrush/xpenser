@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { type NextRequest, NextResponse } from 'next/server';
-import { signIn } from '@/auth';
 import { expiredSessionPath } from '@/lib/auth-routes';
+import { webConfig } from '@/lib/config';
 
 const passportPkceCookie = 'xpenser_passport_pkce';
 const passportRedirectCookie = 'xpenser_passport_redirect';
@@ -25,6 +25,10 @@ function safeRedirect(value: string | undefined, request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
+    if (webConfig.singleUser?.enabled) {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
     const code = request.nextUrl.searchParams.get('code');
     const cookieStore = await cookies();
     const codeVerifier = cookieStore.get(passportPkceCookie)?.value;
@@ -52,6 +56,7 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    const { signIn } = await import('@/auth');
     return signIn('passport-code', {
         code,
         codeVerifier,
