@@ -4,6 +4,7 @@ import 'swagger-ui-dist/swagger-ui.css';
 import './globals.css';
 import { XpenserWebFormProvider } from '@/components/forms/schema-fields';
 import { ThemeProvider } from '@/components/theme-provider';
+import { webConfig } from '@/lib/config';
 import {
     getPublicMarketingPage,
     publicSiteOrigin,
@@ -50,7 +51,9 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <GoogleTagManager gtmId="GTM-WRLXDMG" />
+            {webConfig.disableGtm ? null : (
+                <GoogleTagManager gtmId="GTM-WRLXDMG" />
+            )}
             <body>
                 <ThemeProvider
                     attribute="class"

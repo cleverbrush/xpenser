@@ -43,8 +43,6 @@ function reportTag(value?: string): ReportTagSelection {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-export const dynamic = 'force-dynamic';
-
 export default async function StatsPage({
     searchParams
 }: {

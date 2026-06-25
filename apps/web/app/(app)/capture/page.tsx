@@ -3,8 +3,6 @@ import { TransactionCaptureWorkspace } from '@/components/transaction-scan-captu
 import { getApiClient } from '@/lib/api';
 import { categoriesByRecentUse } from '@/lib/capture-suggestions';
 
-export const dynamic = 'force-dynamic';
-
 export default async function CapturePage() {
     const client = await getApiClient();
     const me = await client.auth.me();

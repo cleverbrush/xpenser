@@ -11,8 +11,6 @@ import { LoginForm } from '@/components/forms/login-form';
 import { googleSignInAction } from '@/lib/actions';
 import { getGoogleSignInProvider } from '@/lib/config';
 
-export const dynamic = 'force-dynamic';
-
 function safeCallback(value: string | string[] | undefined) {
     const candidate = Array.isArray(value) ? value[0] : value;
     if (!candidate?.startsWith('/') || candidate.startsWith('//')) {

@@ -18,8 +18,6 @@ import {
 import { getApiClient } from '@/lib/api';
 import { publicAppUrl } from '@/lib/public-url';
 
-export const dynamic = 'force-dynamic';
-
 export default async function PreferencesPage() {
     const client = await getApiClient();
     const [me, currencies, telegram, apiKeys, mcpConnections] =

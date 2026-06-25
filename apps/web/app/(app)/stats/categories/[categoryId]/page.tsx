@@ -33,8 +33,6 @@ function isBadRequestApiError(err: unknown): boolean {
     );
 }
 
-export const dynamic = 'force-dynamic';
-
 export default async function CategoryTrendPage({
     params,
     searchParams

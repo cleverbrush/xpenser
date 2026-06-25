@@ -8,8 +8,6 @@ import {
 import { RegisterForm } from '@/components/forms/register-form';
 import { getAnonymousApiClient } from '@/lib/api';
 
-export const dynamic = 'force-dynamic';
-
 export default async function RegisterPage() {
     const currencies = await getAnonymousApiClient().currencies.list();
 

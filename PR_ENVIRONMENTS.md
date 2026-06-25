@@ -491,7 +491,7 @@ Brandfetch client identifier for BRANDFETCH_CLIENT_ID
   Cloudflare DNS record for `<project>-pr-NNN.cleverbrush.com`, a checkout of
   the exact PR commit at `${PR_ENV_ROOT}/pr-N`, deterministic web port
   `3000 + N` by default, Docker Compose services under project `prN`, and no
-  nginx-side per-PR state.
+  nginx-side per-PR state. PR environments always set `DISABLE_GTM=1`.
 - The PR database is initialized once from production with
   `pg_dump`/`pg_restore`. Later commits preserve `prN_postgres_data`.
 - On PR close, the workflow runs the proxy script with `cleanup`; the private

@@ -101,6 +101,8 @@ cp .env.example .env
 The defaults in `.env.example` are safe for local development and point the app
 at PostgreSQL on `localhost:5432`.
 
+Set `DISABLE_GTM=1` when a deployment should not load Google Tag Manager.
+
 ### 3. Build shared workspaces
 
 The apps import local packages from their built `dist` outputs, so build the
