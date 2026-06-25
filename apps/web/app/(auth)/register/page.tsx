@@ -10,8 +10,6 @@ import { RegisterForm } from '@/components/forms/register-form';
 import { getAnonymousApiClient } from '@/lib/api';
 import { webConfig } from '@/lib/config';
 
-export const dynamic = 'force-dynamic';
-
 export default async function RegisterPage() {
     if (webConfig.singleUser?.enabled) {
         redirect('/dashboard');

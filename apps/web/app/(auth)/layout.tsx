@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { noIndexRobots } from '@/lib/public-site';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
     robots: noIndexRobots
 };

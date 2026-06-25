@@ -3,6 +3,12 @@ import { string } from '@cleverbrush/schema';
 import { applyHostedPassportDefaults } from '@xpenser/contracts/hosted-auth';
 import { GoogleSignInModes, resolveGoogleSignInProvider } from './google-auth';
 
+const TRUE_ENV_VALUES = new Set(['1', 'true', 'yes', 'on']);
+
+function parseEnvFlag(value: string): boolean {
+    return TRUE_ENV_VALUES.has(value.trim().toLowerCase());
+}
+
 /**
  * Web runtime configuration parsed with the same `@cleverbrush/env` pattern as
  * the API. Only server-side modules should import this object; browser-exposed
@@ -29,6 +35,7 @@ export const webConfig = parseEnv(
                 ] as const)
                 .default('information')
         ),
+        disableGtm: env('DISABLE_GTM', string().default('0')),
         googleSignInMode: env(
             'GOOGLE_SIGN_IN_MODE',
             string().oneOf(GoogleSignInModes).default('auto')
@@ -48,9 +55,7 @@ export const webConfig = parseEnv(
         }
     },
     base => {
-        const singleUserEnabled = ['1', 'true', 'yes'].includes(
-            base.singleUserEnv.enabled.toLowerCase()
-        );
+        const singleUserEnabled = parseEnvFlag(base.singleUserEnv.enabled);
         const singleUserEmail = base.singleUserEnv.email?.trim().toLowerCase();
         if (singleUserEnabled && !singleUserEmail) {
             throw new Error(
@@ -67,6 +72,7 @@ export const webConfig = parseEnv(
         }
 
         return {
+            disableGtm: parseEnvFlag(base.disableGtm),
             passport: applyHostedPassportDefaults(base.appUrl, base.passport),
             singleUser: {
                 enabled: singleUserEnabled,

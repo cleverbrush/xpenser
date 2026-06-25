@@ -51,7 +51,7 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" suppressHydrationWarning>
-            {webConfig.singleUser?.enabled ? null : (
+            {webConfig.disableGtm || webConfig.singleUser.enabled ? null : (
                 <GoogleTagManager gtmId="GTM-WRLXDMG" />
             )}
             <body>

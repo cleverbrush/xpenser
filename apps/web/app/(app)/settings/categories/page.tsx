@@ -1,8 +1,6 @@
 import { CategoryManager } from '@/components/category-manager';
 import { getApiClient } from '@/lib/api';
 
-export const dynamic = 'force-dynamic';
-
 export default async function CategoriesPage() {
     const client = await getApiClient();
     const categories = await client.categories.list({ query: {} });

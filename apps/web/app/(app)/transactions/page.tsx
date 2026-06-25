@@ -8,8 +8,6 @@ import {
     transactionPageSize
 } from '@/lib/transaction-query';
 
-export const dynamic = 'force-dynamic';
-
 export default async function TransactionsPage({
     searchParams
 }: {

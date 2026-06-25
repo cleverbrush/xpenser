@@ -9,8 +9,6 @@ import { redirect } from 'next/navigation';
 import { CategorySetupForm } from '@/components/forms/category-setup-form';
 import { getApiClient } from '@/lib/api';
 
-export const dynamic = 'force-dynamic';
-
 export default async function CategorySetupPage() {
     const client = await getApiClient();
     const me = await client.auth.me();

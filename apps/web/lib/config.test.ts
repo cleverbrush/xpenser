@@ -71,6 +71,52 @@ describe('web config secret guards', () => {
     });
 });
 
+describe('web GTM config', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+    });
+
+    it('keeps GTM enabled by default', async () => {
+        vi.resetModules();
+
+        const { webConfig } = await import('./config');
+
+        expect(webConfig.disableGtm).toBe(false);
+    });
+
+    it.each([
+        '1',
+        'true',
+        'TRUE',
+        'yes',
+        'on',
+        ' On '
+    ])('disables GTM when DISABLE_GTM=%s', async value => {
+        vi.stubEnv('DISABLE_GTM', value);
+        vi.resetModules();
+
+        const { webConfig } = await import('./config');
+
+        expect(webConfig.disableGtm).toBe(true);
+    });
+
+    it.each([
+        '0',
+        'false',
+        'no',
+        'off',
+        ''
+    ])('keeps GTM enabled when DISABLE_GTM=%s', async value => {
+        vi.stubEnv('DISABLE_GTM', value);
+        vi.resetModules();
+
+        const { webConfig } = await import('./config');
+
+        expect(webConfig.disableGtm).toBe(false);
+    });
+});
+
 describe('web Google sign-in config', () => {
     afterEach(() => {
         vi.unstubAllEnvs();

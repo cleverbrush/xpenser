@@ -5,8 +5,6 @@ type VendorSearchParams = {
     readonly search?: string | readonly string[];
 };
 
-export const dynamic = 'force-dynamic';
-
 function readSearch(value: VendorSearchParams['search']): string {
     const raw = Array.isArray(value) ? value[0] : value;
     return typeof raw === 'string' ? raw.trim() : '';
