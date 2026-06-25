@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const prEnvScript = readFileSync(resolve(repoRoot, 'pr-env.sh'), 'utf8');
 const shellDomain = '$' + '{DOMAIN}';
+const shellPassportProject = '$' + '{PASSPORT_PROJECT}';
+const shellPassportEnvironment = '$' + '{PASSPORT_ENVIRONMENT}';
 
 describe('PR environment script', () => {
     it('registers Passport against the public /api backend', () => {
@@ -23,5 +25,17 @@ describe('PR environment script', () => {
         expect(prEnvScript).toContain(
             `NEXTAUTH_URL=https://${shellDomain}/authjs`
         );
+    });
+
+    it('generates Passport Google sign-in settings for PR deployments', () => {
+        expect(prEnvScript).toContain('GOOGLE_SIGN_IN_MODE=passport');
+        expect(prEnvScript).toContain(
+            `PASSPORT_PROJECT=${shellPassportProject}`
+        );
+        expect(prEnvScript).toContain(
+            `PASSPORT_ENVIRONMENT=${shellPassportEnvironment}`
+        );
+        expect(prEnvScript).toContain('AUTH_GOOGLE_ID=');
+        expect(prEnvScript).toContain('AUTH_GOOGLE_SECRET=');
     });
 });
