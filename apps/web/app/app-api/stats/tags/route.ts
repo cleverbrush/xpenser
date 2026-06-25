@@ -1,7 +1,7 @@
 import { createXpenserClient } from '@xpenser/client';
 import type { StatsTagReportQuery } from '@xpenser/contracts';
 import { type NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getCurrentSession } from '@/lib/api';
 import { webConfig } from '@/lib/config';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
 
@@ -38,7 +38,7 @@ function tagReportQuery(
 }
 
 export async function GET(request: NextRequest) {
-    const session = await auth();
+    const session = await getCurrentSession();
     if (!session?.apiToken) {
         return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }

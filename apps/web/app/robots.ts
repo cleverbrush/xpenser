@@ -1,7 +1,17 @@
 import type { MetadataRoute } from 'next';
+import { webConfig } from '@/lib/config';
 import { publicUrl } from '@/lib/public-site';
 
 export default function robots(): MetadataRoute.Robots {
+    if (webConfig.singleUser?.enabled) {
+        return {
+            rules: {
+                userAgent: '*',
+                disallow: '/'
+            }
+        };
+    }
+
     return {
         rules: {
             userAgent: '*',

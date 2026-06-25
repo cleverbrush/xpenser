@@ -131,7 +131,8 @@ export const api = defineApi({
             .body(RegisterBodySchema)
             .responses({
                 201: EmailConfirmationPendingResponseSchema,
-                400: ErrorResponseSchema
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
             }),
         login: endpoint
             .post('/api/auth/login')
@@ -146,14 +147,16 @@ export const api = defineApi({
             .body(ConfirmEmailBodySchema)
             .responses({
                 200: TokenResponseSchema,
-                400: ErrorResponseSchema
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
             }),
         resendEmailConfirmation: endpoint
             .post('/api/auth/email/resend')
             .body(ResendEmailConfirmationBodySchema)
             .responses({
                 200: EmailConfirmationMessageResponseSchema,
-                400: ErrorResponseSchema
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
             }),
         passportResolveUser: endpoint
             .post('/api/auth/passport/resolve-user')
@@ -183,6 +186,13 @@ export const api = defineApi({
             .post('/api/auth/session-token')
             .body(SessionTokenBodySchema)
             .responses({ 200: TokenResponseSchema, 401: ErrorResponseSchema }),
+        singleUserSessionToken: endpoint
+            .post('/api/auth/single-user/session-token')
+            .responses({
+                200: TokenResponseSchema,
+                401: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         me: endpoint
             .get('/api/auth/me')
             .authorize(PrincipalSchema)

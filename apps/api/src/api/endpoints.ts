@@ -67,6 +67,15 @@ export const SessionTokenEndpoint = api.auth.sessionToken
     .tags('auth')
     .operationId('sessionToken');
 
+export const SingleUserSessionTokenEndpoint = api.auth.singleUserSessionToken
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Single-user web session token')
+    .description(
+        'Issues an API JWT for the configured single-user self-hosted deployment.'
+    )
+    .tags('auth')
+    .operationId('singleUserSessionToken');
+
 export const GetMeEndpoint = api.auth.me
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -466,6 +475,7 @@ export const endpoints = {
         passportExchange: PassportExchangeEndpoint,
         googleSignIn: GoogleSignInEndpoint,
         sessionToken: SessionTokenEndpoint,
+        singleUserSessionToken: SingleUserSessionTokenEndpoint,
         me: GetMeEndpoint
     },
     users: {
