@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { signOut } from '@/auth';
+import { webConfig } from '@/lib/config';
 import { InvalidCheckSignOut } from '@/lib/log-templates';
 import { loggerFor } from '@/lib/logger';
 import { publicAppUrl } from '@/lib/public-url';
@@ -13,6 +13,10 @@ function redirectToLogin() {
 }
 
 export async function GET(request: NextRequest) {
+    if (webConfig.singleUser?.enabled) {
+        return NextResponse.redirect(publicAppUrl('/dashboard'));
+    }
+
     const authError = request.nextUrl.searchParams.get('error');
     if (authError && authError !== 'InvalidCheck') {
         return redirectToLogin();
@@ -25,6 +29,7 @@ export async function GET(request: NextRequest) {
         });
     }
 
+    const { signOut } = await import('@/auth');
     await signOut({ redirect: false, redirectTo: '/login' });
     return redirectToLogin();
 }

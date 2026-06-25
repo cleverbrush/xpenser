@@ -1,6 +1,7 @@
 import { Badge, Button } from '@xpenser/ui';
 import { ArrowLeftIcon, FileJsonIcon } from 'lucide-react';
 import Link from 'next/link';
+import { webConfig } from '@/lib/config';
 import { openApiSpecPath } from '@/lib/public-site';
 import { PublicPageShell } from './landing-page';
 import { SwaggerUiViewer } from './swagger-ui-viewer';
@@ -24,15 +25,17 @@ export function SwaggerDocsPage() {
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row">
-                            <Button asChild variant="outline">
-                                <Link href="/api-docs">
-                                    <ArrowLeftIcon
-                                        aria-hidden
-                                        className="size-4"
-                                    />
-                                    API docs
-                                </Link>
-                            </Button>
+                            {webConfig.singleUser?.enabled ? null : (
+                                <Button asChild variant="outline">
+                                    <Link href="/api-docs">
+                                        <ArrowLeftIcon
+                                            aria-hidden
+                                            className="size-4"
+                                        />
+                                        API docs
+                                    </Link>
+                                </Button>
+                            )}
                             <Button asChild variant="outline">
                                 <a href={openApiSpecPath}>
                                     <FileJsonIcon

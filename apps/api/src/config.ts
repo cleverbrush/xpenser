@@ -125,6 +125,10 @@ export const config = parseEnv(
                 number().coerce().default(3)
             )
         },
+        singleUserEnv: {
+            enabled: env('XPENSER_SINGLE_USER_MODE', string().default('0')),
+            email: env('XPENSER_SINGLE_USER_EMAIL', string().optional())
+        },
         logLevel: env(
             'LOG_LEVEL',
             string()
@@ -140,6 +144,24 @@ export const config = parseEnv(
         )
     },
     base => {
+        const singleUserEnabled = ['1', 'true', 'yes'].includes(
+            base.singleUserEnv.enabled.toLowerCase()
+        );
+        const singleUserEmail = base.singleUserEnv.email?.trim().toLowerCase();
+        if (singleUserEnabled && !singleUserEmail) {
+            throw new Error(
+                'XPENSER_SINGLE_USER_EMAIL is required when XPENSER_SINGLE_USER_MODE is enabled.'
+            );
+        }
+        if (
+            singleUserEmail &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(singleUserEmail)
+        ) {
+            throw new Error(
+                'XPENSER_SINGLE_USER_EMAIL must be a valid email address.'
+            );
+        }
+
         const enabled = ['1', 'true', 'yes'].includes(
             base.emailReportsEnv.enabled.toLowerCase()
         );
@@ -173,6 +195,10 @@ export const config = parseEnv(
                         base.brandfetch.vendorEnrichmentEnabled.toLowerCase()
                     ) && Boolean(base.brandfetch.apiKey),
                 timeoutMs: base.brandfetch.vendorEnrichmentTimeoutMs
+            },
+            singleUser: {
+                enabled: singleUserEnabled,
+                email: singleUserEmail ?? ''
             }
         };
     }

@@ -34,6 +34,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
+import { webConfig } from '@/lib/config';
 import {
     apiDocsPage,
     apiSettingsScreenshot,
@@ -645,6 +646,16 @@ export function PublicPageShell({
     readonly children: ReactNode;
     readonly footerSupplement?: ReactNode;
 }) {
+    if (webConfig.singleUser?.enabled) {
+        return (
+            <div className="min-h-dvh bg-background text-foreground">
+                <main id="main-content" tabIndex={-1}>
+                    {children}
+                </main>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-dvh bg-background text-foreground">
             <a

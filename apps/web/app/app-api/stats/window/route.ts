@@ -1,6 +1,6 @@
 import { createXpenserClient } from '@xpenser/client';
 import { type NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { getCurrentSession } from '@/lib/api';
 import { webConfig } from '@/lib/config';
 import { periodWindowQuery } from '@/lib/period-window-query';
 
@@ -16,7 +16,7 @@ function isUnauthorizedApiError(err: unknown): boolean {
 }
 
 export async function GET(request: NextRequest) {
-    const session = await auth();
+    const session = await getCurrentSession();
     if (!session?.apiToken) {
         return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }

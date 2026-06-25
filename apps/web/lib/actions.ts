@@ -13,7 +13,6 @@ import {
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { signIn, signOut } from '../auth';
 import {
     getAnonymousApiClient,
     getApiClient,
@@ -300,6 +299,10 @@ function passportLoginUrl(codeChallenge: string): string {
 }
 
 export async function loginAction(formData: FormData) {
+    if (webConfig.singleUser?.enabled) {
+        redirect('/dashboard');
+    }
+
     const email = requiredString(formData, 'email');
     const password = requiredString(formData, 'password');
     try {
@@ -324,6 +327,7 @@ export async function loginAction(formData: FormData) {
         throw err;
     }
 
+    const { signIn } = await import('../auth');
     await signIn('credentials', {
         email,
         password,
@@ -334,6 +338,10 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function registerAction(formData: FormData) {
+    if (webConfig.singleUser?.enabled) {
+        redirect('/dashboard');
+    }
+
     const email = requiredString(formData, 'email');
     const password = requiredString(formData, 'password');
     const defaultCurrency = requiredString(formData, 'defaultCurrency');
@@ -381,11 +389,16 @@ export async function resendEmailConfirmationAction(formData: FormData) {
 }
 
 export async function googleSignInAction(formData: FormData) {
+    if (webConfig.singleUser?.enabled) {
+        redirect('/dashboard');
+    }
+
     const provider = getGoogleSignInProvider();
     const redirectTo =
         safeInternalRedirect(optionalString(formData, 'redirectTo')) ??
         '/dashboard';
     if (provider === 'direct') {
+        const { signIn } = await import('../auth');
         await signIn('google', { redirectTo });
         return;
     }
@@ -413,6 +426,11 @@ export async function googleSignInAction(formData: FormData) {
 }
 
 export async function logoutAction() {
+    if (webConfig.singleUser?.enabled) {
+        redirect('/dashboard');
+    }
+
+    const { signOut } = await import('../auth');
     await signOut({ redirectTo: '/' });
 }
 

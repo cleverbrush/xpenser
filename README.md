@@ -147,6 +147,20 @@ Local URLs:
 Email/password sign-in works without any external auth provider. Accounts
 created this way must confirm their email before signing in.
 
+Self-hosted deployments that need only one user can skip account auth entirely:
+
+```env
+XPENSER_SINGLE_USER_MODE=1
+XPENSER_SINGLE_USER_EMAIL=you@example.com
+WEB_API_SERVICE_SECRET=replace-with-at-least-32-characters
+```
+
+In single-user mode, the web app opens directly to the authenticated app,
+creates or reuses the configured email as the owner, hides login, registration,
+and marketing pages, and keeps Swagger/OpenAPI available. The public API and MCP
+endpoint still require API keys or OAuth; only the trusted web service bypasses
+the account login flow.
+
 Google sign-in supports two modes:
 
 - Direct Google OAuth for self-hosted deployments.
@@ -243,8 +257,10 @@ For public deployments, put your reverse proxy in front of the web app and set
 network and the Next app exposes it under `/api`.
 
 For a smaller public deployment, use `docker-compose.prod.yml` as the starting
-point and provide production secrets for `NEXTAUTH_SECRET`, `AUTH_SECRET`,
-`JWT_SECRET`, `WEB_API_SERVICE_SECRET`, and `TELEGRAM_BOT_SERVICE_SECRET`.
+point and provide production secrets for `JWT_SECRET`, `WEB_API_SERVICE_SECRET`,
+and `TELEGRAM_BOT_SERVICE_SECRET`. Normal account-auth deployments also need
+`NEXTAUTH_SECRET` and `AUTH_SECRET`; single-user deployments can leave those
+empty.
 
 ## Optional Integrations
 

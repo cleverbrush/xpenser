@@ -5,10 +5,16 @@ import {
     CardHeader,
     CardTitle
 } from '@xpenser/ui';
+import { redirect } from 'next/navigation';
 import { RegisterForm } from '@/components/forms/register-form';
 import { getAnonymousApiClient } from '@/lib/api';
+import { webConfig } from '@/lib/config';
 
 export default async function RegisterPage() {
+    if (webConfig.singleUser?.enabled) {
+        redirect('/dashboard');
+    }
+
     const currencies = await getAnonymousApiClient().currencies.list();
 
     return (

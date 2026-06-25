@@ -5,6 +5,7 @@ import type {
 } from '@cleverbrush/auth';
 import { jwtScheme, Principal } from '@cleverbrush/auth';
 import { authenticateApiKey, parseApiKey } from '../application/api-keys.js';
+import { isUserAllowedInSingleUserMode } from '../application/users.js';
 import type { Config } from '../config.js';
 import type { AppDb } from '../db/schemas.js';
 
@@ -72,6 +73,15 @@ export function xpenserAuthScheme(
                 failure: 'Invalid API key'
             };
         }
+        if (
+            !(await isUserAllowedInSingleUserMode(db, config, principal.userId))
+        ) {
+            return {
+                succeeded: false,
+                failure:
+                    'Credential does not belong to the configured single user'
+            };
+        }
 
         return {
             succeeded: true,
@@ -114,6 +124,24 @@ export function xpenserAuthScheme(
                     succeeded: false,
                     failure:
                         'MCP OAuth tokens are only accepted by the MCP endpoint'
+                };
+            }
+            const principal = result.succeeded
+                ? result.principal.value
+                : undefined;
+            if (
+                result.succeeded &&
+                (!principal ||
+                    !(await isUserAllowedInSingleUserMode(
+                        db,
+                        config,
+                        principal.userId
+                    )))
+            ) {
+                return {
+                    succeeded: false,
+                    failure:
+                        'Credential does not belong to the configured single user'
                 };
             }
 

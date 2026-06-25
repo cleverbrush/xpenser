@@ -8,9 +8,8 @@ import {
 } from '@xpenser/ui';
 import { ShieldCheckIcon, XIcon } from 'lucide-react';
 import { redirect } from 'next/navigation';
-import { auth } from '@/auth';
 import { approveMcpOAuthAction, denyMcpOAuthAction } from '@/lib/actions';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentSession } from '@/lib/api';
 
 type AuthorizeSearchParams = {
     readonly response_type?: string | string[];
@@ -101,7 +100,7 @@ export default async function McpOAuthAuthorizePage({
 }) {
     const params = await searchParams;
     const query = authorizationQuery(params);
-    const session = await auth();
+    const session = await getCurrentSession();
     if (!session?.apiToken) {
         redirect(
             `/login?callbackUrl=${encodeURIComponent(

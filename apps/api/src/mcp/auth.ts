@@ -5,6 +5,7 @@ import {
     authenticateMcpOAuthAccessToken,
     type McpOAuthAccessPrincipal
 } from '../application/mcp-oauth.js';
+import { isUserAllowedInSingleUserMode } from '../application/users.js';
 import type { Config } from '../config.js';
 import type { AppDb } from '../db/schemas.js';
 
@@ -56,6 +57,10 @@ function headerApiKey(headers: Record<string, string>): string | undefined {
     return value || undefined;
 }
 
+async function principalAllowed(db: AppDb, config: Config, userId: number) {
+    return isUserAllowedInSingleUserMode(db, config, userId);
+}
+
 export async function authenticateMcpPrincipal({
     config,
     db,
@@ -68,14 +73,18 @@ export async function authenticateMcpPrincipal({
     const explicitApiKey = headerApiKey(headers);
     if (explicitApiKey) {
         const principal = await authenticateApiKey(db, explicitApiKey);
-        return principal
-            ? {
-                  userId: principal.userId,
-                  role: principal.role,
-                  authType: 'api_key',
-                  apiKeyId: principal.apiKeyId
-              }
-            : undefined;
+        if (
+            !principal ||
+            !(await principalAllowed(db, config, principal.userId))
+        ) {
+            return undefined;
+        }
+        return {
+            userId: principal.userId,
+            role: principal.role,
+            authType: 'api_key',
+            apiKeyId: principal.apiKeyId
+        };
     }
 
     const token = bearerToken(headers);
@@ -84,15 +93,23 @@ export async function authenticateMcpPrincipal({
     }
     if (parseApiKey(token)) {
         const principal = await authenticateApiKey(db, token);
-        return principal
-            ? {
-                  userId: principal.userId,
-                  role: principal.role,
-                  authType: 'api_key',
-                  apiKeyId: principal.apiKeyId
-              }
-            : undefined;
+        if (
+            !principal ||
+            !(await principalAllowed(db, config, principal.userId))
+        ) {
+            return undefined;
+        }
+        return {
+            userId: principal.userId,
+            role: principal.role,
+            authType: 'api_key',
+            apiKeyId: principal.apiKeyId
+        };
     }
 
-    return authenticateMcpOAuthAccessToken(db, config, token);
+    const principal = await authenticateMcpOAuthAccessToken(db, config, token);
+    if (!principal || !(await principalAllowed(db, config, principal.userId))) {
+        return undefined;
+    }
+    return principal;
 }
