@@ -26,13 +26,15 @@ export type PublicUtilityPage = {
     readonly priority: number;
 };
 
+export type PublicPage = PublicMarketingPage | PublicUtilityPage;
+
 export type JsonLdData = Record<string, unknown>;
 
 export const publicSiteOrigin = (
     process.env.APP_URL ?? 'https://xpenser.cleverbrush.com'
 ).replace(/\/$/, '');
 
-export const publicPageLastModified = '2026-06-10';
+export const publicPageLastModified = '2026-06-27';
 export const noIndexRobots = {
     index: false,
     follow: true
@@ -70,6 +72,16 @@ export const apiDocsPage = {
     navLabel: 'API docs',
     path: '/api-docs',
     priority: 0.7
+} as const satisfies PublicUtilityPage;
+
+export const blogIndexPage = {
+    description:
+        'Read xpenser product updates about self-hosted personal finance tracking, open-source expense workflows, API access, MCP tools, and release notes.',
+    h1: 'xpenser blog',
+    metadataTitle: 'Blog',
+    navLabel: 'Blog',
+    path: '/blog',
+    priority: 0.75
 } as const satisfies PublicUtilityPage;
 
 export const publicMarketingPages = [
@@ -204,7 +216,7 @@ export const publicSeoPages = publicMarketingPages.filter(
     page => page.path !== '/'
 );
 
-export const publicUtilityPages = [apiDocsPage] as const;
+export const publicUtilityPages = [blogIndexPage, apiDocsPage] as const;
 
 export function publicUrl(path = '/') {
     return new URL(path, `${publicSiteOrigin}/`).toString();
@@ -219,7 +231,7 @@ export function getPublicMarketingPage(path: string): PublicMarketingPage {
     return page;
 }
 
-export function createPublicPageMetadata(page: PublicMarketingPage): Metadata {
+export function createPublicPageMetadata(page: PublicPage): Metadata {
     const canonical = publicUrl(page.path);
     const imageUrl = publicUrl('/og-image.png');
 

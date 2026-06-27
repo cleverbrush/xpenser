@@ -41,6 +41,14 @@ git worktree add -b <branch-type>/<task-slug> ../<branch-type>/<task-slug> origi
 - Add or update focused unit tests for changed logic when applicable.
 - Add or update e2e tests for changed user-facing flows when applicable. Use the project guide for required base URLs, credentials, and setup helpers.
 
+## Feature Blog Post
+
+- For public-facing feature work, create or update a Markdown blog post under `apps/web/content/blog/<task-slug>.mdx`.
+- The post should explain the shipped feature in user-facing language, include a primary target keyword, include two to five secondary keyword phrases, and link naturally to relevant public pages.
+- Keep the post factual and tied to the implemented feature. Do not add keyword stuffing, claims that are not supported by the product, or roadmap promises.
+- Skip the blog post only when the change is internal, security-sensitive, too small to justify a public update, or not user-facing. Record the skip reason in the PR body.
+- When a blog post is included, validate the preview `/blog` page and the individual post URL during Preview QA.
+
 ## Pull Request Loop
 
 - Push the branch to `origin` and create a PR against the configured default branch and GitHub repository.
@@ -49,6 +57,7 @@ git worktree add -b <branch-type>/<task-slug> ../<branch-type>/<task-slug> origi
   - Include an **Original request** section. Quote or accurately summarize the user's request that triggered the work. Do not include secrets, credentials, or unrelated private context.
   - Include a **What changed** section with concrete details about the files, behavior, configuration, tests, or workflows changed. Avoid vague summaries such as "updated auth" when the exact change was "set Auth.js session and API JWT max age to 1,209,600 seconds."
   - Include a **Reasoning** section explaining why this approach was chosen, what alternatives or tradeoffs mattered, and how the change fits the existing codebase conventions.
+  - Include a **Blog post** section with the post URL, target keyword, and publish status, or the explicit skip reason.
   - Include a **Screenshots / preview evidence** section. Add screenshots to the PR description whenever the work affects UI, preview-visible behavior, or manual QA can demonstrate the requested outcome. Capture the relevant before/after or preview state with Playwright or agent-browser. If the work is non-visual, explicitly say screenshots are not applicable and explain why.
   - Include a **Validation** section listing local commands, GitHub checks, preview QA, and SigNoz checks. Mark anything skipped or blocked with the reason.
   - Keep the PR body current after every meaningful push, especially after fixing CI, e2e, preview QA, or telemetry issues.

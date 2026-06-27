@@ -26,6 +26,33 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(
         main.getByRole('link', { name: 'Create account' }).first()
     ).toHaveAttribute('href', '/register');
+    await expect(
+        main.getByRole('link', { exact: true, name: 'Blog' }).first()
+    ).toHaveAttribute('href', '/blog');
+});
+
+test('serves the public blog index and a published post', async ({ page }) => {
+    await page.goto('/blog');
+
+    await expect(
+        page.getByRole('heading', { name: 'xpenser blog' })
+    ).toBeVisible();
+    await expect(
+        page.getByRole('link', {
+            name: 'Markdown blog workflow for xpenser feature releases'
+        })
+    ).toHaveAttribute('href', '/blog/markdown-blog-workflow');
+
+    await page.goto('/blog/markdown-blog-workflow');
+    await expect(
+        page.getByRole('heading', {
+            name: 'Markdown blog workflow for xpenser feature releases'
+        })
+    ).toBeVisible();
+    await expect(page.getByText('markdown blog workflow')).toBeVisible();
+    await expect(
+        page.getByRole('link', { name: 'open-source expense tracker' })
+    ).toHaveAttribute('href', '/open-source-expense-tracker');
 });
 
 test('serves the public API contract through Swagger UI', async ({

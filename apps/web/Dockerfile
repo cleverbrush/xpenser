@@ -32,6 +32,7 @@ WORKDIR /app
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/apps/web/content ./apps/web/content
 
 RUN mkdir -p /app/apps/web/.next/cache && \
     chown -R appuser:appgroup /app/apps/web/.next/cache

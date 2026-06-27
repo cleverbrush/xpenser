@@ -29,13 +29,15 @@ describe('metadata routes', () => {
         );
     });
 
-    it('serves only public sitemap URLs', () => {
-        expect(sitemap().map(entry => entry.url)).toEqual([
+    it('serves only public sitemap URLs', async () => {
+        expect((await sitemap()).map(entry => entry.url)).toEqual([
             'https://xpenser.cleverbrush.com/',
             'https://xpenser.cleverbrush.com/self-hosted-personal-finance-tracker',
             'https://xpenser.cleverbrush.com/open-source-expense-tracker',
             'https://xpenser.cleverbrush.com/personal-finance-api-mcp',
-            'https://xpenser.cleverbrush.com/api-docs'
+            'https://xpenser.cleverbrush.com/blog',
+            'https://xpenser.cleverbrush.com/api-docs',
+            'https://xpenser.cleverbrush.com/blog/markdown-blog-workflow'
         ]);
     });
 
@@ -57,6 +59,6 @@ describe('metadata routes', () => {
                 disallow: '/'
             }
         });
-        expect(singleUserSitemap()).toEqual([]);
+        await expect(singleUserSitemap()).resolves.toEqual([]);
     });
 });
