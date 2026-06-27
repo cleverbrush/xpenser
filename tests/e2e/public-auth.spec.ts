@@ -27,7 +27,7 @@ test('shows sign in and create account actions on the public index', async ({
         main.getByRole('link', { name: 'Create account' }).first()
     ).toHaveAttribute('href', '/register');
     await expect(
-        main.getByRole('link', { exact: true, name: 'Blog' }).first()
+        main.getByRole('link', { exact: true, name: 'xpenser blog' }).first()
     ).toHaveAttribute('href', '/blog');
 });
 
@@ -49,7 +49,9 @@ test('serves the public blog index and a published post', async ({ page }) => {
             name: 'Markdown blog workflow for xpenser feature releases'
         })
     ).toBeVisible();
-    await expect(page.getByText('markdown blog workflow')).toBeVisible();
+    await expect(
+        page.getByText('markdown blog workflow', { exact: true })
+    ).toBeVisible();
     await expect(
         page.getByRole('link', { name: 'open-source expense tracker' })
     ).toHaveAttribute('href', '/open-source-expense-tracker');
