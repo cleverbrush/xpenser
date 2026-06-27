@@ -527,6 +527,7 @@ export const api = defineApi({
             .authorize(PrincipalSchema)
             .query(DashboardQuerySchema)
             .cacheTag('dashboard', request => ({
+                currency: request.query.currency,
                 date: request.query.date,
                 vendorLimit: request.query.vendorLimit,
                 period: request.query.period
@@ -539,6 +540,7 @@ export const api = defineApi({
             .cacheTag('dashboard', request => ({
                 after: request.query.after,
                 before: request.query.before,
+                currency: request.query.currency,
                 date: request.query.date,
                 vendorLimit: request.query.vendorLimit,
                 period: request.query.period

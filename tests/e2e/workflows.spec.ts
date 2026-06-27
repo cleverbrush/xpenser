@@ -224,9 +224,7 @@ test.describe('authenticated app workflows', () => {
         );
 
         await page.goto(`/dashboard?period=day&date=${periodDate}`);
-        await page
-            .getByRole('button', { name: `Expand ${expenseCategory}` })
-            .click();
+        await page.getByRole('button', { name: 'Expand all' }).click();
         await expect(page.getByText(secondVendor)).toBeVisible();
         await expect(page.getByText(firstVendor)).toBeVisible();
         const dashboardText = (await page.locator('body').textContent()) ?? '';
@@ -244,9 +242,7 @@ test.describe('authenticated app workflows', () => {
         expect(dashboardLink).toContain('vendorId=');
 
         await page.goto(`/vendors?period=day&date=${periodDate}`);
-        await page
-            .getByRole('button', { name: `Expand ${secondVendor}` })
-            .click();
+        await page.getByRole('button', { name: 'Expand all' }).click();
         await expect(page.getByText(expenseCategory)).toBeVisible();
         const vendorsLink =
             (await page

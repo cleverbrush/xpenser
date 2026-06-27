@@ -133,6 +133,7 @@ type StatsRanges = {
 type PeriodWindowQuery = {
     readonly period?: DashboardPeriod;
     readonly date?: Date;
+    readonly currency?: string;
     readonly before?: number;
     readonly after?: number;
     readonly vendorLimit?: number;
@@ -156,6 +157,11 @@ type CategoryComparison = {
     readonly total: number;
 };
 
+type DashboardReportingAmounts = {
+    readonly amountsByTransactionId?: ReadonlyMap<number, number>;
+    readonly currency: string;
+};
+
 export const categoryTrendMaxBuckets = 500;
 const dashboardVendorLimit = 24;
 const noVendorName = 'No vendor';
@@ -168,6 +174,79 @@ export function transactionSignedDefaultAmount(
 ): number {
     void categoryOverride;
     return Math.abs(Number(transaction.defaultCurrencyAmount));
+}
+
+function dashboardTransactionAmount(
+    transaction: Pick<TransactionDb, 'defaultCurrencyAmount' | 'id'> & {
+        readonly category?: CategoryDb | null;
+    },
+    reportingAmounts?: DashboardReportingAmounts,
+    categoryOverride?: CategoryDb
+): number {
+    return (
+        reportingAmounts?.amountsByTransactionId?.get(transaction.id) ??
+        transactionSignedDefaultAmount(transaction, categoryOverride)
+    );
+}
+
+function normalizedDashboardCurrency(
+    currency: string | undefined,
+    defaultCurrency: string
+): string {
+    const normalized = (currency ?? defaultCurrency).trim().toUpperCase();
+    return /^[A-Z]{3}$/.test(normalized)
+        ? normalized
+        : defaultCurrency.trim().toUpperCase();
+}
+
+async function dashboardReportingAmounts(
+    db: AppDb,
+    config: Config,
+    user: Pick<UserDb, 'defaultCurrency' | 'timezone'>,
+    rows: readonly TransactionDb[],
+    currency?: string
+): Promise<DashboardReportingAmounts> {
+    const defaultCurrency = user.defaultCurrency.trim().toUpperCase();
+    const reportingCurrency = normalizedDashboardCurrency(
+        currency,
+        defaultCurrency
+    );
+    if (reportingCurrency === defaultCurrency) {
+        return { currency: defaultCurrency };
+    }
+
+    const rateCache = new Map<
+        `${string}:${string}:${string}`,
+        Promise<number>
+    >();
+    const amountsByTransactionId = new Map<number, number>();
+
+    await Promise.all(
+        rows.map(async row => {
+            const baseCurrency = row.currency.trim().toUpperCase();
+            const rateDate = transactionDate(row.occurredAt, user.timezone);
+            const rateKey =
+                `${baseCurrency}:${reportingCurrency}:${rateDate}` as const;
+            let rate = rateCache.get(rateKey);
+            if (!rate) {
+                rate = getExchangeRate(
+                    db,
+                    config,
+                    baseCurrency,
+                    reportingCurrency,
+                    rateDate
+                ).then(exchange => exchange.rate);
+                rateCache.set(rateKey, rate);
+            }
+
+            amountsByTransactionId.set(
+                row.id,
+                convertAmount(Math.abs(Number(row.amount)), await rate)
+            );
+        })
+    );
+
+    return { amountsByTransactionId, currency: reportingCurrency };
 }
 
 async function loadCategoriesById(
@@ -2018,7 +2097,8 @@ export function summarizeDashboardRows(
     previousRows: readonly TransactionDb[],
     categoriesById: ReadonlyMap<number, CategoryDb>,
     vendorsById: ReadonlyMap<number, VendorDb>,
-    vendorLimit = dashboardVendorLimit
+    vendorLimit = dashboardVendorLimit,
+    reportingAmounts?: DashboardReportingAmounts
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
@@ -2037,7 +2117,11 @@ export function summarizeDashboardRows(
         const category = categoryForTransaction(row, categoriesById);
         const fields = categoryFields(category, row, categoriesById);
         const key = `${fields.type}:${fields.categoryId}`;
-        const total = transactionSignedDefaultAmount(row, category);
+        const total = dashboardTransactionAmount(
+            row,
+            reportingAmounts,
+            category
+        );
         previousTotalsByCategory.set(
             key,
             (previousTotalsByCategory.get(key) ?? 0) + total
@@ -2061,7 +2145,11 @@ export function summarizeDashboardRows(
             percentChange: 0,
             trend: Array.from({ length: bucketCount }, () => 0)
         };
-        const total = transactionSignedDefaultAmount(row, category);
+        const total = dashboardTransactionAmount(
+            row,
+            reportingAmounts,
+            category
+        );
         const bucketIndex = dashboardTrendBucketIndex(
             period,
             row.occurredAt,
@@ -2168,7 +2256,7 @@ export function summarizeDashboardRows(
         period,
         from: range.from,
         to: range.to,
-        currency: user.defaultCurrency,
+        currency: reportingAmounts?.currency ?? user.defaultCurrency,
         expenseTotal,
         incomeTotal,
         comparison: {
@@ -2190,10 +2278,12 @@ export function summarizeDashboardRows(
 
 export async function dashboardSummary(
     db: AppDb,
+    config: Config,
     userId: number,
     period: DashboardPeriod,
     date?: Date,
-    vendorLimit = dashboardVendorLimit
+    vendorLimit = dashboardVendorLimit,
+    currency?: string
 ): Promise<DashboardSummary> {
     const user = await getUser(db, userId);
     const range = resolveDashboardRange(
@@ -2215,6 +2305,13 @@ export async function dashboardSummary(
             loadVendorsById(db, userId)
         ]
     );
+    const reportingAmounts = await dashboardReportingAmounts(
+        db,
+        config,
+        user,
+        [...rows, ...previousRows],
+        currency
+    );
 
     return summarizeDashboardRows(
         user,
@@ -2224,12 +2321,14 @@ export async function dashboardSummary(
         previousRows,
         categoriesById,
         vendorsById,
-        vendorLimit
+        vendorLimit,
+        reportingAmounts
     );
 }
 
 export async function dashboardWindow(
     db: AppDb,
+    config: Config,
     userId: number,
     query: PeriodWindowQuery
 ): Promise<DashboardWindowResponse> {
@@ -2267,6 +2366,13 @@ export async function dashboardWindow(
         loadCategoriesById(db, userId),
         loadVendorsById(db, userId)
     ]);
+    const reportingAmounts = await dashboardReportingAmounts(
+        db,
+        config,
+        user,
+        allRows,
+        query.currency
+    );
 
     return {
         items: plans.map(plan => ({
@@ -2279,7 +2385,8 @@ export async function dashboardWindow(
                 rowsInRange(allRows, plan.previousRange),
                 categoriesById,
                 vendorsById,
-                query.vendorLimit ?? dashboardVendorLimit
+                query.vendorLimit ?? dashboardVendorLimit,
+                reportingAmounts
             )
         }))
     };

@@ -787,6 +787,7 @@ describe('shared schemas', () => {
         const dashboardResult = DashboardWindowQuerySchema.validate({
             after: 2,
             before: 2,
+            currency: 'EUR',
             vendorLimit: 100,
             period: 'month'
         });
@@ -798,6 +799,7 @@ describe('shared schemas', () => {
         } as never);
 
         expect(dashboardResult.valid).toBe(true);
+        expect(dashboardResult.object?.currency).toBe('EUR');
         expect(dashboardResult.object?.vendorLimit).toBe(100);
         expect(genericResult.valid).toBe(false);
     });

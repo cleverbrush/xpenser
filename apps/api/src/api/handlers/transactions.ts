@@ -119,22 +119,25 @@ export const getTransactionScanImageHandler: Handler<
 
 export const dashboardSummaryHandler: Handler<
     typeof DashboardSummaryEndpoint
-> = async ({ query, principal }, { db }) => {
+> = async ({ query, principal }, { db, config }) => {
     return dashboardSummary(
         db,
+        config,
         principal.userId,
         query.period ?? 'day',
         query.date,
-        query.vendorLimit
+        query.vendorLimit,
+        query.currency
     );
 };
 
 export const dashboardWindowHandler: Handler<
     typeof DashboardWindowEndpoint
-> = async ({ query, principal }, { db }) => {
-    return dashboardWindow(db, principal.userId, {
+> = async ({ query, principal }, { db, config }) => {
+    return dashboardWindow(db, config, principal.userId, {
         after: query.after,
         before: query.before,
+        currency: query.currency,
         date: query.date,
         vendorLimit: query.vendorLimit,
         period: query.period ?? 'day'

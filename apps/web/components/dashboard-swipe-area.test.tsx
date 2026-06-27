@@ -22,9 +22,11 @@ vi.mock('next/navigation', () => ({
 
 function renderSwipeArea({
     date = '2026-05-10',
+    extraQueryParams,
     onNavigate = vi.fn()
 }: {
     readonly date?: string;
+    readonly extraQueryParams?: Readonly<Record<string, string>>;
     readonly onNavigate?: (selection: SwipeNavigation) => void;
 } = {}) {
     render(
@@ -32,6 +34,7 @@ function renderSwipeArea({
             basePath="/dashboard"
             className="min-h-64"
             date={date}
+            extraQueryParams={extraQueryParams}
             onNavigate={onNavigate}
             period="day"
             timezone="UTC"
@@ -111,6 +114,38 @@ describe('DashboardSwipeArea', () => {
             date: '2026-05-09',
             direction: 1,
             href: '/dashboard?period=day&date=2026-05-09'
+        });
+    });
+
+    it('preserves extra query params while navigating by swipe', () => {
+        const { onNavigate, swipeArea } = renderSwipeArea({
+            extraQueryParams: { currency: 'EUR' }
+        });
+
+        fireEvent.pointerDown(swipeArea, {
+            clientX: 240,
+            clientY: 220,
+            pointerId: 1
+        });
+        fireEvent.pointerMove(swipeArea, {
+            clientX: 360,
+            clientY: 224,
+            pointerId: 1
+        });
+        fireEvent.pointerUp(swipeArea, {
+            clientX: 360,
+            clientY: 224,
+            pointerId: 1
+        });
+
+        act(() => {
+            vi.advanceTimersByTime(180);
+        });
+
+        expect(onNavigate).toHaveBeenCalledWith({
+            date: '2026-05-09',
+            direction: 1,
+            href: '/dashboard?currency=EUR&period=day&date=2026-05-09'
         });
     });
 

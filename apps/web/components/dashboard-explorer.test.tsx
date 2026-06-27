@@ -88,6 +88,41 @@ function summary(overrides: Partial<DashboardSummary> = {}): DashboardSummary {
 }
 
 describe('DashboardPeriodPanel', () => {
+    it('expands and collapses all category and vendor rows', () => {
+        const food = category(1, 'Food');
+        const coffee = category(2, 'Coffee', {
+            categoryDisplayName: 'Food -> Coffee',
+            categoryParentId: food.categoryId,
+            categoryParentName: food.categoryName
+        });
+        render(
+            <DashboardPeriodPanel
+                summary={summary({
+                    byCategory: [coffee],
+                    byParentCategory: [food],
+                    categoryVendorBreakdown: [
+                        categoryVendor(coffee, 1, 'Alpha Shop', 30),
+                        categoryVendor(coffee, 2, 'Beta Market', 70)
+                    ]
+                })}
+                timezone="UTC"
+            />
+        );
+
+        expect(screen.queryByText('Coffee')).toBeNull();
+        expect(screen.queryByText('Beta Market')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
+
+        expect(screen.getByText('Coffee')).toBeTruthy();
+        expect(screen.getByText('Beta Market')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+
+        expect(screen.queryByText('Coffee')).toBeNull();
+        expect(screen.queryByText('Beta Market')).toBeNull();
+    });
+
     it('nests sorted vendor rows under leaf category rows', () => {
         const food = category(1, 'Food');
         const coffee = category(2, 'Coffee', {

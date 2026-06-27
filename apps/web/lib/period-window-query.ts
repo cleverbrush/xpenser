@@ -32,9 +32,12 @@ export function dashboardPeriodWindowQuery(
     params: URLSearchParams,
     timezone: string
 ): ReturnType<typeof periodWindowQuery> & {
+    readonly currency?: string;
     readonly vendorLimit?: number;
 } {
     const base = periodWindowQuery(params, timezone);
+    const currencyParam = params.get('currency') ?? undefined;
+    const currency = currencyParam?.trim().toUpperCase();
     const vendorLimitParam = params.get('vendorLimit') ?? undefined;
     const vendorLimit = vendorLimitParam
         ? Number(vendorLimitParam)
@@ -42,6 +45,7 @@ export function dashboardPeriodWindowQuery(
 
     return {
         ...base,
+        ...(currency && /^[A-Z]{3}$/.test(currency) ? { currency } : undefined),
         ...(Number.isFinite(vendorLimit) ? { vendorLimit } : undefined)
     };
 }

@@ -1783,6 +1783,10 @@ export const DashboardQuerySchema = object({
         .coerce()
         .optional()
         .describe('Date used to choose the reporting period.'),
+    /** Currency used for dashboard totals. */
+    currency: CurrencyCodeSchema.optional().describe(
+        'Currency used for dashboard totals.'
+    ),
     /** Maximum number of vendor groups to include. */
     vendorLimit: number()
         .coerce()
@@ -1818,6 +1822,10 @@ export const DashboardWindowQuerySchema = object({
         .coerce()
         .optional()
         .describe('Date used to choose the center reporting period.'),
+    /** Currency used for dashboard totals. */
+    currency: CurrencyCodeSchema.optional().describe(
+        'Currency used for dashboard totals.'
+    ),
     /** Number of previous periods to include. */
     before: number()
         .coerce()
@@ -1931,9 +1939,9 @@ export const DashboardVendorTotalSchema = object({
     type: CategoryTypeSchema.describe(
         'Transaction direction for this vendor group.'
     ),
-    /** Total in the user's default currency for this vendor group. */
+    /** Total in the selected dashboard currency for this vendor group. */
     total: decimalNumber().describe(
-        "Total in the user's default currency for this vendor group."
+        'Total in the selected dashboard currency for this vendor group.'
     ),
     /** Number of selected-period transactions in this vendor group. */
     transactionCount: number().describe(
@@ -1966,9 +1974,9 @@ export const DashboardCategoryTotalSchema = object({
     ),
     /** Transaction direction. */
     type: CategoryTypeSchema.describe('Transaction direction.'),
-    /** Category total in the user's default currency on the reported side. */
+    /** Category total in the selected dashboard currency on the reported side. */
     total: decimalNumber().describe(
-        "Category total in the user's default currency on the reported side."
+        'Category total in the selected dashboard currency on the reported side.'
     ),
     /** Number of selected-period transactions in the category. */
     transactionCount: number().describe(
@@ -2031,9 +2039,9 @@ export const DashboardCategoryVendorTotalSchema = object({
     type: CategoryTypeSchema.describe(
         'Transaction direction for this category/vendor group.'
     ),
-    /** Total in the user's default currency for this category/vendor group. */
+    /** Total in the selected dashboard currency for this category/vendor group. */
     total: decimalNumber().describe(
-        "Total in the user's default currency for this category/vendor group."
+        'Total in the selected dashboard currency for this category/vendor group.'
     ),
     /** Number of selected-period transactions in this category/vendor group. */
     transactionCount: number().describe(
@@ -2296,13 +2304,17 @@ export const DashboardComparisonSchema = object({
     from: date().coerce().describe('Comparison period start timestamp.'),
     /** Comparison period end timestamp. */
     to: date().coerce().describe('Comparison period end timestamp.'),
-    /** Expenses in the default currency. */
-    expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
-    /** Income in the default currency. */
-    incomeTotal: decimalNumber().describe('Income in the default currency.'),
-    /** Income minus expenses in the default currency. */
+    /** Expenses in the selected dashboard currency. */
+    expenseTotal: decimalNumber().describe(
+        'Expenses in the selected dashboard currency.'
+    ),
+    /** Income in the selected dashboard currency. */
+    incomeTotal: decimalNumber().describe(
+        'Income in the selected dashboard currency.'
+    ),
+    /** Income minus expenses in the selected dashboard currency. */
     netTotal: decimalNumber().describe(
-        'Income minus expenses in the default currency.'
+        'Income minus expenses in the selected dashboard currency.'
     )
 }).schemaName('DashboardComparison');
 
@@ -2317,10 +2329,14 @@ export const StatsOverviewSchema = object({
     to: date().coerce().describe('Period end timestamp.'),
     /** Currency used for totals. */
     currency: CurrencyCodeSchema.describe('Currency used for totals.'),
-    /** Expenses in the default currency. */
-    expenseTotal: decimalNumber().describe('Expenses in the default currency.'),
-    /** Income in the default currency. */
-    incomeTotal: decimalNumber().describe('Income in the default currency.'),
+    /** Expenses in the selected dashboard currency. */
+    expenseTotal: decimalNumber().describe(
+        'Expenses in the selected dashboard currency.'
+    ),
+    /** Income in the selected dashboard currency. */
+    incomeTotal: decimalNumber().describe(
+        'Income in the selected dashboard currency.'
+    ),
     /** Income minus expenses in the default currency. */
     netTotal: decimalNumber().describe(
         'Income minus expenses in the default currency.'

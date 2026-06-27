@@ -88,6 +88,40 @@ function renderedVendorNames(names: readonly string[]): string[] {
 }
 
 describe('VendorAnalyticsPanel', () => {
+    it('expands and collapses all vendor category rows', () => {
+        const sharedVendor = vendor(1, {
+            vendorName: 'Shared Vendor',
+            total: 200,
+            transactionCount: 2
+        });
+        render(
+            <VendorAnalyticsPanel
+                summary={summary({
+                    expenseTotal: 200,
+                    vendorCount: 1,
+                    topVendors: [sharedVendor],
+                    categoryVendorBreakdown: [
+                        categoryVendor(sharedVendor, 1, 'Meals', 40),
+                        categoryVendor(sharedVendor, 2, 'Rent', 160)
+                    ]
+                })}
+                timezone="UTC"
+            />
+        );
+
+        expect(screen.queryByText('Rent')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
+
+        expect(screen.getByText('Rent')).toBeTruthy();
+        expect(screen.getByText('Meals')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+
+        expect(screen.queryByText('Rent')).toBeNull();
+        expect(screen.queryByText('Meals')).toBeNull();
+    });
+
     it('renders vendor rows with charts and transaction links', () => {
         const vendors = [vendor(1), vendor(2)];
         const { container } = render(

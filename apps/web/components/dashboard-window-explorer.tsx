@@ -32,7 +32,9 @@ type DashboardWindowExplorerContext = {
     readonly period: DashboardPeriod;
 };
 type ExtraQueryParams = Readonly<Record<string, number | string>>;
+type NavigationQueryParams = Readonly<Record<string, string | undefined>>;
 const emptyQueryParams: ExtraQueryParams = {};
+const emptyNavigationQueryParams: NavigationQueryParams = {};
 
 function mergeDashboardItems(
     cache: DashboardCache,
@@ -82,6 +84,7 @@ export function DashboardWindowExplorer({
     initialDate,
     initialPeriod,
     initialWindow,
+    navigationQueryParams = emptyNavigationQueryParams,
     renderBody,
     renderHeader,
     skeleton,
@@ -92,6 +95,7 @@ export function DashboardWindowExplorer({
     readonly initialDate: string;
     readonly initialPeriod: DashboardPeriod;
     readonly initialWindow: DashboardWindowResponse;
+    readonly navigationQueryParams?: NavigationQueryParams;
     readonly renderBody: (context: DashboardWindowExplorerContext) => ReactNode;
     readonly renderHeader: (
         context: DashboardWindowExplorerContext
@@ -119,22 +123,17 @@ export function DashboardWindowExplorer({
     const queryKey = JSON.stringify(windowQueryParams);
 
     useEffect(() => {
-        setCache(current =>
-            mergeDashboardItems(
-                current,
-                initialPeriod,
-                initialWindow.items,
-                true
-            )
-        );
+        void queryKey;
+        setCache(initialCache(initialPeriod, initialWindow.items));
         setSelection({ date: initialDate, period: initialPeriod });
-    }, [initialDate, initialPeriod, initialWindow]);
+    }, [initialDate, initialPeriod, initialWindow, queryKey]);
 
     const commitSelection = useCallback(
         (period: DashboardPeriod, date: string, pushHistory = true) => {
             const anchor = parseDateParam(date, timezone) ?? new Date();
             const href = periodHref(basePath, period, anchor, {
                 cleanDefault: true,
+                extraParams: navigationQueryParams,
                 timeZone: timezone
             });
             setSelection({ date, period });
@@ -142,7 +141,7 @@ export function DashboardWindowExplorer({
                 window.history.pushState(null, '', href);
             }
         },
-        [basePath, timezone]
+        [basePath, navigationQueryParams, timezone]
     );
 
     const fetchWindow = useCallback(
@@ -353,6 +352,7 @@ export function DashboardWindowExplorer({
             <DashboardPeriodNav
                 basePath={basePath}
                 date={currentDate}
+                extraQueryParams={navigationQueryParams}
                 onNavigate={selection => {
                     void navigateTo(selection);
                 }}
@@ -363,6 +363,7 @@ export function DashboardWindowExplorer({
                 basePath={basePath}
                 className="min-h-64 flex-1"
                 date={currentDate}
+                extraQueryParams={navigationQueryParams}
                 onNavigate={navigateSwipe}
                 onPreview={previewDate}
                 panelForDate={panelForDate}

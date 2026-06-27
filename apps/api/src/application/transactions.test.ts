@@ -10,6 +10,7 @@ import {
     compareTransactionsByOccurrenceAsc,
     compareTransactionsByOccurrenceDesc,
     dashboardStatsGroupBy,
+    dashboardSummary,
     getTransactionScanImage,
     percentChange,
     resolveCategoryTrendRange,
@@ -230,6 +231,113 @@ describe('transaction category signs', () => {
             incomeTotal: 250,
             netTotal: 125
         });
+    });
+
+    it('converts dashboard summaries into a selected reporting currency', async () => {
+        const timestamp = new Date('2026-05-10T12:00:00.000Z');
+        const previousTimestamp = new Date('2026-04-10T12:00:00.000Z');
+        const groceries = {
+            id: 1,
+            userId: 1,
+            name: 'Groceries',
+            type: 'expense',
+            parentId: null,
+            kind: 'normal',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        } as const;
+        const rows = [
+            {
+                id: 1,
+                userId: 1,
+                categoryId: groceries.id,
+                vendorId: null,
+                type: 'expense',
+                amount: '100',
+                currency: 'USD',
+                defaultCurrencyAmount: '100',
+                defaultCurrency: 'USD',
+                exchangeRate: '1',
+                exchangeRateDate: '2026-05-10',
+                occurredAt: timestamp,
+                createdAt: timestamp,
+                updatedAt: timestamp
+            },
+            {
+                id: 2,
+                userId: 1,
+                categoryId: groceries.id,
+                vendorId: null,
+                type: 'expense',
+                amount: '50',
+                currency: 'USD',
+                defaultCurrencyAmount: '50',
+                defaultCurrency: 'USD',
+                exchangeRate: '1',
+                exchangeRateDate: '2026-04-10',
+                occurredAt: previousTimestamp,
+                createdAt: previousTimestamp,
+                updatedAt: previousTimestamp
+            }
+        ];
+        const transactionQuery = () => {
+            const query = {
+                where: vi.fn(() => query),
+                whereBetween: vi.fn(
+                    (_field: unknown, [from, to]: readonly [Date, Date]) =>
+                        Promise.resolve(
+                            rows.filter(
+                                row =>
+                                    row.occurredAt >= from &&
+                                    row.occurredAt <= to
+                            )
+                        )
+                )
+            };
+            return query;
+        };
+        const exchangeQuery = {
+            where: vi.fn(() => exchangeQuery),
+            first: vi.fn(async () => ({ rate: 2, rateDate: '2026-05-10' }))
+        };
+        const db = {
+            users: {
+                find: vi.fn(async () => ({
+                    id: 1,
+                    defaultCurrency: 'USD',
+                    timezone: 'UTC'
+                }))
+            },
+            transactions: {
+                include: vi.fn(() => transactionQuery())
+            },
+            categories: {
+                where: vi.fn(async () => [groceries])
+            },
+            vendors: {
+                where: vi.fn(async () => [])
+            },
+            exchangeRates: {
+                where: vi.fn(() => exchangeQuery)
+            }
+        };
+
+        const summary = await dashboardSummary(
+            db as never,
+            {
+                frankfurter: { baseUrl: 'https://frankfurter.example.test' }
+            } as never,
+            1,
+            'month',
+            timestamp,
+            undefined,
+            'EUR'
+        );
+
+        expect(summary.currency).toBe('EUR');
+        expect(summary.expenseTotal).toBe(200);
+        expect(summary.byCategory[0]?.total).toBe(200);
+        expect(summary.comparison.previousPeriod.expenseTotal).toBe(100);
     });
 
     it('uses fresh category lookup metadata for dashboard hierarchy summaries', () => {

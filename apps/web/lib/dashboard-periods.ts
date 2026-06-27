@@ -112,22 +112,28 @@ export function periodHref(
     value: Date,
     options: {
         readonly cleanDefault?: boolean;
+        readonly extraParams?: Readonly<Record<string, string | undefined>>;
         readonly timeZone?: string;
     } = {}
 ): string {
     const timeZone = options.timeZone ?? defaultTimeZone;
+    const params = new URLSearchParams();
+    for (const [key, paramValue] of Object.entries(options.extraParams ?? {})) {
+        if (paramValue) {
+            params.set(key, paramValue);
+        }
+    }
     if (
         options.cleanDefault &&
         period === 'day' &&
         isLatestDashboardPeriod(period, value, new Date(), timeZone)
     ) {
-        return basePath;
+        const query = params.toString();
+        return query ? `${basePath}?${query}` : basePath;
     }
 
-    const params = new URLSearchParams({
-        period,
-        date: dateParam(value, timeZone)
-    });
+    params.set('period', period);
+    params.set('date', dateParam(value, timeZone));
     return `${basePath}?${params.toString()}`;
 }
 

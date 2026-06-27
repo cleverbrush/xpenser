@@ -11,17 +11,17 @@ import type {
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@xpenser/ui';
 import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
 import { DashboardSummaryCards } from '@/components/dashboard-summary-cards';
+import { DashboardViewSettingsMenu } from '@/components/dashboard-view-settings-menu';
 import { DashboardWindowExplorer } from '@/components/dashboard-window-explorer';
 import {
     DatatypeChart,
     datatypeExpression,
     datatypePieExpression
 } from '@/components/datatype-chart';
-import { CollapsibleReportCategoryGroup } from '@/components/report-category-group';
 import { VendorLogo } from '@/components/vendor-display';
 import { categoryTypeLabel } from '@/lib/category-display';
 import { dashboardCategoryShare } from '@/lib/dashboard-category-share';
@@ -44,7 +44,7 @@ type DashboardCategory = DashboardSummary['byCategory'][number];
 type DashboardCategoryVendor =
     DashboardSummary['categoryVendorBreakdown'][number];
 type AggregateType = DashboardCategory['type'];
-const dashboardWindowQueryParams = { vendorLimit: 0 } as const;
+const dashboardBaseWindowQueryParams = { vendorLimit: 0 } as const;
 
 function categoryHref(
     summary: DashboardSummary,
@@ -192,6 +192,39 @@ function categoryVendorRows(
                 Math.abs(right.total) - Math.abs(left.total) ||
                 left.vendorName.localeCompare(right.vendorName)
         );
+}
+
+function categoryExpansionKey(category: DashboardCategory): string {
+    return `category:${category.type}:${category.categoryId}`;
+}
+
+function categoryVendorExpansionKey(category: DashboardCategory): string {
+    return `category-vendors:${category.type}:${category.categoryId}`;
+}
+
+function dashboardCategoryExpansionKeys(
+    summary: DashboardSummary,
+    nodes: readonly DashboardCategoryNode[]
+): string[] {
+    const keys: string[] = [];
+
+    for (const node of nodes) {
+        if (node.children.length > 0) {
+            keys.push(categoryExpansionKey(node.category));
+            for (const child of node.children) {
+                if (categoryVendorRows(summary, child).length > 0) {
+                    keys.push(categoryVendorExpansionKey(child));
+                }
+            }
+            continue;
+        }
+
+        if (categoryVendorRows(summary, node.category).length > 0) {
+            keys.push(categoryVendorExpansionKey(node.category));
+        }
+    }
+
+    return keys;
 }
 
 function CategoryRow({
@@ -471,7 +504,10 @@ function CategoryVendorRow({
 function CategoryRowWithVendors({
     category,
     depth = 0,
+    expandedRows,
+    expansionKey,
     label,
+    onToggleExpansion,
     shareOverride,
     shareTitleOverride,
     summary,
@@ -479,16 +515,32 @@ function CategoryRowWithVendors({
 }: {
     readonly category: DashboardCategory;
     readonly depth?: number;
+    readonly expandedRows?: ReadonlySet<string>;
+    readonly expansionKey?: string;
     readonly label?: string;
+    readonly onToggleExpansion?: (key: string) => void;
     readonly shareOverride?: number;
     readonly shareTitleOverride?: string;
     readonly summary: DashboardSummary;
     readonly timezone: string;
 }) {
-    const [expanded, setExpanded] = useState(false);
+    const [localExpanded, setLocalExpanded] = useState(false);
     const vendors = categoryVendorRows(summary, category);
     const displayLabel = label ?? category.categoryDisplayName;
     const expandable = vendors.length > 0;
+    const expanded =
+        expansionKey && expandedRows
+            ? expandedRows.has(expansionKey)
+            : localExpanded;
+
+    function toggleExpanded() {
+        if (expansionKey && onToggleExpansion) {
+            onToggleExpansion(expansionKey);
+            return;
+        }
+
+        setLocalExpanded(current => !current);
+    }
 
     return (
         <div className="flex flex-col">
@@ -498,7 +550,7 @@ function CategoryRowWithVendors({
                 expandable={expandable}
                 expanded={expanded}
                 label={label}
-                onToggle={() => setExpanded(current => !current)}
+                onToggle={toggleExpanded}
                 shareOverride={shareOverride}
                 shareTitleOverride={shareTitleOverride}
                 summary={summary}
@@ -524,12 +576,16 @@ function CategoryRowWithVendors({
 }
 
 function CategoryGroup({
+    expandedRows,
     nodes,
+    onToggleExpansion,
     summary,
     timezone,
     title
 }: {
+    readonly expandedRows: ReadonlySet<string>;
     readonly nodes: readonly DashboardCategoryNode[];
+    readonly onToggleExpansion: (key: string) => void;
     readonly summary: DashboardSummary;
     readonly timezone: string;
     readonly title: string;
@@ -543,40 +599,75 @@ function CategoryGroup({
             <h3 className="mb-1 text-xs font-medium uppercase text-muted-foreground">
                 {title}
             </h3>
-            <CollapsibleReportCategoryGroup
-                empty={null}
-                nodes={nodes}
-                renderChild={({ child, parent }) => (
-                    <CategoryRowWithVendors
-                        category={child}
-                        depth={1}
-                        label={categoryRowLabel(child, parent)}
-                        shareOverride={childCategoryShare(parent, child)}
-                        shareTitleOverride={`Share of ${parent.categoryName}`}
-                        summary={summary}
-                        timezone={timezone}
-                    />
-                )}
-                renderParent={({ expandable, expanded, node, onToggle }) =>
-                    expandable ? (
-                        <CategoryRow
-                            category={node.category}
-                            expandable={expandable}
-                            expanded={expanded}
-                            onToggle={onToggle}
-                            parentRollup
-                            summary={summary}
-                            timezone={timezone}
-                        />
-                    ) : (
-                        <CategoryRowWithVendors
-                            category={node.category}
-                            summary={summary}
-                            timezone={timezone}
-                        />
-                    )
-                }
-            />
+            <div className="flex flex-col divide-y">
+                {nodes.map(node => {
+                    const hasChildren = node.children.length > 0;
+                    const parentKey = categoryExpansionKey(node.category);
+                    const expanded = expandedRows.has(parentKey);
+
+                    return (
+                        <div className="flex flex-col" key={parentKey}>
+                            {hasChildren ? (
+                                <CategoryRow
+                                    category={node.category}
+                                    expandable
+                                    expanded={expanded}
+                                    onToggle={() =>
+                                        onToggleExpansion(parentKey)
+                                    }
+                                    parentRollup
+                                    summary={summary}
+                                    timezone={timezone}
+                                />
+                            ) : (
+                                <CategoryRowWithVendors
+                                    category={node.category}
+                                    expandedRows={expandedRows}
+                                    expansionKey={categoryVendorExpansionKey(
+                                        node.category
+                                    )}
+                                    onToggleExpansion={onToggleExpansion}
+                                    summary={summary}
+                                    timezone={timezone}
+                                />
+                            )}
+                            {hasChildren && expanded ? (
+                                <div className="border-t">
+                                    {node.children.map(child => (
+                                        <CategoryRowWithVendors
+                                            category={child}
+                                            depth={1}
+                                            expandedRows={expandedRows}
+                                            expansionKey={categoryVendorExpansionKey(
+                                                child
+                                            )}
+                                            key={`${categoryExpansionKey(
+                                                child
+                                            )}:${
+                                                child.categoryParentId ?? 'self'
+                                            }`}
+                                            label={categoryRowLabel(
+                                                child,
+                                                node.category
+                                            )}
+                                            onToggleExpansion={
+                                                onToggleExpansion
+                                            }
+                                            shareOverride={childCategoryShare(
+                                                node.category,
+                                                child
+                                            )}
+                                            shareTitleOverride={`Share of ${node.category.categoryName}`}
+                                            summary={summary}
+                                            timezone={timezone}
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }
@@ -590,6 +681,43 @@ function CategoryPanel({
 }) {
     const incomeCategories = buildDashboardCategoryNodes(summary, 'income');
     const expenseCategories = buildDashboardCategoryNodes(summary, 'expense');
+    const [expandedRows, setExpandedRows] = useState<ReadonlySet<string>>(
+        new Set()
+    );
+    const summaryKey = `${summary.period}:${String(summary.from)}:${String(
+        summary.to
+    )}:${summary.currency}`;
+    const expandableKeys = useMemo(
+        () => [
+            ...dashboardCategoryExpansionKeys(summary, incomeCategories),
+            ...dashboardCategoryExpansionKeys(summary, expenseCategories)
+        ],
+        [expenseCategories, incomeCategories, summary]
+    );
+    const allExpanded =
+        expandableKeys.length > 0 &&
+        expandableKeys.every(key => expandedRows.has(key));
+
+    useEffect(() => {
+        void summaryKey;
+        setExpandedRows(new Set());
+    }, [summaryKey]);
+
+    function toggleExpansion(key: string) {
+        setExpandedRows(current => {
+            const next = new Set(current);
+            if (next.has(key)) {
+                next.delete(key);
+            } else {
+                next.add(key);
+            }
+            return next;
+        });
+    }
+
+    function toggleAll() {
+        setExpandedRows(allExpanded ? new Set() : new Set(expandableKeys));
+    }
 
     if (incomeCategories.length === 0 && expenseCategories.length === 0) {
         return null;
@@ -598,18 +726,46 @@ function CategoryPanel({
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Categories</CardTitle>
+                <div className="flex items-center justify-between gap-3">
+                    <CardTitle>Categories</CardTitle>
+                    {expandableKeys.length > 0 ? (
+                        <Button
+                            className="shrink-0"
+                            onClick={toggleAll}
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                        >
+                            {allExpanded ? (
+                                <ChevronRightIcon
+                                    aria-hidden
+                                    className="size-4"
+                                />
+                            ) : (
+                                <ChevronDownIcon
+                                    aria-hidden
+                                    className="size-4"
+                                />
+                            )}
+                            {allExpanded ? 'Collapse all' : 'Expand all'}
+                        </Button>
+                    ) : null}
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-4">
                     <CategoryGroup
+                        expandedRows={expandedRows}
                         nodes={incomeCategories}
+                        onToggleExpansion={toggleExpansion}
                         summary={summary}
                         timezone={timezone}
                         title="Income"
                     />
                     <CategoryGroup
+                        expandedRows={expandedRows}
                         nodes={expenseCategories}
+                        onToggleExpansion={toggleExpansion}
                         summary={summary}
                         timezone={timezone}
                         title="Expenses"
@@ -696,9 +852,11 @@ export function DashboardExplorer({
     categories,
     currencies,
     defaultCurrency,
+    favoriteCurrencies,
     initialDate,
     initialPeriod,
     initialWindow,
+    selectedCurrency,
     transactionTags,
     vendors,
     timezone,
@@ -707,27 +865,47 @@ export function DashboardExplorer({
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly favoriteCurrencies: readonly string[];
     readonly initialDate: string;
     readonly initialPeriod: DashboardPeriod;
     readonly initialWindow: DashboardWindowResponse;
+    readonly selectedCurrency: string;
     readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
+    const navigationQueryParams = useMemo<
+        Readonly<Record<string, string>>
+    >(() => {
+        const params: Record<string, string> = {};
+        if (selectedCurrency !== defaultCurrency) {
+            params.currency = selectedCurrency;
+        }
+        return params;
+    }, [defaultCurrency, selectedCurrency]);
+    const windowQueryParams = useMemo(
+        () => ({
+            ...dashboardBaseWindowQueryParams,
+            ...navigationQueryParams
+        }),
+        [navigationQueryParams]
+    );
+
     return (
         <DashboardWindowExplorer
             basePath="/dashboard"
             initialDate={initialDate}
             initialPeriod={initialPeriod}
             initialWindow={initialWindow}
+            navigationQueryParams={navigationQueryParams}
             renderBody={({ item }) => (
                 <DashboardPeriodPanel
                     summary={item.summary}
                     timezone={timezone}
                 />
             )}
-            renderHeader={({ item, period }) => (
+            renderHeader={({ currentDate, item, period }) => (
                 <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                         <h1 className="text-2xl font-semibold">Dashboard</h1>
@@ -741,7 +919,17 @@ export function DashboardExplorer({
                             in {item.summary.currency}.
                         </p>
                     </div>
-                    <div className="shrink-0">
+                    <div className="flex shrink-0 items-center gap-2">
+                        <DashboardViewSettingsMenu
+                            basePath="/dashboard"
+                            currencies={currencies}
+                            currentDate={currentDate}
+                            defaultCurrency={defaultCurrency}
+                            favoriteCurrencies={favoriteCurrencies}
+                            period={period}
+                            selectedCurrency={item.summary.currency}
+                            timezone={timezone}
+                        />
                         <AddTransactionDialog
                             categories={categories}
                             currencies={currencies}
@@ -756,7 +944,7 @@ export function DashboardExplorer({
             )}
             skeleton={<DashboardPeriodPanelSkeleton />}
             timezone={timezone}
-            windowQueryParams={dashboardWindowQueryParams}
+            windowQueryParams={windowQueryParams}
         />
     );
 }
