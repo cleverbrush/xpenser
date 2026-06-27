@@ -4,6 +4,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { DashboardSummary } from '@xpenser/contracts';
+import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { VendorAnalyticsPanel } from './vendor-analytics-panel';
 
@@ -88,35 +89,77 @@ function renderedVendorNames(names: readonly string[]): string[] {
 }
 
 describe('VendorAnalyticsPanel', () => {
-    it('expands and collapses all vendor category rows', () => {
+    it('renders controlled expanded vendor category rows', () => {
         const sharedVendor = vendor(1, {
             vendorName: 'Shared Vendor',
             total: 200,
             transactionCount: 2
         });
-        render(
-            <VendorAnalyticsPanel
-                summary={summary({
-                    expenseTotal: 200,
-                    vendorCount: 1,
-                    topVendors: [sharedVendor],
-                    categoryVendorBreakdown: [
-                        categoryVendor(sharedVendor, 1, 'Meals', 40),
-                        categoryVendor(sharedVendor, 2, 'Rent', 160)
-                    ]
-                })}
-                timezone="UTC"
-            />
-        );
+        const dashboardSummary = summary({
+            expenseTotal: 200,
+            vendorCount: 1,
+            topVendors: [sharedVendor],
+            categoryVendorBreakdown: [
+                categoryVendor(sharedVendor, 1, 'Meals', 40),
+                categoryVendor(sharedVendor, 2, 'Rent', 160)
+            ]
+        });
+
+        function ControlledPanel() {
+            const [expandedVendors, setExpandedVendors] = useState<
+                ReadonlySet<string>
+            >(new Set());
+
+            return (
+                <>
+                    <button
+                        onClick={() =>
+                            setExpandedVendors(new Set(['expense:1']))
+                        }
+                        type="button"
+                    >
+                        Expand through settings
+                    </button>
+                    <button
+                        onClick={() => setExpandedVendors(new Set())}
+                        type="button"
+                    >
+                        Collapse through settings
+                    </button>
+                    <VendorAnalyticsPanel
+                        expandedVendors={expandedVendors}
+                        onToggleVendor={key => {
+                            setExpandedVendors(current => {
+                                const next = new Set(current);
+                                if (next.has(key)) {
+                                    next.delete(key);
+                                } else {
+                                    next.add(key);
+                                }
+                                return next;
+                            });
+                        }}
+                        summary={dashboardSummary}
+                        timezone="UTC"
+                    />
+                </>
+            );
+        }
+
+        render(<ControlledPanel />);
 
         expect(screen.queryByText('Rent')).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Expand through settings' })
+        );
 
         expect(screen.getByText('Rent')).toBeTruthy();
         expect(screen.getByText('Meals')).toBeTruthy();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Collapse through settings' })
+        );
 
         expect(screen.queryByText('Rent')).toBeNull();
         expect(screen.queryByText('Meals')).toBeNull();

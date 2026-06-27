@@ -15,7 +15,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
 import { DashboardSummaryCards } from '@/components/dashboard-summary-cards';
-import { DashboardViewSettingsMenu } from '@/components/dashboard-view-settings-menu';
+import {
+    type DashboardViewExpansionAction,
+    DashboardViewSettingsMenu
+} from '@/components/dashboard-view-settings-menu';
 import { DashboardWindowExplorer } from '@/components/dashboard-window-explorer';
 import {
     DatatypeChart,
@@ -44,6 +47,7 @@ type DashboardCategory = DashboardSummary['byCategory'][number];
 type DashboardCategoryVendor =
     DashboardSummary['categoryVendorBreakdown'][number];
 type AggregateType = DashboardCategory['type'];
+type ExpandedRowsBySummaryKey = Readonly<Record<string, readonly string[]>>;
 const dashboardBaseWindowQueryParams = { vendorLimit: 0 } as const;
 
 function categoryHref(
@@ -225,6 +229,41 @@ function dashboardCategoryExpansionKeys(
     }
 
     return keys;
+}
+
+function dashboardSummaryExpansionKey(summary: DashboardSummary): string {
+    return `${summary.period}:${String(summary.from)}:${String(summary.to)}:${
+        summary.currency
+    }`;
+}
+
+function dashboardCategoryExpansionState(
+    summary: DashboardSummary,
+    expandedRowsBySummaryKey: ExpandedRowsBySummaryKey
+): {
+    readonly allExpanded: boolean;
+    readonly expandableKeys: readonly string[];
+    readonly expandedRows: ReadonlySet<string>;
+    readonly summaryKey: string;
+} {
+    const incomeCategories = buildDashboardCategoryNodes(summary, 'income');
+    const expenseCategories = buildDashboardCategoryNodes(summary, 'expense');
+    const expandableKeys = [
+        ...dashboardCategoryExpansionKeys(summary, incomeCategories),
+        ...dashboardCategoryExpansionKeys(summary, expenseCategories)
+    ];
+    const summaryKey = dashboardSummaryExpansionKey(summary);
+    const expandedRows = new Set(expandedRowsBySummaryKey[summaryKey] ?? []);
+    const allExpanded =
+        expandableKeys.length > 0 &&
+        expandableKeys.every(key => expandedRows.has(key));
+
+    return {
+        allExpanded,
+        expandableKeys,
+        expandedRows,
+        summaryKey
+    };
 }
 
 function CategoryRow({
@@ -673,38 +712,41 @@ function CategoryGroup({
 }
 
 function CategoryPanel({
+    expandedRows,
+    onToggleExpansion,
     summary,
     timezone
 }: {
+    readonly expandedRows?: ReadonlySet<string>;
+    readonly onToggleExpansion?: (key: string) => void;
     readonly summary: DashboardSummary;
     readonly timezone: string;
 }) {
-    const incomeCategories = buildDashboardCategoryNodes(summary, 'income');
-    const expenseCategories = buildDashboardCategoryNodes(summary, 'expense');
-    const [expandedRows, setExpandedRows] = useState<ReadonlySet<string>>(
-        new Set()
+    const incomeCategories = useMemo(
+        () => buildDashboardCategoryNodes(summary, 'income'),
+        [summary]
     );
+    const expenseCategories = useMemo(
+        () => buildDashboardCategoryNodes(summary, 'expense'),
+        [summary]
+    );
+    const [localExpandedRows, setLocalExpandedRows] = useState<
+        ReadonlySet<string>
+    >(new Set());
     const summaryKey = `${summary.period}:${String(summary.from)}:${String(
         summary.to
     )}:${summary.currency}`;
-    const expandableKeys = useMemo(
-        () => [
-            ...dashboardCategoryExpansionKeys(summary, incomeCategories),
-            ...dashboardCategoryExpansionKeys(summary, expenseCategories)
-        ],
-        [expenseCategories, incomeCategories, summary]
-    );
-    const allExpanded =
-        expandableKeys.length > 0 &&
-        expandableKeys.every(key => expandedRows.has(key));
+    const effectiveExpandedRows = expandedRows ?? localExpandedRows;
 
     useEffect(() => {
         void summaryKey;
-        setExpandedRows(new Set());
-    }, [summaryKey]);
+        if (!expandedRows) {
+            setLocalExpandedRows(new Set());
+        }
+    }, [expandedRows, summaryKey]);
 
-    function toggleExpansion(key: string) {
-        setExpandedRows(current => {
+    function toggleLocalExpansion(key: string) {
+        setLocalExpandedRows(current => {
             const next = new Set(current);
             if (next.has(key)) {
                 next.delete(key);
@@ -715,10 +757,6 @@ function CategoryPanel({
         });
     }
 
-    function toggleAll() {
-        setExpandedRows(allExpanded ? new Set() : new Set(expandableKeys));
-    }
-
     if (incomeCategories.length === 0 && expenseCategories.length === 0) {
         return null;
     }
@@ -726,46 +764,26 @@ function CategoryPanel({
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                    <CardTitle>Categories</CardTitle>
-                    {expandableKeys.length > 0 ? (
-                        <Button
-                            className="shrink-0"
-                            onClick={toggleAll}
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                        >
-                            {allExpanded ? (
-                                <ChevronRightIcon
-                                    aria-hidden
-                                    className="size-4"
-                                />
-                            ) : (
-                                <ChevronDownIcon
-                                    aria-hidden
-                                    className="size-4"
-                                />
-                            )}
-                            {allExpanded ? 'Collapse all' : 'Expand all'}
-                        </Button>
-                    ) : null}
-                </div>
+                <CardTitle>Categories</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-4">
                     <CategoryGroup
-                        expandedRows={expandedRows}
+                        expandedRows={effectiveExpandedRows}
                         nodes={incomeCategories}
-                        onToggleExpansion={toggleExpansion}
+                        onToggleExpansion={
+                            onToggleExpansion ?? toggleLocalExpansion
+                        }
                         summary={summary}
                         timezone={timezone}
                         title="Income"
                     />
                     <CategoryGroup
-                        expandedRows={expandedRows}
+                        expandedRows={effectiveExpandedRows}
                         nodes={expenseCategories}
-                        onToggleExpansion={toggleExpansion}
+                        onToggleExpansion={
+                            onToggleExpansion ?? toggleLocalExpansion
+                        }
                         summary={summary}
                         timezone={timezone}
                         title="Expenses"
@@ -777,16 +795,25 @@ function CategoryPanel({
 }
 
 export function DashboardPeriodPanel({
+    expandedRows,
+    onToggleExpansion,
     summary,
     timezone
 }: {
+    readonly expandedRows?: ReadonlySet<string>;
+    readonly onToggleExpansion?: (key: string) => void;
     readonly summary: DashboardSummary;
     readonly timezone: string;
 }) {
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
             <DashboardSummaryCards summary={summary} timezone={timezone} />
-            <CategoryPanel summary={summary} timezone={timezone} />
+            <CategoryPanel
+                expandedRows={expandedRows}
+                onToggleExpansion={onToggleExpansion}
+                summary={summary}
+                timezone={timezone}
+            />
         </div>
     );
 }
@@ -875,6 +902,8 @@ export function DashboardExplorer({
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
+    const [expandedRowsBySummaryKey, setExpandedRowsBySummaryKey] =
+        useState<ExpandedRowsBySummaryKey>({});
     const navigationQueryParams = useMemo<
         Readonly<Record<string, string>>
     >(() => {
@@ -892,6 +921,47 @@ export function DashboardExplorer({
         [navigationQueryParams]
     );
 
+    function toggleExpansionRow(summaryKey: string, key: string) {
+        setExpandedRowsBySummaryKey(current => {
+            const nextKeys = new Set(current[summaryKey] ?? []);
+            if (nextKeys.has(key)) {
+                nextKeys.delete(key);
+            } else {
+                nextKeys.add(key);
+            }
+            return { ...current, [summaryKey]: Array.from(nextKeys) };
+        });
+    }
+
+    function setExpansionRows(summaryKey: string, keys: readonly string[]) {
+        setExpandedRowsBySummaryKey(current => ({
+            ...current,
+            [summaryKey]: [...keys]
+        }));
+    }
+
+    function expansionActionFor(
+        summary: DashboardSummary
+    ): DashboardViewExpansionAction | undefined {
+        const expansion = dashboardCategoryExpansionState(
+            summary,
+            expandedRowsBySummaryKey
+        );
+        if (expansion.expandableKeys.length === 0) {
+            return undefined;
+        }
+
+        return {
+            allExpanded: expansion.allExpanded,
+            onToggle: () => {
+                setExpansionRows(
+                    expansion.summaryKey,
+                    expansion.allExpanded ? [] : expansion.expandableKeys
+                );
+            }
+        };
+    }
+
     return (
         <DashboardWindowExplorer
             basePath="/dashboard"
@@ -899,49 +969,65 @@ export function DashboardExplorer({
             initialPeriod={initialPeriod}
             initialWindow={initialWindow}
             navigationQueryParams={navigationQueryParams}
-            renderBody={({ item }) => (
-                <DashboardPeriodPanel
-                    summary={item.summary}
-                    timezone={timezone}
-                />
-            )}
-            renderHeader={({ currentDate, item, period }) => (
-                <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                        <h1 className="text-2xl font-semibold">Dashboard</h1>
-                        <p className="text-sm text-muted-foreground">
-                            {formatDashboardRangeLabel({
-                                from: item.summary.from,
-                                period,
-                                to: item.summary.to,
-                                timeZone: timezone
-                            })}{' '}
-                            in {item.summary.currency}.
-                        </p>
+            renderBody={({ item }) => {
+                const expansion = dashboardCategoryExpansionState(
+                    item.summary,
+                    expandedRowsBySummaryKey
+                );
+                return (
+                    <DashboardPeriodPanel
+                        expandedRows={expansion.expandedRows}
+                        onToggleExpansion={key =>
+                            toggleExpansionRow(expansion.summaryKey, key)
+                        }
+                        summary={item.summary}
+                        timezone={timezone}
+                    />
+                );
+            }}
+            renderHeader={({ currentDate, item, period }) => {
+                const expansionAction = expansionActionFor(item.summary);
+                return (
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <h1 className="text-2xl font-semibold">
+                                Dashboard
+                            </h1>
+                            <p className="text-sm text-muted-foreground">
+                                {formatDashboardRangeLabel({
+                                    from: item.summary.from,
+                                    period,
+                                    to: item.summary.to,
+                                    timeZone: timezone
+                                })}{' '}
+                                in {item.summary.currency}.
+                            </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            <DashboardViewSettingsMenu
+                                basePath="/dashboard"
+                                currencies={currencies}
+                                currentDate={currentDate}
+                                defaultCurrency={defaultCurrency}
+                                expansionAction={expansionAction}
+                                favoriteCurrencies={favoriteCurrencies}
+                                period={period}
+                                selectedCurrency={item.summary.currency}
+                                timezone={timezone}
+                            />
+                            <AddTransactionDialog
+                                categories={categories}
+                                currencies={currencies}
+                                defaultCurrency={defaultCurrency}
+                                vendors={vendors}
+                                transactionTags={transactionTags}
+                                transactionCurrencies={transactionCurrencies}
+                                timezone={timezone}
+                            />
+                        </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                        <DashboardViewSettingsMenu
-                            basePath="/dashboard"
-                            currencies={currencies}
-                            currentDate={currentDate}
-                            defaultCurrency={defaultCurrency}
-                            favoriteCurrencies={favoriteCurrencies}
-                            period={period}
-                            selectedCurrency={item.summary.currency}
-                            timezone={timezone}
-                        />
-                        <AddTransactionDialog
-                            categories={categories}
-                            currencies={currencies}
-                            defaultCurrency={defaultCurrency}
-                            vendors={vendors}
-                            transactionTags={transactionTags}
-                            transactionCurrencies={transactionCurrencies}
-                            timezone={timezone}
-                        />
-                    </div>
-                </div>
-            )}
+                );
+            }}
             skeleton={<DashboardPeriodPanelSkeleton />}
             timezone={timezone}
             windowQueryParams={windowQueryParams}

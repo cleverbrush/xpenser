@@ -11,7 +11,7 @@ import {
 } from '@xpenser/ui';
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AmountDisplay } from '@/components/amount-display';
 import { DashboardSummaryCards } from '@/components/dashboard-summary-cards';
 import {
@@ -31,6 +31,9 @@ import {
 type DashboardVendor = DashboardSummary['topVendors'][number];
 type DashboardCategoryVendor =
     DashboardSummary['categoryVendorBreakdown'][number];
+export type ExpandedVendorsBySummaryKey = Readonly<
+    Record<string, readonly string[]>
+>;
 
 function vendorHref(
     summary: DashboardSummary,
@@ -143,12 +146,48 @@ function vendorExpansionKey(vendor: DashboardVendor): string {
     return `${vendor.type}:${vendor.vendorId ?? 'none'}`;
 }
 
-function vendorExpansionKeys(summary: DashboardSummary): string[] {
+export function vendorAnalyticsSummaryExpansionKey(
+    summary: DashboardSummary
+): string {
+    return `${summary.period}:${String(summary.from)}:${String(summary.to)}:${
+        summary.currency
+    }`;
+}
+
+export function vendorAnalyticsExpansionKeys(
+    summary: DashboardSummary
+): string[] {
     return summary.topVendors.flatMap(vendor =>
         vendorCategoryRows(summary, vendor).length > 0
             ? [vendorExpansionKey(vendor)]
             : []
     );
+}
+
+export function vendorAnalyticsExpansionState(
+    summary: DashboardSummary,
+    expandedVendorsBySummaryKey: ExpandedVendorsBySummaryKey
+): {
+    readonly allExpanded: boolean;
+    readonly expandableKeys: readonly string[];
+    readonly expandedVendors: ReadonlySet<string>;
+    readonly summaryKey: string;
+} {
+    const expandableKeys = vendorAnalyticsExpansionKeys(summary);
+    const summaryKey = vendorAnalyticsSummaryExpansionKey(summary);
+    const expandedVendors = new Set(
+        expandedVendorsBySummaryKey[summaryKey] ?? []
+    );
+    const allExpanded =
+        expandableKeys.length > 0 &&
+        expandableKeys.every(key => expandedVendors.has(key));
+
+    return {
+        allExpanded,
+        expandableKeys,
+        expandedVendors,
+        summaryKey
+    };
 }
 
 function VendorRow({
@@ -405,17 +444,7 @@ function VendorRowWithCategories({
     );
 }
 
-function VendorsHeader({
-    allExpanded,
-    expandableCount,
-    onToggleAll,
-    summary
-}: {
-    readonly allExpanded: boolean;
-    readonly expandableCount: number;
-    readonly onToggleAll: () => void;
-    readonly summary: DashboardSummary;
-}) {
+function VendorsHeader({ summary }: { readonly summary: DashboardSummary }) {
     return (
         <CardHeader>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -444,27 +473,6 @@ function VendorsHeader({
                         <p className="text-xs text-muted-foreground">
                             Showing top {summary.topVendors.length}
                         </p>
-                    ) : null}
-                    {expandableCount > 0 ? (
-                        <Button
-                            onClick={onToggleAll}
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                        >
-                            {allExpanded ? (
-                                <ChevronRightIcon
-                                    aria-hidden
-                                    className="size-4"
-                                />
-                            ) : (
-                                <ChevronDownIcon
-                                    aria-hidden
-                                    className="size-4"
-                                />
-                            )}
-                            {allExpanded ? 'Collapse all' : 'Expand all'}
-                        </Button>
                     ) : null}
                 </div>
             </div>
@@ -516,34 +524,34 @@ function VendorGroup({
 }
 
 export function VendorAnalyticsPanel({
+    expandedVendors,
+    onToggleVendor,
     summary,
     timezone
 }: {
+    readonly expandedVendors?: ReadonlySet<string>;
+    readonly onToggleVendor?: (key: string) => void;
     readonly summary: DashboardSummary;
     readonly timezone: string;
 }) {
     const hasVendors = summary.topVendors.length > 0;
-    const [expandedVendors, setExpandedVendors] = useState<ReadonlySet<string>>(
-        new Set()
-    );
+    const [localExpandedVendors, setLocalExpandedVendors] = useState<
+        ReadonlySet<string>
+    >(new Set());
     const summaryKey = `${summary.period}:${String(summary.from)}:${String(
         summary.to
     )}:${summary.currency}`;
-    const expandableKeys = useMemo(
-        () => vendorExpansionKeys(summary),
-        [summary]
-    );
-    const allExpanded =
-        expandableKeys.length > 0 &&
-        expandableKeys.every(key => expandedVendors.has(key));
+    const effectiveExpandedVendors = expandedVendors ?? localExpandedVendors;
 
     useEffect(() => {
         void summaryKey;
-        setExpandedVendors(new Set());
-    }, [summaryKey]);
+        if (!expandedVendors) {
+            setLocalExpandedVendors(new Set());
+        }
+    }, [expandedVendors, summaryKey]);
 
-    function toggleVendor(key: string) {
-        setExpandedVendors(current => {
+    function toggleLocalVendor(key: string) {
+        setLocalExpandedVendors(current => {
             const next = new Set(current);
             if (next.has(key)) {
                 next.delete(key);
@@ -554,34 +562,29 @@ export function VendorAnalyticsPanel({
         });
     }
 
-    function toggleAll() {
-        setExpandedVendors(allExpanded ? new Set() : new Set(expandableKeys));
-    }
-
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
             <DashboardSummaryCards summary={summary} timezone={timezone} />
             <Card>
-                <VendorsHeader
-                    allExpanded={allExpanded}
-                    expandableCount={expandableKeys.length}
-                    onToggleAll={toggleAll}
-                    summary={summary}
-                />
+                <VendorsHeader summary={summary} />
                 <CardContent>
                     {hasVendors ? (
                         <div className="flex flex-col gap-4">
                             <VendorGroup
-                                expandedVendors={expandedVendors}
-                                onToggleVendor={toggleVendor}
+                                expandedVendors={effectiveExpandedVendors}
+                                onToggleVendor={
+                                    onToggleVendor ?? toggleLocalVendor
+                                }
                                 summary={summary}
                                 timezone={timezone}
                                 title="Income"
                                 type="income"
                             />
                             <VendorGroup
-                                expandedVendors={expandedVendors}
-                                onToggleVendor={toggleVendor}
+                                expandedVendors={effectiveExpandedVendors}
+                                onToggleVendor={
+                                    onToggleVendor ?? toggleLocalVendor
+                                }
                                 summary={summary}
                                 timezone={timezone}
                                 title="Expenses"
