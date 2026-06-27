@@ -5,6 +5,10 @@ import {
     uniqueName
 } from './helpers';
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 async function createCategory(
     page: import('@playwright/test').Page,
     name: string,
@@ -243,7 +247,24 @@ test.describe('authenticated app workflows', () => {
 
         await page.goto(`/vendors?period=day&date=${periodDate}`);
         await page.getByRole('button', { name: 'Expand all' }).click();
-        await expect(page.getByText(expenseCategory)).toBeVisible();
+        await expect(
+            page.getByRole('link', {
+                name: new RegExp(
+                    `${escapeRegExp(secondVendor)}: 100% ${escapeRegExp(
+                        expenseCategory
+                    )}`
+                )
+            })
+        ).toBeVisible();
+        await expect(
+            page.getByRole('link', {
+                name: new RegExp(
+                    `${escapeRegExp(firstVendor)}: 100% ${escapeRegExp(
+                        expenseCategory
+                    )}`
+                )
+            })
+        ).toBeVisible();
         const vendorsLink =
             (await page
                 .getByRole('link', { name: new RegExp(expenseCategory) })
