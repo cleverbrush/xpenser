@@ -670,7 +670,7 @@ export function createXpenserMcpDataAccess(
         deleteTransaction: (userId, transactionId) =>
             deleteUserTransaction(db, userId, transactionId),
         getDashboardSummary: (userId, period, date) =>
-            dashboardSummary(db, userId, period, date),
+            dashboardSummary(db, config, userId, period, date),
         getStatsOverview: (userId, query) => statsOverview(db, userId, query)
     };
 }

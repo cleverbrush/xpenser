@@ -3,7 +3,8 @@ import {
     dateParam,
     formatDashboardRangeLabel,
     isLatestDashboardPeriod,
-    parseDateParam
+    parseDateParam,
+    periodHref
 } from './dashboard-periods';
 
 describe('dashboard period helpers', () => {
@@ -88,5 +89,14 @@ describe('dashboard period helpers', () => {
         expect(isLatestDashboardPeriod('week', new Date(2026, 4, 4), now)).toBe(
             false
         );
+    });
+
+    it('preserves extra query params in period links', () => {
+        expect(
+            periodHref('/dashboard', 'month', new Date(2026, 4, 1), {
+                extraParams: { currency: 'EUR' },
+                timeZone: 'UTC'
+            })
+        ).toBe('/dashboard?currency=EUR&period=month&date=2026-05-01');
     });
 });

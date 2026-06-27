@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation';
 import { DashboardExplorer } from '@/components/dashboard-explorer';
 import { getApiClient } from '@/lib/api';
+import { selectedDashboardCurrency } from '@/lib/dashboard-currencies';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
 import { initialDashboardWindowDate } from '@/lib/dashboard-window';
 
 type DashboardSearchParams = {
+    readonly currency?: string;
     readonly date?: string;
     readonly period?: string;
 };
@@ -18,6 +20,11 @@ export default async function DashboardPage({
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
     const client = await getApiClient();
     const me = await client.auth.me();
+    const displayCurrency = selectedDashboardCurrency(
+        params.currency,
+        me.defaultCurrency,
+        me.favoriteCurrencies
+    );
     const selectedDate = parseDateParam(params.date, me.timezone);
     const anchorDate = selectedDate ?? new Date();
     const [categories, currencies, vendors, transactionTags, window] =
@@ -32,6 +39,9 @@ export default async function DashboardPage({
                 query: {
                     after: 2,
                     before: 2,
+                    ...(displayCurrency !== me.defaultCurrency
+                        ? { currency: displayCurrency }
+                        : {}),
                     vendorLimit: 0,
                     period,
                     ...(selectedDate ? { date: selectedDate } : {})
@@ -48,6 +58,7 @@ export default async function DashboardPage({
             categories={categories}
             currencies={currencies}
             defaultCurrency={me.defaultCurrency}
+            favoriteCurrencies={me.favoriteCurrencies}
             initialDate={initialDashboardWindowDate(
                 window,
                 anchorDate,
@@ -55,6 +66,7 @@ export default async function DashboardPage({
             )}
             initialPeriod={period}
             initialWindow={window}
+            selectedCurrency={displayCurrency}
             transactionTags={transactionTags}
             vendors={vendors}
             timezone={me.timezone}

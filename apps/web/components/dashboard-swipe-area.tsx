@@ -119,6 +119,7 @@ export function DashboardSwipeArea({
     children,
     className,
     date,
+    extraQueryParams,
     onNavigate,
     onPreview,
     panelForDate,
@@ -130,6 +131,7 @@ export function DashboardSwipeArea({
     readonly children: ReactNode;
     readonly className?: string;
     readonly date: string;
+    readonly extraQueryParams?: Readonly<Record<string, string | undefined>>;
     readonly onNavigate?: (selection: {
         readonly date: string;
         readonly direction: -1 | 1;
@@ -152,7 +154,8 @@ export function DashboardSwipeArea({
     const [dragDirection, setDragDirection] = useState<-1 | 1 | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [swipeOffset, setSwipeOffset] = useState(0);
-    const resetKey = `${basePath}:${period}:${date}`;
+    const extraQueryKey = JSON.stringify(extraQueryParams ?? {});
+    const resetKey = `${basePath}:${period}:${date}:${extraQueryKey}`;
     const anchorDate = useMemo(
         () => parseDateParam(date, timezone) ?? new Date(),
         [date, timezone]
@@ -172,15 +175,19 @@ export function DashboardSwipeArea({
         [anchorDate, period, timezone]
     );
     const previousHref = periodHref(basePath, period, previousDate, {
+        extraParams: extraQueryParams,
         timeZone: timezone
     });
     const nextHref = latest
         ? undefined
-        : periodHref(basePath, period, nextDate, { timeZone: timezone });
+        : periodHref(basePath, period, nextDate, {
+              extraParams: extraQueryParams,
+              timeZone: timezone
+          });
     const previousDateParam = dateParam(previousDate, timezone);
     const nextDateParam = dateParam(nextDate, timezone);
-    const previousKey = `${basePath}:${period}:${previousDateParam}`;
-    const nextKey = `${basePath}:${period}:${nextDateParam}`;
+    const previousKey = `${basePath}:${period}:${previousDateParam}:${extraQueryKey}`;
+    const nextKey = `${basePath}:${period}:${nextDateParam}:${extraQueryKey}`;
     const targetKey =
         dragDirection === -1 ? nextKey : dragDirection === 1 ? previousKey : '';
     const targetDate =

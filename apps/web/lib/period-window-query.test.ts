@@ -9,6 +9,7 @@ describe('period window query helpers', () => {
         const params = new URLSearchParams({
             after: '1',
             before: '3',
+            currency: 'eur',
             vendorLimit: '100',
             period: 'month'
         });
@@ -21,6 +22,7 @@ describe('period window query helpers', () => {
         expect(dashboardPeriodWindowQuery(params, 'UTC')).toEqual({
             after: 1,
             before: 3,
+            currency: 'EUR',
             vendorLimit: 100,
             period: 'month'
         });

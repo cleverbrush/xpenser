@@ -64,6 +64,32 @@ describe('PeriodStateLink', () => {
         );
     });
 
+    it('preserves currency between dashboard and vendors views', () => {
+        pathname = '/dashboard';
+        searchParams = new URLSearchParams({
+            currency: 'EUR',
+            date: '2026-05-11',
+            period: 'week'
+        });
+
+        expect(renderLink('/vendors').getAttribute('href')).toBe(
+            '/vendors?period=week&date=2026-05-11&currency=EUR'
+        );
+    });
+
+    it('does not preserve dashboard currency when opening reports', () => {
+        pathname = '/dashboard';
+        searchParams = new URLSearchParams({
+            currency: 'EUR',
+            date: '2026-05-11',
+            period: 'week'
+        });
+
+        expect(renderLink('/stats').getAttribute('href')).toBe(
+            '/stats?period=week&date=2026-05-11'
+        );
+    });
+
     it('does not preserve period state from unrelated pages', () => {
         pathname = '/transactions';
         searchParams = new URLSearchParams({

@@ -28,12 +28,14 @@ export type DashboardPeriodSelection = {
 export function DashboardPeriodNav({
     basePath = '/dashboard',
     date,
+    extraQueryParams,
     onNavigate,
     period,
     timezone
 }: {
     readonly basePath?: string;
     readonly date: string;
+    readonly extraQueryParams?: Readonly<Record<string, string | undefined>>;
     readonly onNavigate?: (selection: DashboardPeriodSelection) => void;
     readonly period: DashboardPeriod;
     readonly timezone: string;
@@ -47,13 +49,18 @@ export function DashboardPeriodNav({
     const previousDate = addDashboardPeriod(period, anchorDate, -1, timezone);
     const nextDate = addDashboardPeriod(period, anchorDate, 1, timezone);
     const previousHref = periodHref(basePath, period, previousDate, {
+        extraParams: extraQueryParams,
         timeZone: timezone
     });
     const nextHref = latest
         ? undefined
-        : periodHref(basePath, period, nextDate, { timeZone: timezone });
+        : periodHref(basePath, period, nextDate, {
+              extraParams: extraQueryParams,
+              timeZone: timezone
+          });
     const latestHref = periodHref(basePath, period, now, {
         cleanDefault: true,
+        extraParams: extraQueryParams,
         timeZone: timezone
     });
     const previousDateParam = dateParam(previousDate, timezone);
@@ -103,6 +110,7 @@ export function DashboardPeriodNav({
                         anchorDate,
                         {
                             cleanDefault: true,
+                            extraParams: extraQueryParams,
                             timeZone: timezone
                         }
                     );

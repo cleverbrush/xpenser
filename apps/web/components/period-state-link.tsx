@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import type { ComponentProps } from 'react';
 
 const periodStatePaths = new Set(['/dashboard', '/vendors', '/stats']);
+const currencyStatePaths = new Set(['/dashboard', '/vendors']);
 
 type PeriodStateLinkProps = Omit<ComponentProps<typeof Link>, 'href'> & {
     readonly href: string;
@@ -32,11 +33,15 @@ export function PeriodStateLink({ href, ...props }: PeriodStateLinkProps) {
     const params = new URLSearchParams();
     const period = searchParams.get('period');
     const date = searchParams.get('date');
+    const currency = searchParams.get('currency');
     if (period) {
         params.set('period', period);
     }
     if (date) {
         params.set('date', date);
+    }
+    if (currency && currencyStatePaths.has(targetPath)) {
+        params.set('currency', currency);
     }
 
     const query = params.toString();

@@ -419,7 +419,7 @@ export const DecideTransactionScanItemEndpoint = api.transactionScans.decide
 
 export const DashboardSummaryEndpoint = api.dashboard.summary
     .authorize(PrincipalSchema)
-    .inject({ db: DbToken })
+    .inject({ db: DbToken, config: ConfigToken })
     .summary('Dashboard summary')
     .description('Returns period totals and category distributions.')
     .tags('dashboard')
@@ -427,7 +427,7 @@ export const DashboardSummaryEndpoint = api.dashboard.summary
 
 export const DashboardWindowEndpoint = api.dashboard.window
     .authorize(PrincipalSchema)
-    .inject({ db: DbToken })
+    .inject({ db: DbToken, config: ConfigToken })
     .summary('Dashboard summary window')
     .description('Returns adjacent dashboard summaries for smooth navigation.')
     .tags('dashboard')
