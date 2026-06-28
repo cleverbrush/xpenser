@@ -1,0 +1,36 @@
+---
+title: "Verification for longer-lived user sessions"
+slug: longer-lived-user-sessions
+description: "xpenser verified extended user sessions and improved Playwright selectors so the PR validation flow checks authenticated app access reliably."
+sourcePrNumber: "7"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/7"
+publishedAt: 2026-05-29
+updatedAt: 2026-05-29
+targetKeyword: "personal finance app session duration"
+keywords:
+  - "self-hosted personal finance tracker"
+  - "open-source expense tracker"
+  - "auth session duration"
+  - "xpenser login"
+draft: false
+---
+
+A personal finance app should not unexpectedly interrupt users with unnecessary sign-in prompts.
+
+This release came from [PR #7](https://github.com/cleverbrush/xpenser/pull/7) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Verified the existing session-duration fix in a PR environment.
+- Improved Playwright helpers for exact email/password sign-in controls.
+- Kept responsive duplicate markup from confusing e2e assertions.
+
+## Why it matters
+
+Stable authentication validation protects the daily dashboard workflow and helps future PRs catch regressions before they reach users.
+
+## Where it fits
+
+This release strengthened xpenser authentication quality while keeping the user-facing behavior focused on longer-lived sessions.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

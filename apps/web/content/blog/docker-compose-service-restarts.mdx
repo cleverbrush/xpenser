@@ -1,0 +1,36 @@
+---
+title: "Reliable Docker Compose restarts after host reboot"
+slug: docker-compose-service-restarts
+description: "xpenser updated Docker Compose restart policies so long-running services recover automatically after a self-hosted server reboot."
+sourcePrNumber: "4"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/4"
+publishedAt: 2026-05-27
+updatedAt: 2026-05-27
+targetKeyword: "self-hosted finance app Docker Compose"
+keywords:
+  - "self-hosted personal finance tracker"
+  - "Docker Compose finance app"
+  - "open-source expense tracker"
+  - "xpenser deployment"
+draft: false
+---
+
+Self-hosted finance tools should come back after a host reboot without manual intervention.
+
+This release came from [PR #4](https://github.com/cleverbrush/xpenser/pull/4) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Set long-running local, PR, and production services to restart automatically.
+- Kept one-shot setup and migration jobs on failure-only restart policies.
+- Aligned SigNoz stack services with the same operational expectation.
+
+## Why it matters
+
+A personal finance app often runs on a small VPS or home server. Automatic restarts reduce avoidable downtime while keeping setup jobs from looping after they complete.
+
+## Where it fits
+
+This is part of the operational foundation for running xpenser as a self-hosted expense tracker.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

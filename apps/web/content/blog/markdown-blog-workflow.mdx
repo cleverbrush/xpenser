@@ -1,0 +1,43 @@
+---
+title: Markdown blog workflow for xpenser feature releases
+slug: markdown-blog-workflow
+description: xpenser now keeps product release notes in a Git-backed Markdown blog so feature PRs can publish crawlable updates for personal finance keywords.
+sourcePrNumber: "59"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/59"
+publishedAt: 2026-06-27
+updatedAt: 2026-06-27
+targetKeyword: markdown blog workflow
+keywords:
+  - open-source expense tracker
+  - self-hosted personal finance tracker
+  - personal finance API
+  - MCP finance tools
+draft: false
+---
+
+xpenser now has a Markdown blog workflow for feature releases. The goal is simple: when a public product change ships, the same pull request can include a crawlable post that explains the feature, links it to the right product pages, and gives search engines more context about xpenser.
+
+The blog is stored in the repository as MDX files, so every post is reviewed alongside the code. That fits an [open-source expense tracker](/open-source-expense-tracker) better than a separate content system because the product behavior, release notes, and SEO copy all move through the same review process.
+
+## Why this helps feature launches
+
+Feature PRs often contain useful product context that disappears after merge. A blog post turns that context into a durable public page with a canonical URL, metadata, sitemap entry, and structured data.
+
+For xpenser, that means new work can support keywords around [self-hosted personal finance tracking](/self-hosted-personal-finance-tracker), the [personal finance API and MCP access](/personal-finance-api-mcp), and practical expense tracking workflows without stuffing those phrases into unrelated pages.
+
+## How posts are created
+
+The PR workflow now asks public feature work to add or update a post under `apps/web/content/blog`. Each post includes a title, description, publish date, target keyword, secondary keyword phrases, and MDX body content.
+
+That keeps the process explicit:
+
+- the feature remains the source of truth
+- the blog post is reviewed in the same PR
+- preview QA checks the public blog page before merge
+- the sitemap exposes the new post after deploy
+
+## What readers can expect
+
+The blog will focus on concrete xpenser product updates: finance tracking workflows, self-hosting improvements, API access, MCP tools, Telegram capture, reporting, and other features that help people evaluate or run the app.
+
+For a broader product overview, start with the [xpenser home page](/). For implementation details, the source remains available in the [GitHub repository](https://github.com/cleverbrush/xpenser).

@@ -1,0 +1,38 @@
+---
+title: "Recent popularity ordering for transaction categories"
+slug: recent-category-ordering
+description: "xpenser now orders add-transaction categories by recent popularity, keeping the most likely expense categories close at hand."
+sourcePrNumber: "10"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/10"
+heroImage: "/blog/dashboard-month.png"
+heroImageAlt: "xpenser dashboard showing monthly income, expense, and category summaries"
+publishedAt: 2026-05-30
+updatedAt: 2026-05-30
+targetKeyword: "expense category ordering"
+keywords:
+  - "open-source expense tracker"
+  - "expense categories"
+  - "transaction entry workflow"
+  - "self-hosted personal finance tracker"
+draft: false
+---
+
+Category selection now adapts to recent user behavior when adding a transaction from the dashboard.
+
+This release came from [PR #10](https://github.com/cleverbrush/xpenser/pull/10) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Added an opt-in category list sort based on recent transaction count.
+- Applied that sort to the dashboard Add Transaction dropdown.
+- Invalidated category caches when transactions change.
+
+## Why it matters
+
+Fast category entry reduces the effort of keeping expense data current. The default listing stays stable elsewhere, while capture surfaces prioritize likely choices.
+
+## Where it fits
+
+This improves the everyday transaction entry path in xpenser without changing category administration or API defaults.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

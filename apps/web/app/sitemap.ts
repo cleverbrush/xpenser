@@ -1,11 +1,12 @@
 import type { MetadataRoute } from 'next';
+import { getBlogPostSitemap } from '@/lib/blog';
 import { webConfig } from '@/lib/config';
 import { getPublicSitemap } from '@/lib/public-site';
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (webConfig.singleUser?.enabled) {
         return [];
     }
 
-    return getPublicSitemap();
+    return [...getPublicSitemap(), ...(await getBlogPostSitemap())];
 }

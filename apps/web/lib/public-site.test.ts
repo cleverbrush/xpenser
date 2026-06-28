@@ -20,6 +20,7 @@ describe('public site SEO helpers', () => {
             '/personal-finance-api-mcp'
         ]);
         expect(publicUtilityPages.map(page => page.path)).toEqual([
+            '/blog',
             '/api-docs'
         ]);
         expect(apiDocsPage.navLabel).toBe('API docs');

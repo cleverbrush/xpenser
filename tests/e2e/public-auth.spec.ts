@@ -26,6 +26,66 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(
         main.getByRole('link', { name: 'Create account' }).first()
     ).toHaveAttribute('href', '/register');
+    await expect(
+        main.getByRole('link', { exact: true, name: 'xpenser blog' }).first()
+    ).toHaveAttribute('href', '/blog');
+});
+
+test('serves the public blog index and a published post', async ({ page }) => {
+    await page.goto('/blog');
+
+    await expect(
+        page.getByRole('heading', { name: 'xpenser blog' })
+    ).toBeVisible();
+    await expect(
+        page.getByRole('link', {
+            name: 'Markdown blog workflow for xpenser feature releases'
+        })
+    ).toHaveAttribute('href', '/blog/markdown-blog-workflow');
+
+    await page.goto('/blog/markdown-blog-workflow');
+    await expect(
+        page.getByRole('heading', {
+            name: 'Markdown blog workflow for xpenser feature releases'
+        })
+    ).toBeVisible();
+    await expect(
+        page.getByText('markdown blog workflow', { exact: true })
+    ).toBeVisible();
+    await expect(
+        page.getByRole('link', { name: 'open-source expense tracker' })
+    ).toHaveAttribute('href', '/open-source-expense-tracker');
+
+    await page.goto('/blog/dashboard-vendor-view-controls');
+    await expect(
+        page.getByRole('heading', {
+            name: 'Dashboard and vendor view controls'
+        })
+    ).toBeVisible();
+    await expect(
+        page.getByRole('img', {
+            name: 'xpenser dashboard showing monthly income, expense, and category summaries'
+        })
+    ).toBeVisible();
+    await expect(page.getByRole('link', { name: 'PR #58' })).toHaveAttribute(
+        'href',
+        'https://github.com/cleverbrush/xpenser/pull/58'
+    );
+
+    await page.goto('/blog/disable-gtm-in-pr-environments');
+    await expect(
+        page.getByRole('heading', {
+            name: 'Google Tag Manager disabled in PR environments'
+        })
+    ).toBeVisible();
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+        'content',
+        /\/og-image\.png$/
+    );
+    await expect(page.getByRole('link', { name: 'PR #57' })).toHaveAttribute(
+        'href',
+        'https://github.com/cleverbrush/xpenser/pull/57'
+    );
 });
 
 test('serves the public API contract through Swagger UI', async ({

@@ -39,11 +39,13 @@ import {
     apiDocsPage,
     apiSettingsScreenshot,
     appScreenshot,
+    blogIndexPage,
     getPublicMarketingPage,
     mcpEndpointPath,
     openApiSpecPath,
     publicMarketingPages,
     publicSeoPages,
+    publicUtilityPages,
     transactionsScreenshot
 } from '@/lib/public-site';
 
@@ -329,9 +331,11 @@ function ProofGrid({ items }: { readonly items: readonly string[] }) {
 }
 
 function InternalSeoLinks() {
+    const pages = [...publicSeoPages, blogIndexPage] as const;
+
     return (
-        <div className="grid gap-3 md:grid-cols-3">
-            {publicSeoPages.map(page => (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {pages.map(page => (
                 <Card className="h-full" key={page.path}>
                     <CardHeader>
                         <CardTitle className="text-base leading-snug">
@@ -398,11 +402,16 @@ export function PublicSiteHeader() {
                                 <Link href={path}>{navLabel}</Link>
                             </Button>
                         ))}
-                        <Button asChild size="sm" variant="ghost">
-                            <Link href={apiDocsPage.path}>
-                                {apiDocsPage.navLabel}
-                            </Link>
-                        </Button>
+                        {publicUtilityPages.map(({ navLabel, path }) => (
+                            <Button
+                                asChild
+                                key={path}
+                                size="sm"
+                                variant="ghost"
+                            >
+                                <Link href={path}>{navLabel}</Link>
+                            </Button>
+                        ))}
                     </div>
                     <Button
                         asChild
@@ -600,12 +609,15 @@ export function PublicSiteFooter({
                                 {navLabel}
                             </Link>
                         ))}
-                        <Link
-                            className="font-medium text-foreground transition-colors hover:text-primary"
-                            href={apiDocsPage.path}
-                        >
-                            {apiDocsPage.navLabel}
-                        </Link>
+                        {publicUtilityPages.map(({ navLabel, path }) => (
+                            <Link
+                                className="font-medium text-foreground transition-colors hover:text-primary"
+                                href={path}
+                                key={path}
+                            >
+                                {navLabel}
+                            </Link>
+                        ))}
                         <a
                             className="font-medium text-foreground transition-colors hover:text-primary"
                             href="/llms.txt"
@@ -791,8 +803,8 @@ export function LandingPage() {
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
                         Start with the angle that fits your evaluation:
-                        self-hosting, open-source expense tracking, or API and
-                        MCP access for finance workflows.
+                        self-hosting, open-source expense tracking, API and MCP
+                        access, or product updates from the blog.
                     </p>
                 </div>
                 <InternalSeoLinks />

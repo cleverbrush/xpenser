@@ -29,14 +29,26 @@ describe('metadata routes', () => {
         );
     });
 
-    it('serves only public sitemap URLs', () => {
-        expect(sitemap().map(entry => entry.url)).toEqual([
-            'https://xpenser.cleverbrush.com/',
-            'https://xpenser.cleverbrush.com/self-hosted-personal-finance-tracker',
-            'https://xpenser.cleverbrush.com/open-source-expense-tracker',
-            'https://xpenser.cleverbrush.com/personal-finance-api-mcp',
-            'https://xpenser.cleverbrush.com/api-docs'
-        ]);
+    it('serves only public sitemap URLs', async () => {
+        const urls = (await sitemap()).map(entry => entry.url);
+
+        expect(urls).toHaveLength(60);
+        expect(urls).toEqual(
+            expect.arrayContaining([
+                'https://xpenser.cleverbrush.com/',
+                'https://xpenser.cleverbrush.com/self-hosted-personal-finance-tracker',
+                'https://xpenser.cleverbrush.com/open-source-expense-tracker',
+                'https://xpenser.cleverbrush.com/personal-finance-api-mcp',
+                'https://xpenser.cleverbrush.com/blog',
+                'https://xpenser.cleverbrush.com/api-docs',
+                'https://xpenser.cleverbrush.com/blog/markdown-blog-workflow',
+                'https://xpenser.cleverbrush.com/blog/dashboard-vendor-view-controls',
+                'https://xpenser.cleverbrush.com/blog/disable-gtm-in-pr-environments'
+            ])
+        );
+        expect(
+            urls.some(url => new URL(url).pathname.startsWith('/dashboard'))
+        ).toBe(false);
     });
 
     it('marks app and auth route groups as noindex', () => {
@@ -57,6 +69,6 @@ describe('metadata routes', () => {
                 disallow: '/'
             }
         });
-        expect(singleUserSitemap()).toEqual([]);
+        await expect(singleUserSitemap()).resolves.toEqual([]);
     });
 });
