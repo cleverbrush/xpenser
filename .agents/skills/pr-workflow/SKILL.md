@@ -45,9 +45,11 @@ git worktree add -b <branch-type>/<task-slug> ../<branch-type>/<task-slug> origi
 
 - For public-facing feature work, create or update a Markdown blog post under `apps/web/content/blog/<task-slug>.mdx`.
 - The post should explain the shipped feature in user-facing language, include a primary target keyword, include two to five secondary keyword phrases, and link naturally to relevant public pages.
+- Include source PR metadata when the post is tied to a PR: `sourcePrNumber` and `sourcePrUrl`.
+- Add a `heroImage` and `heroImageAlt` when there is a real screenshot or preview-visible product surface that honestly represents the feature. Store committed blog images under `apps/web/public/blog/`. Leave the hero image empty for internal, config-only, or non-visual posts instead of inventing a fake screenshot.
 - Keep the post factual and tied to the implemented feature. Do not add keyword stuffing, claims that are not supported by the product, or roadmap promises.
 - Skip the blog post only when the change is internal, security-sensitive, too small to justify a public update, or not user-facing. Record the skip reason in the PR body.
-- When a blog post is included, validate the preview `/blog` page and the individual post URL during Preview QA.
+- When a blog post is included, validate the preview `/blog` page, the individual post URL, source PR links, and any hero screenshot rendering during Preview QA.
 
 ## Pull Request Loop
 

@@ -1,0 +1,38 @@
+---
+title: "Preloaded dashboard and report periods"
+slug: preloaded-dashboard-periods
+description: "xpenser now preloads adjacent dashboard and report periods so users can move between time windows with less waiting."
+sourcePrNumber: "12"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/12"
+heroImage: "/blog/dashboard-month.png"
+heroImageAlt: "xpenser dashboard showing monthly income, expense, and category summaries"
+publishedAt: 2026-05-30
+updatedAt: 2026-05-30
+targetKeyword: "personal finance dashboard performance"
+keywords:
+  - "personal finance dashboard"
+  - "open-source expense tracker"
+  - "expense reports"
+  - "self-hosted personal finance tracker"
+draft: false
+---
+
+Period navigation became smoother by fetching nearby dashboard and report windows before users need them.
+
+This release came from [PR #12](https://github.com/cleverbrush/xpenser/pull/12) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Added dashboard and stats window APIs for adjacent period payloads.
+- Aggregated window data server-side.
+- Moved dashboard and reports navigation into cached client explorers.
+
+## Why it matters
+
+Finance analysis often means moving from this month to last month and back again. Preloaded windows make that exploration feel immediate.
+
+## Where it fits
+
+This strengthens dashboard and reports performance for recurring review workflows.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

@@ -1,0 +1,36 @@
+---
+title: "Telegram notifications for PR readiness"
+slug: pr-ready-telegram-notifications
+description: "xpenser added PR-ready Telegram notifications so completed workflow runs can announce validated pull requests to the project channel."
+sourcePrNumber: "45"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/45"
+publishedAt: 2026-06-16
+updatedAt: 2026-06-16
+targetKeyword: "PR ready Telegram notifications"
+keywords:
+  - "open-source expense tracker"
+  - "PR workflow"
+  - "Telegram notifications"
+  - "preview environment QA"
+draft: false
+---
+
+The PR workflow can now send a Telegram notification once a branch has passed validation and preview QA.
+
+This release came from [PR #45](https://github.com/cleverbrush/xpenser/pull/45) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Added notification behavior for PR readiness.
+- Tied notifications to passing checks and preview validation.
+- Kept unavailable notifications from blocking otherwise ready PR work.
+
+## Why it matters
+
+Release communication is part of a healthy workflow. Notifications help maintainers know when reviewable work is ready without polling GitHub.
+
+## Where it fits
+
+This supports faster iteration on xpenser product and infrastructure PRs.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

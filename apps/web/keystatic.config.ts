@@ -58,6 +58,24 @@ export default config({
                         length: { min: 80, max: 180 }
                     }
                 }),
+                sourcePrNumber: fields.text({
+                    label: 'Source PR Number',
+                    validation: {
+                        pattern: {
+                            regex: /^$|^[0-9]+$/,
+                            message: 'Use digits only, for example 59.'
+                        }
+                    }
+                }),
+                sourcePrUrl: fields.text({
+                    label: 'Source PR URL'
+                }),
+                heroImage: fields.text({
+                    label: 'Hero Image Path'
+                }),
+                heroImageAlt: fields.text({
+                    label: 'Hero Image Alt Text'
+                }),
                 publishedAt: fields.date({
                     label: 'Published Date',
                     defaultValue: { kind: 'today' },

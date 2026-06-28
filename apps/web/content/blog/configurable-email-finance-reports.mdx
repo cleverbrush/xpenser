@@ -1,0 +1,38 @@
+---
+title: "Configurable weekly and monthly email reports"
+slug: configurable-email-finance-reports
+description: "xpenser added weekly and monthly email reports with aggregate finance insights, delivery tracking, and reusable OpenAI and email helpers."
+sourcePrNumber: "17"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/17"
+heroImage: "/blog/preferences-mcp-email.png"
+heroImageAlt: "xpenser preferences screen with MCP and email report settings"
+publishedAt: 2026-06-01
+updatedAt: 2026-06-01
+targetKeyword: "personal finance email reports"
+keywords:
+  - "personal finance email reports"
+  - "expense report emails"
+  - "OpenAI finance insights"
+  - "self-hosted personal finance tracker"
+draft: false
+---
+
+Users can opt into scheduled finance summaries that turn aggregate xpenser data into weekly or monthly email reports.
+
+This release came from [PR #17](https://github.com/cleverbrush/xpenser/pull/17) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Added weekly and monthly report preferences.
+- Tracked report deliveries with idempotent delivery keys.
+- Separated reusable OpenAI and email provider helpers from report-specific analytics.
+
+## Why it matters
+
+Email summaries help users review spending without opening the app every time. The implementation sends aggregate analytics, not transaction notes, to keep report generation focused.
+
+## Where it fits
+
+This extends xpenser beyond dashboards into proactive personal finance reporting.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

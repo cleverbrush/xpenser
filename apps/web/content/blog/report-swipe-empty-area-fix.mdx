@@ -1,0 +1,38 @@
+---
+title: "Fixed empty-area report swiping"
+slug: report-swipe-empty-area-fix
+description: "xpenser fixed report swipe behavior so mobile users can change periods from empty areas without awkward gesture gaps."
+sourcePrNumber: "39"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/39"
+heroImage: "/blog/dashboard-month.png"
+heroImageAlt: "xpenser dashboard showing monthly income, expense, and category summaries"
+publishedAt: 2026-06-10
+updatedAt: 2026-06-10
+targetKeyword: "mobile expense reports"
+keywords:
+  - "expense reports"
+  - "mobile expense tracker"
+  - "open-source expense tracker"
+  - "self-hosted personal finance tracker"
+draft: false
+---
+
+Mobile report navigation became more forgiving by handling swipe gestures in empty areas.
+
+This release came from [PR #39](https://github.com/cleverbrush/xpenser/pull/39) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Fixed report swipe handling around empty layout regions.
+- Improved mobile period navigation behavior.
+- Protected the interaction with focused regression coverage.
+
+## Why it matters
+
+Touch interactions should not depend on hitting only dense content. Better swipe behavior makes report review smoother on phones.
+
+## Where it fits
+
+This improves mobile expense analysis for users who review xpenser reports away from a desktop.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

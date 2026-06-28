@@ -1,0 +1,36 @@
+---
+title: "Pinned PR Google auth deployment settings"
+slug: pr-google-auth-deployment-contract
+description: "xpenser pinned PR-environment Google auth settings so preview deployments keep using Passport with the expected callback paths."
+sourcePrNumber: "55"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/55"
+publishedAt: 2026-06-25
+updatedAt: 2026-06-25
+targetKeyword: "PR environment Google auth"
+keywords:
+  - "personal finance app authentication"
+  - "Google sign in"
+  - "preview environment QA"
+  - "open-source expense tracker"
+draft: false
+---
+
+Preview environments gained regression coverage around the Google authentication deployment contract.
+
+This release came from [PR #55](https://github.com/cleverbrush/xpenser/pull/55) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Asserted PR deploys use Passport mode for Google sign-in.
+- Kept expected Passport project and environment variables pinned.
+- Verified direct Auth.js Google credentials stay empty in PR deploys.
+
+## Why it matters
+
+Preview auth needs to behave like the intended deployment mode. Covering the contract prevents subtle PR environment regressions.
+
+## Where it fits
+
+This supports reliable PR validation for authentication-related xpenser changes.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

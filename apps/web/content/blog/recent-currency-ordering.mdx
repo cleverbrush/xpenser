@@ -1,0 +1,38 @@
+---
+title: "Recent-use currency ordering for transactions"
+slug: recent-currency-ordering
+description: "xpenser now orders transaction currencies by recent use, making multi-currency expense entry faster in the web app and Telegram flow."
+sourcePrNumber: "2"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/2"
+heroImage: "/blog/transactions.png"
+heroImageAlt: "xpenser transactions table with filters and editing workflow"
+publishedAt: 2026-05-25
+updatedAt: 2026-05-25
+targetKeyword: "multi currency expense tracker"
+keywords:
+  - "open-source expense tracker"
+  - "self-hosted personal finance tracker"
+  - "transaction currency ordering"
+  - "multi-currency personal finance"
+draft: false
+---
+
+Multi-currency tracking got faster with currency lists that reflect what a user actually used recently.
+
+This release came from [PR #2](https://github.com/cleverbrush/xpenser/pull/2) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Exposed transaction currency ordering on the current user profile.
+- Sorted currencies by latest transaction popularity with a recency tie-breaker.
+- Reused the API-provided ordering in the add transaction dialog and Telegram currency buttons.
+
+## Why it matters
+
+Currency pickers are small UI details, but they matter when recording expenses quickly. Recent-use ordering keeps common choices near the top without removing less common currencies.
+
+## Where it fits
+
+This improves everyday capture for people using xpenser as a personal finance tracker across travel, subscriptions, freelance income, or mixed-currency spending.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

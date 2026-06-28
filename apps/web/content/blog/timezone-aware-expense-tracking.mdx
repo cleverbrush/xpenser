@@ -1,0 +1,38 @@
+---
+title: "Timezone-aware expense tracking in xpenser"
+slug: timezone-aware-expense-tracking
+description: "xpenser added IANA timezone support so transaction filters, preferences, and formatted dates match each user local finance workflow."
+sourcePrNumber: "1"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/1"
+heroImage: "/blog/transactions.png"
+heroImageAlt: "xpenser transactions table with filters and editing workflow"
+publishedAt: 2026-05-25
+updatedAt: 2026-05-25
+targetKeyword: "timezone aware expense tracking"
+keywords:
+  - "open-source expense tracker"
+  - "self-hosted personal finance tracker"
+  - "personal finance date filters"
+  - "IANA timezone support"
+draft: false
+---
+
+xpenser now treats timezones as a first-class part of expense tracking instead of assuming every transaction should be interpreted in server time.
+
+This release came from [PR #1](https://github.com/cleverbrush/xpenser/pull/1) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Added IANA timezone validation in user preferences.
+- Converted local transaction date-times to UTC and back consistently.
+- Updated date filters and formatting helpers to respect the selected timezone.
+
+## Why it matters
+
+Personal finance data is only useful when day, week, and month boundaries match the person reviewing the data. This release makes reports and transaction filters more trustworthy for users outside the server timezone.
+
+## Where it fits
+
+The timezone work supports the dashboard, transactions page, reporting periods, and any self-hosted xpenser install where users track spending from a specific locale.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

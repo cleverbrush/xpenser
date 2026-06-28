@@ -1,0 +1,38 @@
+---
+title: "Dashboard totals now link to transaction filters"
+slug: dashboard-aggregates-link-to-transactions
+description: "xpenser dashboard income and expense totals now link directly to filtered transactions for the selected reporting period."
+sourcePrNumber: "9"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/9"
+heroImage: "/blog/dashboard-month.png"
+heroImageAlt: "xpenser dashboard showing monthly income, expense, and category summaries"
+publishedAt: 2026-05-30
+updatedAt: 2026-05-30
+targetKeyword: "expense dashboard transaction filters"
+keywords:
+  - "open-source expense tracker"
+  - "personal finance dashboard"
+  - "transaction filters"
+  - "self-hosted personal finance tracker"
+draft: false
+---
+
+Dashboard totals became actionable: users can jump from a summary number to the transactions behind it.
+
+This release came from [PR #9](https://github.com/cleverbrush/xpenser/pull/9) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Linked income and expense aggregate cards to filtered transaction views.
+- Kept net as a non-clickable summary value.
+- Added e2e coverage for aggregate links and filtered transaction results.
+
+## Why it matters
+
+Finance dashboards are more useful when summaries are traceable. This release helps users audit why a total changed without rebuilding filters manually.
+
+## Where it fits
+
+The work connects the dashboard and transactions page into a tighter expense tracking workflow.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.
