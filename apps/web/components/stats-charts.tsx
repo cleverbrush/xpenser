@@ -14,6 +14,10 @@ import {
     XAxis,
     YAxis
 } from 'recharts';
+import {
+    hiddenAmountLabel,
+    useAmountPrivacy
+} from '@/components/amount-privacy';
 import { formatMoney } from '@/lib/format';
 
 const incomeColor = '#047857';
@@ -45,6 +49,8 @@ function ChartTooltip({
     readonly payload?: readonly TooltipPayload[];
     readonly valueKind?: 'count' | 'money';
 }) {
+    const { hideAmounts } = useAmountPrivacy();
+
     if (!active || !payload?.length) {
         return null;
     }
@@ -62,7 +68,9 @@ function ChartTooltip({
                         <span className="font-medium">
                             {typeof item.value === 'number'
                                 ? valueKind === 'money'
-                                    ? formatMoney(item.value, currency)
+                                    ? hideAmounts
+                                        ? hiddenAmountLabel
+                                        : formatMoney(item.value, currency)
                                     : item.value.toLocaleString('en-US')
                                 : item.value}
                         </span>
@@ -96,6 +104,7 @@ export function StatsChartsSkeleton() {
 }
 
 export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
+    const { hideAmounts } = useAmountPrivacy();
     let cumulativeNet = 0;
     const trend = stats.trend.map(item => {
         cumulativeNet += item.netTotal;
@@ -135,12 +144,14 @@ export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
                                         fontSize={12}
                                         stroke="hsl(var(--muted-foreground))"
                                         tickFormatter={value =>
-                                            Number(value).toLocaleString(
-                                                'en-US',
-                                                {
-                                                    maximumFractionDigits: 0
-                                                }
-                                            )
+                                            hideAmounts
+                                                ? hiddenAmountLabel
+                                                : Number(value).toLocaleString(
+                                                      'en-US',
+                                                      {
+                                                          maximumFractionDigits: 0
+                                                      }
+                                                  )
                                         }
                                         tickLine={false}
                                         width={48}
@@ -206,12 +217,14 @@ export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
                                         fontSize={12}
                                         stroke="hsl(var(--muted-foreground))"
                                         tickFormatter={value =>
-                                            Number(value).toLocaleString(
-                                                'en-US',
-                                                {
-                                                    maximumFractionDigits: 0
-                                                }
-                                            )
+                                            hideAmounts
+                                                ? hiddenAmountLabel
+                                                : Number(value).toLocaleString(
+                                                      'en-US',
+                                                      {
+                                                          maximumFractionDigits: 0
+                                                      }
+                                                  )
                                         }
                                         tickLine={false}
                                         width={48}
@@ -268,12 +281,14 @@ export function StatsCharts({ stats }: { readonly stats: StatsOverview }) {
                                         fontSize={12}
                                         stroke="hsl(var(--muted-foreground))"
                                         tickFormatter={value =>
-                                            Number(value).toLocaleString(
-                                                'en-US',
-                                                {
-                                                    maximumFractionDigits: 0
-                                                }
-                                            )
+                                            hideAmounts
+                                                ? hiddenAmountLabel
+                                                : Number(value).toLocaleString(
+                                                      'en-US',
+                                                      {
+                                                          maximumFractionDigits: 0
+                                                      }
+                                                  )
                                         }
                                         tickLine={false}
                                         width={48}

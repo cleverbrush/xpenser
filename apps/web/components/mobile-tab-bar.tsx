@@ -44,7 +44,7 @@ function isActive(pathname: string, href: string): boolean {
     return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function MobileTabBar() {
+export function MobileTabBar({ timezone }: { readonly timezone: string }) {
     const pathname = usePathname();
 
     return (
@@ -53,24 +53,40 @@ export function MobileTabBar() {
                 {items.map(item => {
                     const active = isActive(pathname, item.href);
                     const Icon = item.icon;
-                    const LinkComponent = isPeriodStatePath(item.href)
-                        ? PeriodStateLink
-                        : Link;
-                    return (
-                        <LinkComponent
-                            aria-current={active ? 'page' : undefined}
-                            className={cn(
-                                'flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium text-muted-foreground transition-colors',
-                                active && 'bg-muted text-foreground'
-                            )}
-                            href={item.href}
-                            key={item.href}
-                        >
+                    const content = (
+                        <>
                             <Icon aria-hidden className="size-5" />
                             <span className="max-w-full truncate">
                                 {item.label}
                             </span>
-                        </LinkComponent>
+                        </>
+                    );
+                    const className = cn(
+                        'flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium text-muted-foreground transition-colors',
+                        active && 'bg-muted text-foreground'
+                    );
+                    if (isPeriodStatePath(item.href)) {
+                        return (
+                            <PeriodStateLink
+                                aria-current={active ? 'page' : undefined}
+                                className={className}
+                                href={item.href}
+                                key={item.href}
+                                timezone={timezone}
+                            >
+                                {content}
+                            </PeriodStateLink>
+                        );
+                    }
+                    return (
+                        <Link
+                            aria-current={active ? 'page' : undefined}
+                            className={className}
+                            href={item.href}
+                            key={item.href}
+                        >
+                            {content}
+                        </Link>
                     );
                 })}
             </div>

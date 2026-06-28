@@ -22,6 +22,7 @@ import {
     vendorAnalyticsExpansionState
 } from '@/components/vendor-analytics-panel';
 import { formatDashboardRangeLabel } from '@/lib/dashboard-periods';
+import { transactionExportHref } from '@/lib/transaction-export';
 import { vendorAnalyticsVendorLimit } from '@/lib/vendor-analytics';
 
 type DashboardPeriod = DashboardSummary['period'];
@@ -164,6 +165,13 @@ export function VendorsExplorer({
                                 currencies={currencies}
                                 currentDate={currentDate}
                                 defaultCurrency={defaultCurrency}
+                                exportAction={{
+                                    href: transactionExportHref({
+                                        from: item.summary.from,
+                                        timezone,
+                                        to: item.summary.to
+                                    })
+                                }}
                                 expansionAction={expansionAction}
                                 favoriteCurrencies={favoriteCurrencies}
                                 period={period}

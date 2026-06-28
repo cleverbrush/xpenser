@@ -58,14 +58,17 @@ import {
     categoryEffectiveType,
     categoryTypeLabel
 } from '@/lib/category-display';
+import { dateParam } from '@/lib/dashboard-periods';
 import {
     amountClassNameForTransaction,
     directionBadgeClassName,
     formatDateTime,
-    formatTransactionMoney
+    signedAmountForTransaction
 } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { transactionPageSize } from '@/lib/transaction-query';
+import { AmountDisplay } from './amount-display';
+import { DashboardViewSettingsMenu } from './dashboard-view-settings-menu';
 import { TransactionDialog } from './transaction-dialog';
 import { VendorLogo } from './vendor-display';
 
@@ -108,7 +111,11 @@ function shouldAutoExpandFilters(hasFilters: boolean): boolean {
     );
 }
 
-function transactionAmount(transaction: Transaction) {
+function TransactionAmount({
+    transaction
+}: {
+    readonly transaction: Transaction;
+}) {
     return (
         <div className="flex flex-col gap-0.5">
             <span
@@ -118,12 +125,15 @@ function transactionAmount(transaction: Transaction) {
                     transaction.categoryKind
                 )}`}
             >
-                {formatTransactionMoney(
-                    transaction.amount,
-                    transaction.currency,
-                    transaction.type,
-                    transaction.categoryKind
-                )}
+                <AmountDisplay
+                    compact={false}
+                    currency={transaction.currency}
+                    value={signedAmountForTransaction(
+                        transaction.amount,
+                        transaction.type,
+                        transaction.categoryKind
+                    )}
+                />
             </span>
             <span
                 className={`text-xs ${amountClassNameForTransaction(
@@ -132,12 +142,15 @@ function transactionAmount(transaction: Transaction) {
                     transaction.categoryKind
                 )}`}
             >
-                {formatTransactionMoney(
-                    transaction.defaultCurrencyAmount,
-                    transaction.defaultCurrency,
-                    transaction.type,
-                    transaction.categoryKind
-                )}
+                <AmountDisplay
+                    compact={false}
+                    currency={transaction.defaultCurrency}
+                    value={signedAmountForTransaction(
+                        transaction.defaultCurrencyAmount,
+                        transaction.type,
+                        transaction.categoryKind
+                    )}
+                />
             </span>
         </div>
     );
@@ -468,7 +481,9 @@ function TransactionCards({
                     </div>
                     {transactionVendor(transaction)}
                     {transactionTagBadges(transaction)}
-                    <div className="mt-3">{transactionAmount(transaction)}</div>
+                    <div className="mt-3">
+                        <TransactionAmount transaction={transaction} />
+                    </div>
                 </article>
             ))}
         </div>
@@ -533,7 +548,9 @@ function TransactionTable({
                                     </div>
                                 </TableCell>
                                 <TableCell>
-                                    {transactionAmount(transaction)}
+                                    <TransactionAmount
+                                        transaction={transaction}
+                                    />
                                 </TableCell>
                                 <TableCell>
                                     {formatDateTime(
@@ -567,6 +584,7 @@ export function TransactionsBrowser({
     categories,
     currencies,
     defaultCurrency,
+    favoriteCurrencies,
     hasInitialFilters,
     vendors,
     transactionTags,
@@ -577,6 +595,7 @@ export function TransactionsBrowser({
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
+    readonly favoriteCurrencies: readonly string[];
     readonly hasInitialFilters: boolean;
     readonly vendors: readonly Vendor[];
     readonly transactionTags: readonly TransactionTag[];
@@ -606,6 +625,11 @@ export function TransactionsBrowser({
         () => activeFilterCount(new URLSearchParams(searchKey)),
         [searchKey]
     );
+    const exportHref = useMemo(() => {
+        return searchKey
+            ? `/app-api/transactions/export.csv?${searchKey}`
+            : '/app-api/transactions/export.csv';
+    }, [searchKey]);
     const dialogCurrencies = useMemo(
         () =>
             transactionCurrencyOptions(
@@ -749,11 +773,25 @@ export function TransactionsBrowser({
                             </span>
                         ) : null}
                     </Button>
-                    {filters > 0 ? (
-                        <Button asChild size="sm" variant="ghost">
-                            <Link href="/transactions">Clear</Link>
-                        </Button>
-                    ) : null}
+                    <div className="flex items-center gap-2">
+                        {filters > 0 ? (
+                            <Button asChild size="sm" variant="ghost">
+                                <Link href="/transactions">Clear</Link>
+                            </Button>
+                        ) : null}
+                        <DashboardViewSettingsMenu
+                            basePath="/transactions"
+                            currencies={currencies}
+                            currentDate={dateParam(new Date(), timezone)}
+                            defaultCurrency={defaultCurrency}
+                            exportAction={{ href: exportHref }}
+                            favoriteCurrencies={favoriteCurrencies}
+                            period="day"
+                            selectedCurrency={defaultCurrency}
+                            showCurrencySelector={false}
+                            timezone={timezone}
+                        />
+                    </div>
                 </div>
                 {expanded ? (
                     <form

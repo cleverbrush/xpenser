@@ -34,6 +34,10 @@ import {
 } from 'recharts';
 import { AmountDisplay } from '@/components/amount-display';
 import {
+    hiddenAmountLabel,
+    useAmountPrivacy
+} from '@/components/amount-privacy';
+import {
     categoryTrendGroupByOptions,
     categoryTrendHref,
     categoryTrendParamValue,
@@ -104,6 +108,8 @@ function ChartTooltip({
     readonly label?: string | number;
     readonly payload?: readonly TooltipPayload[];
 }) {
+    const { hideAmounts } = useAmountPrivacy();
+
     if (!active || !payload?.length) {
         return null;
     }
@@ -120,7 +126,9 @@ function ChartTooltip({
                         <span style={{ color: item.color }}>{item.name}</span>
                         <span className="font-medium">
                             {typeof item.value === 'number'
-                                ? formatMoney(item.value, currency)
+                                ? hideAmounts
+                                    ? hiddenAmountLabel
+                                    : formatMoney(item.value, currency)
                                 : item.value}
                         </span>
                     </div>
@@ -340,6 +348,7 @@ function TrendChart({
     readonly trend: CategoryTrendResponse;
 }) {
     const router = useRouter();
+    const { hideAmounts } = useAmountPrivacy();
 
     return (
         <Card>
@@ -373,9 +382,14 @@ function TrendChart({
                                 fontSize={12}
                                 stroke="hsl(var(--muted-foreground))"
                                 tickFormatter={value =>
-                                    Number(value).toLocaleString('en-US', {
-                                        maximumFractionDigits: 0
-                                    })
+                                    hideAmounts
+                                        ? hiddenAmountLabel
+                                        : Number(value).toLocaleString(
+                                              'en-US',
+                                              {
+                                                  maximumFractionDigits: 0
+                                              }
+                                          )
                                 }
                                 tickLine={false}
                                 width={56}

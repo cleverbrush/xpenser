@@ -51,6 +51,7 @@ describe('api contract authorization metadata', () => {
             api.vendors.enrich,
             api.currencies.convert,
             api.transactions.list,
+            api.transactions.exportCsv,
             api.transactions.create,
             api.transactions.update,
             api.transactions.delete,

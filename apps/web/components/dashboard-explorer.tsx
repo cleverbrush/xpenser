@@ -41,6 +41,7 @@ import {
     buildReportCategoryNodes,
     type ReportCategoryNode
 } from '@/lib/report-category-tree';
+import { transactionExportHref } from '@/lib/transaction-export';
 
 type DashboardPeriod = DashboardSummary['period'];
 type DashboardCategory = DashboardSummary['byCategory'][number];
@@ -1009,6 +1010,13 @@ export function DashboardExplorer({
                                 currencies={currencies}
                                 currentDate={currentDate}
                                 defaultCurrency={defaultCurrency}
+                                exportAction={{
+                                    href: transactionExportHref({
+                                        from: item.summary.from,
+                                        timezone,
+                                        to: item.summary.to
+                                    })
+                                }}
                                 expansionAction={expansionAction}
                                 favoriteCurrencies={favoriteCurrencies}
                                 period={period}

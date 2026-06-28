@@ -14,12 +14,13 @@ import {
     TableRow
 } from '@xpenser/ui';
 import Link from 'next/link';
+import { AmountDisplay } from '@/components/amount-display';
 import { categoryTypeLabel } from '@/lib/category-display';
 import {
     amountClassNameForTransaction,
     directionBadgeClassName,
     formatDateTime,
-    formatTransactionMoney
+    signedAmountForTransaction
 } from '@/lib/format';
 
 function transactionAmount(transaction: Transaction) {
@@ -31,12 +32,15 @@ function transactionAmount(transaction: Transaction) {
                 transaction.categoryKind
             )}
         >
-            {formatTransactionMoney(
-                transaction.amount,
-                transaction.currency,
-                transaction.type,
-                transaction.categoryKind
-            )}
+            <AmountDisplay
+                compact={false}
+                currency={transaction.currency}
+                value={signedAmountForTransaction(
+                    transaction.amount,
+                    transaction.type,
+                    transaction.categoryKind
+                )}
+            />
         </span>
     );
 }

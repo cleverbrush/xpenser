@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+    Currency,
     DashboardSummary,
     StatsOverview,
     StatsTagReport,
@@ -15,7 +16,7 @@ import {
     CardHeader,
     CardTitle
 } from '@xpenser/ui';
-import { ChevronDownIcon, ChevronRightIcon } from 'lucide-react';
+import { ChevronDownIcon, ChevronRightIcon, ListIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -37,10 +38,15 @@ import {
 } from 'recharts';
 import { AmountDisplay } from '@/components/amount-display';
 import {
+    hiddenAmountLabel,
+    useAmountPrivacy
+} from '@/components/amount-privacy';
+import {
     DashboardPeriodNav,
     type DashboardPeriodSelection
 } from '@/components/dashboard-period-nav';
 import { DashboardSwipeArea } from '@/components/dashboard-swipe-area';
+import { DashboardViewSettingsMenu } from '@/components/dashboard-view-settings-menu';
 import { CollapsibleReportCategoryGroup } from '@/components/report-category-group';
 import { StatsCharts, StatsChartsSkeleton } from '@/components/stats-charts';
 import { categoryTypeLabel } from '@/lib/category-display';
@@ -65,6 +71,7 @@ import {
     buildReportCategoryNodes,
     type ReportCategoryNode
 } from '@/lib/report-category-tree';
+import { transactionExportHref } from '@/lib/transaction-export';
 
 type DashboardPeriod = DashboardSummary['period'];
 type StatsWindowItem = StatsWindowResponse['items'][number];
@@ -310,6 +317,8 @@ function TagChartTooltip({
     readonly label?: string | number;
     readonly payload?: readonly TooltipPayload[];
 }) {
+    const { hideAmounts } = useAmountPrivacy();
+
     if (!active || !payload?.length) {
         return null;
     }
@@ -326,7 +335,9 @@ function TagChartTooltip({
                         <span style={{ color: item.color }}>{item.name}</span>
                         <span className="font-medium">
                             {typeof item.value === 'number'
-                                ? formatMoney(item.value, currency)
+                                ? hideAmounts
+                                    ? hiddenAmountLabel
+                                    : formatMoney(item.value, currency)
                                 : item.value}
                         </span>
                     </div>
@@ -532,12 +543,15 @@ export function StatsCards({ stats }: { readonly stats: StatsOverview }) {
                                         card.previous
                                     )}
                                 >
-                                    {card.money
-                                        ? formatMoney(
-                                              card.previous,
-                                              stats.currency
-                                          )
-                                        : formatCountDelta(card.previous)}
+                                    {card.money ? (
+                                        <AmountDisplay
+                                            compact={false}
+                                            currency={stats.currency}
+                                            value={card.previous}
+                                        />
+                                    ) : (
+                                        formatCountDelta(card.previous)
+                                    )}
                                 </span>
                                 {card.previousPercent !== undefined &&
                                 card.changeType ? (
@@ -565,12 +579,15 @@ export function StatsCards({ stats }: { readonly stats: StatsOverview }) {
                                         card.previousYear
                                     )}
                                 >
-                                    {card.money
-                                        ? formatMoney(
-                                              card.previousYear,
-                                              stats.currency
-                                          )
-                                        : formatCountDelta(card.previousYear)}
+                                    {card.money ? (
+                                        <AmountDisplay
+                                            compact={false}
+                                            currency={stats.currency}
+                                            value={card.previousYear}
+                                        />
+                                    ) : (
+                                        formatCountDelta(card.previousYear)
+                                    )}
                                 </span>
                             </span>
                         </div>
@@ -857,6 +874,12 @@ function TagDistributionPanel({
                                 ? 'untagged'
                                 : (tag.tagId ?? undefined);
                         const selected = selectedTag === tagSelection;
+                        const transactionsHref = tagTransactionsHref({
+                            from: report.from,
+                            tag,
+                            timezone,
+                            to: report.to
+                        });
                         return (
                             <div
                                 className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
@@ -909,12 +932,7 @@ function TagDistributionPanel({
                                             tag.total,
                                             'expense'
                                         )}`}
-                                        href={tagTransactionsHref({
-                                            from: report.from,
-                                            tag,
-                                            timezone,
-                                            to: report.to
-                                        })}
+                                        href={transactionsHref}
                                         prefetch={false}
                                     >
                                         <AmountDisplay
@@ -922,6 +940,23 @@ function TagDistributionPanel({
                                             value={-tag.total}
                                         />
                                     </Link>
+                                    <Button
+                                        asChild
+                                        size="icon-xs"
+                                        variant="outline"
+                                    >
+                                        <Link
+                                            aria-label={`View ${tag.tagName} transactions`}
+                                            href={transactionsHref}
+                                            prefetch={false}
+                                            title="View transactions"
+                                        >
+                                            <ListIcon
+                                                aria-hidden
+                                                className="size-3"
+                                            />
+                                        </Link>
+                                    </Button>
                                 </div>
                             </div>
                         );
@@ -1009,6 +1044,7 @@ function TagDetailPanel({
     readonly report: StatsTagReport;
     readonly timezone: string;
 }) {
+    const { hideAmounts } = useAmountPrivacy();
     const chartData = detail.trend.map(point => ({
         label: point.label,
         Expenses: point.expenseTotal
@@ -1068,9 +1104,14 @@ function TagDetailPanel({
                                     fontSize={12}
                                     stroke="hsl(var(--muted-foreground))"
                                     tickFormatter={value =>
-                                        Number(value).toLocaleString('en-US', {
-                                            maximumFractionDigits: 0
-                                        })
+                                        hideAmounts
+                                            ? hiddenAmountLabel
+                                            : Number(value).toLocaleString(
+                                                  'en-US',
+                                                  {
+                                                      maximumFractionDigits: 0
+                                                  }
+                                              )
                                     }
                                     tickLine={false}
                                     width={48}
@@ -1212,6 +1253,9 @@ function StatsTagReportPanel({
 }
 
 export function StatsExplorer({
+    currencies,
+    defaultCurrency,
+    favoriteCurrencies,
     initialDate,
     initialPeriod,
     initialTag,
@@ -1220,6 +1264,9 @@ export function StatsExplorer({
     initialWindow,
     timezone
 }: {
+    readonly currencies: readonly Currency[];
+    readonly defaultCurrency: string;
+    readonly favoriteCurrencies: readonly string[];
     readonly initialDate: string;
     readonly initialPeriod: DashboardPeriod;
     readonly initialTag: ReportTagSelection;
@@ -1584,20 +1631,47 @@ export function StatsExplorer({
     }
 
     const stats = currentItem.overview;
+    const exportParams =
+        selection.view === 'tags' && selection.tag === 'untagged'
+            ? { type: 'expense', untagged: 'true' }
+            : selection.view === 'tags' && typeof selection.tag === 'number'
+              ? { type: 'expense', tagId: String(selection.tag) }
+              : undefined;
 
     return (
         <div className="flex flex-col gap-5 sm:gap-6">
-            <div>
-                <h1 className="text-2xl font-semibold">Reports</h1>
-                <p className="text-sm text-muted-foreground">
-                    {formatDashboardRangeLabel({
-                        from: stats.from,
-                        period: selection.period,
-                        to: stats.to,
-                        timeZone: timezone
-                    })}{' '}
-                    in {stats.currency}.
-                </p>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-semibold">Reports</h1>
+                    <p className="text-sm text-muted-foreground">
+                        {formatDashboardRangeLabel({
+                            from: stats.from,
+                            period: selection.period,
+                            to: stats.to,
+                            timeZone: timezone
+                        })}{' '}
+                        in {stats.currency}.
+                    </p>
+                </div>
+                <DashboardViewSettingsMenu
+                    basePath="/stats"
+                    currencies={currencies}
+                    currentDate={currentDate}
+                    defaultCurrency={defaultCurrency}
+                    exportAction={{
+                        href: transactionExportHref({
+                            extraParams: exportParams,
+                            from: stats.from,
+                            timezone,
+                            to: stats.to
+                        })
+                    }}
+                    favoriteCurrencies={favoriteCurrencies}
+                    period={selection.period}
+                    selectedCurrency={defaultCurrency}
+                    showCurrencySelector={false}
+                    timezone={timezone}
+                />
             </div>
 
             <DashboardPeriodNav

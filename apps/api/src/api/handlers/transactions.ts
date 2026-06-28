@@ -6,12 +6,14 @@ import {
     dashboardSummary,
     dashboardWindow,
     deleteTransaction,
+    exportTransactionsCsv,
     getTransactionScanImage,
     listTransactions,
     statsOverview,
     statsTagReport,
     statsWindow,
     TransactionCategoryError,
+    TransactionExportError,
     TransactionNotFoundError,
     updateTransaction
 } from '../../application/transactions.js';
@@ -22,6 +24,7 @@ import type {
     DashboardSummaryEndpoint,
     DashboardWindowEndpoint,
     DeleteTransactionEndpoint,
+    ExportTransactionsCsvEndpoint,
     GetTransactionScanImageEndpoint,
     ListTransactionsEndpoint,
     StatsOverviewEndpoint,
@@ -34,6 +37,30 @@ export const listTransactionsHandler: Handler<
     typeof ListTransactionsEndpoint
 > = async ({ query, principal }, { db, knex }) => {
     return listTransactions(db, principal.userId, query, knex);
+};
+
+export const exportTransactionsCsvHandler: Handler<
+    typeof ExportTransactionsCsvEndpoint
+> = async ({ query, principal }, { db, config, knex }) => {
+    try {
+        const exportFile = await exportTransactionsCsv(
+            db,
+            config,
+            principal.userId,
+            query,
+            knex
+        );
+        return ActionResult.file(
+            Buffer.from(exportFile.csv, 'utf8'),
+            exportFile.fileName,
+            'text/csv; charset=utf-8'
+        );
+    } catch (err) {
+        if (err instanceof TransactionExportError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        throw err;
+    }
 };
 
 export const createTransactionHandler: Handler<

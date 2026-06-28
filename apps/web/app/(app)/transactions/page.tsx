@@ -47,6 +47,7 @@ export default async function TransactionsPage({
                 categories={categories}
                 currencies={currencies}
                 defaultCurrency={me.defaultCurrency}
+                favoriteCurrencies={me.favoriteCurrencies}
                 hasInitialFilters={hasFilters}
                 vendors={vendors}
                 transactionTags={transactionTags}

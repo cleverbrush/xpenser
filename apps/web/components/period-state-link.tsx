@@ -1,14 +1,27 @@
 'use client';
 
+import { resolveDashboardRangeInTimeZone } from '@xpenser/timezone';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ComponentProps } from 'react';
+import {
+    dateParam,
+    isDashboardPeriod,
+    parseDateParam
+} from '@/lib/dashboard-periods';
 
-const periodStatePaths = new Set(['/dashboard', '/vendors', '/stats']);
+const periodSourcePaths = new Set(['/dashboard', '/vendors', '/stats']);
+const periodTargetPaths = new Set([
+    '/dashboard',
+    '/vendors',
+    '/stats',
+    '/transactions'
+]);
 const currencyStatePaths = new Set(['/dashboard', '/vendors']);
 
 type PeriodStateLinkProps = Omit<ComponentProps<typeof Link>, 'href'> & {
     readonly href: string;
+    readonly timezone?: string;
 };
 
 function pathOnly(href: string): string {
@@ -16,18 +29,54 @@ function pathOnly(href: string): string {
 }
 
 export function isPeriodStatePath(path: string): boolean {
-    return periodStatePaths.has(pathOnly(path));
+    return periodTargetPaths.has(pathOnly(path));
 }
 
-export function PeriodStateLink({ href, ...props }: PeriodStateLinkProps) {
+function transactionPeriodHref(
+    searchParams: URLSearchParams,
+    timezone: string
+): string {
+    const periodParam = searchParams.get('period') ?? undefined;
+    const period = isDashboardPeriod(periodParam) ? periodParam : 'day';
+    const anchor =
+        parseDateParam(searchParams.get('date') ?? undefined, timezone) ??
+        new Date();
+    const range = resolveDashboardRangeInTimeZone(
+        period,
+        anchor,
+        new Date(),
+        timezone
+    );
+    const params = new URLSearchParams({
+        from: dateParam(range.from, timezone),
+        to: dateParam(range.to, timezone)
+    });
+    return `/transactions?${params.toString()}`;
+}
+
+export function PeriodStateLink({
+    href,
+    timezone = 'UTC',
+    ...props
+}: PeriodStateLinkProps) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const targetPath = pathOnly(href);
     const shouldPreserve =
-        isPeriodStatePath(pathname) && isPeriodStatePath(targetPath);
+        periodSourcePaths.has(pathOnly(pathname)) &&
+        periodTargetPaths.has(targetPath);
 
     if (!shouldPreserve) {
         return <Link href={href} {...props} />;
+    }
+
+    if (targetPath === '/transactions') {
+        return (
+            <Link
+                href={transactionPeriodHref(searchParams, timezone)}
+                {...props}
+            />
+        );
     }
 
     const params = new URLSearchParams();
