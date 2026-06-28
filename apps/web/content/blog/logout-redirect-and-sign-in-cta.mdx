@@ -1,0 +1,36 @@
+---
+title: "Logout now returns to the public home page"
+slug: logout-redirect-and-sign-in-cta
+description: "xpenser now sends manual logout back to the public home page and adds clearer sign-in calls to action on the landing page."
+sourcePrNumber: "54"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/54"
+publishedAt: 2026-06-25
+updatedAt: 2026-06-25
+targetKeyword: "expense tracker sign in CTA"
+keywords:
+  - "open-source expense tracker"
+  - "personal finance app authentication"
+  - "public landing page"
+  - "self-hosted personal finance tracker"
+draft: false
+---
+
+The public authentication flow became clearer after logout and on the home page.
+
+This release came from [PR #54](https://github.com/cleverbrush/xpenser/pull/54) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Changed manual sign-out to redirect to /.
+- Added a Sign in CTA next to Create account in the landing hero.
+- Added a mobile header sign-in action and regression coverage.
+
+## Why it matters
+
+Users who sign out should land somewhere informative, not on a login-only dead end. Clear sign-in and create-account paths reduce confusion for returning visitors.
+
+## Where it fits
+
+This improves the public-to-authenticated transition for xpenser users.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

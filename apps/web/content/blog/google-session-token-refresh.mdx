@@ -1,0 +1,38 @@
+---
+title: "Google session token refresh for the web app"
+slug: google-session-token-refresh
+description: "xpenser fixed Google session expiry by refreshing the embedded API token from the trusted web session before protected calls fail."
+sourcePrNumber: "16"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/16"
+heroImage: "/blog/preferences-mcp-email.png"
+heroImageAlt: "xpenser preferences screen with MCP and email report settings"
+publishedAt: 2026-06-01
+updatedAt: 2026-06-01
+targetKeyword: "Google session personal finance app"
+keywords:
+  - "personal finance app authentication"
+  - "Google sign in"
+  - "self-hosted personal finance tracker"
+  - "open-source expense tracker"
+draft: false
+---
+
+Google sign-in sessions became more reliable for users who stay signed in across days.
+
+This release came from [PR #16](https://github.com/cleverbrush/xpenser/pull/16) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Added an internal session-token refresh endpoint.
+- Tracked API token expiry in Auth.js JWT handling.
+- Refreshed the API JWT before it expired or when it was missing expiry data.
+
+## Why it matters
+
+The browser session could still be valid while the nested API token expired. Refreshing that token prevents surprise logout behavior for normal app usage.
+
+## Where it fits
+
+This improves authenticated dashboard, transaction, and report access for hosted and self-hosted xpenser users.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

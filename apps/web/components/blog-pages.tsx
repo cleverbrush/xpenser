@@ -13,12 +13,14 @@ import {
     HomeIcon,
     TagIcon
 } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import {
     type BlogPost,
     blogPostPath,
     formatBlogDate,
+    getBlogPostImage,
     getBlogPostKeywords
 } from '@/lib/blog';
 import { blogIndexPage } from '@/lib/public-site';
@@ -95,6 +97,9 @@ export function BlogPostPage({
                             {post.description}
                         </p>
                         <BlogPostMeta post={post} />
+                        {post.heroImage ? (
+                            <BlogHeroImage post={post} variant="post" />
+                        ) : null}
                     </div>
                 </header>
 
@@ -119,7 +124,10 @@ export function BlogPostPage({
 
 function BlogPostCard({ post }: { readonly post: BlogPost }) {
     return (
-        <Card className="h-full">
+        <Card className="h-full overflow-hidden">
+            {post.heroImage ? (
+                <BlogHeroImage post={post} variant="card" />
+            ) : null}
             <CardHeader>
                 <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
                     <CalendarDaysIcon aria-hidden className="size-3.5" />
@@ -159,6 +167,38 @@ function BlogPostCard({ post }: { readonly post: BlogPost }) {
                 </Button>
             </CardContent>
         </Card>
+    );
+}
+
+function BlogHeroImage({
+    post,
+    variant
+}: {
+    readonly post: BlogPost;
+    readonly variant: 'card' | 'post';
+}) {
+    const image = getBlogPostImage(post);
+
+    return (
+        <div
+            className={
+                variant === 'card'
+                    ? 'relative aspect-[16/9] border-b bg-muted'
+                    : 'relative mt-8 aspect-[16/9] overflow-hidden rounded-lg border bg-background'
+            }
+        >
+            <Image
+                alt={image.alt}
+                className="object-cover"
+                fill
+                sizes={
+                    variant === 'card'
+                        ? '(min-width: 768px) 50vw, 100vw'
+                        : '(min-width: 768px) 768px, 100vw'
+                }
+                src={image.path}
+            />
+        </div>
     );
 }
 

@@ -1,0 +1,38 @@
+---
+title: "Fixed browser transaction scan progress"
+slug: transaction-scan-progress-fix
+description: "xpenser fixed browser image scan progress by replacing the unsupported proxy WebSocket path with same-origin HTTP polling."
+sourcePrNumber: "53"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/53"
+heroImage: "/blog/transactions.png"
+heroImageAlt: "xpenser transactions table with filters and editing workflow"
+publishedAt: 2026-06-24
+updatedAt: 2026-06-24
+targetKeyword: "transaction scan progress"
+keywords:
+  - "receipt image scanner"
+  - "transaction image scanning"
+  - "open-source expense tracker"
+  - "self-hosted personal finance tracker"
+draft: false
+---
+
+Browser transaction scanning now reports progress through a same-origin status endpoint instead of relying on a WebSocket path the proxy did not support.
+
+This release came from [PR #53](https://github.com/cleverbrush/xpenser/pull/53) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Added a public scan job status endpoint.
+- Added a web route that forwards browser polling requests to the API.
+- Kept the WebSocket subscription available for direct API clients and Telegram.
+
+## Why it matters
+
+The scan job could be created successfully, but the browser lost progress events. Polling keeps the user informed and avoids false connection errors.
+
+## Where it fits
+
+This makes the receipt and image scanning workflow more reliable inside the xpenser web app.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

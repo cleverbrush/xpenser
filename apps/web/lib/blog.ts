@@ -13,12 +13,27 @@ export type BlogPost = {
     readonly content: string;
     readonly description: string;
     readonly draft: boolean;
+    readonly heroImage: string | null;
+    readonly heroImageAlt: string | null;
     readonly keywords: readonly string[];
     readonly publishedAt: string;
     readonly slug: string;
+    readonly sourcePrNumber: number | null;
+    readonly sourcePrUrl: string | null;
     readonly targetKeyword: string;
     readonly title: string;
     readonly updatedAt: string | null;
+};
+
+export type BlogPostImage = {
+    readonly alt: string;
+    readonly path: string;
+    readonly url: string;
+};
+
+const defaultBlogImage = {
+    alt: 'xpenser personal finance app dashboard preview',
+    path: '/og-image.png'
 };
 
 const reader = createReader(getWebRoot(), keystaticConfig);
@@ -63,9 +78,13 @@ export async function getAllBlogPosts(): Promise<BlogPost[]> {
             content: await entry.content(),
             description: entry.description,
             draft: entry.draft,
+            heroImage: normalizeOptionalText(entry.heroImage),
+            heroImageAlt: normalizeOptionalText(entry.heroImageAlt),
             keywords: normalizeKeywords(entry.keywords),
             publishedAt: entry.publishedAt,
             slug: entry.slug || slug,
+            sourcePrNumber: normalizeOptionalNumber(entry.sourcePrNumber),
+            sourcePrUrl: normalizeOptionalText(entry.sourcePrUrl),
             targetKeyword: entry.targetKeyword,
             title: entry.title,
             updatedAt: entry.updatedAt
@@ -100,9 +119,24 @@ export async function getBlogPostSitemap(): Promise<MetadataRoute.Sitemap> {
     }));
 }
 
+export function getBlogPostImage(post: BlogPost): BlogPostImage {
+    const imagePath = post.heroImage ?? defaultBlogImage.path;
+    const alt =
+        post.heroImageAlt ??
+        (post.heroImage
+            ? `${post.title} screenshot from xpenser`
+            : defaultBlogImage.alt);
+
+    return {
+        alt,
+        path: imagePath,
+        url: publicUrl(imagePath)
+    };
+}
+
 export function createBlogPostMetadata(post: BlogPost): Metadata {
     const canonical = publicUrl(blogPostPath(post.slug));
-    const imageUrl = publicUrl('/og-image.png');
+    const image = getBlogPostImage(post);
     const title = `${post.title} | xpenser blog`;
 
     return {
@@ -123,10 +157,10 @@ export function createBlogPostMetadata(post: BlogPost): Metadata {
             tags: [...getBlogPostKeywords(post)],
             images: [
                 {
-                    url: imageUrl,
+                    url: image.url,
                     width: 1200,
                     height: 630,
-                    alt: 'xpenser personal finance app dashboard preview'
+                    alt: image.alt
                 }
             ]
         },
@@ -134,7 +168,7 @@ export function createBlogPostMetadata(post: BlogPost): Metadata {
             card: 'summary_large_image',
             title,
             description: post.description,
-            images: [imageUrl]
+            images: [image.url]
         }
     };
 }
@@ -160,7 +194,8 @@ export function createBlogIndexJsonLd(posts: readonly BlogPost[]): JsonLdData {
             '@type': 'BlogPosting',
             headline: post.title,
             url: publicUrl(blogPostPath(post.slug)),
-            datePublished: `${post.publishedAt}T00:00:00.000Z`
+            datePublished: `${post.publishedAt}T00:00:00.000Z`,
+            image: getBlogPostImage(post).url
         }))
     };
 }
@@ -180,7 +215,7 @@ export function createBlogPostJsonLd(post: BlogPost): JsonLdData {
         datePublished: `${post.publishedAt}T00:00:00.000Z`,
         dateModified: `${modifiedAt}T00:00:00.000Z`,
         keywords: getBlogPostKeywords(post),
-        image: publicUrl('/og-image.png'),
+        image: getBlogPostImage(post).url,
         author: {
             '@type': 'Organization',
             name: 'Cleverbrush',
@@ -213,4 +248,30 @@ function normalizeKeywords(keywords: readonly string[]): readonly string[] {
                 keyword.length > 0 &&
                 normalizedKeywords.indexOf(keyword) === index
         );
+}
+
+function normalizeOptionalText(
+    value: string | null | undefined
+): string | null {
+    const normalized = value?.trim();
+
+    return normalized ? normalized : null;
+}
+
+function normalizeOptionalNumber(
+    value: number | string | null | undefined
+): number | null {
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+    }
+
+    const normalized = value?.trim();
+
+    if (!normalized) {
+        return null;
+    }
+
+    const number = Number.parseInt(normalized, 10);
+
+    return Number.isFinite(number) ? number : null;
 }

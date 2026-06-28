@@ -1,0 +1,36 @@
+---
+title: "Google Tag Manager disabled in PR environments"
+slug: disable-gtm-in-pr-environments
+description: "xpenser added a DISABLE_GTM flag and set it for PR previews so validation traffic no longer emits production analytics events."
+sourcePrNumber: "57"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/57"
+publishedAt: 2026-06-25
+updatedAt: 2026-06-25
+targetKeyword: "disable GTM preview environments"
+keywords:
+  - "preview environment QA"
+  - "Google Tag Manager"
+  - "open-source expense tracker"
+  - "self-hosted personal finance tracker"
+draft: false
+---
+
+PR previews now disable Google Tag Manager by default so test traffic stays out of analytics.
+
+This release came from [PR #57](https://github.com/cleverbrush/xpenser/pull/57) and is now part of the xpenser release archive. It gives people evaluating an [open-source expense tracker](/open-source-expense-tracker) a clearer view of how the product has improved over time.
+
+## What changed
+
+- Added DISABLE_GTM configuration to the web app.
+- Forwarded the flag through Docker build and runtime settings.
+- Updated PR environment generation so future previews disable GTM automatically.
+
+## Why it matters
+
+Preview environments should be measurable for QA without polluting production analytics. An explicit flag keeps that behavior configurable.
+
+## Where it fits
+
+This is part of the deployment hygiene that keeps xpenser preview validation clean.
+
+For a broader product overview, start with the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp), while self-hosters can review the [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker) page.

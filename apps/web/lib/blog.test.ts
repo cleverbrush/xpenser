@@ -21,9 +21,9 @@ describe('blog helpers', () => {
             'markdown-blog-workflow'
         );
         expect(posts.every(post => !post.draft)).toBe(true);
-        expect(posts[0]?.content).toContain(
-            'xpenser now has a Markdown blog workflow'
-        );
+        expect(
+            posts.find(post => post.slug === 'markdown-blog-workflow')?.content
+        ).toContain('xpenser now has a Markdown blog workflow');
     });
 
     it('finds a published post by slug', async () => {
@@ -50,7 +50,10 @@ describe('blog helpers', () => {
     });
 
     it('builds canonical metadata and keywords for a post', () => {
-        const post = blogPost();
+        const post = blogPost({
+            heroImage: '/blog/sample.png',
+            heroImageAlt: 'Sample xpenser screenshot'
+        });
         const metadata = createBlogPostMetadata(post);
 
         expect(metadata.title).toBe(post.title);
@@ -62,10 +65,19 @@ describe('blog helpers', () => {
             'sample keyword',
             'open-source expense tracker'
         ]);
+        expect(metadata.openGraph?.images).toEqual([
+            expect.objectContaining({
+                alt: 'Sample xpenser screenshot',
+                url: 'https://xpenser.cleverbrush.com/blog/sample.png'
+            })
+        ]);
+        expect(metadata.twitter?.images).toEqual([
+            'https://xpenser.cleverbrush.com/blog/sample.png'
+        ]);
     });
 
     it('builds blog JSON-LD and sitemap entries', async () => {
-        const post = blogPost();
+        const post = blogPost({ heroImage: '/blog/sample.png' });
         const postJsonLd = createBlogPostJsonLd(post);
         const indexJsonLd = createBlogIndexJsonLd([post]);
         const sitemap = await getBlogPostSitemap();
@@ -74,6 +86,7 @@ describe('blog helpers', () => {
             expect.objectContaining({
                 '@type': 'BlogPosting',
                 headline: post.title,
+                image: 'https://xpenser.cleverbrush.com/blog/sample.png',
                 keywords: ['sample keyword', 'open-source expense tracker']
             })
         );
@@ -89,6 +102,22 @@ describe('blog helpers', () => {
         );
         expect(sitemap.map(entry => entry.url)).toContain(
             'https://xpenser.cleverbrush.com/blog/markdown-blog-workflow'
+        );
+    });
+
+    it('uses the default image for posts without a hero image', () => {
+        const metadata = createBlogPostMetadata(blogPost());
+        const jsonLd = createBlogPostJsonLd(blogPost());
+
+        expect(metadata.openGraph?.images).toEqual([
+            expect.objectContaining({
+                url: 'https://xpenser.cleverbrush.com/og-image.png'
+            })
+        ]);
+        expect(jsonLd).toEqual(
+            expect.objectContaining({
+                image: 'https://xpenser.cleverbrush.com/og-image.png'
+            })
         );
     });
 
@@ -110,9 +139,13 @@ function blogPost(overrides: Partial<BlogPost> = {}): BlogPost {
         description:
             'A sample blog post description with enough detail for metadata.',
         draft: false,
+        heroImage: null,
+        heroImageAlt: null,
         keywords: ['open-source expense tracker'],
         publishedAt: '2026-06-27',
         slug: 'sample-post',
+        sourcePrNumber: 59,
+        sourcePrUrl: 'https://github.com/cleverbrush/xpenser/pull/59',
         targetKeyword: 'sample keyword',
         title: 'Sample post',
         updatedAt: '2026-06-27',
