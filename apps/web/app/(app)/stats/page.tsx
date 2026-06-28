@@ -56,14 +56,17 @@ export default async function StatsPage({
     const anchorDate = selectedDate ?? new Date();
     const initialView = reportView(params.view);
     const initialTag = reportTag(params.tag);
-    const window = await client.stats.window({
-        query: {
-            after: 2,
-            before: 2,
-            period,
-            ...(selectedDate ? { date: selectedDate } : {})
-        }
-    });
+    const [currencies, window] = await Promise.all([
+        client.currencies.list(),
+        client.stats.window({
+            query: {
+                after: 2,
+                before: 2,
+                period,
+                ...(selectedDate ? { date: selectedDate } : {})
+            }
+        })
+    ]);
     const initialTagReport: StatsTagReport | null =
         initialView === 'tags'
             ? await client.stats.tags({
@@ -77,6 +80,9 @@ export default async function StatsPage({
 
     return (
         <StatsExplorer
+            currencies={currencies}
+            defaultCurrency={me.defaultCurrency}
+            favoriteCurrencies={me.favoriteCurrencies}
             initialDate={initialStatsDate(window, anchorDate, me.timezone)}
             initialPeriod={period}
             initialTag={initialTag}

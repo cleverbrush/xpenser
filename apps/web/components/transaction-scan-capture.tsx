@@ -72,6 +72,7 @@ import {
 } from '@/lib/category-display';
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
+import { hiddenAmountLabel, useAmountPrivacy } from './amount-privacy';
 import { CategoryForm } from './forms/category-form';
 import { QuickCaptureForm } from './quick-capture-form';
 import { TransactionTagPicker } from './transaction-tag-picker';
@@ -407,14 +408,21 @@ function confidenceLabel(value: string): string {
     return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }
 
-function savedSummary(transaction: Transaction, timezone: string) {
+function savedSummary(
+    transaction: Transaction,
+    timezone: string,
+    hideAmounts: boolean
+) {
     const vendor = transaction.vendorName ? `${transaction.vendorName} - ` : '';
-    return `${vendor}${transaction.categoryDisplayName} - ${formatTransactionMoney(
-        transaction.amount,
-        transaction.currency,
-        transaction.type,
-        transaction.categoryKind
-    )} - ${formatDateTime(transaction.occurredAt, timezone)}`;
+    const amount = hideAmounts
+        ? hiddenAmountLabel
+        : formatTransactionMoney(
+              transaction.amount,
+              transaction.currency,
+              transaction.type,
+              transaction.categoryKind
+          );
+    return `${vendor}${transaction.categoryDisplayName} - ${amount} - ${formatDateTime(transaction.occurredAt, timezone)}`;
 }
 
 function nextPendingIndex(
@@ -775,6 +783,7 @@ function ScanWizard({
     readonly vendors: readonly Vendor[];
 }) {
     const router = useRouter();
+    const { hideAmounts } = useAmountPrivacy();
     const transactionCategories = useMemo(
         () => transactionCategoryOptions(categories),
         [categories]
@@ -1333,7 +1342,11 @@ function ScanWizard({
                             <div className="rounded-md border px-3 py-2 text-sm">
                                 <p className="font-medium">Saved</p>
                                 <p className="truncate text-muted-foreground">
-                                    {savedSummary(lastSaved, timezone)}
+                                    {savedSummary(
+                                        lastSaved,
+                                        timezone,
+                                        hideAmounts
+                                    )}
                                 </p>
                             </div>
                         ) : null}

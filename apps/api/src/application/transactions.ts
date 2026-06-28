@@ -12,6 +12,7 @@ import type {
     StatsTagReportQuery,
     StatsWindowResponse,
     Transaction,
+    TransactionExportQuery,
     TransactionListQuery,
     TransactionScanImageResponse,
     TransactionTag
@@ -65,6 +66,7 @@ import { getVendor, VendorNotFoundError } from './vendors.js';
 
 export class TransactionNotFoundError extends Error {}
 export class TransactionCategoryError extends Error {}
+export class TransactionExportError extends Error {}
 
 type DashboardPeriod = NonNullable<DashboardSummary['period']>;
 
@@ -120,6 +122,28 @@ type StatsTimeframe = NonNullable<StatsQuery['timeframe']>;
 type StatsRange = {
     readonly from: Date;
     readonly to: Date;
+};
+
+type TransactionFilterQuery = Pick<
+    TransactionListQuery,
+    | 'categoryId'
+    | 'direction'
+    | 'from'
+    | 'parentCategoryId'
+    | 'search'
+    | 'tagIds'
+    | 'to'
+    | 'type'
+    | 'untagged'
+    | 'vendorId'
+>;
+
+type FilteredTransactionRows = {
+    readonly categoriesById: ReadonlyMap<number, CategoryDb>;
+    readonly rows: readonly TransactionDb[];
+    readonly tagsByTransaction: ReadonlyMap<number, readonly TransactionTag[]>;
+    readonly tagsLoadedForAllRows: boolean;
+    readonly vendorsById: ReadonlyMap<number, VendorDb>;
 };
 
 type CategoryTrendBucket = CategoryTrendResponse['trend'][number];
@@ -273,6 +297,16 @@ async function loadVendorsById(
     )) as VendorDb[];
 
     return new Map(vendors.map(vendor => [vendor.id, vendor] as const));
+}
+
+async function loadFavoriteCurrencies(
+    db: AppDb,
+    userId: number
+): Promise<string[]> {
+    const rows = await db.favoriteCurrencies
+        .where(currency => currency.userId, userId)
+        .orderBy(currency => currency.currency, 'asc');
+    return rows.map(row => row.currency);
 }
 
 function categoryFields(
@@ -599,14 +633,13 @@ async function validateVendor(
     }
 }
 
-export async function listTransactions(
+async function filteredTransactionRows(
     db: AppDb,
     userId: number,
-    query: TransactionListQuery,
-    knex?: Knex
-) {
-    const page = Math.max(1, query.page ?? 1);
-    const limit = Math.min(100, Math.max(1, query.limit ?? 50));
+    query: TransactionFilterQuery,
+    knex: Knex | undefined,
+    options: { readonly includeTagsForAllRows?: boolean } = {}
+): Promise<FilteredTransactionRows> {
     let builder = db.transactions
         .include(transaction => transaction.category)
         .where(transaction => transaction.userId, userId);
@@ -649,7 +682,10 @@ export async function listTransactions(
     const search = query.search?.trim().toLowerCase();
     const tagIds = transactionTagIds(query.tagIds);
     const needsAllTagData =
-        Boolean(search) || tagIds.length > 0 || query.untagged === true;
+        Boolean(search) ||
+        tagIds.length > 0 ||
+        query.untagged === true ||
+        options.includeTagsForAllRows === true;
     const allTagsByTransaction = needsAllTagData
         ? await transactionTagsByTransaction(
               knex ?? db.knex,
@@ -740,6 +776,31 @@ export async function listTransactions(
                 transaction.note?.toLowerCase().includes(search)
             );
         });
+
+    return {
+        categoriesById,
+        rows: filtered,
+        tagsByTransaction: allTagsByTransaction,
+        tagsLoadedForAllRows: needsAllTagData,
+        vendorsById
+    };
+}
+
+export async function listTransactions(
+    db: AppDb,
+    userId: number,
+    query: TransactionListQuery,
+    knex?: Knex
+) {
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(100, Math.max(1, query.limit ?? 50));
+    const {
+        categoriesById,
+        rows: filtered,
+        tagsByTransaction,
+        tagsLoadedForAllRows,
+        vendorsById
+    } = await filteredTransactionRows(db, userId, query, knex);
     const offset = (page - 1) * limit;
     const pageRows = filtered.slice(offset, offset + limit) as TransactionDb[];
     const scanAttachments = await scanAttachmentsByTransaction(
@@ -747,8 +808,8 @@ export async function listTransactions(
         userId,
         pageRows.map(transaction => transaction.id)
     );
-    const pageTagsByTransaction = needsAllTagData
-        ? allTagsByTransaction
+    const pageTagsByTransaction = tagsLoadedForAllRows
+        ? tagsByTransaction
         : await transactionTagsByTransaction(
               knex ?? db.knex,
               userId,
@@ -768,6 +829,289 @@ export async function listTransactions(
         total: filtered.length,
         page,
         limit
+    };
+}
+
+function exportCurrencies(value: string): string[] {
+    return [
+        ...new Set(
+            value
+                .split(',')
+                .map(currency => currency.trim().toUpperCase())
+                .filter(currency => /^[A-Z]{3}$/.test(currency))
+        )
+    ];
+}
+
+function csvCell(value: Date | number | string | null | undefined): string {
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    const text = value instanceof Date ? value.toISOString() : String(value);
+    return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function csvLine(
+    values: readonly (Date | number | string | null | undefined)[]
+): string {
+    return values.map(csvCell).join(',');
+}
+
+function signedExportAmount(value: number, type: 'expense' | 'income'): number {
+    return type === 'expense' ? -Math.abs(value) : Math.abs(value);
+}
+
+function exportFileName(now = new Date()): string {
+    return `xpenser-transactions-${now.toISOString().slice(0, 10)}.csv`;
+}
+
+type ExportRateRequest = {
+    readonly base: string;
+    readonly date: string;
+    readonly key: string;
+    readonly quote: string;
+};
+
+async function mapWithConcurrency<T>(
+    items: readonly T[],
+    concurrency: number,
+    mapper: (item: T) => Promise<void>
+): Promise<void> {
+    let index = 0;
+    const workerCount = Math.min(Math.max(1, concurrency), items.length);
+    await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+            for (;;) {
+                const item = items[index];
+                index += 1;
+                if (item === undefined) {
+                    return;
+                }
+                await mapper(item);
+            }
+        })
+    );
+}
+
+async function exportCurrencyRates(
+    db: AppDb,
+    config: Config,
+    transactions: readonly Transaction[],
+    currencies: readonly string[],
+    timezone: string
+): Promise<ReadonlyMap<string, number>> {
+    const requests = new Map<string, ExportRateRequest>();
+
+    for (const transaction of transactions) {
+        const date = transactionDate(transaction.occurredAt, timezone);
+        const base = transaction.currency.trim().toUpperCase();
+        for (const quoteCurrency of currencies) {
+            const quote = quoteCurrency.trim().toUpperCase();
+            if (base === quote) {
+                continue;
+            }
+
+            const key = `${base}:${quote}:${date}`;
+            if (!requests.has(key)) {
+                requests.set(key, { base, date, key, quote });
+            }
+        }
+    }
+
+    const rates = new Map<string, number>();
+    await mapWithConcurrency([...requests.values()], 4, async request => {
+        const exchange = await getExchangeRate(
+            db,
+            config,
+            request.base,
+            request.quote,
+            request.date
+        );
+        rates.set(request.key, exchange.rate);
+    });
+
+    return rates;
+}
+
+function convertedExportAmount(
+    transaction: Transaction,
+    currency: string,
+    rates: ReadonlyMap<string, number>,
+    timezone: string
+): number {
+    const base = transaction.currency.trim().toUpperCase();
+    const quote = currency.trim().toUpperCase();
+    if (base === quote) {
+        return signedExportAmount(
+            Math.abs(transaction.amount),
+            transaction.type
+        );
+    }
+
+    const rateDate = transactionDate(transaction.occurredAt, timezone);
+    const rate = rates.get(`${base}:${quote}:${rateDate}`);
+    if (rate === undefined) {
+        throw new TransactionExportError(
+            `Missing ${base}/${quote} exchange rate for ${rateDate}.`
+        );
+    }
+
+    return signedExportAmount(
+        convertAmount(Math.abs(transaction.amount), rate),
+        transaction.type
+    );
+}
+
+function transactionCsvRows(
+    transactions: readonly Transaction[],
+    currencies: readonly string[],
+    rates: ReadonlyMap<string, number>,
+    timezone: string
+): string {
+    const headers = [
+        'id',
+        'occurred_at',
+        'type',
+        'category_id',
+        'category_name',
+        'category_display_name',
+        'category_parent_id',
+        'category_parent_name',
+        'category_kind',
+        'vendor_id',
+        'vendor_name',
+        'tag_ids',
+        'tags',
+        'note',
+        'amount',
+        'signed_amount',
+        'currency',
+        'default_currency_amount',
+        'default_currency',
+        'exchange_rate',
+        'exchange_rate_date',
+        'scan_id',
+        'scan_item_id',
+        'scan_file_name',
+        'scan_mime_type',
+        'scan_size_bytes',
+        'created_at',
+        'updated_at',
+        ...currencies.map(currency => `amount_${currency}`)
+    ];
+
+    const lines = [csvLine(headers)];
+    for (const transaction of transactions) {
+        lines.push(
+            csvLine([
+                transaction.id,
+                transaction.occurredAt,
+                transaction.type,
+                transaction.categoryId,
+                transaction.categoryName,
+                transaction.categoryDisplayName,
+                transaction.categoryParentId,
+                transaction.categoryParentName,
+                transaction.categoryKind,
+                transaction.vendorId,
+                transaction.vendorName,
+                transaction.tags.map(tag => tag.id).join('; '),
+                transaction.tags.map(tag => tag.name).join('; '),
+                transaction.note,
+                transaction.amount,
+                signedExportAmount(transaction.amount, transaction.type),
+                transaction.currency,
+                signedExportAmount(
+                    transaction.defaultCurrencyAmount,
+                    transaction.type
+                ),
+                transaction.defaultCurrency,
+                transaction.exchangeRate,
+                transaction.exchangeRateDate,
+                transaction.scanAttachment?.scanId,
+                transaction.scanAttachment?.scanItemId,
+                transaction.scanAttachment?.fileName,
+                transaction.scanAttachment?.mimeType,
+                transaction.scanAttachment?.sizeBytes,
+                transaction.createdAt,
+                transaction.updatedAt,
+                ...currencies.map(currency =>
+                    convertedExportAmount(
+                        transaction,
+                        currency,
+                        rates,
+                        timezone
+                    )
+                )
+            ])
+        );
+    }
+
+    return `${lines.join('\n')}\n`;
+}
+
+export async function exportTransactionsCsv(
+    db: AppDb,
+    config: Config,
+    userId: number,
+    query: TransactionExportQuery,
+    knex?: Knex
+): Promise<{ readonly csv: string; readonly fileName: string }> {
+    const [user, favorites] = await Promise.all([
+        getUser(db, userId),
+        loadFavoriteCurrencies(db, userId)
+    ]);
+    const allowedCurrencies = new Set(
+        [user.defaultCurrency, ...favorites].map(currency =>
+            currency.trim().toUpperCase()
+        )
+    );
+    const currencies = exportCurrencies(query.currencies);
+    if (currencies.length === 0) {
+        throw new TransactionExportError(
+            'Select at least one currency to export.'
+        );
+    }
+
+    const disallowed = currencies.filter(
+        currency => !allowedCurrencies.has(currency)
+    );
+    if (disallowed.length > 0) {
+        throw new TransactionExportError(
+            'Exports can include only your default and favorite currencies.'
+        );
+    }
+
+    const { categoriesById, rows, tagsByTransaction, vendorsById } =
+        await filteredTransactionRows(db, userId, query, knex, {
+            includeTagsForAllRows: true
+        });
+    const scanAttachments = await scanAttachmentsByTransaction(
+        knex,
+        userId,
+        rows.map(transaction => transaction.id)
+    );
+    const transactions = rows.map(transaction =>
+        mapTransaction(
+            transaction,
+            categoriesById,
+            vendorsById,
+            scanAttachments,
+            tagsByTransaction
+        )
+    );
+    const rates = await exportCurrencyRates(
+        db,
+        config,
+        transactions,
+        currencies,
+        user.timezone
+    );
+
+    return {
+        csv: transactionCsvRows(transactions, currencies, rates, user.timezone),
+        fileName: exportFileName()
     };
 }
 

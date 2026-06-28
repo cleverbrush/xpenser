@@ -14,8 +14,12 @@ vi.mock('next/navigation', () => ({
     useSearchParams: () => searchParams
 }));
 
-function renderLink(href: string) {
-    render(<PeriodStateLink href={href}>Destination</PeriodStateLink>);
+function renderLink(href: string, timezone = 'UTC') {
+    render(
+        <PeriodStateLink href={href} timezone={timezone}>
+            Destination
+        </PeriodStateLink>
+    );
     return screen.getByRole('link', { name: 'Destination' });
 }
 
@@ -87,6 +91,31 @@ describe('PeriodStateLink', () => {
 
         expect(renderLink('/stats').getAttribute('href')).toBe(
             '/stats?period=week&date=2026-05-11'
+        );
+    });
+
+    it('maps the selected dashboard period to transaction date filters', () => {
+        pathname = '/dashboard';
+        searchParams = new URLSearchParams({
+            date: '2026-05-11',
+            period: 'month'
+        });
+
+        expect(renderLink('/transactions').getAttribute('href')).toBe(
+            '/transactions?from=2026-05-01&to=2026-05-31'
+        );
+    });
+
+    it('maps the selected report period to transaction date filters', () => {
+        pathname = '/stats';
+        searchParams = new URLSearchParams({
+            date: '2026-05-13',
+            period: 'week',
+            view: 'tags'
+        });
+
+        expect(renderLink('/transactions').getAttribute('href')).toBe(
+            '/transactions?from=2026-05-11&to=2026-05-17'
         );
     });
 

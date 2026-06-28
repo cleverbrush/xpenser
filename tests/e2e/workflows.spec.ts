@@ -441,17 +441,19 @@ test.describe('authenticated app workflows', () => {
             'aria-selected',
             'true'
         );
+        const meTagLink = page
+            .getByRole('link')
+            .filter({ hasText: meTag })
+            .first();
+        await expect(meTagLink).toBeVisible({ timeout: 15_000 });
         await expect(
-            page.getByRole('link', { name: new RegExp(meTag) })
-        ).toBeVisible({ timeout: 15_000 });
-        await expect(
-            page.getByRole('link', { name: new RegExp(wifeTag) })
+            page.getByRole('link').filter({ hasText: wifeTag }).first()
         ).toBeVisible();
         await expect(
-            page.getByRole('link', { name: /Untagged/ })
+            page.getByRole('link').filter({ hasText: 'Untagged' }).first()
         ).toBeVisible();
 
-        await page.getByRole('link', { name: new RegExp(meTag) }).click();
+        await meTagLink.click();
         await expect(page).toHaveURL(url => {
             return (
                 url.pathname === '/stats' &&

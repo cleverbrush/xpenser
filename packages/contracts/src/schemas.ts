@@ -1482,6 +1482,83 @@ export const TransactionListQuerySchema = object({
     )
 }).schemaName('TransactionListQuery');
 
+export const TransactionExportQuerySchema = object({
+    /** Full text search applied to category name and note. */
+    search: string()
+        .optional()
+        .maxLength(
+            FieldLimits.transactionSearch,
+            'transaction search query is too long'
+        )
+        .describe('Full text search applied to category name and note.'),
+    /** Filter by transaction direction. */
+    type: CategoryTypeSchema.optional().describe(
+        'Filter by transaction direction.'
+    ),
+    /** Filter by category identifier. */
+    categoryId: number()
+        .coerce()
+        .optional()
+        .describe('Filter by category identifier.'),
+    /** Filter by a parent category and its direct children. */
+    parentCategoryId: number()
+        .coerce()
+        .optional()
+        .describe('Filter by a parent category and its direct children.'),
+    /** Filter by vendor identifier, or "none" for transactions without a vendor. */
+    vendorId: union(number().coerce())
+        .or(string('none'))
+        .optional()
+        .describe(
+            'Filter by vendor identifier, or "none" for transactions without a vendor.'
+        ),
+    /** Comma-separated tag identifiers. Matches transactions with every selected tag. */
+    tagIds: string()
+        .optional()
+        .maxLength(
+            FieldLimits.transactionSearch,
+            'transaction tag filters are too long'
+        )
+        .matches(
+            /^\d+(?:,\d+)*$/,
+            'tag filters must be comma-separated tag ids'
+        )
+        .describe(
+            'Comma-separated tag identifiers. Matches transactions with every selected tag.'
+        ),
+    /** True to match expense or income transactions without tags. */
+    untagged: boolean()
+        .coerce()
+        .optional()
+        .describe('True to match transactions without tags.'),
+    /** Inclusive start date for transaction occurrence. */
+    from: date()
+        .coerce()
+        .optional()
+        .describe('Inclusive start date for transaction occurrence.'),
+    /** Inclusive end date for transaction occurrence. */
+    to: date()
+        .coerce()
+        .optional()
+        .describe('Inclusive end date for transaction occurrence.'),
+    /** Sort direction by occurrence date. */
+    direction: SortDirectionSchema.default('desc').describe(
+        'Sort direction by occurrence date.'
+    ),
+    /** Comma-separated ISO currencies to include as amount columns. */
+    currencies: string()
+        .required('export currencies are required')
+        .nonempty('export currencies are required')
+        .maxLength(200, 'export currency list is too long')
+        .matches(
+            /^[A-Z]{3}(?:,[A-Z]{3})*$/,
+            'export currencies must be comma-separated ISO currency codes'
+        )
+        .describe(
+            'Comma-separated ISO currencies to include as amount columns.'
+        )
+}).schemaName('TransactionExportQuery');
+
 export const TransactionListResponseSchema = object({
     /** Current page of transactions. */
     items: array(TransactionSchema).describe('Current page of transactions.'),
@@ -2616,6 +2693,9 @@ export type CreateTransactionBody = InferType<
     typeof CreateTransactionBodySchema
 >;
 export type TransactionListQuery = InferType<typeof TransactionListQuerySchema>;
+export type TransactionExportQuery = InferType<
+    typeof TransactionExportQuerySchema
+>;
 export type TransactionScanBody = InferType<typeof TransactionScanBodySchema>;
 export type TransactionScanResponse = InferType<
     typeof TransactionScanResponseSchema

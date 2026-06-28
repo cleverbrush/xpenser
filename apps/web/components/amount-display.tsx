@@ -4,6 +4,7 @@ import type { ComponentPropsWithoutRef } from 'react';
 import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatAmount, formatMoney } from '@/lib/format';
+import { hiddenAmountLabel, useAmountPrivacy } from './amount-privacy';
 
 type AmountDisplayProps = ComponentPropsWithoutRef<'span'> & {
     readonly value: number;
@@ -26,6 +27,7 @@ export function AmountDisplay({
     value,
     ...props
 }: AmountDisplayProps) {
+    const { hideAmounts } = useAmountPrivacy();
     const tooltipId = useId();
     const amountRef = useRef<HTMLSpanElement>(null);
     const [tooltipPosition, setTooltipPosition] =
@@ -35,7 +37,7 @@ export function AmountDisplay({
         compactThreshold
     });
     const exact = formatMoney(value, currency);
-    const hasExactTooltip = formatted !== exact;
+    const hasExactTooltip = !hideAmounts && formatted !== exact;
     function showTooltip() {
         if (!hasExactTooltip) {
             return;
@@ -65,9 +67,9 @@ export function AmountDisplay({
                 onMouseEnter={showTooltip}
                 onMouseLeave={hideTooltip}
                 ref={amountRef}
-                title={title}
+                title={hideAmounts ? 'Amounts hidden' : title}
             >
-                {formatted}
+                {hideAmounts ? hiddenAmountLabel : formatted}
             </span>
             {hasExactTooltip && tooltipPosition
                 ? createPortal(

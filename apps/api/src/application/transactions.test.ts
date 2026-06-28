@@ -11,6 +11,7 @@ import {
     compareTransactionsByOccurrenceDesc,
     dashboardStatsGroupBy,
     dashboardSummary,
+    exportTransactionsCsv,
     getTransactionScanImage,
     percentChange,
     resolveCategoryTrendRange,
@@ -22,6 +23,7 @@ import {
     summarizeCategoryTrendRows,
     summarizeDashboardRows,
     TransactionCategoryError,
+    TransactionExportError,
     TransactionNotFoundError,
     transactionSignedDefaultAmount
 } from './transactions.js';
@@ -749,6 +751,255 @@ describe('transaction scan images', () => {
         await expect(
             getTransactionScanImage(vi.fn(() => query) as never, 1, 42)
         ).rejects.toBeInstanceOf(TransactionNotFoundError);
+    });
+});
+
+describe('transaction CSV export', () => {
+    const timestamp = new Date('2026-05-10T12:00:00.000Z');
+    const category = {
+        id: 1,
+        userId: 1,
+        name: 'Meals',
+        type: 'expense',
+        parentId: null,
+        kind: 'normal',
+        createdAt: timestamp,
+        updatedAt: timestamp
+    } as const satisfies CategoryDb;
+    const vendor = {
+        id: 3,
+        userId: 1,
+        name: 'Cafe',
+        normalizedName: 'cafe',
+        domain: null,
+        logoUrl: null,
+        primaryColor: null,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    } as const satisfies VendorDb;
+    const tags = [
+        {
+            id: 10,
+            userId: 1,
+            name: 'Food',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        },
+        {
+            id: 11,
+            userId: 1,
+            name: 'Travel',
+            createdAt: timestamp,
+            updatedAt: timestamp
+        }
+    ] as const;
+    const tagLinks = [
+        { transactionId: 1, tagId: 10 },
+        { transactionId: 1, tagId: 11 }
+    ] as const;
+    const transaction = {
+        id: 1,
+        userId: 1,
+        categoryId: category.id,
+        vendorId: vendor.id,
+        type: 'expense',
+        amount: '10',
+        currency: 'USD',
+        defaultCurrencyAmount: '10',
+        defaultCurrency: 'USD',
+        exchangeRate: '1',
+        exchangeRateDate: '2026-05-10',
+        occurredAt: timestamp,
+        note: 'Dinner, friend',
+        createdAt: timestamp,
+        updatedAt: timestamp
+    } as const satisfies TransactionDb;
+
+    function exportDb(): AppDb {
+        let orderCalls = 0;
+        const transactionQuery = {
+            where: vi.fn(
+                (
+                    _field: unknown,
+                    operatorOrValue: unknown,
+                    value?: unknown
+                ) => {
+                    void operatorOrValue;
+                    void value;
+                    return transactionQuery;
+                }
+            ),
+            orderBy: vi.fn(() => {
+                orderCalls += 1;
+                return orderCalls === 2
+                    ? Promise.resolve([transaction])
+                    : transactionQuery;
+            })
+        };
+        const exchangeQuery = {
+            where: vi.fn(() => exchangeQuery),
+            first: vi.fn(async () => ({
+                baseCurrency: 'USD',
+                quoteCurrency: 'EUR',
+                rateDate: '2026-05-10',
+                rate: '2'
+            }))
+        };
+
+        return {
+            users: {
+                find: vi.fn(async () => ({
+                    id: 1,
+                    defaultCurrency: 'USD',
+                    timezone: 'UTC'
+                }))
+            },
+            favoriteCurrencies: {
+                where: vi.fn(() => ({
+                    orderBy: vi.fn(async () => [{ currency: 'EUR' }])
+                }))
+            },
+            transactions: {
+                include: vi.fn(() => transactionQuery)
+            },
+            categories: {
+                where: vi.fn(async () => [category])
+            },
+            vendors: {
+                where: vi.fn(async () => [vendor])
+            },
+            exchangeRates: {
+                where: vi.fn(() => exchangeQuery)
+            }
+        } as unknown as AppDb;
+    }
+
+    function exportKnex() {
+        return vi.fn((table: string) => {
+            if (table === 'transaction_tag_links as link') {
+                const query = {
+                    transactionIds: [] as number[],
+                    join: () => query,
+                    where: () => query,
+                    whereIn: (_field: string, ids: readonly number[]) => {
+                        query.transactionIds = [...ids];
+                        return query;
+                    },
+                    orderBy: () => query,
+                    select: () =>
+                        Promise.resolve(
+                            tagLinks
+                                .filter(link =>
+                                    query.transactionIds.includes(
+                                        link.transactionId
+                                    )
+                                )
+                                .flatMap(link => {
+                                    const tag = tags.find(
+                                        candidate => candidate.id === link.tagId
+                                    );
+                                    return tag
+                                        ? [
+                                              {
+                                                  transactionId:
+                                                      link.transactionId,
+                                                  id: tag.id,
+                                                  name: tag.name,
+                                                  createdAt: tag.createdAt,
+                                                  updatedAt: tag.updatedAt
+                                              }
+                                          ]
+                                        : [];
+                                })
+                        )
+                };
+                return query;
+            }
+            if (table === 'transaction_tag_links') {
+                const query = {
+                    tagIds: [] as number[],
+                    whereIn: (_field: string, ids: readonly number[]) => {
+                        query.tagIds = [...ids];
+                        return query;
+                    },
+                    groupBy: () => query,
+                    select: () => query,
+                    count: () =>
+                        Promise.resolve(
+                            query.tagIds.map(tagId => ({
+                                tagId,
+                                transactionCount: tagLinks.filter(
+                                    link => link.tagId === tagId
+                                ).length
+                            }))
+                        )
+                };
+                return query;
+            }
+            if (table === 'transaction_scan_items as item') {
+                const query = {
+                    join: () => query,
+                    where: () => query,
+                    whereIn: () => query,
+                    orderBy: () => query,
+                    select: () =>
+                        Promise.resolve([
+                            {
+                                transactionId: transaction.id,
+                                scanId: 50,
+                                scanItemId: 60,
+                                fileName: 'receipt.png',
+                                mimeType: 'image/png',
+                                sizeBytes: '2048',
+                                createdAt: timestamp
+                            }
+                        ])
+                };
+                return query;
+            }
+            throw new Error(`Unexpected table ${table}`);
+        });
+    }
+
+    it('exports filtered transaction rows with selected currency columns', async () => {
+        const exported = await exportTransactionsCsv(
+            exportDb(),
+            {
+                frankfurter: { baseUrl: 'https://frankfurter.example.test' }
+            } as never,
+            1,
+            {
+                currencies: 'USD,EUR',
+                direction: 'desc',
+                from: new Date('2026-05-01T00:00:00.000Z'),
+                to: new Date('2026-05-31T23:59:59.999Z')
+            },
+            exportKnex() as never
+        );
+
+        expect(exported.fileName).toMatch(
+            /^xpenser-transactions-\d{4}-\d{2}-\d{2}\.csv$/
+        );
+        expect(exported.csv.split('\n')[0]).toContain('amount_USD,amount_EUR');
+        expect(exported.csv).toContain('"Dinner, friend"');
+        expect(exported.csv).toContain(',10,-10,USD,-10,USD,1,2026-05-10,');
+        expect(exported.csv).toContain(',50,60,receipt.png,image/png,2048,');
+        expect(exported.csv).toContain(',10; 11,Food; Travel,');
+        expect(exported.csv.trimEnd()).toMatch(/,-10,-20$/);
+    });
+
+    it('rejects currencies outside the default and favorite set', async () => {
+        await expect(
+            exportTransactionsCsv(
+                exportDb(),
+                {
+                    frankfurter: { baseUrl: 'https://frankfurter.example.test' }
+                } as never,
+                1,
+                { currencies: 'JPY', direction: 'desc' },
+                exportKnex() as never
+            )
+        ).rejects.toBeInstanceOf(TransactionExportError);
     });
 });
 

@@ -12,7 +12,7 @@ import { MobileTabBar } from './mobile-tab-bar';
 import { PeriodStateLink } from './period-state-link';
 import { ThemeToggle } from './theme-toggle';
 
-export function AppNav() {
+export function AppNav({ timezone }: { readonly timezone: string }) {
     return (
         <>
             <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
@@ -22,12 +22,18 @@ export function AppNav() {
                     </Link>
                     <nav className="hidden items-center gap-2 text-sm sm:flex">
                         <Button asChild size="sm" variant="ghost">
-                            <PeriodStateLink href="/dashboard">
+                            <PeriodStateLink
+                                href="/dashboard"
+                                timezone={timezone}
+                            >
                                 Dashboard
                             </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <PeriodStateLink href="/vendors">
+                            <PeriodStateLink
+                                href="/vendors"
+                                timezone={timezone}
+                            >
                                 <StoreIcon aria-hidden className="size-4" />
                                 Vendors
                             </PeriodStateLink>
@@ -42,10 +48,15 @@ export function AppNav() {
                             </Link>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <Link href="/transactions">Transactions</Link>
+                            <PeriodStateLink
+                                href="/transactions"
+                                timezone={timezone}
+                            >
+                                Transactions
+                            </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <PeriodStateLink href="/stats">
+                            <PeriodStateLink href="/stats" timezone={timezone}>
                                 Reports
                             </PeriodStateLink>
                         </Button>
@@ -97,7 +108,7 @@ export function AppNav() {
                     </div>
                 </div>
             </header>
-            <MobileTabBar />
+            <MobileTabBar timezone={timezone} />
         </>
     );
 }

@@ -327,6 +327,16 @@ export const ListTransactionsEndpoint = api.transactions.list
     .tags('transactions')
     .operationId('listTransactions');
 
+export const ExportTransactionsCsvEndpoint = api.transactions.exportCsv
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken, knex: KnexToken })
+    .summary('Export transactions CSV')
+    .description(
+        'Exports matching transactions to CSV with selected currency amount columns.'
+    )
+    .tags('transactions')
+    .operationId('exportTransactionsCsv');
+
 export const CreateTransactionEndpoint = api.transactions.create
     .authorize(PrincipalSchema)
     .inject({ db: DbToken, config: ConfigToken, logger: LoggerToken })
@@ -519,6 +529,7 @@ export const endpoints = {
     },
     transactions: {
         list: ListTransactionsEndpoint,
+        exportCsv: ExportTransactionsCsvEndpoint,
         create: CreateTransactionEndpoint,
         update: UpdateTransactionEndpoint,
         delete: DeleteTransactionEndpoint,

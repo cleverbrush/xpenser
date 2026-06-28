@@ -51,6 +51,7 @@ import {
     dashboardSummaryHandler,
     dashboardWindowHandler,
     deleteTransactionHandler,
+    exportTransactionsCsvHandler,
     getTransactionScanImageHandler,
     listTransactionsHandler,
     statsOverviewHandler,
@@ -122,6 +123,7 @@ export const handlers = {
     },
     transactions: {
         list: listTransactionsHandler,
+        exportCsv: exportTransactionsCsvHandler,
         create: createTransactionHandler,
         update: updateTransactionHandler,
         delete: deleteTransactionHandler,

@@ -49,6 +49,7 @@ import {
     TelegramConnectionStatusSchema,
     TelegramTokenBodySchema,
     TokenResponseSchema,
+    TransactionExportQuerySchema,
     TransactionListQuerySchema,
     TransactionListResponseSchema,
     TransactionScanBodySchema,
@@ -86,6 +87,7 @@ const TransactionScanDecision = route({
 })`/${t => t.scanId}/items/${t => t.itemId}/decision`;
 const TransactionScanJobs = route`/jobs`;
 const TransactionScanJobStatus = route`/jobs/status`;
+const TransactionExportCsv = route`/export.csv`;
 const TransactionScanImage = route({ id: number().coerce() })`/${t =>
     t.id}/scan-image`;
 const categories = endpoint
@@ -436,6 +438,11 @@ export const api = defineApi({
             .query(TransactionListQuerySchema)
             .cacheTag('transactions')
             .responses({ 200: TransactionListResponseSchema }),
+        exportCsv: transactions
+            .get(TransactionExportCsv)
+            .query(TransactionExportQuerySchema)
+            .cacheTag('transactions')
+            .producesFile('text/csv', 'Transaction CSV export'),
         create: transactions
             .post()
             .body(CreateTransactionBodySchema)

@@ -1,11 +1,23 @@
 'use client';
 
 import type { Currency } from '@xpenser/contracts';
-import { Button, cn } from '@xpenser/ui';
+import {
+    Button,
+    cn,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle
+} from '@xpenser/ui';
 import {
     CheckIcon,
     ChevronDownIcon,
     ChevronRightIcon,
+    DownloadIcon,
+    EyeIcon,
+    EyeOffIcon,
     SettingsIcon
 } from 'lucide-react';
 import Link from 'next/link';
@@ -16,10 +28,15 @@ import {
     parseDateParam,
     periodHref
 } from '@/lib/dashboard-periods';
+import { useAmountPrivacy } from './amount-privacy';
 
 export type DashboardViewExpansionAction = {
     readonly allExpanded: boolean;
     readonly onToggle: () => void;
+};
+
+export type DashboardViewExportAction = {
+    readonly href: string;
 };
 
 export function DashboardViewSettingsMenu({
@@ -31,7 +48,9 @@ export function DashboardViewSettingsMenu({
     favoriteCurrencies,
     period,
     selectedCurrency,
-    timezone
+    showCurrencySelector = true,
+    timezone,
+    exportAction
 }: {
     readonly basePath: string;
     readonly currencies: readonly Currency[];
@@ -41,11 +60,15 @@ export function DashboardViewSettingsMenu({
     readonly favoriteCurrencies: readonly string[];
     readonly period: DashboardPeriod;
     readonly selectedCurrency: string;
+    readonly showCurrencySelector?: boolean;
     readonly timezone: string;
+    readonly exportAction?: DashboardViewExportAction;
 }) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const { hideAmounts, toggleHideAmounts } = useAmountPrivacy();
     const [open, setOpen] = useState(false);
     const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const defaultCurrencyCode = defaultCurrency.trim().toUpperCase();
     const selectedCurrencyCode = selectedCurrency.trim().toUpperCase();
     const anchorDate = useMemo(
@@ -61,6 +84,17 @@ export function DashboardViewSettingsMenu({
             ),
         [currencies, defaultCurrency, favoriteCurrencies]
     );
+    const defaultExportCurrencies = useMemo(() => {
+        const selected = currencyOptions.some(
+            currency => currency.code === selectedCurrencyCode
+        )
+            ? selectedCurrencyCode
+            : defaultCurrencyCode;
+        return [selected];
+    }, [currencyOptions, defaultCurrencyCode, selectedCurrencyCode]);
+    const [selectedExportCurrencies, setSelectedExportCurrencies] = useState<
+        readonly string[]
+    >(defaultExportCurrencies);
 
     const closeMenu = useCallback(() => {
         setOpen(false);
@@ -72,6 +106,12 @@ export function DashboardViewSettingsMenu({
             setCurrencyMenuOpen(false);
         }
     }, [open]);
+
+    useEffect(() => {
+        if (exportDialogOpen) {
+            setSelectedExportCurrencies(defaultExportCurrencies);
+        }
+    }, [defaultExportCurrencies, exportDialogOpen]);
 
     useEffect(() => {
         if (!open) {
@@ -115,124 +155,256 @@ export function DashboardViewSettingsMenu({
         closeMenu();
     }
 
+    function openExportDialog() {
+        setExportDialogOpen(true);
+        closeMenu();
+    }
+
+    function toggleExportCurrency(currency: string) {
+        setSelectedExportCurrencies(current => {
+            if (current.includes(currency)) {
+                return current.filter(item => item !== currency);
+            }
+            return [...current, currency];
+        });
+    }
+
+    function exportCsv() {
+        if (!exportAction || selectedExportCurrencies.length === 0) {
+            return;
+        }
+
+        const url = new URL(exportAction.href, window.location.origin);
+        url.searchParams.set('currencies', selectedExportCurrencies.join(','));
+        window.location.assign(`${url.pathname}${url.search}`);
+        setExportDialogOpen(false);
+    }
+
     return (
-        <div className="relative" ref={containerRef}>
-            <Button
-                aria-expanded={open}
-                aria-label="View settings"
-                className="shrink-0"
-                onClick={() => setOpen(current => !current)}
-                size="icon-sm"
-                type="button"
-                variant="outline"
-            >
-                <SettingsIcon aria-hidden className="size-4" />
-            </Button>
-            {open ? (
-                <div
-                    className="absolute right-0 z-40 mt-2 w-64 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-                    role="menu"
+        <>
+            <div className="relative" ref={containerRef}>
+                <Button
+                    aria-expanded={open}
+                    aria-label="View settings"
+                    className="shrink-0"
+                    onClick={() => setOpen(current => !current)}
+                    size="icon-sm"
+                    type="button"
+                    variant="outline"
                 >
-                    <div className="flex flex-col gap-1">
-                        {expansionAction ? (
+                    <SettingsIcon aria-hidden className="size-4" />
+                </Button>
+                {open ? (
+                    <div
+                        className="absolute right-0 z-40 mt-2 w-64 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+                        role="menu"
+                    >
+                        <div className="flex flex-col gap-1">
+                            {expansionAction ? (
+                                <button
+                                    className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                                    onClick={toggleExpansion}
+                                    role="menuitem"
+                                    type="button"
+                                >
+                                    {expansionAction.allExpanded ? (
+                                        <ChevronRightIcon
+                                            aria-hidden
+                                            className="size-4 shrink-0"
+                                        />
+                                    ) : (
+                                        <ChevronDownIcon
+                                            aria-hidden
+                                            className="size-4 shrink-0"
+                                        />
+                                    )}
+                                    <span className="min-w-0 truncate">
+                                        {expansionAction.allExpanded
+                                            ? 'Collapse all'
+                                            : 'Expand all'}
+                                    </span>
+                                </button>
+                            ) : null}
+                            {exportAction ? (
+                                <button
+                                    className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                                    onClick={openExportDialog}
+                                    role="menuitem"
+                                    type="button"
+                                >
+                                    <DownloadIcon
+                                        aria-hidden
+                                        className="size-4 shrink-0"
+                                    />
+                                    <span className="min-w-0 truncate">
+                                        Export CSV
+                                    </span>
+                                </button>
+                            ) : null}
                             <button
+                                aria-checked={hideAmounts}
                                 className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                                onClick={toggleExpansion}
-                                role="menuitem"
+                                onClick={() => {
+                                    toggleHideAmounts();
+                                    closeMenu();
+                                }}
+                                role="menuitemcheckbox"
                                 type="button"
                             >
-                                {expansionAction.allExpanded ? (
-                                    <ChevronRightIcon
+                                {hideAmounts ? (
+                                    <EyeIcon
                                         aria-hidden
                                         className="size-4 shrink-0"
                                     />
                                 ) : (
-                                    <ChevronDownIcon
+                                    <EyeOffIcon
                                         aria-hidden
                                         className="size-4 shrink-0"
                                     />
                                 )}
-                                <span className="min-w-0 truncate">
-                                    {expansionAction.allExpanded
-                                        ? 'Collapse all'
-                                        : 'Expand all'}
+                                <span className="min-w-0">
+                                    <span className="block font-medium">
+                                        {hideAmounts
+                                            ? 'Show amounts'
+                                            : 'Hide amounts'}
+                                    </span>
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                        {hideAmounts
+                                            ? 'Reveal exact values'
+                                            : 'Mask exact values'}
+                                    </span>
                                 </span>
                             </button>
+                            {showCurrencySelector ? (
+                                <button
+                                    aria-expanded={currencyMenuOpen}
+                                    aria-haspopup="menu"
+                                    className={cn(
+                                        'flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground',
+                                        currencyMenuOpen && 'bg-accent/70'
+                                    )}
+                                    onClick={() =>
+                                        setCurrencyMenuOpen(current => !current)
+                                    }
+                                    role="menuitem"
+                                    type="button"
+                                >
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block font-medium">
+                                            Display currency
+                                        </span>
+                                        <span className="block truncate text-xs text-muted-foreground">
+                                            {selectedCurrencyCode}
+                                        </span>
+                                    </span>
+                                    <ChevronRightIcon
+                                        aria-hidden
+                                        className="size-4 shrink-0"
+                                    />
+                                </button>
+                            ) : null}
+                        </div>
+                        {showCurrencySelector && currencyMenuOpen ? (
+                            <div
+                                aria-label="Display currency"
+                                className="absolute right-0 top-full z-50 mt-1 w-64 rounded-md border bg-popover p-1 text-popover-foreground shadow-md sm:right-full sm:top-0 sm:mr-1 sm:mt-0"
+                                role="menu"
+                            >
+                                <div className="flex flex-col gap-1">
+                                    {currencyOptions.map(currency => {
+                                        const selected =
+                                            currency.code ===
+                                            selectedCurrencyCode;
+                                        return (
+                                            <Link
+                                                aria-checked={selected}
+                                                className={cn(
+                                                    'flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground',
+                                                    selected && 'bg-accent/70'
+                                                )}
+                                                href={currencyHref(
+                                                    currency.code
+                                                )}
+                                                key={currency.code}
+                                                onClick={closeMenu}
+                                                prefetch={false}
+                                                role="menuitemradio"
+                                            >
+                                                <span className="flex size-4 shrink-0 items-center justify-center">
+                                                    {selected ? (
+                                                        <CheckIcon
+                                                            aria-hidden
+                                                            className="size-4"
+                                                        />
+                                                    ) : null}
+                                                </span>
+                                                <span className="min-w-0">
+                                                    <span className="block font-medium">
+                                                        {currency.code}
+                                                    </span>
+                                                    <span className="block truncate text-xs text-muted-foreground">
+                                                        {currency.name}
+                                                    </span>
+                                                </span>
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         ) : null}
-                        <button
-                            aria-expanded={currencyMenuOpen}
-                            aria-haspopup="menu"
-                            className={cn(
-                                'flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground',
-                                currencyMenuOpen && 'bg-accent/70'
-                            )}
-                            onClick={() =>
-                                setCurrencyMenuOpen(current => !current)
+                    </div>
+                ) : null}
+            </div>
+            <Dialog onOpenChange={setExportDialogOpen} open={exportDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Export CSV</DialogTitle>
+                        <DialogDescription>
+                            Choose the currencies to include as amount columns.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-2">
+                        {currencyOptions.map(currency => (
+                            <label
+                                className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                                key={currency.code}
+                            >
+                                <input
+                                    checked={selectedExportCurrencies.includes(
+                                        currency.code
+                                    )}
+                                    className="size-4"
+                                    onChange={() =>
+                                        toggleExportCurrency(currency.code)
+                                    }
+                                    type="checkbox"
+                                />
+                                <span className="min-w-0">
+                                    <span className="block font-medium">
+                                        {currency.code}
+                                    </span>
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                        {currency.name}
+                                    </span>
+                                </span>
+                            </label>
+                        ))}
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            disabled={
+                                !exportAction ||
+                                selectedExportCurrencies.length === 0
                             }
-                            role="menuitem"
+                            onClick={exportCsv}
                             type="button"
                         >
-                            <span className="min-w-0 flex-1">
-                                <span className="block font-medium">
-                                    Display currency
-                                </span>
-                                <span className="block truncate text-xs text-muted-foreground">
-                                    {selectedCurrencyCode}
-                                </span>
-                            </span>
-                            <ChevronRightIcon
-                                aria-hidden
-                                className="size-4 shrink-0"
-                            />
-                        </button>
-                    </div>
-                    {currencyMenuOpen ? (
-                        <div
-                            aria-label="Display currency"
-                            className="absolute right-0 top-full z-50 mt-1 w-64 rounded-md border bg-popover p-1 text-popover-foreground shadow-md sm:right-full sm:top-0 sm:mr-1 sm:mt-0"
-                            role="menu"
-                        >
-                            <div className="flex flex-col gap-1">
-                                {currencyOptions.map(currency => {
-                                    const selected =
-                                        currency.code === selectedCurrencyCode;
-                                    return (
-                                        <Link
-                                            aria-checked={selected}
-                                            className={cn(
-                                                'flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground',
-                                                selected && 'bg-accent/70'
-                                            )}
-                                            href={currencyHref(currency.code)}
-                                            key={currency.code}
-                                            onClick={closeMenu}
-                                            prefetch={false}
-                                            role="menuitemradio"
-                                        >
-                                            <span className="flex size-4 shrink-0 items-center justify-center">
-                                                {selected ? (
-                                                    <CheckIcon
-                                                        aria-hidden
-                                                        className="size-4"
-                                                    />
-                                                ) : null}
-                                            </span>
-                                            <span className="min-w-0">
-                                                <span className="block font-medium">
-                                                    {currency.code}
-                                                </span>
-                                                <span className="block truncate text-xs text-muted-foreground">
-                                                    {currency.name}
-                                                </span>
-                                            </span>
-                                        </Link>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ) : null}
-                </div>
-            ) : null}
-        </div>
+                            <DownloadIcon aria-hidden className="size-4" />
+                            Export
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
