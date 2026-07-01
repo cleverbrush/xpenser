@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { alternativeSitemapPages } from './alternatives';
 import {
     apiDocsPage,
     createPublicPageJsonLd,
@@ -40,13 +41,21 @@ describe('public site SEO helpers', () => {
         const sitemap = getPublicSitemap();
 
         expect(sitemap.map(entry => entry.url)).toEqual(
-            [...publicMarketingPages, ...publicUtilityPages].map(page =>
-                publicUrl(page.path)
-            )
+            [
+                ...publicMarketingPages,
+                ...publicUtilityPages,
+                ...alternativeSitemapPages
+            ].map(page => publicUrl(page.path))
         );
         expect(sitemap.some(entry => entry.url.includes('/dashboard'))).toBe(
             false
         );
+        expect(
+            sitemap.some(
+                entry =>
+                    entry.url === publicUrl('/alternatives/mint-alternative')
+            )
+        ).toBe(true);
         expect(sitemap.every(entry => entry.lastModified instanceof Date)).toBe(
             true
         );

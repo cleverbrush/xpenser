@@ -6,6 +6,7 @@ coverage
 playwright-report
 test-results
 .playwright
+.seo-cache/
 *.tsbuildinfo
 .env
 .env.local
