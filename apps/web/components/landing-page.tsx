@@ -34,6 +34,7 @@ import {
 import Image from 'next/image';
 import Link from 'next/link';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
+import { alternativesIndexPage } from '@/lib/alternatives';
 import { webConfig } from '@/lib/config';
 import {
     apiDocsPage,
@@ -572,10 +573,16 @@ function FooterBadges() {
 }
 
 export function PublicSiteFooter({
-    footerSupplement
+    footerSupplement,
+    nofollowOutboundLinks = false
 }: {
     readonly footerSupplement?: ReactNode;
+    readonly nofollowOutboundLinks?: boolean;
 } = {}) {
+    const resourceLinkRel = nofollowOutboundLinks
+        ? 'nofollow noopener noreferrer'
+        : 'noreferrer';
+
     return (
         <footer className="border-t bg-background">
             <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-7 text-sm text-muted-foreground lg:flex-row lg:items-center lg:justify-between">
@@ -618,6 +625,12 @@ export function PublicSiteFooter({
                                 {navLabel}
                             </Link>
                         ))}
+                        <Link
+                            className="font-medium text-foreground transition-colors hover:text-primary"
+                            href={alternativesIndexPage.path}
+                        >
+                            {alternativesIndexPage.navLabel}
+                        </Link>
                         <a
                             className="font-medium text-foreground transition-colors hover:text-primary"
                             href="/llms.txt"
@@ -629,7 +642,7 @@ export function PublicSiteFooter({
                                 className="inline-flex items-center gap-1 font-medium text-foreground transition-colors hover:text-primary"
                                 href={href}
                                 key={href}
-                                rel="noreferrer"
+                                rel={resourceLinkRel}
                                 target="_blank"
                             >
                                 {label}
@@ -653,10 +666,12 @@ export function PublicSiteFooter({
 
 export function PublicPageShell({
     children,
-    footerSupplement
+    footerSupplement,
+    nofollowOutboundLinks = false
 }: {
     readonly children: ReactNode;
     readonly footerSupplement?: ReactNode;
+    readonly nofollowOutboundLinks?: boolean;
 }) {
     if (webConfig.singleUser?.enabled) {
         return (
@@ -680,7 +695,10 @@ export function PublicPageShell({
             <main id="main-content" tabIndex={-1}>
                 {children}
             </main>
-            <PublicSiteFooter footerSupplement={footerSupplement} />
+            <PublicSiteFooter
+                footerSupplement={footerSupplement}
+                nofollowOutboundLinks={nofollowOutboundLinks}
+            />
         </div>
     );
 }

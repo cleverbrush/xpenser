@@ -1,4 +1,5 @@
 import type { Metadata, MetadataRoute } from 'next';
+import { alternativeSitemapPages } from './alternatives';
 
 type MarketingSection = {
     readonly body: string;
@@ -34,7 +35,7 @@ export const publicSiteOrigin = (
     process.env.APP_URL ?? 'https://xpenser.cleverbrush.com'
 ).replace(/\/$/, '');
 
-export const publicPageLastModified = '2026-06-27';
+export const publicPageLastModified = '2026-06-30';
 export const noIndexRobots = {
     index: false,
     follow: true
@@ -266,7 +267,11 @@ export function createPublicPageMetadata(page: PublicPage): Metadata {
 }
 
 export function getPublicSitemap(): MetadataRoute.Sitemap {
-    return [...publicMarketingPages, ...publicUtilityPages].map(page => ({
+    return [
+        ...publicMarketingPages,
+        ...publicUtilityPages,
+        ...alternativeSitemapPages
+    ].map(page => ({
         url: publicUrl(page.path),
         lastModified: new Date(`${publicPageLastModified}T00:00:00.000Z`),
         changeFrequency: page.path === '/' ? 'weekly' : 'monthly',

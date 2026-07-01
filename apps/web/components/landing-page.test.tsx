@@ -176,6 +176,9 @@ describe('LandingPage', () => {
             screen.getAllByRole('link', { name: /^API docs$/i }).length
         ).toBeGreaterThan(0);
         expect(
+            screen.getByRole('link', { name: /^Alternatives$/i })
+        ).toHaveProperty('href', 'http://localhost:3000/alternatives');
+        expect(
             screen.getByRole('link', { name: /OpenAPI JSON/i })
         ).toHaveProperty('href', 'http://localhost:3000/api/openapi.json');
         expect(screen.getAllByText(/api\/mcp/i).length).toBeGreaterThan(0);
