@@ -35,7 +35,7 @@ export const publicSiteOrigin = (
     process.env.APP_URL ?? 'https://xpenser.cleverbrush.com'
 ).replace(/\/$/, '');
 
-export const publicPageLastModified = '2026-06-30';
+export const publicPageLastModified = '2026-07-01';
 export const noIndexRobots = {
     index: false,
     follow: true

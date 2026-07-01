@@ -7,6 +7,7 @@ import {
 import {
     appScreenshot,
     type JsonLdData,
+    publicPageLastModified,
     publicSiteOrigin,
     publicUrl
 } from './public-site';
@@ -15,12 +16,10 @@ const ogImageAlt = 'xpenser personal finance app dashboard preview';
 
 function pageMetadata({
     description,
-    keywords,
     metadataTitle,
     path
 }: {
     readonly description: string;
-    readonly keywords: readonly string[];
     readonly metadataTitle: string;
     readonly path: string;
 }): Metadata {
@@ -31,7 +30,6 @@ function pageMetadata({
     return {
         title: metadataTitle,
         description,
-        keywords: [...keywords],
         alternates: {
             canonical
         },
@@ -62,13 +60,6 @@ function pageMetadata({
 export function createAlternativesIndexMetadata(): Metadata {
     return pageMetadata({
         description: alternativesIndexPage.description,
-        keywords: [
-            'xpenser alternatives',
-            'personal finance app alternatives',
-            'open-source expense tracker alternatives',
-            'self-hosted personal finance alternatives',
-            'budgeting app competitors'
-        ],
         metadataTitle: alternativesIndexPage.metadataTitle,
         path: alternativesIndexPage.path
     });
@@ -79,7 +70,6 @@ export function createAlternativeProductMetadata(
 ): Metadata {
     return pageMetadata({
         description: product.description,
-        keywords: product.keywords,
         metadataTitle: product.metadataTitle,
         path: product.path
     });
@@ -154,6 +144,7 @@ export function createAlternativeProductJsonLd(
                 name: product.metadataTitle,
                 headline: product.h1,
                 description: product.description,
+                dateModified: publicPageLastModified,
                 isPartOf: { '@id': websiteId },
                 about: { '@id': softwareId },
                 mentions: {
@@ -184,28 +175,6 @@ export function createAlternativeProductJsonLd(
                         position: 3,
                         name: product.h1,
                         item: canonical
-                    }
-                ]
-            },
-            {
-                '@type': 'FAQPage',
-                '@id': `${canonical}#faq`,
-                mainEntity: [
-                    {
-                        '@type': 'Question',
-                        name: `Is xpenser a ${product.name} alternative?`,
-                        acceptedAnswer: {
-                            '@type': 'Answer',
-                            text: product.xpenserSummary
-                        }
-                    },
-                    {
-                        '@type': 'Question',
-                        name: 'Can xpenser be self-hosted?',
-                        acceptedAnswer: {
-                            '@type': 'Answer',
-                            text: 'Yes. xpenser is open source, MIT licensed, and self-hostable from the public repository.'
-                        }
                     }
                 ]
             }

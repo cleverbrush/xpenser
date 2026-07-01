@@ -6,7 +6,7 @@ import {
     createAlternativesIndexMetadata
 } from './alternative-seo';
 import { alternativeProducts, alternativesIndexPage } from './alternatives';
-import { publicUrl } from './public-site';
+import { publicPageLastModified, publicUrl } from './public-site';
 
 describe('alternative SEO helpers', () => {
     it('builds index metadata and collection JSON-LD', () => {
@@ -18,12 +18,7 @@ describe('alternative SEO helpers', () => {
         expect(metadata.alternates?.canonical).toBe(
             publicUrl(alternativesIndexPage.path)
         );
-        expect(metadata.keywords).toEqual(
-            expect.arrayContaining([
-                'xpenser alternatives',
-                'open-source expense tracker alternatives'
-            ])
-        );
+        expect(metadata.keywords).toBeUndefined();
         expect(jsonLd).toEqual(
             expect.objectContaining({
                 '@type': 'CollectionPage',
@@ -53,7 +48,7 @@ describe('alternative SEO helpers', () => {
         expect(metadata.title).toBe(product.metadataTitle);
         expect(metadata.description).toBe(product.description);
         expect(metadata.alternates?.canonical).toBe(publicUrl(product.path));
-        expect(metadata.keywords).toEqual([...product.keywords]);
+        expect(metadata.keywords).toBeUndefined();
         expect(Array.isArray(graph)).toBe(true);
         expect(graph).toEqual(
             expect.arrayContaining([
@@ -61,6 +56,7 @@ describe('alternative SEO helpers', () => {
                     '@type': 'WebPage',
                     url: publicUrl(product.path),
                     headline: product.h1,
+                    dateModified: publicPageLastModified,
                     mentions: expect.objectContaining({
                         name: product.name,
                         url: product.sourceUrl
@@ -68,7 +64,11 @@ describe('alternative SEO helpers', () => {
                 }),
                 expect.objectContaining({
                     '@type': 'BreadcrumbList'
-                }),
+                })
+            ])
+        );
+        expect(graph).not.toEqual(
+            expect.arrayContaining([
                 expect.objectContaining({
                     '@type': 'FAQPage'
                 })

@@ -16,8 +16,7 @@ import {
     ArrowRightIcon,
     CheckCircle2Icon,
     ExternalLinkIcon,
-    HomeIcon,
-    SearchIcon
+    HomeIcon
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -29,6 +28,7 @@ import {
 import { ProductPreview, PublicPageShell } from './landing-page';
 
 const outboundRel = 'nofollow noopener noreferrer';
+const comparisonUpdatedLabel = 'July 1, 2026';
 
 function AlternativeBreadcrumb({ current }: { readonly current?: string }) {
     return (
@@ -69,22 +69,6 @@ function AlternativeBreadcrumb({ current }: { readonly current?: string }) {
     );
 }
 
-function KeywordChips({ keywords }: { readonly keywords: readonly string[] }) {
-    return (
-        <div className="flex flex-wrap gap-2">
-            {keywords.map(keyword => (
-                <span
-                    className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground"
-                    key={keyword}
-                >
-                    <SearchIcon aria-hidden className="size-3" />
-                    {keyword}
-                </span>
-            ))}
-        </div>
-    );
-}
-
 function AlternativeCard({
     product
 }: {
@@ -109,9 +93,9 @@ function AlternativeCard({
                 <p className="text-sm leading-6 text-muted-foreground">
                     {product.description}
                 </p>
-                <div className="mt-4">
-                    <KeywordChips keywords={product.keywords.slice(0, 3)} />
-                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                    {product.xpenserSummary}
+                </p>
                 <Button asChild className="mt-5" size="sm" variant="outline">
                     <Link href={product.path}>
                         Compare
@@ -166,11 +150,10 @@ export function AlternativesIndexPage() {
                             {alternativesIndexPage.description}
                         </p>
                         <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
-                            These pages compare xpenser against popular
-                            budgeting apps, personal finance dashboards,
-                            spreadsheet workflows, and open-source finance
-                            managers for people searching competitor
-                            alternatives.
+                            Start with the competitor you already know, then
+                            compare the tradeoffs around source access,
+                            self-hosting, reporting, API access, MCP workflows,
+                            Telegram capture, and everyday expense tracking.
                         </p>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
@@ -204,10 +187,9 @@ export function AlternativesIndexPage() {
                         Compare xpenser with personal finance competitors
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                        Each comparison focuses on product fit, ownership,
-                        finance tracking, reporting, API access, MCP workflows,
-                        and self-hosting so search visitors can quickly decide
-                        whether xpenser matches their use case.
+                        Each page is written as a practical decision guide: what
+                        the competitor is known for, where xpenser is different,
+                        and when an open-source tracker is the better fit.
                     </p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -317,9 +299,9 @@ function RelatedAlternatives({
                         Related xpenser alternatives
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                        Continue comparing xpenser with other budgeting apps,
-                        personal finance dashboards, and open-source finance
-                        managers.
+                        Continue comparing budgeting apps, hosted personal
+                        finance dashboards, spreadsheet workflows, and
+                        open-source finance managers.
                     </p>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
@@ -408,9 +390,6 @@ export function AlternativeProductPage({
                         <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
                             {product.audience}
                         </p>
-                        <div className="mt-6">
-                            <KeywordChips keywords={product.keywords} />
-                        </div>
                         <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                             <Button asChild className="sm:flex-1" size="lg">
                                 <Link href="/register">
@@ -432,7 +411,7 @@ export function AlternativeProductPage({
                                     rel={outboundRel}
                                     target="_blank"
                                 >
-                                    {product.sourceLabel}
+                                    View {product.sourceLabel}
                                     <ExternalLinkIcon
                                         aria-hidden
                                         className="size-3"
@@ -450,11 +429,32 @@ export function AlternativeProductPage({
 
             <section className="mx-auto max-w-6xl px-4 py-14 sm:py-16">
                 <div className="grid gap-3 md:grid-cols-2">
+                    <ValueCard title="Short answer">
+                        {product.xpenserSummary}
+                    </ValueCard>
                     <ValueCard title={`What ${product.name} is known for`}>
                         {product.competitorSummary}
                     </ValueCard>
-                    <ValueCard title="Where xpenser fits">
-                        {product.xpenserSummary}
+                </div>
+            </section>
+
+            <section className="mx-auto max-w-6xl px-4 pb-14 sm:pb-16">
+                <div className="mb-6 max-w-3xl">
+                    <h2 className="text-2xl font-semibold">
+                        Which product fits better?
+                    </h2>
+                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                        The right choice depends on whether you need a packaged
+                        consumer finance workflow or an inspectable tracker with
+                        source access and integration surfaces.
+                    </p>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                    <ValueCard title="Choose xpenser if">
+                        {product.bestForXpenser}
+                    </ValueCard>
+                    <ValueCard title={`Choose ${product.name} if`}>
+                        {product.bestForCompetitor}
                     </ValueCard>
                 </div>
             </section>
@@ -465,22 +465,23 @@ export function AlternativeProductPage({
                         xpenser vs {product.name}: feature comparison
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                        This comparison is written for people searching for{' '}
-                        {product.keywords.slice(0, 3).join(', ')} and deciding
-                        whether an open-source finance tracker fits better than
-                        a hosted competitor workflow.
+                        {product.comparisonIntro}
                     </p>
                 </div>
                 <div className="rounded-lg border bg-card p-2 shadow-sm">
                     <ComparisonTable product={product} />
                 </div>
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                    Source note: this page compares public product positioning
+                    from {product.sourceLabel} with current xpenser product
+                    pages. Last updated {comparisonUpdatedLabel}. Outbound
+                    product references are marked nofollow.
+                </p>
             </section>
 
             <section className="mx-auto max-w-6xl px-4 pb-14 sm:pb-16">
                 <div className="rounded-lg border bg-card p-5 shadow-sm sm:p-6">
-                    <h2 className="text-2xl font-semibold">
-                        Frequently asked questions
-                    </h2>
+                    <h2 className="text-2xl font-semibold">Decision notes</h2>
                     <div className="mt-6 grid gap-5 md:grid-cols-2">
                         <div>
                             <h3 className="text-base font-semibold">
@@ -492,11 +493,13 @@ export function AlternativeProductPage({
                         </div>
                         <div>
                             <h3 className="text-base font-semibold">
-                                Can xpenser be self-hosted?
+                                Can xpenser be self-hosted or inspected?
                             </h3>
                             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                                Yes. xpenser is open source, MIT licensed, and
-                                self-hostable from the public repository.
+                                Yes. xpenser is MIT licensed, open source, and
+                                self-hostable from the public repository; the
+                                hosted xpenser.cleverbrush.com app uses the same
+                                product surface.
                             </p>
                         </div>
                     </div>

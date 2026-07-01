@@ -119,10 +119,6 @@ describe('AlternativeProductPage', () => {
             expect(within(table).getByText(row.competitor)).toBeTruthy();
         }
 
-        for (const keyword of product.keywords) {
-            expect(screen.getAllByText(keyword).length).toBeGreaterThan(0);
-        }
-
         expect(
             screen.getByRole('heading', {
                 level: 2,
@@ -132,9 +128,18 @@ describe('AlternativeProductPage', () => {
         expect(
             screen.getByRole('heading', {
                 level: 2,
-                name: 'Frequently asked questions'
+                name: 'Which product fits better?'
             })
         ).toBeTruthy();
+        expect(
+            screen.getByRole('heading', {
+                level: 2,
+                name: 'Decision notes'
+            })
+        ).toBeTruthy();
+        expect(screen.getByText(product.bestForXpenser)).toBeTruthy();
+        expect(screen.getByText(product.bestForCompetitor)).toBeTruthy();
+        expect(screen.getByText(product.comparisonIntro)).toBeTruthy();
         expectOutboundLinksNofollow(container);
     });
 });
