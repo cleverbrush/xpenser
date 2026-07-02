@@ -235,6 +235,147 @@ describe('transaction category signs', () => {
         });
     });
 
+    it('calculates dashboard salary growth against the previous month total', () => {
+        const timestamp = new Date('2026-07-10T12:00:00.000Z');
+        const previousTimestamp = new Date('2026-06-10T12:00:00.000Z');
+        const salary = {
+            id: 1,
+            userId: 1,
+            name: 'Salary',
+            type: 'income',
+            parentId: null,
+            kind: 'normal',
+            createdAt: previousTimestamp,
+            updatedAt: previousTimestamp
+        } as const;
+        const row = (id: number, amount: string, occurredAt: Date) =>
+            ({
+                id,
+                userId: 1,
+                categoryId: salary.id,
+                type: 'income',
+                amount,
+                currency: 'USD',
+                defaultCurrencyAmount: amount,
+                defaultCurrency: 'USD',
+                exchangeRate: '1',
+                exchangeRateDate: '2026-07-10',
+                occurredAt,
+                createdAt: occurredAt,
+                updatedAt: occurredAt
+            }) as const;
+        const summary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            {
+                from: new Date('2026-07-01T00:00:00.000Z'),
+                to: new Date('2026-07-31T23:59:59.999Z')
+            },
+            [row(1, '3345', timestamp)],
+            [row(2, '2998', previousTimestamp)],
+            new Map<number, CategoryDb>([[salary.id, salary]]),
+            new Map<number, VendorDb>()
+        );
+        const salaryCategory = summary.byCategory.find(
+            category => category.categoryId === salary.id
+        );
+
+        expect(summary.incomeTotal).toBe(3345);
+        expect(summary.comparison.previousPeriod.incomeTotal).toBe(2998);
+        expect(salaryCategory?.previousPeriodTotal).toBe(2998);
+        expect(salaryCategory?.percentChange).toBeCloseTo(
+            ((3345 - 2998) / 2998) * 100,
+            3
+        );
+    });
+
+    it('uses previous-only category totals when calculating parent dashboard growth', () => {
+        const timestamp = new Date('2026-07-10T12:00:00.000Z');
+        const previousTimestamp = new Date('2026-06-10T12:00:00.000Z');
+        const salary = {
+            id: 1,
+            userId: 1,
+            name: 'Salary',
+            type: 'income',
+            parentId: null,
+            kind: 'normal',
+            createdAt: previousTimestamp,
+            updatedAt: previousTimestamp
+        } as const;
+        const salaryBase = {
+            ...salary,
+            id: 2,
+            name: 'Base pay',
+            parentId: salary.id
+        } as const;
+        const row = (
+            id: number,
+            categoryId: number,
+            amount: string,
+            occurredAt: Date
+        ) =>
+            ({
+                id,
+                userId: 1,
+                categoryId,
+                type: 'income',
+                amount,
+                currency: 'USD',
+                defaultCurrencyAmount: amount,
+                defaultCurrency: 'USD',
+                exchangeRate: '1',
+                exchangeRateDate: '2026-07-10',
+                occurredAt,
+                createdAt: occurredAt,
+                updatedAt: occurredAt
+            }) as const;
+        const summary = summarizeDashboardRows(
+            { defaultCurrency: 'USD', timezone: 'UTC' },
+            'month',
+            {
+                from: new Date('2026-07-01T00:00:00.000Z'),
+                to: new Date('2026-07-31T23:59:59.999Z')
+            },
+            [row(1, salaryBase.id, '3345', timestamp)],
+            [
+                row(2, salary.id, '925', previousTimestamp),
+                row(3, salaryBase.id, '2073', previousTimestamp)
+            ],
+            new Map<number, CategoryDb>([
+                [salary.id, salary],
+                [salaryBase.id, salaryBase]
+            ]),
+            new Map<number, VendorDb>()
+        );
+        const salaryRollup = summary.byParentCategory.find(
+            category =>
+                category.categoryId === salary.id &&
+                category.categoryName === 'Salary' &&
+                category.type === 'income'
+        );
+
+        expect(summary.comparison.previousPeriod.incomeTotal).toBe(2998);
+        expect(
+            summary.byCategory.map(category => ({
+                id: category.categoryId,
+                previousTotal: category.previousPeriodTotal,
+                total: category.total
+            }))
+        ).toEqual([{ id: salaryBase.id, previousTotal: 2073, total: 3345 }]);
+        expect(salaryRollup).toMatchObject({
+            categoryId: salary.id,
+            categoryName: 'Salary',
+            previousPeriodTotal: 2998,
+            total: 3345,
+            transactionCount: 1,
+            type: 'income'
+        });
+        expect(salaryRollup?.percentChange).toBeCloseTo(
+            ((3345 - 2998) / 2998) * 100,
+            3
+        );
+    });
+
     it('converts dashboard summaries into a selected reporting currency', async () => {
         const timestamp = new Date('2026-05-10T12:00:00.000Z');
         const previousTimestamp = new Date('2026-04-10T12:00:00.000Z');

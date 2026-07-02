@@ -2448,7 +2448,7 @@ export function summarizeDashboardRows(
     const totalsByCategory = new Map<string, DashboardCategory>();
     const totalsByVendor = new Map<string, DashboardVendor>();
     const totalsByCategoryVendor = new Map<string, DashboardCategoryVendor>();
-    const previousTotalsByCategory = new Map<string, number>();
+    const previousCategoriesByKey = new Map<string, DashboardCategory>();
     const comparisonRange = resolveDashboardComparisonRange(
         period,
         range,
@@ -2466,10 +2466,11 @@ export function summarizeDashboardRows(
             reportingAmounts,
             category
         );
-        previousTotalsByCategory.set(
-            key,
-            (previousTotalsByCategory.get(key) ?? 0) + total
-        );
+        const previousCategory =
+            previousCategoriesByKey.get(key) ??
+            emptyDashboardCategory(fields, bucketCount);
+        previousCategory.previousPeriodTotal += total;
+        previousCategoriesByKey.set(key, previousCategory);
         if (fields.type === 'income') {
             previousIncomeTotal += total;
         } else {
@@ -2555,10 +2556,18 @@ export function summarizeDashboardRows(
     }
 
     for (const [key, category] of totalsByCategory) {
-        const previousTotal = previousTotalsByCategory.get(key) ?? 0;
+        const previousTotal =
+            previousCategoriesByKey.get(key)?.previousPeriodTotal ?? 0;
         category.previousPeriodTotal = previousTotal;
         category.percentChange = percentChange(category.total, previousTotal);
     }
+
+    const categoriesForParentRollups = [
+        ...totalsByCategory.values(),
+        ...Array.from(previousCategoriesByKey.entries())
+            .filter(([key]) => !totalsByCategory.has(key))
+            .map(([, category]) => category)
+    ];
 
     const byCategory = Array.from(totalsByCategory.values()).sort(
         (left, right) =>
@@ -2567,10 +2576,10 @@ export function summarizeDashboardRows(
             left.categoryName.localeCompare(right.categoryName)
     );
     const byParentCategory = rollUpParentDashboardCategories(
-        byCategory,
+        categoriesForParentRollups,
         bucketCount,
         categoriesById
-    );
+    ).filter(category => category.transactionCount > 0);
     const topVendors = Array.from(totalsByVendor.values())
         .sort(
             (left, right) =>
