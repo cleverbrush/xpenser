@@ -13,6 +13,10 @@ import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AmountDisplay } from '@/components/amount-display';
+import {
+    type DashboardExpansionAction,
+    DashboardExpansionButton
+} from '@/components/dashboard-expansion-button';
 import { DashboardSummaryCards } from '@/components/dashboard-summary-cards';
 import {
     DatatypeChart,
@@ -444,13 +448,25 @@ function VendorRowWithCategories({
     );
 }
 
-function VendorsHeader({ summary }: { readonly summary: DashboardSummary }) {
+function VendorsHeader({
+    expansionAction,
+    summary
+}: {
+    readonly expansionAction?: DashboardExpansionAction;
+    readonly summary: DashboardSummary;
+}) {
     return (
         <CardHeader>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <div className="flex items-center gap-2">
                         <CardTitle>Vendors</CardTitle>
+                        {expansionAction ? (
+                            <DashboardExpansionButton
+                                action={expansionAction}
+                                target="vendors"
+                            />
+                        ) : null}
                         <span
                             aria-label="Vendor grouping info"
                             className="inline-flex text-muted-foreground"
@@ -524,11 +540,13 @@ function VendorGroup({
 }
 
 export function VendorAnalyticsPanel({
+    expansionAction,
     expandedVendors,
     onToggleVendor,
     summary,
     timezone
 }: {
+    readonly expansionAction?: DashboardExpansionAction;
     readonly expandedVendors?: ReadonlySet<string>;
     readonly onToggleVendor?: (key: string) => void;
     readonly summary: DashboardSummary;
@@ -566,7 +584,10 @@ export function VendorAnalyticsPanel({
         <div className="flex flex-col gap-5 sm:gap-6">
             <DashboardSummaryCards summary={summary} timezone={timezone} />
             <Card>
-                <VendorsHeader summary={summary} />
+                <VendorsHeader
+                    expansionAction={expansionAction}
+                    summary={summary}
+                />
                 <CardContent>
                     {hasVendors ? (
                         <div className="flex flex-col gap-4">

@@ -10,10 +10,8 @@ import type {
 } from '@xpenser/contracts';
 import { useMemo, useState } from 'react';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
-import {
-    type DashboardViewExpansionAction,
-    DashboardViewSettingsMenu
-} from '@/components/dashboard-view-settings-menu';
+import type { DashboardExpansionAction } from '@/components/dashboard-expansion-button';
+import { DashboardViewSettingsMenu } from '@/components/dashboard-view-settings-menu';
 import { DashboardWindowExplorer } from '@/components/dashboard-window-explorer';
 import {
     type ExpandedVendorsBySummaryKey,
@@ -100,7 +98,7 @@ export function VendorsExplorer({
 
     function expansionActionFor(
         summary: DashboardSummary
-    ): DashboardViewExpansionAction | undefined {
+    ): DashboardExpansionAction | undefined {
         const expansion = vendorAnalyticsExpansionState(
             summary,
             expandedVendorsBySummaryKey
@@ -134,6 +132,7 @@ export function VendorsExplorer({
                 );
                 return (
                     <VendorAnalyticsPanel
+                        expansionAction={expansionActionFor(item.summary)}
                         expandedVendors={expansion.expandedVendors}
                         onToggleVendor={key =>
                             toggleVendorExpansion(expansion.summaryKey, key)
@@ -144,7 +143,6 @@ export function VendorsExplorer({
                 );
             }}
             renderHeader={({ currentDate, item, period }) => {
-                const expansionAction = expansionActionFor(item.summary);
                 return (
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -172,7 +170,6 @@ export function VendorsExplorer({
                                         to: item.summary.to
                                     })
                                 }}
-                                expansionAction={expansionAction}
                                 favoriteCurrencies={favoriteCurrencies}
                                 period={period}
                                 selectedCurrency={item.summary.currency}

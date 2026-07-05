@@ -14,11 +14,12 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
-import { DashboardSummaryCards } from '@/components/dashboard-summary-cards';
 import {
-    type DashboardViewExpansionAction,
-    DashboardViewSettingsMenu
-} from '@/components/dashboard-view-settings-menu';
+    type DashboardExpansionAction,
+    DashboardExpansionButton
+} from '@/components/dashboard-expansion-button';
+import { DashboardSummaryCards } from '@/components/dashboard-summary-cards';
+import { DashboardViewSettingsMenu } from '@/components/dashboard-view-settings-menu';
 import { DashboardWindowExplorer } from '@/components/dashboard-window-explorer';
 import {
     DatatypeChart,
@@ -713,11 +714,13 @@ function CategoryGroup({
 }
 
 function CategoryPanel({
+    expansionAction,
     expandedRows,
     onToggleExpansion,
     summary,
     timezone
 }: {
+    readonly expansionAction?: DashboardExpansionAction;
     readonly expandedRows?: ReadonlySet<string>;
     readonly onToggleExpansion?: (key: string) => void;
     readonly summary: DashboardSummary;
@@ -765,7 +768,15 @@ function CategoryPanel({
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Categories</CardTitle>
+                <div className="flex items-center gap-2">
+                    <CardTitle>Categories</CardTitle>
+                    {expansionAction ? (
+                        <DashboardExpansionButton
+                            action={expansionAction}
+                            target="categories"
+                        />
+                    ) : null}
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-4">
@@ -796,11 +807,13 @@ function CategoryPanel({
 }
 
 export function DashboardPeriodPanel({
+    expansionAction,
     expandedRows,
     onToggleExpansion,
     summary,
     timezone
 }: {
+    readonly expansionAction?: DashboardExpansionAction;
     readonly expandedRows?: ReadonlySet<string>;
     readonly onToggleExpansion?: (key: string) => void;
     readonly summary: DashboardSummary;
@@ -810,6 +823,7 @@ export function DashboardPeriodPanel({
         <div className="flex flex-col gap-5 sm:gap-6">
             <DashboardSummaryCards summary={summary} timezone={timezone} />
             <CategoryPanel
+                expansionAction={expansionAction}
                 expandedRows={expandedRows}
                 onToggleExpansion={onToggleExpansion}
                 summary={summary}
@@ -943,7 +957,7 @@ export function DashboardExplorer({
 
     function expansionActionFor(
         summary: DashboardSummary
-    ): DashboardViewExpansionAction | undefined {
+    ): DashboardExpansionAction | undefined {
         const expansion = dashboardCategoryExpansionState(
             summary,
             expandedRowsBySummaryKey
@@ -977,6 +991,7 @@ export function DashboardExplorer({
                 );
                 return (
                     <DashboardPeriodPanel
+                        expansionAction={expansionActionFor(item.summary)}
                         expandedRows={expansion.expandedRows}
                         onToggleExpansion={key =>
                             toggleExpansionRow(expansion.summaryKey, key)
@@ -987,7 +1002,6 @@ export function DashboardExplorer({
                 );
             }}
             renderHeader={({ currentDate, item, period }) => {
-                const expansionAction = expansionActionFor(item.summary);
                 return (
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -1017,7 +1031,6 @@ export function DashboardExplorer({
                                         to: item.summary.to
                                     })
                                 }}
-                                expansionAction={expansionAction}
                                 favoriteCurrencies={favoriteCurrencies}
                                 period={period}
                                 selectedCurrency={item.summary.currency}

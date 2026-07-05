@@ -109,45 +109,40 @@ describe('DashboardPeriodPanel', () => {
             const [expandedRows, setExpandedRows] = useState<
                 ReadonlySet<string>
             >(new Set());
+            const expansionKeys = [
+                'category:expense:1',
+                'category-vendors:expense:2'
+            ];
+            const allExpanded = expansionKeys.every(key =>
+                expandedRows.has(key)
+            );
 
             return (
-                <>
-                    <button
-                        onClick={() =>
+                <DashboardPeriodPanel
+                    expansionAction={{
+                        allExpanded,
+                        onToggle: () =>
                             setExpandedRows(
-                                new Set([
-                                    'category:expense:1',
-                                    'category-vendors:expense:2'
-                                ])
+                                allExpanded
+                                    ? new Set<string>()
+                                    : new Set(expansionKeys)
                             )
-                        }
-                        type="button"
-                    >
-                        Expand through settings
-                    </button>
-                    <button
-                        onClick={() => setExpandedRows(new Set())}
-                        type="button"
-                    >
-                        Collapse through settings
-                    </button>
-                    <DashboardPeriodPanel
-                        expandedRows={expandedRows}
-                        onToggleExpansion={key => {
-                            setExpandedRows(current => {
-                                const next = new Set(current);
-                                if (next.has(key)) {
-                                    next.delete(key);
-                                } else {
-                                    next.add(key);
-                                }
-                                return next;
-                            });
-                        }}
-                        summary={dashboardSummary}
-                        timezone="UTC"
-                    />
-                </>
+                    }}
+                    expandedRows={expandedRows}
+                    onToggleExpansion={key => {
+                        setExpandedRows(current => {
+                            const next = new Set(current);
+                            if (next.has(key)) {
+                                next.delete(key);
+                            } else {
+                                next.add(key);
+                            }
+                            return next;
+                        });
+                    }}
+                    summary={dashboardSummary}
+                    timezone="UTC"
+                />
             );
         }
 
@@ -157,14 +152,14 @@ describe('DashboardPeriodPanel', () => {
         expect(screen.queryByText('Beta Market')).toBeNull();
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'Expand through settings' })
+            screen.getByRole('button', { name: 'Expand all categories' })
         );
 
         expect(screen.getByText('Coffee')).toBeTruthy();
         expect(screen.getByText('Beta Market')).toBeTruthy();
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'Collapse through settings' })
+            screen.getByRole('button', { name: 'Collapse all categories' })
         );
 
         expect(screen.queryByText('Coffee')).toBeNull();

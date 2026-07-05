@@ -109,40 +109,37 @@ describe('VendorAnalyticsPanel', () => {
             const [expandedVendors, setExpandedVendors] = useState<
                 ReadonlySet<string>
             >(new Set());
+            const expansionKeys = ['expense:1'];
+            const allExpanded = expansionKeys.every(key =>
+                expandedVendors.has(key)
+            );
 
             return (
-                <>
-                    <button
-                        onClick={() =>
-                            setExpandedVendors(new Set(['expense:1']))
-                        }
-                        type="button"
-                    >
-                        Expand through settings
-                    </button>
-                    <button
-                        onClick={() => setExpandedVendors(new Set())}
-                        type="button"
-                    >
-                        Collapse through settings
-                    </button>
-                    <VendorAnalyticsPanel
-                        expandedVendors={expandedVendors}
-                        onToggleVendor={key => {
-                            setExpandedVendors(current => {
-                                const next = new Set(current);
-                                if (next.has(key)) {
-                                    next.delete(key);
-                                } else {
-                                    next.add(key);
-                                }
-                                return next;
-                            });
-                        }}
-                        summary={dashboardSummary}
-                        timezone="UTC"
-                    />
-                </>
+                <VendorAnalyticsPanel
+                    expansionAction={{
+                        allExpanded,
+                        onToggle: () =>
+                            setExpandedVendors(
+                                allExpanded
+                                    ? new Set<string>()
+                                    : new Set(expansionKeys)
+                            )
+                    }}
+                    expandedVendors={expandedVendors}
+                    onToggleVendor={key => {
+                        setExpandedVendors(current => {
+                            const next = new Set(current);
+                            if (next.has(key)) {
+                                next.delete(key);
+                            } else {
+                                next.add(key);
+                            }
+                            return next;
+                        });
+                    }}
+                    summary={dashboardSummary}
+                    timezone="UTC"
+                />
             );
         }
 
@@ -151,14 +148,14 @@ describe('VendorAnalyticsPanel', () => {
         expect(screen.queryByText('Rent')).toBeNull();
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'Expand through settings' })
+            screen.getByRole('button', { name: 'Expand all vendors' })
         );
 
         expect(screen.getByText('Rent')).toBeTruthy();
         expect(screen.getByText('Meals')).toBeTruthy();
 
         fireEvent.click(
-            screen.getByRole('button', { name: 'Collapse through settings' })
+            screen.getByRole('button', { name: 'Collapse all vendors' })
         );
 
         expect(screen.queryByText('Rent')).toBeNull();
