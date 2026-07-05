@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { Currency } from '@xpenser/contracts';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { AmountPrivacyProvider } from './amount-privacy';
 import { DashboardViewSettingsMenu } from './dashboard-view-settings-menu';
 
@@ -18,18 +18,13 @@ describe('DashboardViewSettingsMenu', () => {
         localStorage.clear();
     });
 
-    it('shows expand all at the top level and currencies in a submenu', () => {
-        const onToggle = vi.fn();
+    it('keeps currencies in a submenu without expansion controls', () => {
         render(
             <DashboardViewSettingsMenu
                 basePath="/dashboard"
                 currencies={currencies}
                 currentDate="2026-05-01"
                 defaultCurrency="USD"
-                expansionAction={{
-                    allExpanded: false,
-                    onToggle
-                }}
                 favoriteCurrencies={['EUR']}
                 period="month"
                 selectedCurrency="USD"
@@ -39,9 +34,12 @@ describe('DashboardViewSettingsMenu', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'View settings' }));
 
-        expect(
-            screen.getByRole('menuitem', { name: 'Expand all' })
-        ).toBeTruthy();
+        expect(screen.queryByRole('menuitem', { name: 'Expand all' })).toBe(
+            null
+        );
+        expect(screen.queryByRole('menuitem', { name: 'Collapse all' })).toBe(
+            null
+        );
         expect(screen.queryByRole('menuitemradio', { name: /USD/ })).toBeNull();
 
         fireEvent.click(
@@ -50,10 +48,6 @@ describe('DashboardViewSettingsMenu', () => {
 
         expect(screen.getByRole('menuitemradio', { name: /USD/ })).toBeTruthy();
         expect(screen.getByRole('menuitemradio', { name: /EUR/ })).toBeTruthy();
-
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Expand all' }));
-
-        expect(onToggle).toHaveBeenCalledTimes(1);
     });
 
     it('requires at least one selected currency before exporting', () => {

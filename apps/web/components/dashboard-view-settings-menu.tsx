@@ -13,7 +13,6 @@ import {
 } from '@xpenser/ui';
 import {
     CheckIcon,
-    ChevronDownIcon,
     ChevronRightIcon,
     DownloadIcon,
     EyeIcon,
@@ -30,11 +29,6 @@ import {
 } from '@/lib/dashboard-periods';
 import { useAmountPrivacy } from './amount-privacy';
 
-export type DashboardViewExpansionAction = {
-    readonly allExpanded: boolean;
-    readonly onToggle: () => void;
-};
-
 export type DashboardViewExportAction = {
     readonly href: string;
 };
@@ -44,7 +38,6 @@ export function DashboardViewSettingsMenu({
     currencies,
     currentDate,
     defaultCurrency,
-    expansionAction,
     favoriteCurrencies,
     period,
     selectedCurrency,
@@ -56,7 +49,6 @@ export function DashboardViewSettingsMenu({
     readonly currencies: readonly Currency[];
     readonly currentDate: string;
     readonly defaultCurrency: string;
-    readonly expansionAction?: DashboardViewExpansionAction;
     readonly favoriteCurrencies: readonly string[];
     readonly period: DashboardPeriod;
     readonly selectedCurrency: string;
@@ -150,11 +142,6 @@ export function DashboardViewSettingsMenu({
         });
     }
 
-    function toggleExpansion() {
-        expansionAction?.onToggle();
-        closeMenu();
-    }
-
     function openExportDialog() {
         setExportDialogOpen(true);
         closeMenu();
@@ -200,31 +187,6 @@ export function DashboardViewSettingsMenu({
                         role="menu"
                     >
                         <div className="flex flex-col gap-1">
-                            {expansionAction ? (
-                                <button
-                                    className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                                    onClick={toggleExpansion}
-                                    role="menuitem"
-                                    type="button"
-                                >
-                                    {expansionAction.allExpanded ? (
-                                        <ChevronRightIcon
-                                            aria-hidden
-                                            className="size-4 shrink-0"
-                                        />
-                                    ) : (
-                                        <ChevronDownIcon
-                                            aria-hidden
-                                            className="size-4 shrink-0"
-                                        />
-                                    )}
-                                    <span className="min-w-0 truncate">
-                                        {expansionAction.allExpanded
-                                            ? 'Collapse all'
-                                            : 'Expand all'}
-                                    </span>
-                                </button>
-                            ) : null}
                             {exportAction ? (
                                 <button
                                     className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
