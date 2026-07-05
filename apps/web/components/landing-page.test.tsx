@@ -138,6 +138,44 @@ describe('LandingPage', () => {
         expect(scrollLaunchBadgeImage.getAttribute('width')).toBe('220');
         expect(scrollLaunchBadgeImage.getAttribute('height')).toBe('48');
         expect(scrollLaunchBadgeImage.getAttribute('loading')).toBe('lazy');
+
+        const auraPlusPlusBadgeLink = screen.getByRole('link', {
+            name: /Featured on Aura\+\+/i
+        });
+        expect(auraPlusPlusBadgeLink).toHaveProperty(
+            'href',
+            'https://auraplusplus.com/projects/xpenser-self-hosted-personal-finance-tracker'
+        );
+        expect(auraPlusPlusBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(auraPlusPlusBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const auraPlusPlusBadgeImages =
+            screen.getAllByAltText('Featured on Aura++');
+        expect(auraPlusPlusBadgeImages).toHaveLength(2);
+
+        const auraPlusPlusLightBadgeImage = auraPlusPlusBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://auraplusplus.com/images/badges/featured-on-light.svg'
+        );
+        expect(auraPlusPlusLightBadgeImage).toBeTruthy();
+        expect(auraPlusPlusLightBadgeImage?.getAttribute('width')).toBe('265');
+        expect(auraPlusPlusLightBadgeImage?.getAttribute('height')).toBe('58');
+        expect(auraPlusPlusLightBadgeImage?.className).toContain('block');
+        expect(auraPlusPlusLightBadgeImage?.className).toContain('dark:hidden');
+
+        const auraPlusPlusDarkBadgeImage = auraPlusPlusBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://auraplusplus.com/images/badges/featured-on-dark.svg'
+        );
+        expect(auraPlusPlusDarkBadgeImage).toBeTruthy();
+        expect(auraPlusPlusDarkBadgeImage?.getAttribute('width')).toBe('265');
+        expect(auraPlusPlusDarkBadgeImage?.getAttribute('height')).toBe('58');
+        expect(auraPlusPlusDarkBadgeImage?.className).toContain('hidden');
+        expect(auraPlusPlusDarkBadgeImage?.className).toContain('dark:block');
         expect(
             screen.getByText(
                 /read or manage vendors, categories, and transactions/i
