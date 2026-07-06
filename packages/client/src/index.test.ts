@@ -7,6 +7,7 @@ const middlewareMocks = vi.hoisted(() => ({
     clientTracingMiddleware: vi.fn(() => ({ name: 'tracing' })),
     createClient: vi.fn(() => ({ name: 'client' })),
     dedupe: vi.fn(() => ({ name: 'dedupe' })),
+    externalCacheTags: vi.fn(() => ({ name: 'externalCacheTags' })),
     retry: vi.fn(() => ({ name: 'retry' })),
     timeout: vi.fn(() => ({ name: 'timeout' }))
 }));
@@ -20,7 +21,8 @@ vi.mock('@cleverbrush/client/batching', () => ({
 }));
 
 vi.mock('@cleverbrush/client/cache', () => ({
-    cacheTags: middlewareMocks.cacheTags
+    cacheTags: middlewareMocks.cacheTags,
+    externalCacheTags: middlewareMocks.externalCacheTags
 }));
 
 vi.mock('@cleverbrush/client/dedupe', () => ({
@@ -107,6 +109,32 @@ describe('createXpenserClient', () => {
                     { name: 'timeout' },
                     { name: 'dedupe' },
                     { name: 'cacheTags' }
+                ]
+            })
+        );
+    });
+
+    it('adds external cache tag invalidation when configured', () => {
+        const invalidateCacheTag = vi.fn();
+
+        createXpenserClient({
+            baseUrl: 'http://localhost:3000/api',
+            invalidateCacheTag
+        });
+
+        expect(middlewareMocks.externalCacheTags).toHaveBeenCalledWith({
+            invalidateTag: invalidateCacheTag
+        });
+        expect(middlewareMocks.createClient).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                middlewares: [
+                    { name: 'tracing' },
+                    { name: 'retry' },
+                    { name: 'timeout' },
+                    { name: 'dedupe' },
+                    { name: 'cacheTags' },
+                    { name: 'externalCacheTags' }
                 ]
             })
         );

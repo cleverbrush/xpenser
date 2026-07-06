@@ -3,6 +3,7 @@ import {
     type DbContext,
     date,
     defineEntity,
+    type InferDatabaseRow,
     number,
     object,
     string
@@ -456,207 +457,53 @@ export const entityMap = {
 export type AppEntityMap = typeof entityMap;
 export type AppDb = DbContext<AppEntityMap>;
 
-export type UserDb = {
-    readonly id: number;
-    readonly email: string;
-    readonly passwordHash?: string | null;
-    readonly emailVerified: boolean;
-    readonly emailVerificationTokenHash?: string | null;
-    readonly emailVerificationExpiresAt?: Date | null;
-    readonly role: string;
-    readonly authProvider: string;
-    readonly defaultCurrency: string;
-    readonly countryCode: string;
-    readonly timezone: string;
-    readonly weeklyEmailReportEnabled: boolean;
-    readonly monthlyEmailReportEnabled: boolean;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
+type DbRow<T extends Parameters<typeof defineEntity>[0]> = Readonly<
+    InferDatabaseRow<T>
+>;
 
-export type ExternalIdentityDb = {
-    readonly provider: string;
-    readonly providerSubject: string;
-    readonly userId: number;
-    readonly email: string;
-    readonly createdAt: Date;
-};
+export type UserDb = DbRow<typeof UserDbSchema>;
+export type ExternalIdentityDb = DbRow<typeof ExternalIdentityDbSchema>;
+export type VendorDb = DbRow<typeof VendorDbSchema>;
+export type TelegramAccountDb = DbRow<typeof TelegramAccountDbSchema>;
+export type TelegramLinkTokenDb = DbRow<typeof TelegramLinkTokenDbSchema>;
+export type ApiKeyDb = DbRow<typeof ApiKeyDbSchema>;
+export type McpOAuthClientDb = DbRow<typeof McpOAuthClientDbSchema>;
+export type McpOAuthGrantDb = DbRow<typeof McpOAuthGrantDbSchema>;
+export type McpOAuthAuthorizationCodeDb = DbRow<
+    typeof McpOAuthAuthorizationCodeDbSchema
+>;
+export type McpOAuthRefreshTokenDb = DbRow<typeof McpOAuthRefreshTokenDbSchema>;
+export type TransactionTagDb = DbRow<typeof TransactionTagDbSchema>;
+export type TransactionTagLinkDb = DbRow<typeof TransactionTagLinkDbSchema>;
+export type TransactionScanDb = DbRow<typeof TransactionScanDbSchema>;
+export type TransactionScanItemDb = DbRow<typeof TransactionScanItemDbSchema>;
 
-export type CategoryDb = {
-    readonly id: number;
-    readonly userId: number;
-    readonly parentId?: number | null;
-    readonly name: string;
-    readonly type: 'expense' | 'income';
-    readonly kind: 'normal' | 'offset';
-    readonly archivedAt?: Date | null;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
+export type CategoryDb = Readonly<
+    Omit<InferDatabaseRow<typeof CategoryDbSchema>, 'kind' | 'type'> & {
+        kind: 'normal' | 'offset';
+        type: 'expense' | 'income';
+    }
+>;
 
-export type VendorDb = {
-    readonly id: number;
-    readonly userId: number;
-    readonly name: string;
-    readonly normalizedName: string;
-    readonly resolvedName?: string | null;
-    readonly domain?: string | null;
-    readonly description?: string | null;
-    readonly logoUrl?: string | null;
-    readonly primaryColor?: string | null;
-    readonly enrichmentProvider?: string | null;
-    readonly enrichmentStatus?: string | null;
-    readonly enrichedAt?: Date | null;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
+export type TransactionDb = Readonly<
+    Omit<
+        InferDatabaseRow<typeof TransactionDbSchema>,
+        | 'amount'
+        | 'category'
+        | 'defaultCurrencyAmount'
+        | 'exchangeRate'
+        | 'type'
+    > & {
+        amount: string | number;
+        category?: CategoryDb | null;
+        defaultCurrencyAmount: string | number;
+        exchangeRate: string | number;
+        type: 'expense' | 'income';
+    }
+>;
 
-export type TelegramAccountDb = {
-    readonly userId: number;
-    readonly telegramUserId: string;
-    readonly telegramUsername?: string | null;
-    readonly telegramFirstName?: string | null;
-    readonly telegramLastName?: string | null;
-    readonly linkedAt: Date;
-    readonly updatedAt: Date;
-};
-
-export type TelegramLinkTokenDb = {
-    readonly id: number;
-    readonly userId: number;
-    readonly tokenHash: string;
-    readonly expiresAt: Date;
-    readonly consumedAt?: Date | null;
-    readonly createdAt: Date;
-};
-
-export type ApiKeyDb = {
-    readonly id: number;
-    readonly userId: number;
-    readonly name: string;
-    readonly keyId: string;
-    readonly keyPrefix: string;
-    readonly secretHash: string;
-    readonly createdAt: Date;
-    readonly lastUsedAt?: Date | null;
-    readonly revokedAt?: Date | null;
-};
-
-export type McpOAuthClientDb = {
-    readonly id: number;
-    readonly clientId: string;
-    readonly clientName: string;
-    readonly redirectUrisJson: string;
-    readonly scope: string;
-    readonly createdAt: Date;
-};
-
-export type McpOAuthGrantDb = {
-    readonly id: number;
-    readonly userId: number;
-    readonly clientId: number;
-    readonly scope: string;
-    readonly createdAt: Date;
-    readonly lastUsedAt?: Date | null;
-    readonly revokedAt?: Date | null;
-};
-
-export type McpOAuthAuthorizationCodeDb = {
-    readonly id: number;
-    readonly codeHash: string;
-    readonly userId: number;
-    readonly clientId: number;
-    readonly grantId: number;
-    readonly redirectUri: string;
-    readonly codeChallenge: string;
-    readonly codeChallengeMethod: string;
-    readonly scope: string;
-    readonly expiresAt: Date;
-    readonly consumedAt?: Date | null;
-    readonly createdAt: Date;
-};
-
-export type McpOAuthRefreshTokenDb = {
-    readonly id: number;
-    readonly tokenHash: string;
-    readonly userId: number;
-    readonly clientId: number;
-    readonly grantId: number;
-    readonly expiresAt: Date;
-    readonly createdAt: Date;
-    readonly lastUsedAt?: Date | null;
-    readonly revokedAt?: Date | null;
-};
-
-export type TransactionDb = {
-    readonly id: number;
-    readonly userId: number;
-    readonly categoryId: number;
-    readonly vendorId?: number | null;
-    readonly category?: CategoryDb | null;
-    readonly type: 'expense' | 'income';
-    readonly amount: string | number;
-    readonly currency: string;
-    readonly defaultCurrencyAmount: string | number;
-    readonly defaultCurrency: string;
-    readonly exchangeRate: string | number;
-    readonly exchangeRateDate: string;
-    readonly occurredAt: Date;
-    readonly note?: string | null;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
-
-export type TransactionTagDb = {
-    readonly id: number;
-    readonly userId: number;
-    readonly name: string;
-    readonly normalizedName: string;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
-
-export type TransactionTagLinkDb = {
-    readonly transactionId: number;
-    readonly tagId: number;
-    readonly createdAt: Date;
-};
-
-export type TransactionScanDb = {
-    readonly id: number;
-    readonly userId: number;
-    readonly documentKind: string;
-    readonly imageHash: string;
-    readonly model: string;
-    readonly warningsJson: string;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
-
-export type TransactionScanItemDb = {
-    readonly id: number;
-    readonly scanId: number;
-    readonly userId: number;
-    readonly draftJson: string;
-    readonly decision?: string | null;
-    readonly correctedJson?: string | null;
-    readonly transactionId?: number | null;
-    readonly createdCategoryId?: number | null;
-    readonly createdVendorId?: number | null;
-    readonly decidedAt?: Date | null;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
-
-export type TransactionScanImageDb = {
-    readonly id: number;
-    readonly scanId: number;
-    readonly userId: number;
-    readonly imageHash: string;
-    readonly mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
-    readonly fileName?: string | null;
-    readonly sizeBytes: number;
-    readonly imageBase64: string;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
+export type TransactionScanImageDb = Readonly<
+    Omit<InferDatabaseRow<typeof TransactionScanImageDbSchema>, 'mimeType'> & {
+        mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+    }
+>;

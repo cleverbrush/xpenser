@@ -1,0 +1,35 @@
+---
+title: "Cleverbrush Framework beta adoption in xpenser"
+slug: cleverbrush-framework-beta-adoption
+description: "xpenser adopted the latest Cleverbrush Framework beta to simplify configuration, cache invalidation, database access, and MCP transport code."
+sourcePrNumber: ""
+sourcePrUrl: ""
+heroImage: ""
+heroImageAlt: ""
+publishedAt: 2026-07-06
+updatedAt: 2026-07-06
+targetKeyword: "Cleverbrush Framework adoption"
+keywords:
+  - "schema-first TypeScript framework"
+  - "open-source expense tracker"
+  - "typed database access"
+  - "Next.js cache invalidation"
+draft: false
+---
+
+xpenser now runs on the `0.0.0-beta-20260706102419` Cleverbrush Framework beta. This release is mostly internal, but it matters because xpenser is also a reference application for a schema-first TypeScript stack.
+
+The update replaces local utility code with framework primitives where the behavior should be consistent across projects. Environment flags now use Cleverbrush env booleans, API cache tag metadata can invalidate the Next.js cache through one bridge, and database code can lean on inferred row types and schema-aware upsert helpers.
+
+## What changed
+
+- Adopted the new Cleverbrush beta across the API, web app, shared client, contracts, UI package, and Telegram bot.
+- Centralized Next.js tag invalidation behind the typed xpenser client instead of repeating tag lists inside every server action.
+- Added a read-only database schema drift check for the API entity map.
+- Simplified MCP transport handling with a raw Cleverbrush action result.
+
+## Why it matters
+
+The goal is to keep product code focused on xpenser behavior instead of repeating framework glue. When the same patterns work here, they can be reused in future Cleverbrush projects with less custom code and fewer application-level conventions to remember.
+
+Developers can explore the framework behind these patterns in the [Cleverbrush Framework documentation](https://docs.cleverbrush.com). For the product side, start with the [xpenser home page](/), the [open-source expense tracker](/open-source-expense-tracker) overview, or the [personal finance API and MCP tools](/personal-finance-api-mcp).

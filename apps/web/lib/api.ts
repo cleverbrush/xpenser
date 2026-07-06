@@ -3,6 +3,7 @@ import {
     type XpenserClientOptions
 } from '@xpenser/client';
 import type { TokenResponse } from '@xpenser/contracts';
+import { revalidateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { expiredSessionPath } from './auth-routes';
 import { getWebApiServiceSecret, webConfig } from './config';
@@ -91,6 +92,7 @@ export async function getApiClient(options: ApiClientOptions = {}) {
         onUnauthorized: () => {
             redirect(expiredSessionPath);
         },
+        invalidateCacheTag: tag => revalidateTag(tag, 'max'),
         retryOnTimeout: options.retryOnTimeout,
         timeoutMs: options.timeoutMs
     });

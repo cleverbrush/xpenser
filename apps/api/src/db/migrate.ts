@@ -1,7 +1,7 @@
 import path from 'node:path';
 import type { Knex } from 'knex';
 
-const migrationsDirectory =
+export const migrationsDirectory =
     process.env.MIGRATIONS_DIR ??
     (/^\/app(\/|$)/.test(process.cwd())
         ? '/app/migrations'

@@ -1,9 +1,14 @@
+import { query } from '@cleverbrush/orm';
 import type {
     TransactionTag,
     TransactionTagListQuery
 } from '@xpenser/contracts';
 import { FieldLimits, TransactionTagLimits } from '@xpenser/contracts';
 import type { Knex } from 'knex';
+import {
+    type TransactionTagDb,
+    TransactionTagDbSchema
+} from '../db/schemas.js';
 
 export class TransactionTagError extends Error {}
 
@@ -15,7 +20,7 @@ type TransactionTagRow = {
     readonly updatedAt: Date;
 };
 
-type TransactionTagAssignment = {
+export type TransactionTagAssignment = {
     readonly name: string;
     readonly normalizedName: string;
 };
@@ -102,35 +107,32 @@ export async function listTransactionTags(
     return rows.map(mapTransactionTag);
 }
 
-async function getOrCreateTransactionTag(
+export async function getOrCreateTransactionTag(
     knex: Knex,
     userId: number,
     assignment: TransactionTagAssignment
 ): Promise<number> {
-    const [created] = (await knex('transaction_tags')
-        .insert({
-            user_id: userId,
-            name: assignment.name,
-            normalized_name: assignment.normalizedName
-        })
-        .onConflict(['user_id', 'normalized_name'])
-        .ignore()
-        .returning(['id'])) as Array<{ readonly id: number }>;
+    const tag = await query(knex, TransactionTagDbSchema)
+        .onConflict(
+            tag => tag.userId,
+            tag => tag.normalizedName
+        )
+        .merge(
+            {
+                userId,
+                name: assignment.name,
+                normalizedName: assignment.normalizedName
+            },
+            {
+                name: ({ column, raw }) => raw('??', [column(tag => tag.name)])
+            }
+        );
 
-    if (created) {
-        return Number(created.id);
-    }
-
-    const existing = (await knex('transaction_tags')
-        .where('user_id', userId)
-        .where('normalized_name', assignment.normalizedName)
-        .select('id')
-        .first()) as { readonly id: number } | undefined;
-    if (!existing) {
+    if (!tag) {
         throw new TransactionTagError('Could not save transaction tag.');
     }
 
-    return Number(existing.id);
+    return Number((tag as TransactionTagDb).id);
 }
 
 export async function pruneUnusedTransactionTags(
