@@ -1,7 +1,7 @@
 ---
-title: "Cleverbrush Framework beta adoption in xpenser"
-slug: cleverbrush-framework-beta-adoption
-description: "xpenser adopted the latest Cleverbrush Framework beta to simplify configuration, cache invalidation, database access, and MCP transport code."
+title: "Cleverbrush Framework 4.4.0 adoption in xpenser"
+slug: cleverbrush-framework-4-4-0-adoption
+description: "xpenser adopted Cleverbrush Framework 4.4.0 to simplify configuration, cache invalidation, database access, and MCP transport code."
 sourcePrNumber: "65"
 sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/65"
 heroImage: ""
@@ -17,13 +17,13 @@ keywords:
 draft: false
 ---
 
-xpenser now runs on the `0.0.0-beta-20260706102419` Cleverbrush Framework beta. This release is mostly internal, but it matters because xpenser is also a reference application for a schema-first TypeScript stack.
+xpenser now runs on Cleverbrush Framework `4.4.0`. This release is mostly internal, but it matters because xpenser is also a reference application for a schema-first TypeScript stack.
 
 The update replaces local utility code with framework primitives where the behavior should be consistent across projects. Environment flags now use Cleverbrush env booleans, API cache tag metadata can invalidate the Next.js cache through one bridge, and database code can lean on inferred row types and schema-aware upsert helpers.
 
 ## What changed
 
-- Adopted the new Cleverbrush beta across the API, web app, shared client, contracts, UI package, and Telegram bot.
+- Adopted Cleverbrush Framework 4.4.0 across the API, web app, shared client, contracts, UI package, and Telegram bot.
 - Centralized Next.js tag invalidation behind the typed xpenser client instead of repeating tag lists inside every server action.
 - Added a read-only database schema drift check for the API entity map.
 - Simplified MCP transport handling with a raw Cleverbrush action result.

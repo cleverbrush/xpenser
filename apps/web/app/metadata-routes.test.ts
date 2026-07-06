@@ -47,7 +47,7 @@ describe('metadata routes', () => {
                     product => `https://xpenser.cleverbrush.com${product.path}`
                 ),
                 'https://xpenser.cleverbrush.com/blog/markdown-blog-workflow',
-                'https://xpenser.cleverbrush.com/blog/cleverbrush-framework-beta-adoption',
+                'https://xpenser.cleverbrush.com/blog/cleverbrush-framework-4-4-0-adoption',
                 'https://xpenser.cleverbrush.com/blog/dashboard-vendor-view-controls',
                 'https://xpenser.cleverbrush.com/blog/disable-gtm-in-pr-environments',
                 'https://xpenser.cleverbrush.com/blog/transaction-csv-export',

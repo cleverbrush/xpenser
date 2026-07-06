@@ -13,10 +13,10 @@
         "clean": "rm -rf dist tsconfig.tsbuildinfo"
     },
     "dependencies": {
-        "@cleverbrush/env": "0.0.0-beta-20260706102419",
-        "@cleverbrush/log": "0.0.0-beta-20260706102419",
-        "@cleverbrush/otel": "0.0.0-beta-20260706102419",
-        "@cleverbrush/schema": "0.0.0-beta-20260706102419",
+        "@cleverbrush/env": "4.4.0",
+        "@cleverbrush/log": "4.4.0",
+        "@cleverbrush/otel": "4.4.0",
+        "@cleverbrush/schema": "4.4.0",
         "@opentelemetry/api": "^1.9.0",
         "@opentelemetry/instrumentation": "0.215.0",
         "@opentelemetry/instrumentation-http": "0.215.0",
