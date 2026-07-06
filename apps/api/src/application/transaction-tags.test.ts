@@ -14,6 +14,7 @@ const ormMocks = vi.hoisted(() => ({
 
 vi.mock('@cleverbrush/orm', async importOriginal => ({
     ...(await importOriginal<typeof import('@cleverbrush/orm')>()),
+    getTableName: vi.fn(() => 'transaction_tags'),
     query: ormMocks.query
 }));
 
@@ -104,7 +105,10 @@ describe('transaction tags', () => {
         };
 
         expect(updateData.name(helpers)).toBe(rawResult);
-        expect(helpers.raw).toHaveBeenCalledWith('??', ['name']);
+        expect(helpers.raw).toHaveBeenCalledWith('??.??', [
+            'transaction_tags',
+            'name'
+        ]);
     });
 
     it('reports a failed tag upsert', async () => {

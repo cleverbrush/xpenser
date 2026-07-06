@@ -1,4 +1,4 @@
-import { query } from '@cleverbrush/orm';
+import { getTableName, query } from '@cleverbrush/orm';
 import type {
     TransactionTag,
     TransactionTagListQuery
@@ -112,6 +112,7 @@ export async function getOrCreateTransactionTag(
     userId: number,
     assignment: TransactionTagAssignment
 ): Promise<number> {
+    const tableName = getTableName(TransactionTagDbSchema);
     const tag = await query(knex, TransactionTagDbSchema)
         .onConflict(
             tag => tag.userId,
@@ -124,7 +125,8 @@ export async function getOrCreateTransactionTag(
                 normalizedName: assignment.normalizedName
             },
             {
-                name: ({ column, raw }) => raw('??', [column(tag => tag.name)])
+                name: ({ column, raw }) =>
+                    raw('??.??', [tableName, column(tag => tag.name)])
             }
         );
 
