@@ -374,24 +374,18 @@ export const api = defineApi({
                 403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             }),
-        members: budgets
-            .get(BudgetMembers)
-            .cacheTag('budgets')
-            .responses({
-                200: array(BudgetMemberSchema),
-                400: ErrorResponseSchema,
-                403: ErrorResponseSchema,
-                404: ErrorResponseSchema
-            }),
-        access: budgets
-            .get(BudgetAccess)
-            .cacheTag('budgets')
-            .responses({
-                200: array(BudgetAccessRowSchema),
-                400: ErrorResponseSchema,
-                403: ErrorResponseSchema,
-                404: ErrorResponseSchema
-            }),
+        members: budgets.get(BudgetMembers).responses({
+            200: array(BudgetMemberSchema),
+            400: ErrorResponseSchema,
+            403: ErrorResponseSchema,
+            404: ErrorResponseSchema
+        }),
+        access: budgets.get(BudgetAccess).responses({
+            200: array(BudgetAccessRowSchema),
+            400: ErrorResponseSchema,
+            403: ErrorResponseSchema,
+            404: ErrorResponseSchema
+        }),
         invite: budgets
             .post(BudgetInvitations)
             .body(InviteBudgetMemberBodySchema)
