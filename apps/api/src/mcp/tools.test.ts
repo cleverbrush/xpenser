@@ -111,6 +111,10 @@ function transaction(overrides: Partial<Transaction> = {}): Transaction {
         note: 'Lunch',
         tags: [],
         scanAttachment: null,
+        createdBy: {
+            userId: 1,
+            email: 'test@cleverbrush.com'
+        },
         createdAt: new Date('2026-05-14T01:00:00.000Z'),
         updatedAt: new Date('2026-05-14T01:00:00.000Z'),
         ...overrides
@@ -148,6 +152,7 @@ function budget(overrides: Partial<Budget> = {}): Budget {
             canManageMembers: true
         },
         isMain: true,
+        archivedAt: null,
         createdAt: new Date('2026-05-01T00:00:00.000Z'),
         updatedAt: new Date('2026-05-01T00:00:00.000Z'),
         ...overrides

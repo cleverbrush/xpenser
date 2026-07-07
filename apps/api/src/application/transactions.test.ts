@@ -1167,6 +1167,23 @@ describe('transaction CSV export', () => {
                 };
                 return query;
             }
+            if (table === 'users') {
+                const query = {
+                    ids: [] as number[],
+                    whereIn: (_field: string, ids: readonly number[]) => {
+                        query.ids = [...ids];
+                        return query;
+                    },
+                    select: () =>
+                        Promise.resolve(
+                            query.ids.map(id => ({
+                                id,
+                                email: 'owner@example.com'
+                            }))
+                        )
+                };
+                return query;
+            }
             throw new Error(`Unexpected table ${table}`);
         });
     }

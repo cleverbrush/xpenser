@@ -121,6 +121,7 @@ export const BudgetDbSchema = object({
         .references('users', 'id')
         .onDelete('SET NULL')
         .optional(),
+    archivedAt: date().optional().hasColumnName('archived_at'),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
     updatedAt: date().hasColumnName('updated_at').defaultTo('now')
 }).hasTableName('budgets');

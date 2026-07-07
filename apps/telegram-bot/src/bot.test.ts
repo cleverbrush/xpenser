@@ -116,6 +116,7 @@ const me = {
                 canManageMembers: true
             },
             isMain: true,
+            archivedAt: null,
             createdAt: new Date('2026-05-01T00:00:00.000Z'),
             updatedAt: new Date('2026-05-01T00:00:00.000Z')
         }

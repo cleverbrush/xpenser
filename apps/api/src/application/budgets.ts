@@ -33,9 +33,12 @@ export type BudgetAccess = {
     readonly permissions: BudgetPermissions;
 };
 
+export type BudgetListStatus = 'active' | 'archived' | 'all';
+
 const invitationTtlMs = 7 * 24 * 60 * 60 * 1000;
 const budgetInvitationMessage =
     'If that email belongs to an xpenser user, a budget invitation has been sent.';
+const mainBudgetName = 'Main';
 
 export const adminBudgetPermissions: BudgetPermissions = {
     canCreateTransactions: true,
@@ -59,6 +62,13 @@ export const defaultMemberBudgetPermissions: BudgetPermissions = {
 
 function normalizedBudgetName(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
+}
+
+function isMainBudgetName(value: string): boolean {
+    return (
+        normalizedBudgetName(value).toLowerCase() ===
+        mainBudgetName.toLowerCase()
+    );
 }
 
 function normalizedEmail(value: string): string {
@@ -160,6 +170,7 @@ function mapBudget(
         role: member.role === 'admin' ? 'admin' : 'member',
         permissions: memberPermissions(member),
         isMain: budget.id === mainBudgetId,
+        archivedAt: budget.archivedAt ?? null,
         createdAt: budget.createdAt,
         updatedAt: budget.updatedAt
     };
@@ -214,7 +225,8 @@ export async function ensureMainBudget(
             name: 'Main',
             defaultCurrency: user.defaultCurrency,
             countryCode: normalizeCountryCode(user.countryCode),
-            createdByUserId: user.id
+            createdByUserId: user.id,
+            archivedAt: null
         })) as BudgetDb;
 
         await trx.budgetMembers.insert({
@@ -238,7 +250,8 @@ export async function createMainBudgetForUser(
         name: 'Main',
         defaultCurrency: user.defaultCurrency,
         countryCode: normalizeCountryCode(user.countryCode),
-        createdByUserId: user.id
+        createdByUserId: user.id,
+        archivedAt: null
     })) as BudgetDb;
 
     await db.budgetMembers.insert({
@@ -256,7 +269,8 @@ export async function createMainBudgetForUser(
 export async function resolveBudgetAccess(
     db: AppDb,
     userId: number,
-    budgetId?: number | null
+    budgetId?: number | null,
+    options: { readonly allowArchived?: boolean } = {}
 ): Promise<BudgetAccess> {
     const selectedBudgetId =
         budgetId ?? (await ensureMainBudget(db, userId)).id;
@@ -270,6 +284,9 @@ export async function resolveBudgetAccess(
 
     if (!budget || !member) {
         throw new BudgetAccessError('Budget was not found.');
+    }
+    if ((budget as BudgetDb).archivedAt && !options.allowArchived) {
+        throw new BudgetAccessError('Budget was archived.');
     }
 
     return {
@@ -292,14 +309,21 @@ export function requireBudgetPermission(
 
 export async function listBudgets(
     db: AppDb,
-    userId: number
+    userId: number,
+    status: BudgetListStatus = 'active'
 ): Promise<Budget[]> {
     await ensureMainBudget(db, userId);
     const user = (await db.users.find(userId)) as UserDb | undefined;
-    const rows = (await db
+    const query = db
         .knex('budget_members as member')
         .join('budgets as budget', 'budget.id', 'member.budget_id')
-        .where('member.user_id', userId)
+        .where('member.user_id', userId);
+    if (status === 'active') {
+        query.whereNull('budget.archived_at');
+    } else if (status === 'archived') {
+        query.whereNotNull('budget.archived_at');
+    }
+    const rows = (await query
         .orderByRaw('case when budget.id = ? then 0 else 1 end', [
             user?.mainBudgetId ?? 0
         ])
@@ -310,6 +334,7 @@ export async function listBudgets(
             defaultCurrency: 'budget.default_currency',
             countryCode: 'budget.country_code',
             createdByUserId: 'budget.created_by_user_id',
+            archivedAt: 'budget.archived_at',
             budgetCreatedAt: 'budget.created_at',
             budgetUpdatedAt: 'budget.updated_at',
             userId: 'member.user_id',
@@ -329,6 +354,7 @@ export async function listBudgets(
         readonly defaultCurrency: string;
         readonly countryCode: string;
         readonly createdByUserId: number | null;
+        readonly archivedAt: Date | null;
         readonly budgetCreatedAt: Date;
         readonly budgetUpdatedAt: Date;
         readonly userId: number;
@@ -352,6 +378,7 @@ export async function listBudgets(
                 defaultCurrency: row.defaultCurrency,
                 countryCode: row.countryCode,
                 createdByUserId: row.createdByUserId ?? undefined,
+                archivedAt: row.archivedAt ?? undefined,
                 createdAt: row.budgetCreatedAt,
                 updatedAt: row.budgetUpdatedAt
             },
@@ -398,7 +425,8 @@ export async function createBudget(
             countryCode: normalizeCountryCode(
                 body.countryCode ?? user.countryCode
             ),
-            createdByUserId: userId
+            createdByUserId: userId,
+            archivedAt: null
         })) as BudgetDb;
         await trx.budgetMembers.insert({
             budgetId: created.id,
@@ -418,10 +446,15 @@ export async function updateBudget(
     budgetId: number,
     body: UpdateBudgetBody
 ): Promise<Budget> {
-    const access = await resolveBudgetAccess(db, userId, budgetId);
+    const access = await resolveBudgetAccess(db, userId, budgetId, {
+        allowArchived: true
+    });
     requireBudgetPermission(access, 'canManageMembers');
+    const user = (await db.users.find(userId)) as UserDb | undefined;
+    const isMain = access.budget.id === user?.mainBudgetId;
 
     const update: {
+        archivedAt?: Date | null;
         countryCode?: string;
         defaultCurrency?: string;
         name?: string;
@@ -443,6 +476,12 @@ export async function updateBudget(
     if (body.countryCode !== undefined) {
         update.countryCode = normalizeCountryCode(body.countryCode);
     }
+    if (body.archived !== undefined) {
+        if (isMain && body.archived) {
+            throw new BudgetMemberError('Main budget cannot be archived.');
+        }
+        update.archivedAt = body.archived ? new Date() : null;
+    }
 
     const [updated] = (await db.budgets
         .where(row => row.id, budgetId)
@@ -451,8 +490,32 @@ export async function updateBudget(
         throw new BudgetNotFoundError('Budget was not found.');
     }
 
-    const user = (await db.users.find(userId)) as UserDb | undefined;
     return mapBudget(updated, access.member, user?.mainBudgetId);
+}
+
+export async function deleteBudget(
+    db: AppDb,
+    userId: number,
+    budgetId: number
+): Promise<void> {
+    const access = await resolveBudgetAccess(db, userId, budgetId, {
+        allowArchived: true
+    });
+    requireBudgetPermission(access, 'canManageMembers');
+    const user = (await db.users.find(userId)) as UserDb | undefined;
+    if (access.budget.id === user?.mainBudgetId) {
+        throw new BudgetMemberError('Main budget cannot be deleted.');
+    }
+    if (!access.budget.archivedAt) {
+        throw new BudgetMemberError(
+            'Archive the budget before deleting it permanently.'
+        );
+    }
+
+    const deleted = await db.budgets.where(row => row.id, budgetId).delete();
+    if (deleted === 0) {
+        throw new BudgetNotFoundError('Budget was not found.');
+    }
 }
 
 export async function listBudgetMembers(
@@ -624,6 +687,11 @@ export async function inviteBudgetMember(
 ): Promise<{ readonly message: string }> {
     const access = await resolveBudgetAccess(db, userId, budgetId);
     requireBudgetPermission(access, 'canManageMembers');
+    if (isMainBudgetName(access.budget.name)) {
+        throw new BudgetMemberError(
+            'Rename this budget before inviting other users.'
+        );
+    }
 
     const email = normalizedEmail(body.email);
     const target = (await db.users.where(row => row.email, email).first()) as
@@ -682,6 +750,14 @@ export async function acceptBudgetInvitation(
         invitation.expiresAt.getTime() <= now.getTime() ||
         normalizedEmail(invitation.email) !== normalizedEmail(user.email)
     ) {
+        throw new BudgetInvitationInvalidError(
+            'Budget invitation is invalid or expired.'
+        );
+    }
+    const budget = (await db.budgets.find(invitation.budgetId)) as
+        | BudgetDb
+        | undefined;
+    if (!budget || budget.archivedAt) {
         throw new BudgetInvitationInvalidError(
             'Budget invitation is invalid or expired.'
         );

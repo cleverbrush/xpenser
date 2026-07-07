@@ -106,6 +106,8 @@ type TransactionTagCountRow = {
     readonly transactionCount: number | string;
 };
 
+type TransactionCreator = Transaction['createdBy'];
+
 type StatsBucket = StatsOverview['trend'][number];
 
 type StatsCategory = StatsOverview['byCategory'][number];
@@ -305,6 +307,32 @@ async function loadVendorsById(
     return new Map(vendors.map(vendor => [vendor.id, vendor] as const));
 }
 
+async function loadTransactionCreators(
+    knex: Knex,
+    transactions: readonly Pick<TransactionDb, 'userId'>[]
+): Promise<Map<number, TransactionCreator>> {
+    const userIds = Array.from(
+        new Set(transactions.map(transaction => transaction.userId))
+    );
+    if (userIds.length === 0) {
+        return new Map();
+    }
+
+    const rows = (await knex('users')
+        .whereIn('id', userIds)
+        .select({ id: 'id', email: 'email' })) as Array<{
+        readonly id: number;
+        readonly email: string;
+    }>;
+
+    return new Map(
+        rows.map(row => [
+            Number(row.id),
+            { userId: Number(row.id), email: row.email }
+        ])
+    );
+}
+
 async function loadFavoriteCurrencies(
     db: AppDb,
     userId: number
@@ -415,7 +443,8 @@ function mapTransaction(
     tagsByTransaction: ReadonlyMap<
         number,
         readonly TransactionTag[]
-    > = new Map()
+    > = new Map(),
+    creatorsById: ReadonlyMap<number, TransactionCreator> = new Map()
 ): Transaction {
     const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
@@ -443,6 +472,10 @@ function mapTransaction(
         occurredAt: row.occurredAt,
         note: row.note ?? undefined,
         tags: [...(tagsByTransaction.get(row.id) ?? [])],
+        createdBy: creatorsById.get(row.userId) ?? {
+            userId: row.userId,
+            email: ''
+        },
         scanAttachment: scanAttachments.get(row.id) ?? null,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt
@@ -832,6 +865,10 @@ export async function listTransactions(
               budgetId,
               pageRows.map(transaction => transaction.id)
           );
+    const creatorsById = await loadTransactionCreators(
+        knex ?? db.knex,
+        pageRows
+    );
 
     return {
         items: pageRows.map(transaction =>
@@ -840,7 +877,8 @@ export async function listTransactions(
                 categoriesById,
                 vendorsById,
                 scanAttachments,
-                pageTagsByTransaction
+                pageTagsByTransaction,
+                creatorsById
             )
         ),
         total: filtered.length,
@@ -1110,13 +1148,15 @@ export async function exportTransactionsCsv(
         budgetId,
         rows.map(transaction => transaction.id)
     );
+    const creatorsById = await loadTransactionCreators(knex ?? db.knex, rows);
     const transactions = rows.map(transaction =>
         mapTransaction(
             transaction,
             categoriesById,
             vendorsById,
             scanAttachments,
-            tagsByTransaction
+            tagsByTransaction,
+            creatorsById
         )
     );
     const rates = await exportCurrencyRates(
@@ -1211,17 +1251,22 @@ export async function getTransaction(
         throw new TransactionNotFoundError('Transaction was not found.');
     }
     const access = await resolveBudgetAccess(db, userId, row.budgetId);
-    const [categoriesById, vendorsById, tagsByTransaction] = await Promise.all([
-        loadCategoriesById(db, access.budget.id),
-        loadVendorsById(db, access.budget.id),
-        transactionTagsByTransaction(db.knex, access.budget.id, [transactionId])
-    ]);
+    const [categoriesById, vendorsById, tagsByTransaction, creatorsById] =
+        await Promise.all([
+            loadCategoriesById(db, access.budget.id),
+            loadVendorsById(db, access.budget.id),
+            transactionTagsByTransaction(db.knex, access.budget.id, [
+                transactionId
+            ]),
+            loadTransactionCreators(db.knex, [row])
+        ]);
     return mapTransaction(
         row,
         categoriesById,
         vendorsById,
         new Map(),
-        tagsByTransaction
+        tagsByTransaction,
+        creatorsById
     );
 }
 

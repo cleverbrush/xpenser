@@ -1073,6 +1073,7 @@ async function listReportBudgets(
         .join('budget_members', 'budget_members.budget_id', 'budgets.id')
         .select('budgets.id', 'budgets.name')
         .where('budget_members.user_id', userId)
+        .whereNull('budgets.archived_at')
         .orderBy('budgets.name', 'asc');
 
     return rows as Pick<BudgetDb, 'id' | 'name'>[];

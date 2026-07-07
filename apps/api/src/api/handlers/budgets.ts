@@ -7,6 +7,7 @@ import {
     BudgetNotFoundError,
     BudgetPermissionError,
     createBudget,
+    deleteBudget,
     inviteBudgetMember,
     listBudgetMembers,
     listBudgets,
@@ -17,6 +18,7 @@ import {
 import type {
     AcceptBudgetInvitationEndpoint,
     CreateBudgetEndpoint,
+    DeleteBudgetEndpoint,
     InviteBudgetMemberEndpoint,
     ListBudgetMembersEndpoint,
     ListBudgetsEndpoint,
@@ -42,10 +44,10 @@ function budgetAccessResult(err: unknown) {
 }
 
 export const listBudgetsHandler: Handler<typeof ListBudgetsEndpoint> = async (
-    { principal },
+    { principal, query },
     { db }
 ) => {
-    return listBudgets(db, principal.userId);
+    return listBudgets(db, principal.userId, query.status);
 };
 
 export const createBudgetHandler: Handler<typeof CreateBudgetEndpoint> = async (
@@ -71,6 +73,22 @@ export const updateBudgetHandler: Handler<typeof UpdateBudgetEndpoint> = async (
 ) => {
     try {
         return await updateBudget(db, principal.userId, params.id, body);
+    } catch (err) {
+        const result = budgetAccessResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
+};
+
+export const deleteBudgetHandler: Handler<typeof DeleteBudgetEndpoint> = async (
+    { params, principal },
+    { db }
+) => {
+    try {
+        await deleteBudget(db, principal.userId, params.id);
+        return ActionResult.noContent();
     } catch (err) {
         const result = budgetAccessResult(err);
         if (result) {

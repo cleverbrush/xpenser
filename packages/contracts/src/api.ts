@@ -32,6 +32,7 @@ import {
     InviteBudgetMemberBodySchema,
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
+    ListBudgetsQuerySchema,
     LoginBodySchema,
     McpOAuthAuthorizationQuerySchema,
     McpOAuthAuthorizationRequestSchema,
@@ -303,6 +304,7 @@ export const api = defineApi({
     budgets: {
         list: budgets
             .get()
+            .query(ListBudgetsQuerySchema)
             .cacheTag('budgets')
             .responses({ 200: array(BudgetSchema) }),
         create: budgets
@@ -325,6 +327,18 @@ export const api = defineApi({
             .clearsCacheTag('stats')
             .responses({
                 200: BudgetSchema,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        delete: budgets
+            .delete(ById)
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('user-profile')
+            .clearsCacheTag('dashboard')
+            .clearsCacheTag('stats')
+            .responses({
+                204: null,
                 400: ErrorResponseSchema,
                 403: ErrorResponseSchema,
                 404: ErrorResponseSchema

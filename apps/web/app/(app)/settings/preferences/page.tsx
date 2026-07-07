@@ -21,13 +21,14 @@ import { publicAppUrl } from '@/lib/public-url';
 
 export default async function PreferencesPage() {
     const client = await getApiClient();
-    const [me, currencies, telegram, apiKeys, mcpConnections] =
+    const [me, currencies, telegram, apiKeys, mcpConnections, archivedBudgets] =
         await Promise.all([
             client.auth.me(),
             client.currencies.list(),
             client.users.telegramStatus(),
             client.users.listApiKeys(),
-            client.users.listMcpOAuthConnections()
+            client.users.listMcpOAuthConnections(),
+            client.budgets.list({ query: { status: 'archived' } })
         ]);
     const memberEntries = await Promise.all(
         me.budgets
@@ -135,11 +136,11 @@ export default async function PreferencesPage() {
                 </CardHeader>
             </Card>
             <BudgetSettings
+                archivedBudgets={archivedBudgets}
                 budgets={me.budgets}
                 currencies={currencies}
                 currentUserId={me.id}
                 membersByBudget={membersByBudget}
-                userCountryCode={me.countryCode}
                 userDefaultCurrency={me.defaultCurrency}
             />
             <Card>

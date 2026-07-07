@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FieldLimits, TransactionTagLimits } from './limits.js';
 import {
+    BudgetSchema,
     CategoryListQuerySchema,
     CategorySchema,
     CategoryTrendQuerySchema,
@@ -16,6 +17,7 @@ import {
     EmailConfirmationPendingResponseSchema,
     GoogleSignInBodySchema,
     LinkTelegramAccountBodySchema,
+    ListBudgetsQuerySchema,
     LoginBodySchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
@@ -38,6 +40,7 @@ import {
     TransactionScanProgressQuerySchema,
     TransactionScanResponseSchema,
     TransactionSchema,
+    UpdateBudgetBodySchema,
     UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
@@ -196,6 +199,7 @@ describe('shared schemas', () => {
                         canManageMembers: true
                     },
                     isMain: true,
+                    archivedAt: null,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }
@@ -205,6 +209,46 @@ describe('shared schemas', () => {
         });
 
         expect(result.valid).toBe(true);
+    });
+
+    it('validates budget lifecycle fields and query controls', () => {
+        const budget = BudgetSchema.validate({
+            id: 1,
+            name: 'Household',
+            defaultCurrency: 'USD',
+            countryCode: 'US',
+            role: 'admin',
+            permissions: {
+                canCreateTransactions: true,
+                canUpdateTransactions: true,
+                canDeleteTransactions: true,
+                canManageCategories: true,
+                canManageVendors: true,
+                canManageTags: true,
+                canManageMembers: true
+            },
+            isMain: false,
+            archivedAt: new Date('2026-06-01T00:00:00.000Z'),
+            createdAt: new Date(),
+            updatedAt: new Date()
+        });
+
+        expect(budget.valid).toBe(true);
+        expect(
+            UpdateBudgetBodySchema.validate({
+                archived: true,
+                defaultCurrency: 'EUR',
+                name: 'Shared household'
+            }).valid
+        ).toBe(true);
+        expect(
+            ListBudgetsQuerySchema.validate({ status: 'archived' }).object
+                ?.status
+        ).toBe('archived');
+        expect(
+            ListBudgetsQuerySchema.validate({ status: 'deleted' } as never)
+                .valid
+        ).toBe(false);
     });
 
     it('validates category archive update payloads', () => {
@@ -717,6 +761,10 @@ describe('shared schemas', () => {
                         updatedAt: new Date('2026-06-01T12:00:00.000Z')
                     }
                 ],
+                createdBy: {
+                    userId: 1,
+                    email: 'jane@example.com'
+                },
                 scanAttachment: {
                     scanId: 10,
                     scanItemId: 20,

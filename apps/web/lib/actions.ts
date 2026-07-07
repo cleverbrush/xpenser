@@ -244,13 +244,13 @@ function categoryBody(formData: FormData) {
 }
 
 function budgetBody(formData: FormData) {
+    const countryCode = optionalString(formData, 'countryCode');
     return {
         name: requiredString(formData, 'name'),
         defaultCurrency: requiredString(formData, 'defaultCurrency')
             .trim()
             .toUpperCase(),
-        countryCode:
-            optionalString(formData, 'countryCode')?.toUpperCase() ?? 'US'
+        ...(countryCode ? { countryCode: countryCode.toUpperCase() } : {})
     };
 }
 
@@ -854,6 +854,63 @@ export async function createBudgetAction(formData: FormData) {
     });
     revalidatePath('/settings/preferences');
     redirect('/settings/preferences');
+}
+
+export async function updateBudgetAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.budgets.update({
+        params: { id: Number(requiredString(formData, 'budgetId')) },
+        body: budgetBody(formData)
+    });
+    revalidatePath('/settings/preferences');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+}
+
+async function clearSelectedBudgetIfNeeded(budgetId: number) {
+    const selectedBudgetId = await selectedBudgetIdFromCookie();
+    if (selectedBudgetId !== budgetId) {
+        return;
+    }
+    const cookieStore = await cookies();
+    cookieStore.delete(selectedBudgetCookie);
+}
+
+export async function archiveBudgetAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const client = await getApiClient();
+    await client.budgets.update({
+        params: { id: budgetId },
+        body: { archived: true }
+    });
+    await clearSelectedBudgetIfNeeded(budgetId);
+    revalidatePath('/settings/preferences');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+}
+
+export async function restoreBudgetAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.budgets.update({
+        params: { id: Number(requiredString(formData, 'budgetId')) },
+        body: { archived: false }
+    });
+    revalidatePath('/settings/preferences');
+}
+
+export async function deleteBudgetAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const client = await getApiClient();
+    await client.budgets.delete({
+        params: { id: budgetId }
+    });
+    await clearSelectedBudgetIfNeeded(budgetId);
+    revalidatePath('/settings/preferences');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
 }
 
 export async function inviteBudgetMemberAction(formData: FormData) {

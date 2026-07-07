@@ -243,6 +243,21 @@ function transactionBadges(transaction: Transaction) {
     );
 }
 
+function transactionCreatorBadge(
+    transaction: Transaction,
+    currentUserId: number
+) {
+    if (transaction.createdBy.userId === currentUserId) {
+        return null;
+    }
+
+    return (
+        <Badge variant="outline">
+            Added by {transaction.createdBy.email || 'another user'}
+        </Badge>
+    );
+}
+
 function transactionVendor(transaction: Transaction) {
     if (!transaction.vendorName) {
         return null;
@@ -433,6 +448,7 @@ function TransactionActions({
 function TransactionCards({
     categories,
     currencies,
+    currentUserId,
     defaultCurrency,
     transactionTags: availableTransactionTags,
     vendors,
@@ -441,6 +457,7 @@ function TransactionCards({
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
+    readonly currentUserId: number;
     readonly defaultCurrency: string;
     readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
@@ -461,6 +478,10 @@ function TransactionCards({
                             </h2>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
                                 {transactionBadges(transaction)}
+                                {transactionCreatorBadge(
+                                    transaction,
+                                    currentUserId
+                                )}
                                 <span className="text-xs text-muted-foreground">
                                     {formatDateTime(
                                         transaction.occurredAt,
@@ -493,6 +514,7 @@ function TransactionCards({
 function TransactionTable({
     categories,
     currencies,
+    currentUserId,
     defaultCurrency,
     transactionTags: availableTransactionTags,
     vendors,
@@ -501,6 +523,7 @@ function TransactionTable({
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
+    readonly currentUserId: number;
     readonly defaultCurrency: string;
     readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
@@ -516,6 +539,7 @@ function TransactionTable({
                             <TableHead>Category</TableHead>
                             <TableHead>Vendor</TableHead>
                             <TableHead>Tags</TableHead>
+                            <TableHead>Added by</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>When</TableHead>
@@ -537,6 +561,16 @@ function TransactionTable({
                                 </TableCell>
                                 <TableCell>
                                     {transactionTagBadges(transaction) ?? (
+                                        <span className="text-xs text-muted-foreground">
+                                            -
+                                        </span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {transactionCreatorBadge(
+                                        transaction,
+                                        currentUserId
+                                    ) ?? (
                                         <span className="text-xs text-muted-foreground">
                                             -
                                         </span>
@@ -583,6 +617,7 @@ function TransactionTable({
 export function TransactionsBrowser({
     categories,
     currencies,
+    currentUserId,
     defaultCurrency,
     favoriteCurrencies,
     hasInitialFilters,
@@ -594,6 +629,7 @@ export function TransactionsBrowser({
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
+    readonly currentUserId: number;
     readonly defaultCurrency: string;
     readonly favoriteCurrencies: readonly string[];
     readonly hasInitialFilters: boolean;
@@ -951,6 +987,7 @@ export function TransactionsBrowser({
                     <TransactionCards
                         categories={categories}
                         currencies={dialogCurrencies}
+                        currentUserId={currentUserId}
                         defaultCurrency={defaultCurrency}
                         transactionTags={transactionTags}
                         vendors={vendors}
@@ -960,6 +997,7 @@ export function TransactionsBrowser({
                     <TransactionTable
                         categories={categories}
                         currencies={dialogCurrencies}
+                        currentUserId={currentUserId}
                         defaultCurrency={defaultCurrency}
                         transactionTags={transactionTags}
                         vendors={vendors}

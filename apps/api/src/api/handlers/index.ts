@@ -19,6 +19,7 @@ import {
 import {
     acceptBudgetInvitationHandler,
     createBudgetHandler,
+    deleteBudgetHandler,
     inviteBudgetMemberHandler,
     listBudgetMembersHandler,
     listBudgetsHandler,
@@ -107,6 +108,7 @@ export const handlers = {
         list: listBudgetsHandler,
         create: createBudgetHandler,
         update: updateBudgetHandler,
+        delete: deleteBudgetHandler,
         members: listBudgetMembersHandler,
         invite: inviteBudgetMemberHandler,
         updateMember: updateBudgetMemberHandler,

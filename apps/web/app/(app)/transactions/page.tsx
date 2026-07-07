@@ -56,6 +56,7 @@ export default async function TransactionsPage({
             <TransactionsBrowser
                 categories={categories}
                 currencies={currencies}
+                currentUserId={me.id}
                 defaultCurrency={defaultCurrency}
                 favoriteCurrencies={me.favoriteCurrencies}
                 hasInitialFilters={hasFilters}

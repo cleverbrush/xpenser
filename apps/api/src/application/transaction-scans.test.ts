@@ -140,6 +140,10 @@ function transaction(overrides: Partial<Transaction> = {}): Transaction {
         exchangeRateDate: '2026-06-01',
         occurredAt: timestamp,
         tags: [],
+        createdBy: {
+            userId: 1,
+            email: 'test@cleverbrush.com'
+        },
         createdAt: timestamp,
         updatedAt: timestamp,
         ...overrides

@@ -1,7 +1,7 @@
 ---
 title: "Shared budgets for collaborative expense tracking"
 slug: shared-budgets
-description: "xpenser added shared budgets so users can separate transactions, invite budget members, and keep budget data visible to everyone with access."
+description: "xpenser added shared budgets so users can separate transactions, invite budget members, archive old budgets, and see who added shared transactions."
 sourcePrNumber: "67"
 sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/67"
 heroImage: ""
@@ -26,12 +26,15 @@ Budgets create a clear boundary around transactions, categories, vendors, tags, 
 - Added budgets with admin and member roles.
 - Added granular budget permissions for transactions, categories, vendors, tags, and member management.
 - Added magic-link budget invitations for existing users.
+- Requires renaming the default Main budget before it is shared, so invited users can give the shared budget a clear local name.
+- Added budget renaming, archiving, restoring, and permanent deletion for archived non-Main budgets.
+- Shows when a transaction was added by another budget member.
 - Moved categories, vendors, tags, scans, reports, Telegram capture, and MCP tools to budget-aware behavior.
 - Added a budget selector near the xpenser logo in the web app.
 
 ## Why it matters
 
-Personal finance data often needs separation: household spending, business expenses, trip costs, or shared projects can belong in different places. Shared budgets make those boundaries explicit while still allowing trusted collaborators to see and add the same transactions.
+Personal finance data often needs separation: household spending, business expenses, trip costs, or shared projects can belong in different places. Shared budgets make those boundaries explicit while still allowing trusted collaborators to see and add the same transactions. Archived budgets stay out of day-to-day views and reports, while transaction attribution makes it clear when someone else added an item.
 
 ## Where it fits
 

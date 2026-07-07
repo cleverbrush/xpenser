@@ -142,9 +142,17 @@ export const UpdateBudgetEndpoint = api.budgets.update
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
     .summary('Update budget')
-    .description('Updates budget name and reporting defaults.')
+    .description('Updates budget name, defaults, or archive state.')
     .tags('budgets')
     .operationId('updateBudget');
+
+export const DeleteBudgetEndpoint = api.budgets.delete
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Delete budget')
+    .description('Permanently deletes an archived non-main budget.')
+    .tags('budgets')
+    .operationId('deleteBudget');
 
 export const ListBudgetMembersEndpoint = api.budgets.members
     .authorize(PrincipalSchema)
@@ -567,6 +575,7 @@ export const endpoints = {
         list: ListBudgetsEndpoint,
         create: CreateBudgetEndpoint,
         update: UpdateBudgetEndpoint,
+        delete: DeleteBudgetEndpoint,
         members: ListBudgetMembersEndpoint,
         invite: InviteBudgetMemberEndpoint,
         updateMember: UpdateBudgetMemberEndpoint,

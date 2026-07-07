@@ -38,6 +38,7 @@ describe('api contract authorization metadata', () => {
             api.budgets.list,
             api.budgets.create,
             api.budgets.update,
+            api.budgets.delete,
             api.budgets.members,
             api.budgets.invite,
             api.budgets.updateMember,

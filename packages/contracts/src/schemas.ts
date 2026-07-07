@@ -456,6 +456,13 @@ export const BudgetSchema = object({
     permissions: BudgetPermissionsSchema,
     /** True when this is the user main budget. */
     isMain: boolean().describe('True when this is the user main budget.'),
+    /** Timestamp when the budget was archived and hidden from normal workflows. */
+    archivedAt: date()
+        .coerce()
+        .nullable()
+        .describe(
+            'Timestamp when the budget was archived and hidden from normal workflows.'
+        ),
     /** Creation timestamp. */
     createdAt: date().coerce().describe('Creation timestamp.'),
     /** Last update timestamp. */
@@ -517,8 +524,26 @@ export const UpdateBudgetBodySchema = object({
     /** Country used to localize vendor enrichment in this budget. */
     countryCode: CountryCodeSchema.optional().describe(
         'Country used to localize vendor enrichment in this budget.'
-    )
+    ),
+    /** Whether this budget should be archived or restored. */
+    archived: boolean()
+        .optional()
+        .describe('Whether this budget should be archived or restored.')
 }).schemaName('UpdateBudgetBody');
+
+export const ListBudgetsQuerySchema = object({
+    /** Budget lifecycle status to include. */
+    status: enumOf('active', 'archived', 'all')
+        .optional()
+        .describe('Budget lifecycle status to include.')
+}).schemaName('ListBudgetsQuery');
+
+export const TransactionCreatorSchema = object({
+    /** User identifier that created the transaction. */
+    userId: number().describe('User identifier that created the transaction.'),
+    /** Creator email address. */
+    email: string().describe('Creator email address.')
+}).schemaName('TransactionCreator');
 
 export const InviteBudgetMemberBodySchema = object({
     /** Email address to invite. */
@@ -1478,6 +1503,10 @@ export const TransactionSchema = object({
     /** Tags assigned to this transaction. */
     tags: array(TransactionTagSchema).describe(
         'Tags assigned to this transaction.'
+    ),
+    /** User that originally created this transaction. */
+    createdBy: TransactionCreatorSchema.describe(
+        'User that originally created this transaction.'
     ),
     /** Original scanner image metadata when this transaction came from a scan. */
     scanAttachment: object({
@@ -2872,6 +2901,7 @@ export type Budget = InferType<typeof BudgetSchema>;
 export type BudgetMember = InferType<typeof BudgetMemberSchema>;
 export type CreateBudgetBody = InferType<typeof CreateBudgetBodySchema>;
 export type UpdateBudgetBody = InferType<typeof UpdateBudgetBodySchema>;
+export type ListBudgetsQuery = InferType<typeof ListBudgetsQuerySchema>;
 export type InviteBudgetMemberBody = InferType<
     typeof InviteBudgetMemberBodySchema
 >;
