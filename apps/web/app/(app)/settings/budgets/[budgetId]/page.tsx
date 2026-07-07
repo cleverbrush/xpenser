@@ -41,7 +41,7 @@ export default async function BudgetDetailPage({
         notFound();
     }
 
-    const client = await getApiClient();
+    const client = await getApiClient({ disableBatching: true });
     const [me, currencies, archivedBudgets] = await Promise.all([
         client.auth.me(),
         client.currencies.list(),

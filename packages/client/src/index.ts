@@ -27,6 +27,8 @@ export type XpenserClientOptions = {
     readonly retryOnTimeout?: boolean;
     /** Optional bridge to an external cache system such as Next.js tag cache. */
     readonly invalidateCacheTag?: CacheTagInvalidator;
+    /** Disable request batching for call sites that need direct API reads. */
+    readonly disableBatching?: boolean;
 };
 
 function hasBasePath(baseUrl: string): boolean {
@@ -51,9 +53,10 @@ function hasBasePath(baseUrl: string): boolean {
  * root by `ServerBuilder.useBatching()`.
  */
 export function createXpenserClient(options: XpenserClientOptions) {
-    const batchingMiddleware = hasBasePath(options.baseUrl)
-        ? []
-        : [batching({ maxSize: 10, windowMs: 10 })];
+    const batchingMiddleware =
+        options.disableBatching || hasBasePath(options.baseUrl)
+            ? []
+            : [batching({ maxSize: 10, windowMs: 10 })];
     const externalCacheMiddleware = options.invalidateCacheTag
         ? [
               externalCacheTags({

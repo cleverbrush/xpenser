@@ -81,7 +81,7 @@ export async function getSessionOrRedirect() {
 
 type ApiClientOptions = Pick<
     XpenserClientOptions,
-    'retryOnTimeout' | 'timeoutMs'
+    'disableBatching' | 'retryOnTimeout' | 'timeoutMs'
 >;
 
 export async function getApiClient(options: ApiClientOptions = {}) {
@@ -93,6 +93,7 @@ export async function getApiClient(options: ApiClientOptions = {}) {
             redirect(expiredSessionPath);
         },
         invalidateCacheTag: tag => revalidateTag(tag, 'max'),
+        disableBatching: options.disableBatching,
         retryOnTimeout: options.retryOnTimeout,
         timeoutMs: options.timeoutMs
     });
