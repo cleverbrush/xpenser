@@ -176,6 +176,31 @@ describe('LandingPage', () => {
         expect(auraPlusPlusDarkBadgeImage?.getAttribute('height')).toBe('58');
         expect(auraPlusPlusDarkBadgeImage?.className).toContain('hidden');
         expect(auraPlusPlusDarkBadgeImage?.className).toContain('dark:block');
+
+        const openHuntsBadgeLink = screen.getByRole('link', {
+            name: /OpenHunts Club Member/i
+        });
+        expect(openHuntsBadgeLink).toHaveProperty(
+            'href',
+            'https://openhunts.com/'
+        );
+        expect(openHuntsBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(openHuntsBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+        expect(openHuntsBadgeLink.getAttribute('title')).toBe('OpenHunts Club');
+
+        const openHuntsBadgeImage = screen.getByAltText(
+            'OpenHunts Club Member'
+        );
+        expect(openHuntsBadgeImage.getAttribute('src')).toBe(
+            'https://cdn.openhunts.com/badges/club.webp'
+        );
+        expect(openHuntsBadgeImage.getAttribute('width')).toBe('486');
+        expect(openHuntsBadgeImage.getAttribute('height')).toBe('105');
+        expect(openHuntsBadgeImage.getAttribute('style')).toBe(
+            'height: auto; width: 195px;'
+        );
         expect(
             screen.getByText(
                 /read or manage vendors, categories, and transactions/i
