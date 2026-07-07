@@ -1,13 +1,7 @@
-import { env, parseEnv } from '@cleverbrush/env';
+import { env, envBoolean, parseEnv } from '@cleverbrush/env';
 import { string } from '@cleverbrush/schema';
 import { applyHostedPassportDefaults } from '@xpenser/contracts/hosted-auth';
 import { GoogleSignInModes, resolveGoogleSignInProvider } from './google-auth';
-
-const TRUE_ENV_VALUES = new Set(['1', 'true', 'yes', 'on']);
-
-function parseEnvFlag(value: string): boolean {
-    return TRUE_ENV_VALUES.has(value.trim().toLowerCase());
-}
 
 /**
  * Web runtime configuration parsed with the same `@cleverbrush/env` pattern as
@@ -35,7 +29,7 @@ export const webConfig = parseEnv(
                 ] as const)
                 .default('information')
         ),
-        disableGtm: env('DISABLE_GTM', string().default('0')),
+        disableGtm: env('DISABLE_GTM', envBoolean().default(false)),
         googleSignInMode: env(
             'GOOGLE_SIGN_IN_MODE',
             string().oneOf(GoogleSignInModes).default('auto')
@@ -50,12 +44,15 @@ export const webConfig = parseEnv(
             environment: env('PASSPORT_ENVIRONMENT', string().optional())
         },
         singleUserEnv: {
-            enabled: env('XPENSER_SINGLE_USER_MODE', string().default('0')),
+            enabled: env(
+                'XPENSER_SINGLE_USER_MODE',
+                envBoolean().default(false)
+            ),
             email: env('XPENSER_SINGLE_USER_EMAIL', string().optional())
         }
     },
     base => {
-        const singleUserEnabled = parseEnvFlag(base.singleUserEnv.enabled);
+        const singleUserEnabled = base.singleUserEnv.enabled;
         const singleUserEmail = base.singleUserEnv.email?.trim().toLowerCase();
         if (singleUserEnabled && !singleUserEmail) {
             throw new Error(
@@ -72,7 +69,7 @@ export const webConfig = parseEnv(
         }
 
         return {
-            disableGtm: parseEnvFlag(base.disableGtm),
+            disableGtm: base.disableGtm,
             passport: applyHostedPassportDefaults(base.appUrl, base.passport),
             singleUser: {
                 enabled: singleUserEnabled,

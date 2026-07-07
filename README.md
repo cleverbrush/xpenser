@@ -357,10 +357,14 @@ Database helpers:
 
 ```sh
 npm run db:run -w @xpenser/api
+npm run db:validate -w @xpenser/api
 docker compose stop postgres
 docker compose down
 docker compose down -v
 ```
+
+`db:validate` is read-only and checks the live database schema against the
+Cleverbrush ORM entities.
 
 The e2e suite requires `PLAYWRIGHT_BASE_URL` when run outside the GitHub PR
 environment.

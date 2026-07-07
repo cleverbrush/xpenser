@@ -80,6 +80,13 @@ npm test
 Use focused tests for the behavior you changed. Add or update Playwright tests
 when changing user-facing workflows that should be validated end to end.
 
+When a change touches API entity schemas or migrations and a live database is
+available, run the read-only drift check:
+
+```sh
+npm run db:validate -w @xpenser/api
+```
+
 The e2e suite needs a running app or deployed preview:
 
 ```sh

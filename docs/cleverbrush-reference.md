@@ -31,14 +31,16 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
   CORS, structured request logging, DI, authentication, authorization,
   healthchecks, batching, OpenAPI, MCP, and all contract handlers.
 - `packages/client` wraps `@cleverbrush/client` with the app middleware stack:
-  OTel context propagation, retry, timeout, dedupe, tag cache invalidation, and
-  root-path batching.
+  OTel context propagation, retry, timeout, dedupe, in-memory tag caching,
+  optional external tag invalidation, and root-path batching.
 - `packages/ui/src/forms/react-form-provider.tsx` registers xpenser UI renderers
   for `@cleverbrush/react-form`, so app forms bind fields with property
   selectors instead of string paths.
 - `apps/api/src/db/schemas.ts` defines typed ORM entities with
   `@cleverbrush/orm`; `apps/api/src/di/setup.ts` exposes the instrumented Knex
   pool and ORM context through Cleverbrush DI.
+- `npm run db:validate -w @xpenser/api` runs the read-only Cleverbrush ORM
+  schema drift check against a live database.
 
 ## Framework Usage Rules
 
@@ -55,6 +57,8 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
   spans correlate with the request span.
 - Use `ActionResult` helpers in handlers for expected API statuses; reserve
   thrown errors for unexpected failures or framework `HttpError` cases.
+- Use `ActionResult.raw()` for integrations that must own the native Node
+  request/response lifecycle, such as MCP transports.
 - Keep credential-bearing integrations behind server-side modules. Browser code
   should call Server Actions or route handlers rather than the API directly.
 

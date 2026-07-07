@@ -1,6 +1,6 @@
 import { createClient } from '@cleverbrush/client';
 import { batching } from '@cleverbrush/client/batching';
-import { cacheTags } from '@cleverbrush/client/cache';
+import { cacheTags, externalCacheTags } from '@cleverbrush/client/cache';
 import { dedupe } from '@cleverbrush/client/dedupe';
 import { retry } from '@cleverbrush/client/retry';
 import { timeout } from '@cleverbrush/client/timeout';
@@ -8,6 +8,7 @@ import { clientTracingMiddleware } from '@cleverbrush/otel/client';
 import { api } from '@xpenser/contracts';
 
 export type TokenProvider = () => string | null;
+export type CacheTagInvalidator = (tag: string) => void | Promise<void>;
 
 export type XpenserClientOptions = {
     /** Absolute API base URL, for example http://localhost:4000. */
@@ -24,6 +25,8 @@ export type XpenserClientOptions = {
     readonly timeoutMs?: number;
     /** Whether timeout failures should be retried. Defaults to true. */
     readonly retryOnTimeout?: boolean;
+    /** Optional bridge to an external cache system such as Next.js tag cache. */
+    readonly invalidateCacheTag?: CacheTagInvalidator;
 };
 
 function hasBasePath(baseUrl: string): boolean {
@@ -51,6 +54,13 @@ export function createXpenserClient(options: XpenserClientOptions) {
     const batchingMiddleware = hasBasePath(options.baseUrl)
         ? []
         : [batching({ maxSize: 10, windowMs: 10 })];
+    const externalCacheMiddleware = options.invalidateCacheTag
+        ? [
+              externalCacheTags({
+                  invalidateTag: options.invalidateCacheTag
+              })
+          ]
+        : [];
 
     return createClient(api, {
         baseUrl: options.baseUrl,
@@ -78,6 +88,7 @@ export function createXpenserClient(options: XpenserClientOptions) {
                     'user-profile': 30_000
                 }
             }),
+            ...externalCacheMiddleware,
             ...batchingMiddleware
         ]
     });

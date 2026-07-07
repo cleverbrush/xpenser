@@ -149,6 +149,35 @@ describe('API config', () => {
         expect(config.openai.transactionScanModel).toBe('gpt-5.5');
     });
 
+    it('accepts shell-style false feature flags', async () => {
+        stubRequiredApiEnv();
+        vi.stubEnv('BRANDFETCH_API_KEY', 'brandfetch-key');
+        vi.stubEnv('EMAIL_REPORTS_ENABLED', 'off');
+        vi.stubEnv('EMAIL_REPORTS_SCHEDULER_ENABLED', 'no');
+        vi.stubEnv('VENDOR_ENRICHMENT_ENABLED', '0');
+        vi.resetModules();
+
+        const { config } = await import('./config.js');
+
+        expect(config.emailReports.enabled).toBe(false);
+        expect(config.emailReports.schedulerEnabled).toBe(false);
+        expect(config.vendorEnrichment.enabled).toBe(false);
+    });
+
+    it('accepts shell-style true single-user mode flags', async () => {
+        stubRequiredApiEnv();
+        vi.stubEnv('XPENSER_SINGLE_USER_MODE', 'on');
+        vi.stubEnv('XPENSER_SINGLE_USER_EMAIL', ' Owner@Example.COM ');
+        vi.resetModules();
+
+        const { config } = await import('./config.js');
+
+        expect(config.singleUser).toEqual({
+            enabled: true,
+            email: 'owner@example.com'
+        });
+    });
+
     it('normalizes vendor enrichment feature flags', async () => {
         stubRequiredApiEnv();
         vi.stubEnv('BRANDFETCH_API_KEY', 'brandfetch-key');

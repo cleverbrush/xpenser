@@ -10,7 +10,7 @@ import {
     type Vendor,
     type VendorCandidate
 } from '@xpenser/contracts';
-import { revalidatePath, revalidateTag } from 'next/cache';
+import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
@@ -441,9 +441,6 @@ export async function createCategoryAction(
     const category = await client.categories.create({
         body: categoryBody(formData)
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
     revalidatePath('/setup/categories');
@@ -461,10 +458,6 @@ export async function updateCategoryAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'id')) },
         body: categoryBody(formData)
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('dashboard', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
     revalidatePath('/setup/categories');
@@ -484,10 +477,6 @@ export async function setCategoryArchivedAction(formData: FormData) {
             archived: booleanString(formData, 'archived', false)
         }
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('dashboard', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
     revalidatePath('/capture');
@@ -501,9 +490,6 @@ export async function deleteCategoryAction(formData: FormData) {
     await client.categories.delete({
         params: { id: Number(requiredString(formData, 'id')) }
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
 }
@@ -518,11 +504,6 @@ export async function moveAndDeleteCategoryAction(formData: FormData) {
             )
         }
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('transactions', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('dashboard', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
     revalidatePath('/capture');
@@ -536,7 +517,6 @@ export async function createVendorAction(formData: FormData): Promise<Vendor> {
     const vendor = await client.vendors.create({
         body: vendorBody(formData)
     });
-    revalidateTag('vendors', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/vendors');
@@ -626,8 +606,6 @@ export async function updateVendorAction(
         }
         throw err;
     }
-    revalidateTag('vendors', 'max');
-    revalidateTag('transactions', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/vendors');
@@ -645,8 +623,6 @@ export async function retryVendorEnrichmentAction(
     const vendor = await client.vendors.enrich({
         params: { id }
     });
-    revalidateTag('vendors', 'max');
-    revalidateTag('transactions', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/vendors');
@@ -661,13 +637,6 @@ export async function createTransactionAction(formData: FormData) {
     await client.transactions.create({
         body: transactionBody(formData)
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('vendors', 'max');
-    revalidateTag('transaction-tags', 'max');
-    revalidateTag('transactions', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('dashboard', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/vendors');
@@ -682,13 +651,6 @@ export async function createCaptureTransactionAction(
     const transaction = await client.transactions.create({
         body: transactionBody(formData)
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('vendors', 'max');
-    revalidateTag('transaction-tags', 'max');
-    revalidateTag('transactions', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('dashboard', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/vendors');
@@ -748,13 +710,6 @@ export async function updateTransactionAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'id')) },
         body: transactionBody(formData, true)
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('vendors', 'max');
-    revalidateTag('transaction-tags', 'max');
-    revalidateTag('transactions', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('dashboard', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/capture');
     revalidatePath('/dashboard');
     revalidatePath('/vendors');
@@ -768,13 +723,6 @@ export async function deleteTransactionAction(formData: FormData) {
     await client.transactions.delete({
         params: { id: Number(requiredString(formData, 'id')) }
     });
-    revalidateTag('categories', 'max');
-    revalidateTag('vendors', 'max');
-    revalidateTag('transaction-tags', 'max');
-    revalidateTag('transactions', 'max');
-    revalidateTag('user-profile', 'max');
-    revalidateTag('dashboard', 'max');
-    revalidateTag('stats', 'max');
     revalidatePath('/dashboard');
     revalidatePath('/vendors');
     revalidatePath('/settings/vendors');
@@ -804,8 +752,6 @@ export async function updatePreferencesAction(formData: FormData) {
             )
         }
     });
-    revalidateTag('user-profile', 'max');
-    revalidateTag('dashboard', 'max');
     revalidatePath('/settings/preferences');
     redirect('/dashboard');
 }
@@ -819,7 +765,6 @@ export async function createTelegramLinkAction() {
 export async function disconnectTelegramAction() {
     const client = await getApiClient();
     await client.users.disconnectTelegram();
-    revalidateTag('user-profile', 'max');
     revalidatePath('/settings/preferences');
 }
 
@@ -830,7 +775,6 @@ export async function createApiKeyAction(formData: FormData) {
             name: requiredString(formData, 'name')
         }
     });
-    revalidateTag('api-keys', 'max');
     revalidatePath('/settings/preferences');
     return result;
 }
@@ -840,7 +784,6 @@ export async function revokeApiKeyAction(formData: FormData) {
     await client.users.revokeApiKey({
         params: { id: Number(requiredString(formData, 'id')) }
     });
-    revalidateTag('api-keys', 'max');
     revalidatePath('/settings/preferences');
 }
 
@@ -864,7 +807,6 @@ export async function approveMcpOAuthAction(formData: FormData) {
     const result = await client.oauth.authorize({
         body: mcpOAuthAuthorizationBody(formData)
     });
-    revalidateTag('mcp-connections', 'max');
     revalidatePath('/settings/preferences');
     redirect(result.redirectUrl);
 }
@@ -886,6 +828,5 @@ export async function revokeMcpOAuthConnectionAction(formData: FormData) {
     await client.users.revokeMcpOAuthConnection({
         params: { id: Number(requiredString(formData, 'id')) }
     });
-    revalidateTag('mcp-connections', 'max');
     revalidatePath('/settings/preferences');
 }

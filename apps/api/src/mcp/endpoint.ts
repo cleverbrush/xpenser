@@ -40,36 +40,35 @@ export const mcpHandler: Handler<typeof McpEndpoint> = async (
         });
     }
 
-    const mcpServer = createXpenserMcpServer({
-        config,
-        db,
-        knex,
-        logger,
-        principal
-    });
-    const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined
-    });
-
-    transport.onerror = error => {
-        logger.error(error, McpTransportError, {
-            UserId: principal.userId
+    return ActionResult.raw(async (request, response) => {
+        const mcpServer = createXpenserMcpServer({
+            config,
+            db,
+            knex,
+            logger,
+            principal
         });
-    };
-    context.response.on('close', () => {
-        void transport.close();
-    });
+        const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: undefined
+        });
 
-    try {
-        await mcpServer.connect(transport);
-        await transport.handleRequest(context.request, context.response);
-        context.responded = true;
-        return undefined;
-    } catch (err) {
-        if (context.response.headersSent || context.response.writableEnded) {
-            context.responded = true;
-            return undefined;
+        transport.onerror = error => {
+            logger.error(error, McpTransportError, {
+                UserId: principal.userId
+            });
+        };
+        response.on('close', () => {
+            void transport.close();
+        });
+
+        try {
+            await mcpServer.connect(transport);
+            await transport.handleRequest(request, response);
+        } catch (err) {
+            if (response.headersSent || response.writableEnded) {
+                return;
+            }
+            throw err;
         }
-        throw err;
-    }
+    });
 };

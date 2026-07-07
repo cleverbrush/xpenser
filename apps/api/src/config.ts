@@ -1,4 +1,4 @@
-import { env, parseEnv } from '@cleverbrush/env';
+import { env, envBoolean, parseEnv } from '@cleverbrush/env';
 import { number, string } from '@cleverbrush/schema';
 import { applyHostedPassportDefaults } from '@xpenser/contracts/hosted-auth';
 import { UserSessionMaxAgeSeconds } from '@xpenser/contracts/session';
@@ -85,7 +85,7 @@ export const config = parseEnv(
             clientId: env('BRANDFETCH_CLIENT_ID', string().optional()),
             vendorEnrichmentEnabled: env(
                 'VENDOR_ENRICHMENT_ENABLED',
-                string().default('0')
+                envBoolean().default(false)
             ),
             vendorEnrichmentTimeoutMs: env(
                 'VENDOR_ENRICHMENT_TIMEOUT_MS',
@@ -111,10 +111,10 @@ export const config = parseEnv(
             )
         },
         emailReportsEnv: {
-            enabled: env('EMAIL_REPORTS_ENABLED', string().default('0')),
+            enabled: env('EMAIL_REPORTS_ENABLED', envBoolean().default(false)),
             schedulerEnabled: env(
                 'EMAIL_REPORTS_SCHEDULER_ENABLED',
-                string().default('0')
+                envBoolean().default(false)
             ),
             deliveryHourLocal: env(
                 'EMAIL_REPORTS_DELIVERY_HOUR_LOCAL',
@@ -126,7 +126,10 @@ export const config = parseEnv(
             )
         },
         singleUserEnv: {
-            enabled: env('XPENSER_SINGLE_USER_MODE', string().default('0')),
+            enabled: env(
+                'XPENSER_SINGLE_USER_MODE',
+                envBoolean().default(false)
+            ),
             email: env('XPENSER_SINGLE_USER_EMAIL', string().optional())
         },
         logLevel: env(
@@ -144,9 +147,7 @@ export const config = parseEnv(
         )
     },
     base => {
-        const singleUserEnabled = ['1', 'true', 'yes'].includes(
-            base.singleUserEnv.enabled.toLowerCase()
-        );
+        const singleUserEnabled = base.singleUserEnv.enabled;
         const singleUserEmail = base.singleUserEnv.email?.trim().toLowerCase();
         if (singleUserEnabled && !singleUserEmail) {
             throw new Error(
@@ -162,12 +163,8 @@ export const config = parseEnv(
             );
         }
 
-        const enabled = ['1', 'true', 'yes'].includes(
-            base.emailReportsEnv.enabled.toLowerCase()
-        );
-        const schedulerEnabled = ['1', 'true', 'yes'].includes(
-            base.emailReportsEnv.schedulerEnabled.toLowerCase()
-        );
+        const enabled = base.emailReportsEnv.enabled;
+        const schedulerEnabled = base.emailReportsEnv.schedulerEnabled;
         const passport = applyHostedPassportDefaults(
             base.app.url,
             base.passport
@@ -191,9 +188,8 @@ export const config = parseEnv(
             },
             vendorEnrichment: {
                 enabled:
-                    ['1', 'true', 'yes'].includes(
-                        base.brandfetch.vendorEnrichmentEnabled.toLowerCase()
-                    ) && Boolean(base.brandfetch.apiKey),
+                    base.brandfetch.vendorEnrichmentEnabled &&
+                    Boolean(base.brandfetch.apiKey),
                 timeoutMs: base.brandfetch.vendorEnrichmentTimeoutMs
             },
             singleUser: {
