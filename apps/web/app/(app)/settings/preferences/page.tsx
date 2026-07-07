@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { ApiKeysSettings } from '@/components/api-keys-settings';
 import { PreferencesForm } from '@/components/forms/preferences-form';
+import { UserAvatarSettings } from '@/components/user-avatar-settings';
 import {
     createTelegramLinkAction,
     disconnectTelegramAction
@@ -52,6 +53,7 @@ export default async function PreferencesPage() {
                     <PreferencesForm me={me} />
                 </CardContent>
             </Card>
+            <UserAvatarSettings me={me} />
             <Card>
                 <CardHeader>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

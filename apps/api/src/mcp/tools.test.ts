@@ -72,6 +72,8 @@ function vendor(overrides: Partial<Vendor> = {}): Vendor {
         displayName: 'Store',
         domain: 'store.example',
         transactionCount: 1,
+        contributors: [],
+        otherContributorCount: 0,
         createdAt: new Date('2026-05-03T00:00:00.000Z'),
         updatedAt: new Date('2026-05-04T00:00:00.000Z'),
         ...overrides
@@ -247,6 +249,7 @@ describe('MCP tool helpers', () => {
                 transactionCurrencies: ['USD', 'EUR'],
                 timezone: 'UTC',
                 hasCategories: true,
+                hasUploadedAvatar: false,
                 mainBudgetId: 1,
                 budgets: [budget()],
                 weeklyEmailReportEnabled: true,

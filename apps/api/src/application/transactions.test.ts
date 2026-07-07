@@ -754,7 +754,7 @@ describe('transaction category signs', () => {
         expect(emptyVendorSummary.topVendors).toEqual([]);
         expect(emptyVendorSummary.categoryVendorBreakdown).toHaveLength(30);
         expect(expandedVendorSummary.topVendors).toHaveLength(30);
-        expect(summary.topVendors.slice(0, 3)).toEqual([
+        expect(summary.topVendors.slice(0, 3)).toMatchObject([
             {
                 vendorId: 1,
                 vendorName: 'Big Store',
@@ -789,29 +789,33 @@ describe('transaction category signs', () => {
                 trend: [0, 10, 0, 0, 0]
             }
         ]);
-        expect(expandedVendorSummary.topVendors).toContainEqual({
-            vendorId: 3,
-            vendorName: 'Paycheck Inc',
-            vendorDomain: undefined,
-            vendorLogoUrl: undefined,
-            vendorPrimaryColor: undefined,
-            type: 'income',
-            total: 500,
-            transactionCount: 1,
-            trend: [0, 500, 0, 0, 0]
-        });
-        expect(expandedVendorSummary.topVendors).toContainEqual({
-            vendorId: null,
-            vendorName: 'No vendor',
-            vendorDomain: undefined,
-            vendorLogoUrl: undefined,
-            vendorPrimaryColor: undefined,
-            type: 'income',
-            total: 25,
-            transactionCount: 1,
-            trend: [0, 25, 0, 0, 0]
-        });
-        expect(summary.topVendors.slice(3, 4)).toEqual([
+        expect(expandedVendorSummary.topVendors).toContainEqual(
+            expect.objectContaining({
+                vendorId: 3,
+                vendorName: 'Paycheck Inc',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: 'income',
+                total: 500,
+                transactionCount: 1,
+                trend: [0, 500, 0, 0, 0]
+            })
+        );
+        expect(expandedVendorSummary.topVendors).toContainEqual(
+            expect.objectContaining({
+                vendorId: null,
+                vendorName: 'No vendor',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: 'income',
+                total: 25,
+                transactionCount: 1,
+                trend: [0, 25, 0, 0, 0]
+            })
+        );
+        expect(summary.topVendors.slice(3, 4)).toMatchObject([
             {
                 vendorId: 10,
                 vendorName: 'Vendor 10',
@@ -865,23 +869,25 @@ describe('transaction category signs', () => {
                 trend: [0, 10, 0, 0, 0]
             }
         ]);
-        expect(expandedVendorSummary.categoryVendorBreakdown).toContainEqual({
-            categoryId: salary.id,
-            categoryName: 'Salary',
-            categoryDisplayName: 'Salary',
-            categoryParentId: null,
-            categoryParentName: undefined,
-            categoryKind: 'normal',
-            vendorId: null,
-            vendorName: 'No vendor',
-            vendorDomain: undefined,
-            vendorLogoUrl: undefined,
-            vendorPrimaryColor: undefined,
-            type: 'income',
-            total: 25,
-            transactionCount: 1,
-            trend: [0, 25, 0, 0, 0]
-        });
+        expect(expandedVendorSummary.categoryVendorBreakdown).toContainEqual(
+            expect.objectContaining({
+                categoryId: salary.id,
+                categoryName: 'Salary',
+                categoryDisplayName: 'Salary',
+                categoryParentId: null,
+                categoryParentName: undefined,
+                categoryKind: 'normal',
+                vendorId: null,
+                vendorName: 'No vendor',
+                vendorDomain: undefined,
+                vendorLogoUrl: undefined,
+                vendorPrimaryColor: undefined,
+                type: 'income',
+                total: 25,
+                transactionCount: 1,
+                trend: [0, 25, 0, 0, 0]
+            })
+        );
         expect(
             expandedVendorSummary.topVendors
                 .filter(vendor => vendor.type === 'expense')

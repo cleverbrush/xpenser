@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AddTransactionDialog } from '@/components/add-transaction-dialog';
 import { AmountDisplay } from '@/components/amount-display';
+import { ContributorAvatars } from '@/components/contributor-avatars';
 import {
     type DashboardExpansionAction,
     DashboardExpansionButton
@@ -122,6 +123,11 @@ function fallbackDashboardParentCategory(
                 (sum, category) => sum + (category.trend[index] ?? 0),
                 0
             )
+        ),
+        contributors: categories.flatMap(category => category.contributors),
+        otherContributorCount: categories.reduce(
+            (sum, category) => sum + category.otherContributorCount,
+            0
         ),
         type
     };
@@ -375,8 +381,16 @@ function CategoryRow({
                         )}
                     </span>
                     <span className="min-w-0">
-                        <span className="block truncate font-medium">
-                            {displayLabel}
+                        <span className="flex min-w-0 items-center gap-2">
+                            <span className="truncate font-medium">
+                                {displayLabel}
+                            </span>
+                            <ContributorAvatars
+                                contributors={category.contributors}
+                                otherContributorCount={
+                                    category.otherContributorCount
+                                }
+                            />
                         </span>
                         <span className="text-xs text-muted-foreground">
                             {category.transactionCount}{' '}
@@ -499,8 +513,14 @@ function CategoryVendorRow({
                     size="sm"
                 />
                 <span className="min-w-0">
-                    <span className="block truncate font-medium">
-                        {item.vendorName}
+                    <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium">
+                            {item.vendorName}
+                        </span>
+                        <ContributorAvatars
+                            contributors={item.contributors}
+                            otherContributorCount={item.otherContributorCount}
+                        />
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                         {item.vendorDomain

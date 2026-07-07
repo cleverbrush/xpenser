@@ -47,6 +47,7 @@ describe('telegram bot flow helpers', () => {
         const me = {
             defaultCurrency: 'USD',
             favoriteCurrencies: ['EUR', 'USD', 'GBP'],
+            hasUploadedAvatar: false,
             transactionCurrencies: ['EUR', 'USD', 'GBP']
         } as UserPreference;
         const currencies = [
@@ -71,6 +72,7 @@ describe('telegram bot flow helpers', () => {
         const me = {
             defaultCurrency: 'USD',
             favoriteCurrencies: ['EUR'],
+            hasUploadedAvatar: false,
             transactionCurrencies: ['EUR', 'USD']
         } as UserPreference;
         const currencies = [

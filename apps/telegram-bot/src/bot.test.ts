@@ -93,6 +93,7 @@ const me = {
     email: 'alice@example.test',
     favoriteCurrencies: [],
     hasCategories: true,
+    hasUploadedAvatar: false,
     id: 1,
     mainBudgetId: 1,
     monthlyEmailReportEnabled: false,

@@ -171,6 +171,7 @@ describe('shared schemas', () => {
         const result = UserPreferenceSchema.validate({
             id: 1,
             email: 'jane@example.com',
+            hasUploadedAvatar: false,
             defaultCurrency: 'USD',
             countryCode: 'US',
             favoriteCurrencies: ['EUR'],
@@ -377,6 +378,8 @@ describe('shared schemas', () => {
                 suggestedCategoryId: 1,
                 suggestedCategoryDisplayName: 'Groceries',
                 transactionCount: 2,
+                contributors: [],
+                otherContributorCount: 0,
                 createdAt: new Date(),
                 updatedAt: new Date()
             }).valid
@@ -908,7 +911,9 @@ describe('shared schemas', () => {
                         type: 'expense',
                         total: 100,
                         transactionCount: 3,
-                        trend: [20, 80]
+                        trend: [20, 80],
+                        contributors: [],
+                        otherContributorCount: 0
                     },
                     {
                         vendorId: null,
@@ -916,7 +921,9 @@ describe('shared schemas', () => {
                         type: 'income',
                         total: 50,
                         transactionCount: 1,
-                        trend: [0, 50]
+                        trend: [0, 50],
+                        contributors: [],
+                        otherContributorCount: 0
                     }
                 ],
                 categoryVendorBreakdown: [
@@ -934,7 +941,9 @@ describe('shared schemas', () => {
                         type: 'expense',
                         total: 100,
                         transactionCount: 3,
-                        trend: [20, 80]
+                        trend: [20, 80],
+                        contributors: [],
+                        otherContributorCount: 0
                     }
                 ],
                 byCategory: [],

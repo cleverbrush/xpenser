@@ -7,6 +7,7 @@ import {
     type TransactionScanDecisionBody,
     type TransactionScanImageResponse,
     UpdateVendorBodySchema,
+    UserAvatarLimits,
     type Vendor,
     type VendorCandidate
 } from '@xpenser/contracts';
@@ -314,6 +315,24 @@ function favoriteCurrencies(formData: FormData, defaultCurrency: string) {
                 .filter(currency => currency !== normalizedDefault)
         )
     );
+}
+
+function budgetDetailPath(budgetId: number): string {
+    return `/settings/budgets/${budgetId}`;
+}
+
+function avatarFile(formData: FormData): File {
+    const value = formData.get('avatar');
+    if (!(value instanceof File) || value.size === 0) {
+        throw new Error('avatar is required');
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(value.type)) {
+        throw new Error('avatar must be a PNG, JPEG, or WebP image');
+    }
+    if (value.size > UserAvatarLimits.maxImageBytes) {
+        throw new Error('avatar image is too large');
+    }
+    return value;
 }
 
 function apiErrorMessage(err: unknown): string | undefined {
@@ -880,16 +899,18 @@ export async function createBudgetAction(formData: FormData) {
         secure: webConfig.appUrl.startsWith('https://')
     });
     revalidatePath('/settings/budgets');
-    redirect('/settings/budgets');
+    redirect(budgetDetailPath(budget.id));
 }
 
 export async function updateBudgetAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
     const client = await getApiClient();
     await client.budgets.update({
-        params: { id: Number(requiredString(formData, 'budgetId')) },
+        params: { id: budgetId },
         body: budgetUpdateBody(formData)
     });
     revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
     revalidatePath('/stats');
@@ -913,6 +934,7 @@ export async function archiveBudgetAction(formData: FormData) {
     });
     await clearSelectedBudgetIfNeeded(budgetId);
     revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
     revalidatePath('/stats');
@@ -925,6 +947,9 @@ export async function restoreBudgetAction(formData: FormData) {
         body: { archived: false }
     });
     revalidatePath('/settings/budgets');
+    revalidatePath(
+        budgetDetailPath(Number(requiredString(formData, 'budgetId')))
+    );
 }
 
 export async function deleteBudgetAction(formData: FormData) {
@@ -941,9 +966,10 @@ export async function deleteBudgetAction(formData: FormData) {
 }
 
 export async function inviteBudgetMemberAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
     const client = await getApiClient();
     await client.budgets.invite({
-        params: { id: Number(requiredString(formData, 'budgetId')) },
+        params: { id: budgetId },
         body: {
             email: requiredString(formData, 'email'),
             role: budgetMemberRole(formData),
@@ -951,17 +977,35 @@ export async function inviteBudgetMemberAction(formData: FormData) {
         }
     });
     revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
+}
+
+export async function updateBudgetMemberAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const userId = Number(requiredString(formData, 'userId'));
+    const client = await getApiClient();
+    await client.budgets.updateMember({
+        params: { budgetId, userId },
+        body: {
+            role: budgetMemberRole(formData),
+            permissions: budgetPermissions(formData)
+        }
+    });
+    revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
 }
 
 export async function removeBudgetMemberAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
     const client = await getApiClient();
     await client.budgets.removeMember({
         params: {
-            budgetId: Number(requiredString(formData, 'budgetId')),
+            budgetId,
             userId: Number(requiredString(formData, 'userId'))
         }
     });
     revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
 }
 
 export async function acceptBudgetInvitationAction(formData: FormData) {
@@ -982,6 +1026,38 @@ export async function acceptBudgetInvitationAction(formData: FormData) {
     });
     revalidatePath('/settings/budgets');
     redirect('/dashboard');
+}
+
+export async function updateUserAvatarAction(formData: FormData) {
+    const file = avatarFile(formData);
+    const imageBase64 = Buffer.from(await file.arrayBuffer()).toString(
+        'base64'
+    );
+    const client = await getApiClient();
+    await client.users.updateAvatar({
+        body: {
+            mimeType: file.type as 'image/jpeg' | 'image/png' | 'image/webp',
+            imageBase64,
+            fileName: file.name || undefined
+        }
+    });
+    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
+    revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
+    revalidatePath('/transactions');
+}
+
+export async function deleteUserAvatarAction() {
+    const client = await getApiClient();
+    await client.users.deleteAvatar();
+    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
+    revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
+    revalidatePath('/transactions');
 }
 
 export async function createApiKeyAction(formData: FormData) {

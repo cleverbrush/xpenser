@@ -10,7 +10,11 @@ import {
     string,
     union
 } from '@cleverbrush/schema';
-import { FieldLimits, TransactionTagLimits } from './limits.js';
+import {
+    FieldLimits,
+    TransactionTagLimits,
+    UserAvatarLimits
+} from './limits.js';
 
 export const CurrencyCodeSchema = string()
     .required('currency is required')
@@ -171,6 +175,32 @@ export const ImageMimeTypeSchema = enumOf(
     'image/png',
     'image/webp'
 ).describe('Supported image MIME type.');
+
+export const UserAvatarSummarySchema = object({
+    /** User identifier. */
+    userId: number().describe('User identifier.'),
+    /** User email address. */
+    email: string().describe('User email address.'),
+    /** User display name, when available. */
+    displayName: string()
+        .optional()
+        .describe('User display name, when available.'),
+    /** Avatar URL for rendering this user. */
+    avatarUrl: string()
+        .optional()
+        .describe('Avatar URL for rendering this user.')
+}).schemaName('UserAvatarSummary');
+
+const ContributorFields = {
+    /** Other budget users who contributed transactions to this row. */
+    contributors: array(UserAvatarSummarySchema).describe(
+        'Other budget users who contributed transactions to this row.'
+    ),
+    /** Additional contributor count not included in contributors. */
+    otherContributorCount: number().describe(
+        'Additional contributor count not included in contributors.'
+    )
+};
 
 export const PrincipalSchema = object({
     /** Authenticated user identifier encoded in the API JWT. */
@@ -486,6 +516,8 @@ export const BudgetMemberSchema = object({
     userId: number().describe('User identifier.'),
     /** User email address. */
     email: string().describe('User email address.'),
+    /** Avatar and display details for this member. */
+    user: UserAvatarSummarySchema,
     /** Member role. */
     role: BudgetRoleSchema.describe('Member role.'),
     /** Member permissions. */
@@ -495,6 +527,59 @@ export const BudgetMemberSchema = object({
     /** Last update timestamp. */
     updatedAt: date().coerce().describe('Last update timestamp.')
 }).schemaName('BudgetMember');
+
+export const BudgetAccessActiveRowSchema = object({
+    /** Access row status. */
+    status: enumOf('active').describe('Access row status.'),
+    /** Budget identifier. */
+    budgetId: number().describe('Budget identifier.'),
+    /** User identifier. */
+    userId: number().describe('User identifier.'),
+    /** User email address. */
+    email: string().describe('User email address.'),
+    /** Avatar and display details for this member. */
+    user: UserAvatarSummarySchema,
+    /** Member role. */
+    role: BudgetRoleSchema.describe('Member role.'),
+    /** Member permissions. */
+    permissions: BudgetPermissionsSchema,
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last update timestamp. */
+    updatedAt: date().coerce().describe('Last update timestamp.')
+}).schemaName('BudgetAccessActiveRow');
+
+export const BudgetAccessInvitationRowSchema = object({
+    /** Access row status. */
+    status: enumOf('pending', 'expired', 'accepted').describe(
+        'Access row status.'
+    ),
+    /** Invitation identifier. */
+    invitationId: number().describe('Invitation identifier.'),
+    /** Budget identifier. */
+    budgetId: number().describe('Budget identifier.'),
+    /** Invited email address. */
+    email: string().describe('Invited email address.'),
+    /** Role granted by the invitation. */
+    role: BudgetRoleSchema.describe('Role granted by the invitation.'),
+    /** Permissions granted by the invitation. */
+    permissions: BudgetPermissionsSchema,
+    /** Expiration timestamp. */
+    expiresAt: date().coerce().describe('Expiration timestamp.'),
+    /** Consumption timestamp, when accepted. */
+    consumedAt: date()
+        .coerce()
+        .nullable()
+        .describe('Consumption timestamp, when accepted.'),
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last update timestamp. */
+    updatedAt: date().coerce().describe('Last update timestamp.')
+}).schemaName('BudgetAccessInvitationRow');
+
+export const BudgetAccessRowSchema = union(BudgetAccessActiveRowSchema)
+    .or(BudgetAccessInvitationRowSchema)
+    .schemaName('BudgetAccessRow');
 
 const BudgetIdSchema = number()
     .coerce()
@@ -568,7 +653,11 @@ export const TransactionCreatorSchema = object({
     /** User identifier that created the transaction. */
     userId: number().describe('User identifier that created the transaction.'),
     /** Creator email address. */
-    email: string().describe('Creator email address.')
+    email: string().describe('Creator email address.'),
+    /** Creator avatar URL, when available. */
+    avatarUrl: string()
+        .optional()
+        .describe('Creator avatar URL, when available.')
 }).schemaName('TransactionCreator');
 
 export const InviteBudgetMemberBodySchema = object({
@@ -617,6 +706,28 @@ export const BudgetInvitationResponseSchema = object({
     message: string().describe('User-facing invitation status message.')
 }).schemaName('BudgetInvitationResponse');
 
+export const UserAvatarUploadBodySchema = object({
+    /** Avatar image MIME type. */
+    mimeType: ImageMimeTypeSchema.describe('Avatar image MIME type.'),
+    /** Base64 encoded avatar image bytes. */
+    imageBase64: string()
+        .required('avatar image is required')
+        .nonempty('avatar image is required')
+        .maxLength(
+            FieldLimits.userAvatarBase64,
+            `avatar image must be ${UserAvatarLimits.maxImageBytes} bytes or smaller`
+        )
+        .describe('Base64 encoded avatar image bytes.'),
+    /** Original upload file name, when available. */
+    fileName: string()
+        .optional()
+        .maxLength(
+            FieldLimits.userAvatarFileName,
+            'avatar file name is too long'
+        )
+        .describe('Original upload file name, when available.')
+}).schemaName('UserAvatarUploadBody');
+
 export const TokenResponseSchema = object({
     /** Signed API JWT used as the Bearer token for protected API calls. */
     token: string().describe(
@@ -662,6 +773,14 @@ export const UserPreferenceSchema = object({
     id: number().describe('Unique user identifier.'),
     /** User email address. */
     email: string().describe('User email address.'),
+    /** Avatar URL for rendering the current user. */
+    avatarUrl: string()
+        .optional()
+        .describe('Avatar URL for rendering the current user.'),
+    /** True when the current user has a manually uploaded avatar. */
+    hasUploadedAvatar: boolean().describe(
+        'True when the current user has a manually uploaded avatar.'
+    ),
     /** Default currency used for reports and new transactions. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for reports and new transactions.'
@@ -1197,6 +1316,7 @@ export const VendorSchema = object({
     transactionCount: number().describe(
         'Number of transactions linked to this vendor.'
     ),
+    ...ContributorFields,
     /** Creation timestamp. */
     createdAt: date().coerce().describe('Creation timestamp.'),
     /** Last update timestamp. */
@@ -2279,7 +2399,8 @@ export const DashboardVendorTotalSchema = object({
     /** Selected-period bucket totals for lightweight vendor charts. */
     trend: array(decimalNumber()).describe(
         'Selected-period bucket totals for lightweight vendor charts.'
-    )
+    ),
+    ...ContributorFields
 }).schemaName('DashboardVendorTotal');
 
 export const DashboardCategoryTotalSchema = object({
@@ -2322,7 +2443,8 @@ export const DashboardCategoryTotalSchema = object({
     /** Selected-period bucket totals for lightweight category charts. */
     trend: array(decimalNumber()).describe(
         'Selected-period bucket totals for lightweight category charts.'
-    )
+    ),
+    ...ContributorFields
 }).schemaName('DashboardCategoryTotal');
 
 export const DashboardCategoryVendorTotalSchema = object({
@@ -2379,7 +2501,8 @@ export const DashboardCategoryVendorTotalSchema = object({
     /** Selected-period bucket totals for lightweight charts. */
     trend: array(decimalNumber()).describe(
         'Selected-period bucket totals for lightweight charts.'
-    )
+    ),
+    ...ContributorFields
 }).schemaName('DashboardCategoryVendorTotal');
 
 export const StatsTrendPointSchema = object({
@@ -2921,10 +3044,12 @@ export type CurrencyConversionQuery = InferType<
     typeof CurrencyConversionQuerySchema
 >;
 export type CurrencyConversion = InferType<typeof CurrencyConversionSchema>;
+export type UserAvatarSummary = InferType<typeof UserAvatarSummarySchema>;
 export type BudgetRole = InferType<typeof BudgetRoleSchema>;
 export type BudgetPermissions = InferType<typeof BudgetPermissionsSchema>;
 export type Budget = InferType<typeof BudgetSchema>;
 export type BudgetMember = InferType<typeof BudgetMemberSchema>;
+export type BudgetAccessRow = InferType<typeof BudgetAccessRowSchema>;
 export type CreateBudgetBody = InferType<typeof CreateBudgetBodySchema>;
 export type UpdateBudgetBody = InferType<typeof UpdateBudgetBodySchema>;
 export type ListBudgetsQuery = InferType<typeof ListBudgetsQuerySchema>;
@@ -2940,6 +3065,7 @@ export type AcceptBudgetInvitationBody = InferType<
 export type BudgetInvitationResponse = InferType<
     typeof BudgetInvitationResponseSchema
 >;
+export type UserAvatarUploadBody = InferType<typeof UserAvatarUploadBodySchema>;
 export type CategoryKind = InferType<typeof CategoryKindSchema>;
 export type Category = InferType<typeof CategorySchema>;
 export type CategoryListQuery = InferType<typeof CategoryListQuerySchema>;

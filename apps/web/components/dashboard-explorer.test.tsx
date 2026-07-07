@@ -33,6 +33,8 @@ function category(
         transactionCount: 2,
         trend: [100],
         type: 'expense',
+        contributors: [],
+        otherContributorCount: 0,
         ...overrides
     };
 }
@@ -58,7 +60,9 @@ function categoryVendor(
         type: categoryRow.type,
         total,
         transactionCount: 1,
-        trend: [total]
+        trend: [total],
+        contributors: [],
+        otherContributorCount: 0
     };
 }
 

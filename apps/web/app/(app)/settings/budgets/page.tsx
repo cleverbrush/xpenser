@@ -8,17 +8,6 @@ export default async function BudgetsPage() {
         client.currencies.list(),
         client.budgets.list({ query: { status: 'archived' } })
     ]);
-    const memberEntries = await Promise.all(
-        me.budgets
-            .filter(budget => budget.permissions.canManageMembers)
-            .map(async budget => [
-                budget.id,
-                await client.budgets.members({
-                    params: { id: budget.id }
-                })
-            ])
-    );
-    const membersByBudget = Object.fromEntries(memberEntries);
 
     return (
         <div className="mx-auto flex max-w-5xl flex-col gap-5 sm:gap-6">
@@ -33,8 +22,6 @@ export default async function BudgetsPage() {
                 archivedBudgets={archivedBudgets}
                 budgets={me.budgets}
                 currencies={currencies}
-                currentUserId={me.id}
-                membersByBudget={membersByBudget}
             />
         </div>
     );

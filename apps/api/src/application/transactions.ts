@@ -63,6 +63,13 @@ import {
     pruneUnusedTransactionTags,
     replaceTransactionTags
 } from './transaction-tags.js';
+import {
+    type ContributorBucket,
+    contributorSummary,
+    loadUserAvatarSummaries,
+    recordContributor,
+    userIdsFromTransactions
+} from './user-avatars.js';
 import { getVendor, VendorNotFoundError } from './vendors.js';
 
 export class TransactionNotFoundError extends Error {}
@@ -318,17 +325,16 @@ async function loadTransactionCreators(
         return new Map();
     }
 
-    const rows = (await knex('users')
-        .whereIn('id', userIds)
-        .select({ id: 'id', email: 'email' })) as Array<{
-        readonly id: number;
-        readonly email: string;
-    }>;
+    const rows = await loadUserAvatarSummaries({ knex }, userIds);
 
     return new Map(
-        rows.map(row => [
-            Number(row.id),
-            { userId: Number(row.id), email: row.email }
+        [...rows.entries()].map(([userId, row]) => [
+            userId,
+            {
+                userId,
+                email: row.email,
+                avatarUrl: row.avatarUrl
+            }
         ])
     );
 }
@@ -2424,14 +2430,56 @@ function emptyDashboardCategory(
         transactionCount: 0,
         previousPeriodTotal: 0,
         percentChange: 0,
-        trend: Array.from({ length: bucketCount }, () => 0)
+        trend: Array.from({ length: bucketCount }, () => 0),
+        contributors: [],
+        otherContributorCount: 0
     };
+}
+
+function contributorBucketFor(
+    bucketsByKey: Map<string, ContributorBucket>,
+    key: string
+): ContributorBucket {
+    const bucket = bucketsByKey.get(key) ?? new Map<number, Date>();
+    bucketsByKey.set(key, bucket);
+    return bucket;
+}
+
+function recordDashboardContributor(
+    bucketsByKey: Map<string, ContributorBucket>,
+    key: string,
+    row: Pick<TransactionDb, 'occurredAt' | 'userId'>,
+    currentUserId?: number
+): void {
+    recordContributor(
+        contributorBucketFor(bucketsByKey, key),
+        row,
+        currentUserId
+    );
+}
+
+function applyDashboardContributors<
+    T extends { contributors: unknown; otherContributorCount: number }
+>(
+    rowsByKey: ReadonlyMap<string, T>,
+    bucketsByKey: ReadonlyMap<string, ContributorBucket>,
+    usersById: Parameters<typeof contributorSummary>[1]
+): void {
+    for (const [key, row] of rowsByKey) {
+        const contributors = contributorSummary(
+            bucketsByKey.get(key),
+            usersById
+        );
+        Object.assign(row, contributors);
+    }
 }
 
 function rollUpParentDashboardCategories(
     categories: readonly DashboardCategory[],
     bucketCount: number,
-    categoriesById: ReadonlyMap<number, CategoryDb>
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    contributorsByKey: ReadonlyMap<string, ContributorBucket> = new Map(),
+    usersById: Parameters<typeof contributorSummary>[1] = new Map()
 ): DashboardCategory[] {
     const rollups = new Map<string, DashboardCategory>();
 
@@ -2452,9 +2500,14 @@ function rollUpParentDashboardCategories(
     }
 
     for (const category of rollups.values()) {
+        const key = `${category.type}:${category.categoryId}`;
         category.percentChange = percentChange(
             category.total,
             category.previousPeriodTotal
+        );
+        Object.assign(
+            category,
+            contributorSummary(contributorsByKey.get(key), usersById)
         );
     }
 
@@ -2534,13 +2587,19 @@ export function summarizeDashboardRows(
     categoriesById: ReadonlyMap<number, CategoryDb>,
     vendorsById: ReadonlyMap<number, VendorDb>,
     vendorLimit = dashboardVendorLimit,
-    reportingAmounts?: DashboardReportingAmounts
+    reportingAmounts?: DashboardReportingAmounts,
+    currentUserId?: number,
+    usersById: Parameters<typeof contributorSummary>[1] = new Map()
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
     const totalsByVendor = new Map<string, DashboardVendor>();
     const totalsByCategoryVendor = new Map<string, DashboardCategoryVendor>();
     const previousCategoriesByKey = new Map<string, DashboardCategory>();
+    const contributorsByCategory = new Map<string, ContributorBucket>();
+    const contributorsByParentCategory = new Map<string, ContributorBucket>();
+    const contributorsByVendor = new Map<string, ContributorBucket>();
+    const contributorsByCategoryVendor = new Map<string, ContributorBucket>();
     const comparisonRange = resolveDashboardComparisonRange(
         period,
         range,
@@ -2580,7 +2639,9 @@ export function summarizeDashboardRows(
             transactionCount: 0,
             previousPeriodTotal: 0,
             percentChange: 0,
-            trend: Array.from({ length: bucketCount }, () => 0)
+            trend: Array.from({ length: bucketCount }, () => 0),
+            contributors: [],
+            otherContributorCount: 0
         };
         const total = dashboardTransactionAmount(
             row,
@@ -2601,6 +2662,19 @@ export function summarizeDashboardRows(
                 (current.trend[bucketIndex] ?? 0) + total;
         }
         totalsByCategory.set(key, current);
+        recordDashboardContributor(
+            contributorsByCategory,
+            key,
+            row,
+            currentUserId
+        );
+        const parentFields = parentCategoryFields(fields, categoriesById);
+        recordDashboardContributor(
+            contributorsByParentCategory,
+            `${parentFields.type}:${parentFields.categoryId}`,
+            row,
+            currentUserId
+        );
 
         const rowVendorFields = dashboardVendorFields(row, vendorsById);
         if (!rowVendorFields) {
@@ -2613,7 +2687,9 @@ export function summarizeDashboardRows(
             type: fields.type,
             total: 0,
             transactionCount: 0,
-            trend: Array.from({ length: bucketCount }, () => 0)
+            trend: Array.from({ length: bucketCount }, () => 0),
+            contributors: [],
+            otherContributorCount: 0
         };
         currentVendor.total += total;
         currentVendor.transactionCount += 1;
@@ -2622,6 +2698,12 @@ export function summarizeDashboardRows(
                 (currentVendor.trend[bucketIndex] ?? 0) + total;
         }
         totalsByVendor.set(vendorKey, currentVendor);
+        recordDashboardContributor(
+            contributorsByVendor,
+            vendorKey,
+            row,
+            currentUserId
+        );
 
         const categoryVendorKey = `${key}:${
             rowVendorFields.vendorId ?? 'none'
@@ -2633,7 +2715,9 @@ export function summarizeDashboardRows(
                 ...rowVendorFields,
                 total: 0,
                 transactionCount: 0,
-                trend: Array.from({ length: bucketCount }, () => 0)
+                trend: Array.from({ length: bucketCount }, () => 0),
+                contributors: [],
+                otherContributorCount: 0
             } satisfies DashboardCategoryVendor);
         currentCategoryVendor.total += total;
         currentCategoryVendor.transactionCount += 1;
@@ -2645,6 +2729,12 @@ export function summarizeDashboardRows(
                 (currentCategoryVendor.trend[bucketIndex] ?? 0) + total;
         }
         totalsByCategoryVendor.set(categoryVendorKey, currentCategoryVendor);
+        recordDashboardContributor(
+            contributorsByCategoryVendor,
+            categoryVendorKey,
+            row,
+            currentUserId
+        );
     }
 
     for (const [key, category] of totalsByCategory) {
@@ -2653,6 +2743,17 @@ export function summarizeDashboardRows(
         category.previousPeriodTotal = previousTotal;
         category.percentChange = percentChange(category.total, previousTotal);
     }
+    applyDashboardContributors(
+        totalsByCategory,
+        contributorsByCategory,
+        usersById
+    );
+    applyDashboardContributors(totalsByVendor, contributorsByVendor, usersById);
+    applyDashboardContributors(
+        totalsByCategoryVendor,
+        contributorsByCategoryVendor,
+        usersById
+    );
 
     const categoriesForParentRollups = [
         ...totalsByCategory.values(),
@@ -2670,7 +2771,9 @@ export function summarizeDashboardRows(
     const byParentCategory = rollUpParentDashboardCategories(
         categoriesForParentRollups,
         bucketCount,
-        categoriesById
+        categoriesById,
+        contributorsByParentCategory,
+        usersById
     ).filter(category => category.transactionCount > 0);
     const topVendors = Array.from(totalsByVendor.values())
         .sort(
@@ -2765,6 +2868,10 @@ export async function dashboardSummary(
         [...rows, ...previousRows],
         currency
     );
+    const usersById = await loadUserAvatarSummaries(
+        db,
+        userIdsFromTransactions(rows, userId)
+    );
 
     return summarizeDashboardRows(
         reportUser,
@@ -2775,7 +2882,9 @@ export async function dashboardSummary(
         categoriesById,
         vendorsById,
         vendorLimit,
-        reportingAmounts
+        reportingAmounts,
+        userId,
+        usersById
     );
 }
 
@@ -2833,6 +2942,10 @@ export async function dashboardWindow(
         allRows,
         query.currency
     );
+    const usersById = await loadUserAvatarSummaries(
+        db,
+        userIdsFromTransactions(allRows, userId)
+    );
 
     return {
         items: plans.map(plan => ({
@@ -2846,7 +2959,9 @@ export async function dashboardWindow(
                 categoriesById,
                 vendorsById,
                 query.vendorLimit ?? dashboardVendorLimit,
-                reportingAmounts
+                reportingAmounts,
+                userId,
+                usersById
             )
         }))
     };

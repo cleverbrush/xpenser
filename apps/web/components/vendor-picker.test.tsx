@@ -25,6 +25,8 @@ function vendor(overrides: Partial<Vendor> = {}): Vendor {
         name: 'Bufet',
         displayName: 'Bufet',
         transactionCount: 0,
+        contributors: [],
+        otherContributorCount: 0,
         createdAt: timestamp,
         updatedAt: timestamp,
         ...overrides

@@ -24,6 +24,7 @@ const me: UserPreference = {
     transactionCurrencies: ['USD', 'EUR'],
     timezone: 'UTC',
     hasCategories: true,
+    hasUploadedAvatar: false,
     mainBudgetId: 1,
     budgets: [
         {

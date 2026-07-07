@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type {
     Budget,
+    BudgetAccessRow,
     BudgetMember,
     BudgetPermissions,
     BudgetRole,
@@ -19,6 +20,7 @@ import type {
     UserDb
 } from '../db/schemas.js';
 import { sendEmail } from './email.js';
+import { mapUserAvatarSummary } from './user-avatars.js';
 
 export class BudgetAccessError extends Error {}
 export class BudgetInvitationInvalidError extends Error {}
@@ -357,13 +359,31 @@ function mapBudget(
     };
 }
 
-function mapBudgetMember(
-    row: BudgetMemberDb & { readonly email: string }
-): BudgetMember {
+type BudgetMemberRow = BudgetMemberDb & {
+    readonly avatarImageFileName?: string | null;
+    readonly avatarImageMimeType?: string | null;
+    readonly avatarImageUpdatedAt?: Date | null;
+    readonly avatarUrl?: string | null;
+    readonly email: string;
+};
+
+function mapBudgetMember(row: BudgetMemberRow): BudgetMember {
+    const user = mapUserAvatarSummary(
+        {
+            id: row.userId,
+            email: row.email,
+            avatarUrl: row.avatarUrl ?? undefined,
+            avatarImageMimeType: row.avatarImageMimeType ?? undefined,
+            avatarImageFileName: row.avatarImageFileName ?? undefined,
+            avatarImageUpdatedAt: row.avatarImageUpdatedAt ?? undefined
+        },
+        row.displayName
+    );
     return {
         budgetId: row.budgetId,
         userId: row.userId,
         email: row.email,
+        user,
         role: row.role === 'admin' ? 'admin' : 'member',
         permissions: memberPermissions(row),
         createdAt: row.createdAt,
@@ -822,9 +842,10 @@ export async function deleteBudget(
 export async function listBudgetMembers(
     db: AppDb,
     userId: number,
-    budgetId: number
+    budgetId: number,
+    options: { readonly allowArchived?: boolean } = {}
 ): Promise<BudgetMember[]> {
-    const access = await resolveBudgetAccess(db, userId, budgetId);
+    const access = await resolveBudgetAccess(db, userId, budgetId, options);
     requireBudgetPermission(access, 'canManageMembers');
 
     const rows = (await db
@@ -836,6 +857,10 @@ export async function listBudgetMembers(
             budgetId: 'member.budget_id',
             userId: 'member.user_id',
             email: 'user.email',
+            avatarUrl: 'user.avatar_url',
+            avatarImageMimeType: 'user.avatar_image_mime_type',
+            avatarImageFileName: 'user.avatar_image_file_name',
+            avatarImageUpdatedAt: 'user.avatar_image_updated_at',
             displayName: 'member.display_name',
             role: 'member.role',
             canCreateTransactions: 'member.can_create_transactions',
@@ -847,9 +872,69 @@ export async function listBudgetMembers(
             canManageMembers: 'member.can_manage_members',
             createdAt: 'member.created_at',
             updatedAt: 'member.updated_at'
-        })) as Array<BudgetMemberDb & { readonly email: string }>;
+        })) as BudgetMemberRow[];
 
     return rows.map(mapBudgetMember);
+}
+
+function invitationAccessStatus(
+    invitation: Pick<BudgetInvitationDb, 'consumedAt' | 'expiresAt'>,
+    now: Date
+): 'accepted' | 'expired' | 'pending' {
+    if (invitation.consumedAt) {
+        return 'accepted';
+    }
+    if (invitation.expiresAt.getTime() <= now.getTime()) {
+        return 'expired';
+    }
+    return 'pending';
+}
+
+function mapInvitationAccessRow(
+    invitation: BudgetInvitationDb,
+    now: Date
+): BudgetAccessRow {
+    return {
+        status: invitationAccessStatus(invitation, now),
+        invitationId: invitation.id,
+        budgetId: invitation.budgetId,
+        email: invitation.email,
+        role: invitation.role === 'admin' ? 'admin' : 'member',
+        permissions: invitationPermissions(invitation),
+        expiresAt: invitation.expiresAt,
+        consumedAt: invitation.consumedAt ?? null,
+        createdAt: invitation.createdAt,
+        updatedAt: invitation.updatedAt
+    };
+}
+
+export async function listBudgetAccess(
+    db: AppDb,
+    userId: number,
+    budgetId: number
+): Promise<BudgetAccessRow[]> {
+    const access = await resolveBudgetAccess(db, userId, budgetId, {
+        allowArchived: true
+    });
+    requireBudgetPermission(access, 'canManageMembers');
+
+    const [members, invitations] = await Promise.all([
+        listBudgetMembers(db, userId, budgetId, { allowArchived: true }),
+        db.budgetInvitations.where(invitation => invitation.budgetId, budgetId)
+    ]);
+    const now = new Date();
+    return [
+        ...members.map(member => ({ status: 'active' as const, ...member })),
+        ...(invitations as BudgetInvitationDb[])
+            .map(invitation => mapInvitationAccessRow(invitation, now))
+            .sort((left, right) => {
+                const statusDelta = left.status.localeCompare(right.status);
+                if (statusDelta !== 0) {
+                    return statusDelta;
+                }
+                return left.email.localeCompare(right.email);
+            })
+    ];
 }
 
 async function adminCount(db: AppDb, budgetId: number): Promise<number> {

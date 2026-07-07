@@ -5,7 +5,7 @@
 import { render, screen } from '@testing-library/react';
 import type { Budget, BudgetMember, Currency } from '@xpenser/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BudgetSettings } from './budget-settings';
+import { BudgetDetailSettings, BudgetSettings } from './budget-settings';
 
 const archiveBudgetAction = vi.fn();
 const createBudgetAction = vi.fn();
@@ -14,6 +14,7 @@ const inviteBudgetMemberAction = vi.fn();
 const removeBudgetMemberAction = vi.fn();
 const restoreBudgetAction = vi.fn();
 const updateBudgetAction = vi.fn();
+const updateBudgetMemberAction = vi.fn();
 
 vi.mock('@/lib/actions', () => ({
     archiveBudgetAction: (formData: FormData) => archiveBudgetAction(formData),
@@ -24,7 +25,9 @@ vi.mock('@/lib/actions', () => ({
     removeBudgetMemberAction: (formData: FormData) =>
         removeBudgetMemberAction(formData),
     restoreBudgetAction: (formData: FormData) => restoreBudgetAction(formData),
-    updateBudgetAction: (formData: FormData) => updateBudgetAction(formData)
+    updateBudgetAction: (formData: FormData) => updateBudgetAction(formData),
+    updateBudgetMemberAction: (formData: FormData) =>
+        updateBudgetMemberAction(formData)
 }));
 
 const timestamp = new Date('2026-06-01T00:00:00.000Z');
@@ -64,6 +67,11 @@ function member(overrides: Partial<BudgetMember> = {}): BudgetMember {
         budgetId: 1,
         userId: 1,
         email: 'owner@example.com',
+        user: {
+            userId: 1,
+            email: 'owner@example.com',
+            displayName: 'Owner'
+        },
         role: 'admin',
         permissions: {
             canCreateTransactions: true,
@@ -87,17 +95,25 @@ function renderSettings({
     readonly activeBudgets?: readonly Budget[];
     readonly archivedBudgets?: readonly Budget[];
 } = {}) {
-    const membersByBudget = Object.fromEntries(
-        activeBudgets.map(item => [item.id, [member({ budgetId: item.id })]])
-    );
-
     return render(
         <BudgetSettings
             archivedBudgets={archivedBudgets}
             budgets={activeBudgets}
             currencies={currencies}
+        />
+    );
+}
+
+function renderDetail(selectedBudget = budget(), rows = [member()]) {
+    return render(
+        <BudgetDetailSettings
+            accessRows={rows.map(row => ({
+                status: 'active' as const,
+                ...row
+            }))}
+            budget={selectedBudget}
+            currencies={currencies}
             currentUserId={1}
-            membersByBudget={membersByBudget}
         />
     );
 }
@@ -111,6 +127,7 @@ describe('BudgetSettings', () => {
         removeBudgetMemberAction.mockReset();
         restoreBudgetAction.mockReset();
         updateBudgetAction.mockReset();
+        updateBudgetMemberAction.mockReset();
     });
 
     it('creates budgets from name and budget currencies only', () => {
@@ -125,32 +142,34 @@ describe('BudgetSettings', () => {
     });
 
     it('lets admins invite members to Main with a personal budget name', () => {
-        renderSettings();
+        renderDetail();
 
         expect(screen.getByLabelText('Invite email')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Invite' })).toBeTruthy();
     });
 
     it('shows archive controls for active budgets and restore/delete for archived budgets', () => {
-        renderSettings({
-            activeBudgets: [
-                budget({
-                    id: 2,
-                    isMain: false,
-                    name: 'Travel'
-                })
-            ],
-            archivedBudgets: [
-                budget({
-                    archivedAt: new Date('2026-06-02T00:00:00.000Z'),
-                    id: 3,
-                    isMain: false,
-                    name: 'Old travel'
-                })
-            ]
-        });
+        renderDetail(
+            budget({
+                id: 2,
+                isMain: false,
+                name: 'Travel'
+            })
+        );
 
         expect(screen.getByRole('button', { name: 'Archive' })).toBeTruthy();
+    });
+
+    it('shows restore/delete for archived budget details', () => {
+        renderDetail(
+            budget({
+                archivedAt: new Date('2026-06-02T00:00:00.000Z'),
+                id: 3,
+                isMain: false,
+                name: 'Old travel'
+            })
+        );
+
         expect(screen.getByRole('button', { name: 'Restore' })).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
     });

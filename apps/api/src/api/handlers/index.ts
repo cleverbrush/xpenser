@@ -5,6 +5,7 @@ import {
 } from './api-keys.js';
 import {
     confirmEmailHandler,
+    deleteUserAvatarHandler,
     getMeHandler,
     googleSignInHandler,
     loginHandler,
@@ -14,13 +15,16 @@ import {
     resendEmailConfirmationHandler,
     sessionTokenHandler,
     singleUserSessionTokenHandler,
-    updatePreferencesHandler
+    updatePreferencesHandler,
+    updateUserAvatarHandler,
+    userAvatarImageHandler
 } from './auth.js';
 import {
     acceptBudgetInvitationHandler,
     createBudgetHandler,
     deleteBudgetHandler,
     inviteBudgetMemberHandler,
+    listBudgetAccessHandler,
     listBudgetMembersHandler,
     listBudgetsHandler,
     removeBudgetMemberHandler,
@@ -98,6 +102,9 @@ export const handlers = {
         telegramStatus: telegramStatusHandler,
         createTelegramLinkToken: createTelegramLinkTokenHandler,
         disconnectTelegram: disconnectTelegramHandler,
+        updateAvatar: updateUserAvatarHandler,
+        deleteAvatar: deleteUserAvatarHandler,
+        avatarImage: userAvatarImageHandler,
         listApiKeys: listApiKeysHandler,
         createApiKey: createApiKeyHandler,
         revokeApiKey: revokeApiKeyHandler,
@@ -110,6 +117,7 @@ export const handlers = {
         update: updateBudgetHandler,
         delete: deleteBudgetHandler,
         members: listBudgetMembersHandler,
+        access: listBudgetAccessHandler,
         invite: inviteBudgetMemberHandler,
         updateMember: updateBudgetMemberHandler,
         removeMember: removeBudgetMemberHandler,

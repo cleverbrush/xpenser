@@ -51,10 +51,17 @@ export async function up(knex: Knex): Promise<void> {
             .timestamp('updated_at', { useTz: true })
             .notNullable()
             .defaultTo(knex.fn.now());
+        table.timestamp('archived_at', { useTz: true }).nullable();
         table.index(['created_by_user_id'], 'idx_budgets_created_by_user_id');
+        table.index(['archived_at'], 'idx_budgets_archived_at');
     });
 
     await knex.schema.alterTable('users', table => {
+        table.string('avatar_url', 1000).nullable();
+        table.text('avatar_image_base64').nullable();
+        table.string('avatar_image_mime_type', 32).nullable();
+        table.string('avatar_image_file_name', 255).nullable();
+        table.timestamp('avatar_image_updated_at', { useTz: true }).nullable();
         table
             .integer('main_budget_id')
             .nullable()
@@ -391,6 +398,11 @@ export async function down(knex: Knex): Promise<void> {
     await knex.schema.dropTableIfExists('budget_members');
 
     await knex.schema.alterTable('users', table => {
+        table.dropColumn('avatar_image_updated_at');
+        table.dropColumn('avatar_image_file_name');
+        table.dropColumn('avatar_image_mime_type');
+        table.dropColumn('avatar_image_base64');
+        table.dropColumn('avatar_url');
         table.dropIndex(['main_budget_id'], 'idx_users_main_budget_id');
         table.dropColumn('main_budget_id');
     });

@@ -26,6 +26,8 @@ function vendor(overrides: Partial<Vendor> = {}): Vendor {
         suggestedCategoryId: 7,
         suggestedCategoryDisplayName: 'Groceries',
         transactionCount: 3,
+        contributors: [],
+        otherContributorCount: 0,
         createdAt: timestamp,
         updatedAt: timestamp,
         ...overrides

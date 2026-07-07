@@ -9,6 +9,7 @@ import {
     createBudget,
     deleteBudget,
     inviteBudgetMember,
+    listBudgetAccess,
     listBudgetMembers,
     listBudgets,
     removeBudgetMember,
@@ -20,6 +21,7 @@ import type {
     CreateBudgetEndpoint,
     DeleteBudgetEndpoint,
     InviteBudgetMemberEndpoint,
+    ListBudgetAccessEndpoint,
     ListBudgetMembersEndpoint,
     ListBudgetsEndpoint,
     RemoveBudgetMemberEndpoint,
@@ -103,6 +105,20 @@ export const listBudgetMembersHandler: Handler<
 > = async ({ params, principal }, { db }) => {
     try {
         return await listBudgetMembers(db, principal.userId, params.id);
+    } catch (err) {
+        const result = budgetAccessResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
+};
+
+export const listBudgetAccessHandler: Handler<
+    typeof ListBudgetAccessEndpoint
+> = async ({ params, principal }, { db }) => {
+    try {
+        return await listBudgetAccess(db, principal.userId, params.id);
     } catch (err) {
         const result = budgetAccessResult(err);
         if (result) {

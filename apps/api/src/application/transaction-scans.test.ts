@@ -114,6 +114,8 @@ function vendor(overrides: Partial<Vendor> = {}): Vendor {
         displayName: 'Walmart',
         domain: 'walmart.com',
         transactionCount: 3,
+        contributors: [],
+        otherContributorCount: 0,
         createdAt: timestamp,
         updatedAt: timestamp,
         ...overrides

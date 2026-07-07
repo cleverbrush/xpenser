@@ -13,6 +13,7 @@ import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AmountDisplay } from '@/components/amount-display';
+import { ContributorAvatars } from '@/components/contributor-avatars';
 import {
     type DashboardExpansionAction,
     DashboardExpansionButton
@@ -274,8 +275,16 @@ function VendorRow({
                         size="sm"
                     />
                     <span className="min-w-0">
-                        <span className="block truncate font-medium">
-                            {vendor.vendorName}
+                        <span className="flex min-w-0 items-center gap-2">
+                            <span className="truncate font-medium">
+                                {vendor.vendorName}
+                            </span>
+                            <ContributorAvatars
+                                contributors={vendor.contributors}
+                                otherContributorCount={
+                                    vendor.otherContributorCount
+                                }
+                            />
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
                             {vendor.vendorDomain
@@ -363,8 +372,14 @@ function VendorCategoryRow({
                     {shareLabel}
                 </span>
                 <span className="min-w-0">
-                    <span className="block truncate font-medium">
-                        {item.categoryDisplayName}
+                    <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium">
+                            {item.categoryDisplayName}
+                        </span>
+                        <ContributorAvatars
+                            contributors={item.contributors}
+                            otherContributorCount={item.otherContributorCount}
+                        />
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">
                         {vendorTransactionLabel(item.transactionCount)} ·{' '}

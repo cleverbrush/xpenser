@@ -122,6 +122,30 @@ export const DisconnectTelegramEndpoint = api.users.disconnectTelegram
     .tags('users')
     .operationId('disconnectTelegram');
 
+export const UpdateUserAvatarEndpoint = api.users.updateAvatar
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Update user avatar')
+    .description('Stores a manually uploaded avatar for the current user.')
+    .tags('users')
+    .operationId('updateUserAvatar');
+
+export const DeleteUserAvatarEndpoint = api.users.deleteAvatar
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Delete user avatar')
+    .description('Removes the current user manually uploaded avatar.')
+    .tags('users')
+    .operationId('deleteUserAvatar');
+
+export const UserAvatarImageEndpoint = api.users.avatarImage
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('User avatar image')
+    .description('Streams a stored avatar image visible to the current user.')
+    .tags('users')
+    .operationId('userAvatarImage');
+
 export const ListBudgetsEndpoint = api.budgets.list
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -161,6 +185,16 @@ export const ListBudgetMembersEndpoint = api.budgets.members
     .description('Lists members for a budget the current user can manage.')
     .tags('budgets')
     .operationId('listBudgetMembers');
+
+export const ListBudgetAccessEndpoint = api.budgets.access
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List budget access')
+    .description(
+        'Lists active members and invitation statuses for a budget the current user can manage.'
+    )
+    .tags('budgets')
+    .operationId('listBudgetAccess');
 
 export const InviteBudgetMemberEndpoint = api.budgets.invite
     .authorize(PrincipalSchema)
@@ -565,6 +599,9 @@ export const endpoints = {
         telegramStatus: TelegramStatusEndpoint,
         createTelegramLinkToken: CreateTelegramLinkTokenEndpoint,
         disconnectTelegram: DisconnectTelegramEndpoint,
+        updateAvatar: UpdateUserAvatarEndpoint,
+        deleteAvatar: DeleteUserAvatarEndpoint,
+        avatarImage: UserAvatarImageEndpoint,
         listApiKeys: ListApiKeysEndpoint,
         createApiKey: CreateApiKeyEndpoint,
         revokeApiKey: RevokeApiKeyEndpoint,
@@ -577,6 +614,7 @@ export const endpoints = {
         update: UpdateBudgetEndpoint,
         delete: DeleteBudgetEndpoint,
         members: ListBudgetMembersEndpoint,
+        access: ListBudgetAccessEndpoint,
         invite: InviteBudgetMemberEndpoint,
         updateMember: UpdateBudgetMemberEndpoint,
         removeMember: RemoveBudgetMemberEndpoint,

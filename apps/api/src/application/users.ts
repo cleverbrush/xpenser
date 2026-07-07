@@ -47,6 +47,27 @@ function normalizeCountryCode(value: string | undefined): string {
     return /^[A-Z]{2}$/.test(countryCode) ? countryCode : 'US';
 }
 
+function normalizedAvatarUrl(value: string | undefined): string | undefined {
+    if (!value) {
+        return undefined;
+    }
+    try {
+        const url = new URL(value.trim());
+        return url.protocol === 'https:' ? url.toString() : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function userAvatarUrl(
+    user: Pick<UserDb, 'avatarImageMimeType' | 'avatarUrl' | 'id'>
+): string | undefined {
+    if (user.avatarImageMimeType) {
+        return `/app-api/users/${user.id}/avatar`;
+    }
+    return user.avatarUrl ?? undefined;
+}
+
 function normalizedEmail(value: string): string {
     return value.trim().toLowerCase();
 }
@@ -322,6 +343,11 @@ export async function issueSingleUserToken(
             emailVerificationExpiresAt: undefined,
             role: 'user',
             authProvider: 'single_user',
+            avatarUrl: undefined,
+            avatarImageBase64: undefined,
+            avatarImageMimeType: undefined,
+            avatarImageFileName: undefined,
+            avatarImageUpdatedAt: undefined,
             defaultCurrency: 'USD',
             countryCode: 'US',
             timezone: defaultTimeZone
@@ -376,6 +402,11 @@ export async function registerUser(
             emailVerificationExpiresAt: confirmation.expiresAt,
             role: 'user',
             authProvider: 'local',
+            avatarUrl: undefined,
+            avatarImageBase64: undefined,
+            avatarImageMimeType: undefined,
+            avatarImageFileName: undefined,
+            avatarImageUpdatedAt: undefined,
             defaultCurrency: body.defaultCurrency,
             countryCode: normalizeCountryCode(body.countryCode),
             timezone: normalizeTimeZone(body.timezone)
@@ -501,6 +532,7 @@ async function resolveGoogleIdentity(
     }
 
     return db.transaction(async trx => {
+        const avatarUrl = normalizedAvatarUrl(identity.avatarUrl);
         const existingIdentity = await trx.externalIdentities
             .where(row => row.provider, 'google')
             .where(row => row.providerSubject, identity.providerSubject)
@@ -511,6 +543,11 @@ async function resolveGoogleIdentity(
                 throw new InvalidGoogleIdentityError(
                     'Linked account was not found.'
                 );
+            }
+            if (avatarUrl && user.avatarUrl !== avatarUrl) {
+                await trx.users
+                    .where(candidate => candidate.id, user.id)
+                    .update({ avatarUrl, updatedAt: new Date() });
             }
             return {
                 service_user_id: String(user.id),
@@ -537,10 +574,21 @@ async function resolveGoogleIdentity(
                 emailVerificationExpiresAt: undefined,
                 role: 'user',
                 authProvider: 'google',
+                avatarUrl,
+                avatarImageBase64: undefined,
+                avatarImageMimeType: undefined,
+                avatarImageFileName: undefined,
+                avatarImageUpdatedAt: undefined,
                 defaultCurrency: 'USD',
                 countryCode: 'US',
                 timezone: defaultTimeZone
             }));
+
+        if (avatarUrl && user.avatarUrl !== avatarUrl) {
+            await trx.users
+                .where(candidate => candidate.id, user.id)
+                .update({ avatarUrl, updatedAt: new Date() });
+        }
 
         const userIdentity = await trx.externalIdentities
             .where(row => row.provider, 'google')
@@ -648,6 +696,8 @@ export async function getUserPreference(
     return {
         id: user.id,
         email: user.email,
+        avatarUrl: userAvatarUrl(user),
+        hasUploadedAvatar: Boolean(user.avatarImageMimeType),
         defaultCurrency,
         countryCode: normalizeCountryCode(user.countryCode),
         favoriteCurrencies: favorites,

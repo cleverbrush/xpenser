@@ -22,6 +22,13 @@ import {
     categoryAvailableForTransactions,
     categoryDisplayName
 } from './categories.js';
+import {
+    type ContributorBucket,
+    contributorSummary,
+    loadUserAvatarSummaries,
+    recordContributor,
+    userIdsFromTransactions
+} from './user-avatars.js';
 
 const brandfetchTransactionUrl =
     'https://api.brandfetch.io/v2/brands/transaction';
@@ -34,6 +41,7 @@ export class VendorNotFoundError extends Error {}
 export class VendorMetadataError extends Error {}
 
 type VendorStats = {
+    readonly contributors: ReturnType<typeof contributorSummary>;
     readonly latestAt?: Date;
     readonly transactionCount: number;
 };
@@ -467,19 +475,39 @@ async function loadVendorTransactions(
     )) as TransactionDb[];
 }
 
-function vendorStats(transactions: readonly TransactionDb[]) {
+function vendorStats(
+    transactions: readonly TransactionDb[],
+    usersById: Parameters<typeof contributorSummary>[1],
+    currentUserId: number
+) {
     const stats = new Map<number, VendorStats>();
+    const contributorsByVendor = new Map<number, ContributorBucket>();
     for (const transaction of transactions) {
         if (!transaction.vendorId) {
             continue;
         }
+        const bucket =
+            contributorsByVendor.get(transaction.vendorId) ??
+            new Map<number, Date>();
+        contributorsByVendor.set(transaction.vendorId, bucket);
+        recordContributor(bucket, transaction, currentUserId);
         const current = stats.get(transaction.vendorId);
         stats.set(transaction.vendorId, {
+            contributors: { contributors: [], otherContributorCount: 0 },
             transactionCount: (current?.transactionCount ?? 0) + 1,
             latestAt:
                 !current?.latestAt || transaction.occurredAt > current.latestAt
                     ? transaction.occurredAt
                     : current.latestAt
+        });
+    }
+    for (const [vendorId, statsRow] of stats) {
+        stats.set(vendorId, {
+            ...statsRow,
+            contributors: contributorSummary(
+                contributorsByVendor.get(vendorId),
+                usersById
+            )
         });
     }
     return stats;
@@ -567,18 +595,28 @@ function mapVendor(
         suggestedCategoryId: suggestion?.categoryId,
         suggestedCategoryDisplayName: suggestion?.categoryDisplayName,
         transactionCount: stats?.transactionCount ?? 0,
+        contributors: [...(stats?.contributors.contributors ?? [])],
+        otherContributorCount: stats?.contributors.otherContributorCount ?? 0,
         createdAt: vendor.createdAt,
         updatedAt: vendor.updatedAt
     };
 }
 
-async function vendorReadContext(db: AppDb, budgetId: number) {
+async function vendorReadContext(
+    db: AppDb,
+    budgetId: number,
+    currentUserId: number
+) {
     const [transactions, categoriesById] = await Promise.all([
         loadVendorTransactions(db, budgetId),
         loadCategoriesById(db, budgetId)
     ]);
+    const usersById = await loadUserAvatarSummaries(
+        db,
+        userIdsFromTransactions(transactions, currentUserId)
+    );
     return {
-        stats: vendorStats(transactions),
+        stats: vendorStats(transactions, usersById, currentUserId),
         suggestions: categorySuggestions(transactions, categoriesById)
     };
 }
@@ -593,7 +631,7 @@ export async function listVendors(
     const search = query.search?.trim().toLowerCase();
     const [rows, context] = await Promise.all([
         db.vendors.where(vendor => vendor.budgetId, access.budget.id),
-        vendorReadContext(db, access.budget.id)
+        vendorReadContext(db, access.budget.id, userId)
     ]);
 
     return (rows as VendorDb[])
@@ -639,7 +677,7 @@ async function vendorView(
     vendor: VendorDb
 ): Promise<Vendor> {
     await resolveBudgetAccess(db, userId, vendor.budgetId);
-    const context = await vendorReadContext(db, vendor.budgetId);
+    const context = await vendorReadContext(db, vendor.budgetId, userId);
     return mapVendor(
         vendor,
         context.stats.get(vendor.id),
@@ -783,7 +821,7 @@ export async function createVendor(
             .where(candidate => candidate.id, vendor.id)
             .where(candidate => candidate.budgetId, access.budget.id)
             .first(),
-        vendorReadContext(db, access.budget.id)
+        vendorReadContext(db, access.budget.id, userId)
     ]);
 
     return mapVendor(

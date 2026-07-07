@@ -3,6 +3,7 @@ import { defineApi, endpoint, route } from '@cleverbrush/server/contract';
 import {
     AcceptBudgetInvitationBodySchema,
     ApiKeySchema,
+    BudgetAccessRowSchema,
     BudgetInvitationResponseSchema,
     BudgetMemberSchema,
     BudgetSchema,
@@ -75,6 +76,7 @@ import {
     UpdateTransactionBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
+    UserAvatarUploadBodySchema,
     UserPreferenceSchema,
     VendorCandidateDetailsQuerySchema,
     VendorCandidateSchema,
@@ -85,6 +87,7 @@ import {
 
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
 const BudgetMembers = route({ id: number().coerce() })`/${t => t.id}/members`;
+const BudgetAccess = route({ id: number().coerce() })`/${t => t.id}/access`;
 const BudgetMemberById = route({
     budgetId: number().coerce(),
     userId: number().coerce()
@@ -134,6 +137,9 @@ const stats = endpoint.resource('/api/stats').authorize(PrincipalSchema);
 const apiKeys = endpoint
     .resource('/api/users/me/api-keys')
     .authorize(PrincipalSchema);
+const userAvatars = endpoint.resource('/api/users').authorize(PrincipalSchema);
+const CurrentUserAvatar = route`/me/avatar`;
+const UserAvatarImage = route({ id: number().coerce() })`/${t => t.id}/avatar`;
 const mcpConnections = endpoint
     .resource('/api/users/me/mcp-connections')
     .authorize(PrincipalSchema);
@@ -261,6 +267,31 @@ export const api = defineApi({
                 204: null,
                 401: ErrorResponseSchema
             }),
+        updateAvatar: userAvatars
+            .put(CurrentUserAvatar)
+            .body(UserAvatarUploadBodySchema)
+            .clearsCacheTag('user-profile')
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('dashboard')
+            .clearsCacheTag('vendors')
+            .clearsCacheTag('transactions')
+            .responses({
+                200: UserPreferenceSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        deleteAvatar: userAvatars
+            .delete(CurrentUserAvatar)
+            .clearsCacheTag('user-profile')
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('dashboard')
+            .clearsCacheTag('vendors')
+            .clearsCacheTag('transactions')
+            .responses({
+                200: UserPreferenceSchema,
+                401: ErrorResponseSchema
+            }),
+        avatarImage: userAvatars.get(UserAvatarImage),
         listApiKeys: apiKeys
             .get()
             .cacheTag('api-keys')
@@ -348,6 +379,15 @@ export const api = defineApi({
             .cacheTag('budgets')
             .responses({
                 200: array(BudgetMemberSchema),
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        access: budgets
+            .get(BudgetAccess)
+            .cacheTag('budgets')
+            .responses({
+                200: array(BudgetAccessRowSchema),
                 400: ErrorResponseSchema,
                 403: ErrorResponseSchema,
                 404: ErrorResponseSchema

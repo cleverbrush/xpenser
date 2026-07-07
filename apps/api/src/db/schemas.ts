@@ -22,6 +22,17 @@ export const UserDbSchema = object({
         .hasColumnName('email_verification_expires_at'),
     role: string(),
     authProvider: string().hasColumnName('auth_provider'),
+    avatarUrl: string().optional().hasColumnName('avatar_url'),
+    avatarImageBase64: string().optional().hasColumnName('avatar_image_base64'),
+    avatarImageMimeType: string()
+        .optional()
+        .hasColumnName('avatar_image_mime_type'),
+    avatarImageFileName: string()
+        .optional()
+        .hasColumnName('avatar_image_file_name'),
+    avatarImageUpdatedAt: date()
+        .optional()
+        .hasColumnName('avatar_image_updated_at'),
     defaultCurrency: string().hasColumnName('default_currency'),
     countryCode: string().hasColumnName('country_code').defaultTo('US'),
     timezone: string().defaultTo('UTC'),
@@ -47,6 +58,10 @@ export const UserDbSchema = object({
         'emailVerified',
         'role',
         'authProvider',
+        'avatarUrl',
+        'avatarImageMimeType',
+        'avatarImageFileName',
+        'avatarImageUpdatedAt',
         'defaultCurrency',
         'countryCode',
         'timezone',
@@ -66,6 +81,11 @@ export const UserDbSchema = object({
         'emailVerificationExpiresAt',
         'role',
         'authProvider',
+        'avatarUrl',
+        'avatarImageBase64',
+        'avatarImageMimeType',
+        'avatarImageFileName',
+        'avatarImageUpdatedAt',
         'defaultCurrency',
         'countryCode',
         'timezone',
