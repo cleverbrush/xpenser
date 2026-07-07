@@ -195,6 +195,15 @@ const auraPlusPlusBadge = {
     width: 265
 } as const;
 
+const openHuntsBadge = {
+    alt: 'OpenHunts Club Member',
+    height: 105,
+    href: 'https://openhunts.com',
+    src: 'https://cdn.openhunts.com/badges/club.webp',
+    title: 'OpenHunts Club',
+    width: 486
+} as const;
+
 const apiCurlExample = `curl ${openApiSpecPath}
 curl ${mcpEndpointPath} \\
   -H "Authorization: Bearer \${XPENSER_API_KEY}"`;
@@ -599,6 +608,27 @@ function AuraPlusPlusBadge() {
     );
 }
 
+function OpenHuntsBadge() {
+    return (
+        <a
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={openHuntsBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+            title={openHuntsBadge.title}
+        >
+            {/* biome-ignore lint/performance/noImgElement: OpenHunts provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={openHuntsBadge.alt}
+                height={openHuntsBadge.height}
+                src={openHuntsBadge.src}
+                style={{ height: 'auto', width: '195px' }}
+                width={openHuntsBadge.width}
+            />
+        </a>
+    );
+}
+
 function FooterBadges() {
     return (
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
@@ -607,6 +637,7 @@ function FooterBadges() {
             <EasyDoFollowBadge />
             <ScrollLaunchBadge />
             <AuraPlusPlusBadge />
+            <OpenHuntsBadge />
         </div>
     );
 }
