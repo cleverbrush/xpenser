@@ -1,3 +1,4 @@
+import type { Budget, BudgetAccessRow } from '@xpenser/contracts';
 import { notFound } from 'next/navigation';
 import { BudgetDetailSettings } from '@/components/budget-settings';
 import { getApiClient } from '@/lib/api';
@@ -5,6 +6,31 @@ import { getApiClient } from '@/lib/api';
 type BudgetDetailPageProps = {
     readonly params: Promise<{ readonly budgetId: string }>;
 };
+
+type ApiClient = Awaited<ReturnType<typeof getApiClient>>;
+
+async function loadBudgetAccessRows(
+    client: ApiClient,
+    budget: Budget
+): Promise<BudgetAccessRow[]> {
+    if (!budget.permissions.canManageMembers) {
+        return [];
+    }
+
+    const [accessRows, members] = await Promise.all([
+        client.budgets.access({ params: { id: budget.id } }),
+        client.budgets.members({ params: { id: budget.id } })
+    ]);
+    const activeUserIds = new Set(
+        accessRows.flatMap(row => (row.status === 'active' ? [row.userId] : []))
+    );
+    return [
+        ...members
+            .filter(member => !activeUserIds.has(member.userId))
+            .map(member => ({ status: 'active' as const, ...member })),
+        ...accessRows
+    ];
+}
 
 export default async function BudgetDetailPage({
     params
@@ -27,9 +53,7 @@ export default async function BudgetDetailPage({
     if (!budget) {
         notFound();
     }
-    const accessRows = budget.permissions.canManageMembers
-        ? await client.budgets.access({ params: { id: budget.id } })
-        : [];
+    const accessRows = await loadBudgetAccessRows(client, budget);
 
     return (
         <div className="mx-auto flex max-w-5xl flex-col gap-5 sm:gap-6">

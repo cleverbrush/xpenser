@@ -17,6 +17,7 @@ import {
     deleteBudget,
     hashBudgetInvitationToken,
     inviteBudgetMember,
+    listBudgetAccess,
     listBudgets,
     resolveBudgetAccess,
     updateBudget
@@ -100,20 +101,28 @@ type TestData = {
 
 class BudgetListQuery {
     private userId?: number;
+    private budgetId?: number;
     private archived: 'active' | 'archived' | 'all' = 'all';
     private mainBudgetId = 0;
     private displayName?: string;
     private excludingBudgetId?: number;
+    private joinedUsers = false;
 
     constructor(private readonly data: TestData) {}
 
-    join(): BudgetListQuery {
+    join(table?: string): BudgetListQuery {
+        if (table === 'users as user') {
+            this.joinedUsers = true;
+        }
         return this;
     }
 
     where(column: string, value: unknown): BudgetListQuery {
         if (column === 'member.user_id') {
             this.userId = Number(value);
+        }
+        if (column === 'member.budget_id') {
+            this.budgetId = Number(value);
         }
         return this;
     }
@@ -155,7 +164,21 @@ class BudgetListQuery {
 
     private rows() {
         return this.data.members
-            .filter(member => member.userId === this.userId)
+            .filter(member => {
+                if (
+                    this.userId !== undefined &&
+                    member.userId !== this.userId
+                ) {
+                    return false;
+                }
+                if (
+                    this.budgetId !== undefined &&
+                    member.budgetId !== this.budgetId
+                ) {
+                    return false;
+                }
+                return true;
+            })
             .flatMap(member => {
                 const budget = this.data.budgets.find(
                     item => item.id === member.budgetId
@@ -218,11 +241,59 @@ class BudgetListQuery {
             }));
     }
 
+    private memberRows() {
+        return this.data.members
+            .filter(member => {
+                if (
+                    this.userId !== undefined &&
+                    member.userId !== this.userId
+                ) {
+                    return false;
+                }
+                if (
+                    this.budgetId !== undefined &&
+                    member.budgetId !== this.budgetId
+                ) {
+                    return false;
+                }
+                return true;
+            })
+            .map(member => {
+                const user = this.data.users.find(
+                    item => item.id === member.userId
+                );
+                return {
+                    budgetId: member.budgetId,
+                    userId: member.userId,
+                    email: user?.email ?? '',
+                    avatarUrl: user?.avatarUrl ?? null,
+                    avatarImageMimeType: user?.avatarImageMimeType ?? null,
+                    avatarImageFileName: user?.avatarImageFileName ?? null,
+                    avatarImageUpdatedAt: user?.avatarImageUpdatedAt ?? null,
+                    displayName: member.displayName,
+                    role: member.role,
+                    canCreateTransactions: member.canCreateTransactions,
+                    canUpdateTransactions: member.canUpdateTransactions,
+                    canDeleteTransactions: member.canDeleteTransactions,
+                    canManageCategories: member.canManageCategories,
+                    canManageVendors: member.canManageVendors,
+                    canManageTags: member.canManageTags,
+                    canManageMembers: member.canManageMembers,
+                    createdAt: member.createdAt,
+                    updatedAt: member.updatedAt
+                };
+            })
+            .sort((left, right) => left.email.localeCompare(right.email));
+    }
+
     first(): Promise<object | undefined> {
         return Promise.resolve(this.rows()[0]);
     }
 
     select(): Promise<object[]> {
+        if (this.joinedUsers) {
+            return Promise.resolve(this.memberRows());
+        }
         return Promise.resolve(this.rows());
     }
 }
@@ -581,6 +652,51 @@ describe('budget lifecycle', () => {
 });
 
 describe('budget invitations', () => {
+    it('lists active members and invitation statuses for admin access management', async () => {
+        const { db } = makeDb({
+            invitations: [
+                invitation(2, 'pending@example.com', 'join-token', {
+                    expiresAt: new Date('2026-07-14T00:00:00.000Z'),
+                    id: 7
+                })
+            ],
+            members: [
+                member(1, 1, 'admin', { displayName: 'Main' }),
+                member(2, 1, 'admin', { displayName: 'Travel' }),
+                member(2, 2, 'member', { displayName: 'Shared travel' })
+            ]
+        });
+
+        const rows = await listBudgetAccess(db, 1, 2);
+
+        expect(rows).toMatchObject([
+            {
+                status: 'active',
+                email: 'member@example.com',
+                user: {
+                    displayName: 'Shared travel',
+                    email: 'member@example.com',
+                    userId: 2
+                }
+            },
+            {
+                status: 'active',
+                email: 'owner@example.com',
+                role: 'admin',
+                user: {
+                    displayName: 'Travel',
+                    email: 'owner@example.com',
+                    userId: 1
+                }
+            },
+            {
+                status: 'pending',
+                email: 'pending@example.com',
+                invitationId: 7
+            }
+        ]);
+    });
+
     it('invites another user to Main without requiring a shared rename', async () => {
         const { data, db } = makeDb();
 

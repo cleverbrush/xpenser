@@ -146,6 +146,8 @@ describe('BudgetSettings', () => {
 
         expect(screen.getByLabelText('Invite email')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Invite' })).toBeTruthy();
+        expect(screen.getByText('owner@example.com')).toBeTruthy();
+        expect(screen.getByText('Active')).toBeTruthy();
     });
 
     it('shows archive controls for active budgets and restore/delete for archived budgets', () => {
