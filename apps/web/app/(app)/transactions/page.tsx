@@ -1,5 +1,6 @@
 import { TransactionsBrowser } from '@/components/transactions-browser';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import {
     buildTransactionListQuery,
     hasTransactionFilters,
@@ -16,21 +17,30 @@ export default async function TransactionsPage({
     const params = await searchParams;
     const client = await getApiClient();
     const me = await client.auth.me();
+    const budgetQuery = await selectedBudgetQuery(me);
+    const selectedBudget = await selectedBudgetForUser(me);
+    const defaultCurrency =
+        selectedBudget?.defaultCurrency ?? me.defaultCurrency;
     const [categories, currencies, vendors, transactionTags, transactions] =
         await Promise.all([
-            client.categories.list({ query: {} }),
+            client.categories.list({ query: budgetQuery }),
             client.currencies.list(),
-            client.vendors.list({ query: { limit: 100 } }),
-            client.transactionTags.list({ query: { limit: 100 } }),
+            client.vendors.list({ query: { ...budgetQuery, limit: 100 } }),
+            client.transactionTags.list({
+                query: { ...budgetQuery, limit: 100 }
+            }),
             client.transactions.list({
-                query: buildTransactionListQuery(
-                    params,
-                    {
-                        limit: transactionPageSize,
-                        page: 1
-                    },
-                    me.timezone
-                )
+                query: {
+                    ...buildTransactionListQuery(
+                        params,
+                        {
+                            limit: transactionPageSize,
+                            page: 1
+                        },
+                        me.timezone
+                    ),
+                    ...budgetQuery
+                }
             })
         ]);
     const hasFilters = hasTransactionFilters(params);
@@ -46,7 +56,7 @@ export default async function TransactionsPage({
             <TransactionsBrowser
                 categories={categories}
                 currencies={currencies}
-                defaultCurrency={me.defaultCurrency}
+                defaultCurrency={defaultCurrency}
                 favoriteCurrencies={me.favoriteCurrencies}
                 hasInitialFilters={hasFilters}
                 vendors={vendors}

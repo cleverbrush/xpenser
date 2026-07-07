@@ -29,6 +29,28 @@ const me: UserPreference = {
     transactionCurrencies: ['USD', 'EUR'],
     timezone: 'UTC',
     hasCategories: true,
+    mainBudgetId: 1,
+    budgets: [
+        {
+            id: 1,
+            name: 'Main',
+            defaultCurrency: 'USD',
+            countryCode: 'US',
+            role: 'admin',
+            permissions: {
+                canCreateTransactions: true,
+                canUpdateTransactions: true,
+                canDeleteTransactions: true,
+                canManageCategories: true,
+                canManageVendors: true,
+                canManageTags: true,
+                canManageMembers: true
+            },
+            isMain: true,
+            createdAt: new Date('2026-05-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-05-01T00:00:00.000Z')
+        }
+    ],
     weeklyEmailReportEnabled: true,
     monthlyEmailReportEnabled: true
 };

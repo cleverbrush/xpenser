@@ -27,6 +27,8 @@ export const scanEditDateCallback = 'scan:edit:date';
 export const scanEditNoteCallback = 'scan:edit:note';
 export const scanEditVendorCallback = 'scan:edit:vendor';
 export const addCommand = '/add';
+export const budgetCommand = '/budget';
+export const budgetSelectCallbackPrefix = 'budget:';
 export const addButtonText = 'Add';
 export const allowedScanImageMimeTypes = [
     'image/jpeg',

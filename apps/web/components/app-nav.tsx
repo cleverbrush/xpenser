@@ -1,3 +1,4 @@
+import type { Budget } from '@xpenser/contracts';
 import { Button } from '@xpenser/ui';
 import {
     CirclePlusIcon,
@@ -8,18 +9,33 @@ import {
 import Link from 'next/link';
 import { logoutAction } from '@/lib/actions';
 import { webConfig } from '@/lib/config';
+import { BudgetSelector } from './budget-selector';
 import { MobileTabBar } from './mobile-tab-bar';
 import { PeriodStateLink } from './period-state-link';
 import { ThemeToggle } from './theme-toggle';
 
-export function AppNav({ timezone }: { readonly timezone: string }) {
+export function AppNav({
+    budgets,
+    selectedBudgetId,
+    timezone
+}: {
+    readonly budgets: readonly Budget[];
+    readonly selectedBudgetId?: number;
+    readonly timezone: string;
+}) {
     return (
         <>
             <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
                 <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-                    <Link className="font-semibold" href="/dashboard">
-                        xpenser
-                    </Link>
+                    <div className="flex min-w-0 items-center gap-3">
+                        <Link className="font-semibold" href="/dashboard">
+                            xpenser
+                        </Link>
+                        <BudgetSelector
+                            budgets={budgets}
+                            selectedBudgetId={selectedBudgetId}
+                        />
+                    </div>
                     <nav className="hidden items-center gap-2 text-sm sm:flex">
                         <Button asChild size="sm" variant="ghost">
                             <PeriodStateLink

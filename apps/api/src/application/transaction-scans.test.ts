@@ -79,6 +79,7 @@ function user(overrides: Partial<UserDb> = {}): UserDb {
         defaultCurrency: 'USD',
         countryCode: 'US',
         timezone: 'UTC',
+        mainBudgetId: 1,
         weeklyEmailReportEnabled: true,
         monthlyEmailReportEnabled: true,
         createdAt: timestamp,
@@ -90,6 +91,7 @@ function user(overrides: Partial<UserDb> = {}): UserDb {
 function category(overrides: Partial<Category> = {}): Category {
     return {
         id: 7,
+        budgetId: 1,
         name: 'Groceries',
         type: 'expense',
         kind: 'normal',
@@ -107,6 +109,7 @@ function category(overrides: Partial<Category> = {}): Category {
 function vendor(overrides: Partial<Vendor> = {}): Vendor {
     return {
         id: 5,
+        budgetId: 1,
         name: 'Walmart',
         displayName: 'Walmart',
         domain: 'walmart.com',
@@ -120,6 +123,7 @@ function vendor(overrides: Partial<Vendor> = {}): Vendor {
 function transaction(overrides: Partial<Transaction> = {}): Transaction {
     return {
         id: 99,
+        budgetId: 1,
         categoryId: 7,
         vendorId: 5,
         vendorName: 'Walmart',
@@ -146,6 +150,7 @@ function transactionRow(overrides: Partial<TransactionDb> = {}): TransactionDb {
     return {
         id: 99,
         userId: 1,
+        budgetId: 1,
         categoryId: 7,
         vendorId: 5,
         type: 'expense',
@@ -169,6 +174,7 @@ function scanItem(
         id: 20,
         scanId: 10,
         userId: 1,
+        budgetId: 1,
         draftJson: '{}',
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -180,6 +186,7 @@ function scan(overrides: Partial<TransactionScanDb> = {}): TransactionScanDb {
     return {
         id: 10,
         userId: 1,
+        budgetId: 1,
         documentKind: 'receipt',
         imageHash:
             '6105d6cc76af400325e94d588ce511be5bfdbb73b437dc51eca43917d7a43e3d',
@@ -198,6 +205,7 @@ function scanImage(
         id: 30,
         scanId: 10,
         userId: 1,
+        budgetId: 1,
         imageHash:
             '6105d6cc76af400325e94d588ce511be5bfdbb73b437dc51eca43917d7a43e3d',
         mimeType: 'image/png',
@@ -228,6 +236,37 @@ function testDb({
             find: vi.fn(async (id: number) =>
                 users.find(candidate => candidate.id === id)
             )
+        },
+        budgets: {
+            find: vi.fn(async (id: number) => ({
+                id,
+                name: 'Main',
+                defaultCurrency: 'USD',
+                countryCode: 'US',
+                createdByUserId: 1,
+                createdAt: timestamp,
+                updatedAt: timestamp
+            }))
+        },
+        budgetMembers: {
+            where: vi.fn(() => ({
+                where: vi.fn(() => ({
+                    first: vi.fn(async () => ({
+                        budgetId: 1,
+                        userId: 1,
+                        role: 'admin',
+                        canCreateTransactions: true,
+                        canUpdateTransactions: true,
+                        canDeleteTransactions: true,
+                        canManageCategories: true,
+                        canManageVendors: true,
+                        canManageTags: true,
+                        canManageMembers: true,
+                        createdAt: timestamp,
+                        updatedAt: timestamp
+                    }))
+                }))
+            }))
         },
         transactionScans: {
             where: vi.fn(

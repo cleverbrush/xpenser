@@ -28,6 +28,46 @@ import {
     transactionSignedDefaultAmount
 } from './transactions.js';
 
+function budgetAccessTables() {
+    const timestamp = new Date('2026-06-01T12:00:00.000Z');
+    const budget = {
+        id: 1,
+        name: 'Main',
+        defaultCurrency: 'USD',
+        countryCode: 'US',
+        createdByUserId: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
+    const member = {
+        budgetId: 1,
+        userId: 1,
+        role: 'admin',
+        canCreateTransactions: true,
+        canUpdateTransactions: true,
+        canDeleteTransactions: true,
+        canManageCategories: true,
+        canManageVendors: true,
+        canManageTags: true,
+        canManageMembers: true,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
+
+    return {
+        budgets: {
+            find: vi.fn(async () => budget)
+        },
+        budgetMembers: {
+            where: vi.fn(() => ({
+                where: vi.fn(() => ({
+                    first: vi.fn(async () => member)
+                }))
+            }))
+        }
+    };
+}
+
 describe('transaction domain errors', () => {
     it('has explicit errors for not-found and invalid category cases', () => {
         expect(new TransactionNotFoundError('missing')).toBeInstanceOf(Error);
@@ -89,6 +129,7 @@ describe('transaction category signs', () => {
         const car = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Car',
             type: 'expense',
             parentId: null,
@@ -107,6 +148,7 @@ describe('transaction category signs', () => {
             ({
                 id,
                 userId: 1,
+                budgetId: 1,
                 categoryId,
                 type: 'expense',
                 amount,
@@ -167,6 +209,7 @@ describe('transaction category signs', () => {
         const groceries = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Groceries',
             type: 'expense',
             parentId: null,
@@ -189,6 +232,7 @@ describe('transaction category signs', () => {
             ({
                 id,
                 userId: 1,
+                budgetId: 1,
                 categoryId,
                 type: categoryId === salary.id ? 'income' : 'expense',
                 amount,
@@ -241,6 +285,7 @@ describe('transaction category signs', () => {
         const salary = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Salary',
             type: 'income',
             parentId: null,
@@ -252,6 +297,7 @@ describe('transaction category signs', () => {
             ({
                 id,
                 userId: 1,
+                budgetId: 1,
                 categoryId: salary.id,
                 type: 'income',
                 amount,
@@ -295,6 +341,7 @@ describe('transaction category signs', () => {
         const salary = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Salary',
             type: 'income',
             parentId: null,
@@ -317,6 +364,7 @@ describe('transaction category signs', () => {
             ({
                 id,
                 userId: 1,
+                budgetId: 1,
                 categoryId,
                 type: 'income',
                 amount,
@@ -444,10 +492,12 @@ describe('transaction category signs', () => {
             first: vi.fn(async () => ({ rate: 2, rateDate: '2026-05-10' }))
         };
         const db = {
+            ...budgetAccessTables(),
             users: {
                 find: vi.fn(async () => ({
                     id: 1,
                     defaultCurrency: 'USD',
+                    mainBudgetId: 1,
                     timezone: 'UTC'
                 }))
             },
@@ -488,6 +538,7 @@ describe('transaction category signs', () => {
         const car = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Car',
             type: 'expense',
             parentId: null,
@@ -510,6 +561,7 @@ describe('transaction category signs', () => {
         const row = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             categoryId: returns.id,
             category: staleJoinedReturns,
             type: 'expense',
@@ -573,6 +625,7 @@ describe('transaction category signs', () => {
         const groceries = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Groceries',
             type: 'expense',
             parentId: null,
@@ -594,6 +647,7 @@ describe('transaction category signs', () => {
             ({
                 id,
                 userId: 1,
+                budgetId: 1,
                 name,
                 normalizedName: name.toLowerCase(),
                 createdAt: timestamp,
@@ -609,6 +663,7 @@ describe('transaction category signs', () => {
             ({
                 id,
                 userId: 1,
+                budgetId: 1,
                 categoryId,
                 vendorId,
                 type: categoryId === salary.id ? 'income' : 'expense',
@@ -843,11 +898,16 @@ describe('transaction category signs', () => {
 });
 
 describe('transaction scan images', () => {
+    function scanImageBudgetDb(): AppDb {
+        return budgetAccessTables() as unknown as AppDb;
+    }
+
     it('returns the latest confirmed scan image for a transaction', async () => {
         const scanTimestamp = new Date('2026-06-01T12:00:00.000Z');
         const row = {
             scanId: 10,
             scanItemId: 20,
+            budgetId: 1,
             fileName: 'receipt.png',
             mimeType: 'image/png',
             sizeBytes: '5',
@@ -864,7 +924,7 @@ describe('transaction scan images', () => {
         const knex = vi.fn(() => query);
 
         await expect(
-            getTransactionScanImage(knex as never, 1, 42)
+            getTransactionScanImage(scanImageBudgetDb(), knex as never, 1, 42)
         ).resolves.toEqual({
             scanId: 10,
             scanItemId: 20,
@@ -875,7 +935,6 @@ describe('transaction scan images', () => {
             imageBase64: Buffer.from('image').toString('base64')
         });
         expect(knex).toHaveBeenCalledWith('transaction_scan_items as item');
-        expect(query.where).toHaveBeenCalledWith('item.user_id', 1);
         expect(query.where).toHaveBeenCalledWith('item.transaction_id', 42);
         expect(query.where).toHaveBeenCalledWith('item.decision', 'confirmed');
     });
@@ -890,7 +949,12 @@ describe('transaction scan images', () => {
         };
 
         await expect(
-            getTransactionScanImage(vi.fn(() => query) as never, 1, 42)
+            getTransactionScanImage(
+                scanImageBudgetDb(),
+                vi.fn(() => query) as never,
+                1,
+                42
+            )
         ).rejects.toBeInstanceOf(TransactionNotFoundError);
     });
 });
@@ -900,6 +964,7 @@ describe('transaction CSV export', () => {
     const category = {
         id: 1,
         userId: 1,
+        budgetId: 1,
         name: 'Meals',
         type: 'expense',
         parentId: null,
@@ -910,6 +975,7 @@ describe('transaction CSV export', () => {
     const vendor = {
         id: 3,
         userId: 1,
+        budgetId: 1,
         name: 'Cafe',
         normalizedName: 'cafe',
         domain: null,
@@ -941,6 +1007,7 @@ describe('transaction CSV export', () => {
     const transaction = {
         id: 1,
         userId: 1,
+        budgetId: 1,
         categoryId: category.id,
         vendorId: vendor.id,
         type: 'expense',
@@ -988,10 +1055,12 @@ describe('transaction CSV export', () => {
         };
 
         return {
+            ...budgetAccessTables(),
             users: {
                 find: vi.fn(async () => ({
                     id: 1,
                     defaultCurrency: 'USD',
+                    mainBudgetId: 1,
                     timezone: 'UTC'
                 }))
             },
@@ -1227,6 +1296,7 @@ describe('category trend ranges and summaries', () => {
     const category = {
         id: 7,
         userId: 1,
+        budgetId: 1,
         name: 'Groceries',
         type: 'expense',
         parentId: null,
@@ -1244,6 +1314,7 @@ describe('category trend ranges and summaries', () => {
         return {
             id: overrides.id,
             userId: 1,
+            budgetId: 1,
             categoryId: overrides.categoryId ?? category.id,
             type: 'expense',
             amount: overrides.amount,
@@ -1532,6 +1603,7 @@ describe('stats tag reports', () => {
         {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Groceries',
             type: 'expense',
             parentId: null,
@@ -1542,6 +1614,7 @@ describe('stats tag reports', () => {
         {
             id: 2,
             userId: 1,
+            budgetId: 1,
             name: 'Rent',
             type: 'expense',
             parentId: null,
@@ -1552,6 +1625,7 @@ describe('stats tag reports', () => {
         {
             id: 3,
             userId: 1,
+            budgetId: 1,
             name: 'Salary',
             type: 'income',
             parentId: null,
@@ -1564,6 +1638,7 @@ describe('stats tag reports', () => {
         {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Market',
             normalizedName: 'market',
             domain: null,
@@ -1575,6 +1650,7 @@ describe('stats tag reports', () => {
         {
             id: 2,
             userId: 1,
+            budgetId: 1,
             name: 'Landlord',
             normalizedName: 'landlord',
             domain: null,
@@ -1616,6 +1692,7 @@ describe('stats tag reports', () => {
         return {
             id,
             userId: 1,
+            budgetId: 1,
             categoryId,
             vendorId,
             type: categoryId === 3 ? 'income' : 'expense',
@@ -1720,11 +1797,13 @@ describe('stats tag reports', () => {
         });
 
         return {
+            ...budgetAccessTables(),
             knex,
             users: {
                 find: async () => ({
                     id: 1,
                     defaultCurrency: 'USD',
+                    mainBudgetId: 1,
                     timezone: 'UTC'
                 })
             },

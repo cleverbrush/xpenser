@@ -10,6 +10,7 @@ import {
 import { FolderTreeIcon, Send, StoreIcon, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import { ApiKeysSettings } from '@/components/api-keys-settings';
+import { BudgetSettings } from '@/components/budget-settings';
 import { PreferencesForm } from '@/components/forms/preferences-form';
 import {
     createTelegramLinkAction,
@@ -28,6 +29,17 @@ export default async function PreferencesPage() {
             client.users.listApiKeys(),
             client.users.listMcpOAuthConnections()
         ]);
+    const memberEntries = await Promise.all(
+        me.budgets
+            .filter(budget => budget.permissions.canManageMembers)
+            .map(async budget => [
+                budget.id,
+                await client.budgets.members({
+                    params: { id: budget.id }
+                })
+            ])
+    );
+    const membersByBudget = Object.fromEntries(memberEntries);
     const telegramName = telegram.telegramUsername
         ? `@${telegram.telegramUsername}`
         : [telegram.telegramFirstName, telegram.telegramLastName]
@@ -122,6 +134,14 @@ export default async function PreferencesPage() {
                     </div>
                 </CardHeader>
             </Card>
+            <BudgetSettings
+                budgets={me.budgets}
+                currencies={currencies}
+                currentUserId={me.id}
+                membersByBudget={membersByBudget}
+                userCountryCode={me.countryCode}
+                userDefaultCurrency={me.defaultCurrency}
+            />
             <Card>
                 <CardHeader>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

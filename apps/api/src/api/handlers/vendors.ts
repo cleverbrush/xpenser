@@ -1,5 +1,9 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
 import {
+    BudgetAccessError,
+    BudgetPermissionError
+} from '../../application/budgets.js';
+import {
     createVendor,
     getVendorCandidateDetails,
     getVendorDetails,
@@ -21,6 +25,16 @@ import type {
     UpdateVendorEndpoint,
     VendorCandidateDetailsEndpoint
 } from '../endpoints.js';
+
+function budgetResult(err: unknown) {
+    if (err instanceof BudgetPermissionError) {
+        return ActionResult.forbidden({ message: err.message });
+    }
+    if (err instanceof BudgetAccessError) {
+        return ActionResult.notFound({ message: err.message });
+    }
+    return undefined;
+}
 
 export const searchVendorCandidatesHandler: Handler<
     typeof SearchVendorCandidatesEndpoint
@@ -44,7 +58,15 @@ export const listVendorsHandler: Handler<typeof ListVendorsEndpoint> = async (
     { query, principal },
     { db }
 ) => {
-    return listVendors(db, principal.userId, query);
+    try {
+        return await listVendors(db, principal.userId, query);
+    } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
 };
 
 export const getVendorHandler: Handler<typeof GetVendorEndpoint> = async (
@@ -54,6 +76,10 @@ export const getVendorHandler: Handler<typeof GetVendorEndpoint> = async (
     try {
         return await getVendorDetails(db, principal.userId, params.id);
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof VendorNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }
@@ -71,6 +97,10 @@ export const createVendorHandler: Handler<typeof CreateVendorEndpoint> = async (
             '/api/vendors'
         );
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof VendorNameError) {
             return ActionResult.badRequest({ message: err.message });
         }
@@ -85,6 +115,10 @@ export const updateVendorHandler: Handler<typeof UpdateVendorEndpoint> = async (
     try {
         return await updateVendor(db, principal.userId, params.id, body);
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof VendorNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }
@@ -115,6 +149,10 @@ export const enrichVendorHandler: Handler<typeof EnrichVendorEndpoint> = async (
             params.id
         );
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof VendorNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }

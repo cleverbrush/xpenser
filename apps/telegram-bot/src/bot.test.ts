@@ -94,10 +94,32 @@ const me = {
     favoriteCurrencies: [],
     hasCategories: true,
     id: 1,
+    mainBudgetId: 1,
     monthlyEmailReportEnabled: false,
     timezone: 'UTC',
     transactionCurrencies: ['USD'],
-    weeklyEmailReportEnabled: false
+    weeklyEmailReportEnabled: false,
+    budgets: [
+        {
+            id: 1,
+            name: 'Main',
+            defaultCurrency: 'USD',
+            countryCode: 'US',
+            role: 'admin',
+            permissions: {
+                canCreateTransactions: true,
+                canUpdateTransactions: true,
+                canDeleteTransactions: true,
+                canManageCategories: true,
+                canManageVendors: true,
+                canManageTags: true,
+                canManageMembers: true
+            },
+            isMain: true,
+            createdAt: new Date('2026-05-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-05-01T00:00:00.000Z')
+        }
+    ]
 } as UserPreference;
 
 const categories = [
@@ -231,6 +253,7 @@ describe('XpenserTelegramBot transaction flows', () => {
         expect(mocks.userClient.transactions.create).toHaveBeenCalledWith({
             body: expect.objectContaining({
                 amount: 12.5,
+                budgetId: 1,
                 categoryId: 1,
                 currency: 'USD',
                 vendorId: 9
@@ -324,6 +347,7 @@ describe('XpenserTelegramBot transaction flows', () => {
         expect(telegram.getFileStream).toHaveBeenCalledWith('large');
         expect(mocks.userClient.transactionScans.start).toHaveBeenCalledWith({
             body: {
+                budgetId: 1,
                 fileName: 'telegram-photo-10.jpg',
                 imageBase64: Buffer.from('receipt bytes').toString('base64'),
                 mimeType: 'image/jpeg'
@@ -332,6 +356,7 @@ describe('XpenserTelegramBot transaction flows', () => {
         expect(mocks.userClient.transactions.create).toHaveBeenCalledWith({
             body: expect.objectContaining({
                 amount: 12.5,
+                budgetId: 1,
                 categoryId: 1,
                 currency: 'USD',
                 vendorId: 9
@@ -340,12 +365,19 @@ describe('XpenserTelegramBot transaction flows', () => {
         expect(mocks.userClient.transactionScans.decide).toHaveBeenCalledWith({
             params: { itemId: 50, scanId: 40 },
             body: expect.objectContaining({
-                attachment: {
+                attachment: expect.objectContaining({
+                    budgetId: 1,
                     fileName: 'telegram-photo-10.jpg',
                     imageBase64:
                         Buffer.from('receipt bytes').toString('base64'),
                     mimeType: 'image/jpeg'
-                },
+                }),
+                correctedTransaction: expect.objectContaining({
+                    amount: 12.5,
+                    categoryId: 1,
+                    currency: 'USD',
+                    vendorId: 9
+                }),
                 decision: 'confirmed',
                 transactionId: 77
             })

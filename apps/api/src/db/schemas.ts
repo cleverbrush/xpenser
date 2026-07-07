@@ -25,6 +25,11 @@ export const UserDbSchema = object({
     defaultCurrency: string().hasColumnName('default_currency'),
     countryCode: string().hasColumnName('country_code').defaultTo('US'),
     timezone: string().defaultTo('UTC'),
+    mainBudgetId: number()
+        .hasColumnName('main_budget_id')
+        .references('budgets', 'id')
+        .onDelete('SET NULL')
+        .optional(),
     weeklyEmailReportEnabled: boolean()
         .hasColumnName('weekly_email_report_enabled')
         .defaultTo(true),
@@ -45,6 +50,7 @@ export const UserDbSchema = object({
         'defaultCurrency',
         'countryCode',
         'timezone',
+        'mainBudgetId',
         'weeklyEmailReportEnabled',
         'monthlyEmailReportEnabled',
         'createdAt',
@@ -63,6 +69,7 @@ export const UserDbSchema = object({
         'defaultCurrency',
         'countryCode',
         'timezone',
+        'mainBudgetId',
         'weeklyEmailReportEnabled',
         'monthlyEmailReportEnabled'
     );
@@ -103,6 +110,97 @@ export const TelegramLinkTokenDbSchema = object({
     consumedAt: date().optional().hasColumnName('consumed_at'),
     createdAt: date().hasColumnName('created_at').defaultTo('now')
 }).hasTableName('telegram_link_tokens');
+
+export const BudgetDbSchema = object({
+    id: number().primaryKey(),
+    name: string(),
+    defaultCurrency: string().hasColumnName('default_currency'),
+    countryCode: string().hasColumnName('country_code').defaultTo('US'),
+    createdByUserId: number()
+        .hasColumnName('created_by_user_id')
+        .references('users', 'id')
+        .onDelete('SET NULL')
+        .optional(),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('budgets');
+
+export const BudgetMemberDbSchema = object({
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE'),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE')
+        .index('idx_budget_members_user_id'),
+    role: string(),
+    canCreateTransactions: boolean()
+        .hasColumnName('can_create_transactions')
+        .defaultTo(true),
+    canUpdateTransactions: boolean()
+        .hasColumnName('can_update_transactions')
+        .defaultTo(false),
+    canDeleteTransactions: boolean()
+        .hasColumnName('can_delete_transactions')
+        .defaultTo(false),
+    canManageCategories: boolean()
+        .hasColumnName('can_manage_categories')
+        .defaultTo(false),
+    canManageVendors: boolean()
+        .hasColumnName('can_manage_vendors')
+        .defaultTo(false),
+    canManageTags: boolean().hasColumnName('can_manage_tags').defaultTo(false),
+    canManageMembers: boolean()
+        .hasColumnName('can_manage_members')
+        .defaultTo(false),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+})
+    .hasTableName('budget_members')
+    .hasPrimaryKey(['budgetId', 'userId'] as const);
+
+export const BudgetInvitationDbSchema = object({
+    id: number().primaryKey(),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE')
+        .index('idx_budget_invitations_budget_id'),
+    invitedByUserId: number()
+        .hasColumnName('invited_by_user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE'),
+    email: string(),
+    role: string(),
+    canCreateTransactions: boolean()
+        .hasColumnName('can_create_transactions')
+        .defaultTo(true),
+    canUpdateTransactions: boolean()
+        .hasColumnName('can_update_transactions')
+        .defaultTo(false),
+    canDeleteTransactions: boolean()
+        .hasColumnName('can_delete_transactions')
+        .defaultTo(false),
+    canManageCategories: boolean()
+        .hasColumnName('can_manage_categories')
+        .defaultTo(false),
+    canManageVendors: boolean()
+        .hasColumnName('can_manage_vendors')
+        .defaultTo(false),
+    canManageTags: boolean().hasColumnName('can_manage_tags').defaultTo(false),
+    canManageMembers: boolean()
+        .hasColumnName('can_manage_members')
+        .defaultTo(false),
+    tokenHash: string()
+        .hasColumnName('token_hash')
+        .index('idx_budget_invitations_token_hash'),
+    expiresAt: date().hasColumnName('expires_at'),
+    consumedAt: date().optional().hasColumnName('consumed_at'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('budget_invitations');
 
 export const ApiKeyDbSchema = object({
     id: number().primaryKey(),
@@ -201,6 +299,11 @@ export const McpOAuthRefreshTokenDbSchema = object({
 
 export const CategoryDbSchema = object({
     id: number().primaryKey(),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE')
+        .index('idx_categories_budget_id'),
     userId: number()
         .hasColumnName('user_id')
         .references('users', 'id')
@@ -222,6 +325,11 @@ export const CategoryDbSchema = object({
 
 export const VendorDbSchema = object({
     id: number().primaryKey(),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE')
+        .index('idx_vendors_budget_id'),
     userId: number()
         .hasColumnName('user_id')
         .references('users', 'id')
@@ -247,6 +355,11 @@ export const VendorDbSchema = object({
 
 export const TransactionDbSchema = object({
     id: number().primaryKey(),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transactions_budget_id'),
     userId: number()
         .hasColumnName('user_id')
         .references('users', 'id')
@@ -279,6 +392,11 @@ export const TransactionDbSchema = object({
 
 export const TransactionTagDbSchema = object({
     id: number().primaryKey(),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_tags_budget_id'),
     userId: number()
         .hasColumnName('user_id')
         .references('users', 'id')
@@ -306,6 +424,11 @@ export const TransactionTagLinkDbSchema = object({
 
 export const TransactionScanDbSchema = object({
     id: number().primaryKey(),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_scans_budget_id'),
     userId: number()
         .hasColumnName('user_id')
         .references('users', 'id')
@@ -321,6 +444,11 @@ export const TransactionScanDbSchema = object({
 
 export const TransactionScanItemDbSchema = object({
     id: number().primaryKey(),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_scan_items_budget_id'),
     scanId: number()
         .hasColumnName('scan_id')
         .references('transaction_scans', 'id')
@@ -356,6 +484,11 @@ export const TransactionScanItemDbSchema = object({
 
 export const TransactionScanImageDbSchema = object({
     id: number().primaryKey(),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE')
+        .index('idx_transaction_scan_images_budget_id'),
     scanId: number()
         .hasColumnName('scan_id')
         .references('transaction_scans', 'id')
@@ -403,6 +536,9 @@ export const ExternalIdentityDbSchema = object({
 export const ExternalIdentityEntity = defineEntity(ExternalIdentityDbSchema);
 export const TelegramAccountEntity = defineEntity(TelegramAccountDbSchema);
 export const TelegramLinkTokenEntity = defineEntity(TelegramLinkTokenDbSchema);
+export const BudgetEntity = defineEntity(BudgetDbSchema);
+export const BudgetMemberEntity = defineEntity(BudgetMemberDbSchema);
+export const BudgetInvitationEntity = defineEntity(BudgetInvitationDbSchema);
 export const ApiKeyEntity = defineEntity(ApiKeyDbSchema);
 export const McpOAuthClientEntity = defineEntity(McpOAuthClientDbSchema);
 export const McpOAuthGrantEntity = defineEntity(McpOAuthGrantDbSchema);
@@ -438,6 +574,9 @@ export const entityMap = {
     externalIdentities: ExternalIdentityEntity,
     telegramAccounts: TelegramAccountEntity,
     telegramLinkTokens: TelegramLinkTokenEntity,
+    budgets: BudgetEntity,
+    budgetMembers: BudgetMemberEntity,
+    budgetInvitations: BudgetInvitationEntity,
     apiKeys: ApiKeyEntity,
     mcpOAuthClients: McpOAuthClientEntity,
     mcpOAuthGrants: McpOAuthGrantEntity,
@@ -463,6 +602,9 @@ type DbRow<T extends Parameters<typeof defineEntity>[0]> = Readonly<
 
 export type UserDb = DbRow<typeof UserDbSchema>;
 export type ExternalIdentityDb = DbRow<typeof ExternalIdentityDbSchema>;
+export type BudgetDb = DbRow<typeof BudgetDbSchema>;
+export type BudgetMemberDb = DbRow<typeof BudgetMemberDbSchema>;
+export type BudgetInvitationDb = DbRow<typeof BudgetInvitationDbSchema>;
 export type VendorDb = DbRow<typeof VendorDbSchema>;
 export type TelegramAccountDb = DbRow<typeof TelegramAccountDbSchema>;
 export type TelegramLinkTokenDb = DbRow<typeof TelegramLinkTokenDbSchema>;

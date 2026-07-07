@@ -178,6 +178,28 @@ describe('shared schemas', () => {
             transactionCurrencies: ['EUR', 'USD'],
             timezone: 'UTC',
             hasCategories: true,
+            mainBudgetId: 1,
+            budgets: [
+                {
+                    id: 1,
+                    name: 'Main',
+                    defaultCurrency: 'USD',
+                    countryCode: 'US',
+                    role: 'admin',
+                    permissions: {
+                        canCreateTransactions: true,
+                        canUpdateTransactions: true,
+                        canDeleteTransactions: true,
+                        canManageCategories: true,
+                        canManageVendors: true,
+                        canManageTags: true,
+                        canManageMembers: true
+                    },
+                    isMain: true,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }
+            ],
             weeklyEmailReportEnabled: true,
             monthlyEmailReportEnabled: true
         });
@@ -220,6 +242,7 @@ describe('shared schemas', () => {
         expect(
             CategoryListQuerySchema.validate({
                 activeOnly: 'true',
+                budgetId: '1',
                 sort: 'recent-transaction-count'
             } as never).object?.activeOnly
         ).toBe(true);
@@ -241,6 +264,7 @@ describe('shared schemas', () => {
 
         const result = CategorySchema.validate({
             id: 2,
+            budgetId: 1,
             name: 'Returns',
             type: 'expense',
             kind: 'offset',
@@ -298,6 +322,7 @@ describe('shared schemas', () => {
         expect(
             VendorSchema.validate({
                 id: 3,
+                budgetId: 1,
                 name: 'Trader Joe',
                 displayName: 'Trader Joe',
                 resolvedName: 'Trader Joe',
@@ -432,7 +457,8 @@ describe('shared schemas', () => {
                     defaultCurrency: 'USD',
                     countryCode: 'US',
                     timezone: 'UTC',
-                    hasCategories: false
+                    hasCategories: false,
+                    mainBudgetId: 1
                 }
             }).valid
         ).toBe(true);
@@ -666,6 +692,7 @@ describe('shared schemas', () => {
         expect(
             TransactionSchema.validate({
                 id: 42,
+                budgetId: 1,
                 categoryId: 1,
                 vendorId: null,
                 categoryName: 'Groceries',
@@ -683,6 +710,7 @@ describe('shared schemas', () => {
                 tags: [
                     {
                         id: 1,
+                        budgetId: 1,
                         name: 'wife',
                         transactionCount: 2,
                         createdAt: new Date('2026-06-01T12:00:00.000Z'),

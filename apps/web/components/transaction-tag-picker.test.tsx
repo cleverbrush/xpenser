@@ -13,6 +13,7 @@ const timestamp = new Date('2026-06-01T00:00:00.000Z');
 function tag(overrides: Partial<TransactionTag> = {}): TransactionTag {
     return {
         id: 1,
+        budgetId: 1,
         name: 'wife',
         transactionCount: 2,
         createdAt: timestamp,

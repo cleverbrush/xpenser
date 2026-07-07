@@ -30,10 +30,55 @@ const singleUserConfig = {
     }
 } as Config;
 
+function budgetAccessTables(userId = 12) {
+    const timestamp = new Date('2026-06-01T00:00:00.000Z');
+    const budget = {
+        id: 1,
+        name: 'Main',
+        defaultCurrency: 'USD',
+        countryCode: 'US',
+        createdByUserId: userId,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
+    const member = {
+        budgetId: 1,
+        userId,
+        role: 'admin',
+        canCreateTransactions: true,
+        canUpdateTransactions: true,
+        canDeleteTransactions: true,
+        canManageCategories: true,
+        canManageVendors: true,
+        canManageTags: true,
+        canManageMembers: true,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
+
+    return {
+        budgets: {
+            find: vi.fn(async () => budget),
+            insert: vi.fn(async () => budget)
+        },
+        budgetMembers: {
+            insert: vi.fn(async () => member),
+            where: vi.fn(() => ({
+                where: vi.fn(() => ({
+                    first: vi.fn(async () => member)
+                }))
+            }))
+        }
+    };
+}
+
 function mockDb(user: object | undefined): AppDb {
     return {
+        ...budgetAccessTables(),
         users: {
-            find: vi.fn(async () => user)
+            find: vi.fn(async () =>
+                user ? { mainBudgetId: 1, ...user } : user
+            )
         },
         categories: {
             where: vi.fn(() => ({
@@ -65,15 +110,26 @@ function singleUserDb(existing?: object): AppDb {
             };
             return stored;
         }),
-        find: vi.fn(async (id: number) => (stored?.id === id ? stored : null))
+        find: vi.fn(async (id: number) => (stored?.id === id ? stored : null)),
+        where: vi.fn(() => ({
+            update: vi.fn(async values => {
+                stored = stored ? { ...stored, ...values } : stored;
+            })
+        }))
     };
+    const budgetTables = budgetAccessTables();
 
     return {
         transaction: vi.fn(
             async (
-                callback: (trx: { readonly users: typeof users }) => unknown
-            ) => callback({ users })
+                callback: (trx: {
+                    readonly budgetMembers: typeof budgetTables.budgetMembers;
+                    readonly budgets: typeof budgetTables.budgets;
+                    readonly users: typeof users;
+                }) => unknown
+            ) => callback({ ...budgetTables, users })
         ),
+        ...budgetTables,
         users,
         categories: {
             where: vi.fn(() => ({

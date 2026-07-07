@@ -11,11 +11,13 @@ import { FieldLimits } from '@xpenser/contracts';
 import type { Config } from '../config.js';
 import type {
     AppDb,
+    BudgetDb,
     CategoryDb,
     TransactionDb,
     UserDb,
     VendorDb
 } from '../db/schemas.js';
+import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
 import {
     categoryAvailableForTransactions,
     categoryDisplayName
@@ -390,6 +392,7 @@ async function enrichVendor(
     db: AppDb,
     config: Config,
     user: UserDb,
+    budget: BudgetDb,
     vendor: VendorDb,
     options: { readonly force?: boolean } = {}
 ): Promise<void> {
@@ -397,7 +400,7 @@ async function enrichVendor(
     if (!config.vendorEnrichment.enabled || !config.brandfetch.apiKey) {
         await db.vendors
             .where(candidate => candidate.id, vendor.id)
-            .where(candidate => candidate.userId, user.id)
+            .where(candidate => candidate.budgetId, budget.id)
             .update({
                 enrichedAt: now,
                 enrichmentProvider: config.brandfetch.apiKey
@@ -415,11 +418,11 @@ async function enrichVendor(
     try {
         const json = await brandfetchTransaction(config, {
             transactionLabel: vendor.name,
-            countryCode: user.countryCode
+            countryCode: budget.countryCode || user.countryCode
         });
         await db.vendors
             .where(candidate => candidate.id, vendor.id)
-            .where(candidate => candidate.userId, user.id)
+            .where(candidate => candidate.budgetId, budget.id)
             .update({
                 ...(json ? brandfetchUpdate(json) : {}),
                 enrichedAt: now,
@@ -430,7 +433,7 @@ async function enrichVendor(
     } catch {
         await db.vendors
             .where(candidate => candidate.id, vendor.id)
-            .where(candidate => candidate.userId, user.id)
+            .where(candidate => candidate.budgetId, budget.id)
             .update({
                 enrichedAt: now,
                 enrichmentProvider: 'brandfetch',
@@ -442,11 +445,11 @@ async function enrichVendor(
 
 async function loadCategoriesById(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<Map<number, CategoryDb>> {
     const categories = (await db.categories.where(
-        category => category.userId,
-        userId
+        category => category.budgetId,
+        budgetId
     )) as CategoryDb[];
 
     return new Map(
@@ -456,11 +459,11 @@ async function loadCategoriesById(
 
 async function loadVendorTransactions(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<TransactionDb[]> {
     return (await db.transactions.where(
-        transaction => transaction.userId,
-        userId
+        transaction => transaction.budgetId,
+        budgetId
     )) as TransactionDb[];
 }
 
@@ -548,6 +551,7 @@ function mapVendor(
 ): Vendor {
     return {
         id: vendor.id,
+        budgetId: vendor.budgetId,
         name: vendor.name,
         displayName: vendor.name,
         resolvedName: vendor.resolvedName ?? undefined,
@@ -568,10 +572,10 @@ function mapVendor(
     };
 }
 
-async function vendorReadContext(db: AppDb, userId: number) {
+async function vendorReadContext(db: AppDb, budgetId: number) {
     const [transactions, categoriesById] = await Promise.all([
-        loadVendorTransactions(db, userId),
-        loadCategoriesById(db, userId)
+        loadVendorTransactions(db, budgetId),
+        loadCategoriesById(db, budgetId)
     ]);
     return {
         stats: vendorStats(transactions),
@@ -584,11 +588,12 @@ export async function listVendors(
     userId: number,
     query: Partial<VendorListQuery> = {}
 ): Promise<Vendor[]> {
+    const access = await resolveBudgetAccess(db, userId, query.budgetId);
     const limit = Math.min(100, Math.max(1, query.limit ?? 25));
     const search = query.search?.trim().toLowerCase();
     const [rows, context] = await Promise.all([
-        db.vendors.where(vendor => vendor.userId, userId),
-        vendorReadContext(db, userId)
+        db.vendors.where(vendor => vendor.budgetId, access.budget.id),
+        vendorReadContext(db, access.budget.id)
     ]);
 
     return (rows as VendorDb[])
@@ -633,7 +638,8 @@ async function vendorView(
     userId: number,
     vendor: VendorDb
 ): Promise<Vendor> {
-    const context = await vendorReadContext(db, userId);
+    await resolveBudgetAccess(db, userId, vendor.budgetId);
+    const context = await vendorReadContext(db, vendor.budgetId);
     return mapVendor(
         vendor,
         context.stats.get(vendor.id),
@@ -723,6 +729,8 @@ export async function createVendor(
     userId: number,
     body: CreateVendorBody
 ): Promise<Vendor> {
+    const access = await resolveBudgetAccess(db, userId, body.budgetId);
+    requireBudgetPermission(access, 'canManageVendors');
     const name = normalizeVendorName(body.name);
     if (!name) {
         throw new VendorNameError('Vendor name is required.');
@@ -734,13 +742,14 @@ export async function createVendor(
     const selectedUpdate = await selectedBrandUpdate(config, body);
 
     const matchingVendors = (await db.vendors
-        .where(vendor => vendor.userId, userId)
+        .where(vendor => vendor.budgetId, access.budget.id)
         .where(vendor => vendor.normalizedName, normalizedName)) as VendorDb[];
     const existing = findReusableVendor(matchingVendors, selected.domain);
 
     const vendor =
         existing ??
         ((await db.vendors.insert({
+            budgetId: access.budget.id,
             userId,
             name,
             normalizedName,
@@ -758,7 +767,7 @@ export async function createVendor(
     if (existing && Object.keys(selectedUpdate).length > 0) {
         await db.vendors
             .where(candidate => candidate.id, existing.id)
-            .where(candidate => candidate.userId, userId)
+            .where(candidate => candidate.budgetId, access.budget.id)
             .update({
                 ...selectedUpdate,
                 updatedAt: new Date()
@@ -766,15 +775,15 @@ export async function createVendor(
     }
 
     if (Object.keys(selectedUpdate).length === 0) {
-        await enrichVendor(db, config, user, vendor);
+        await enrichVendor(db, config, user, access.budget, vendor);
     }
 
     const [updated, context] = await Promise.all([
         db.vendors
             .where(candidate => candidate.id, vendor.id)
-            .where(candidate => candidate.userId, userId)
+            .where(candidate => candidate.budgetId, access.budget.id)
             .first(),
-        vendorReadContext(db, userId)
+        vendorReadContext(db, access.budget.id)
     ]);
 
     return mapVendor(
@@ -791,11 +800,11 @@ export async function getVendor(
 ): Promise<VendorDb> {
     const vendor = (await db.vendors
         .where(candidate => candidate.id, vendorId)
-        .where(candidate => candidate.userId, userId)
         .first()) as VendorDb | undefined;
     if (!vendor) {
         throw new VendorNotFoundError('Vendor was not found.');
     }
+    await resolveBudgetAccess(db, userId, vendor.budgetId);
     return vendor;
 }
 
@@ -862,6 +871,8 @@ export async function updateVendor(
     body: UpdateVendorBody
 ): Promise<Vendor> {
     const current = await getVendor(db, userId, vendorId);
+    const access = await resolveBudgetAccess(db, userId, current.budgetId);
+    requireBudgetPermission(access, 'canManageVendors');
     const name =
         body.name === undefined ? current.name : normalizeVendorName(body.name);
     if (!name) {
@@ -871,7 +882,7 @@ export async function updateVendor(
     const normalizedName = vendorNormalizedName(name);
     if (normalizedName !== current.normalizedName) {
         const existing = (await db.vendors
-            .where(vendor => vendor.userId, userId)
+            .where(vendor => vendor.budgetId, access.budget.id)
             .where(vendor => vendor.normalizedName, normalizedName)
             .first()) as VendorDb | undefined;
         if (existing && existing.id !== current.id) {
@@ -914,7 +925,7 @@ export async function updateVendor(
 
     await db.vendors
         .where(candidate => candidate.id, current.id)
-        .where(candidate => candidate.userId, userId)
+        .where(candidate => candidate.budgetId, access.budget.id)
         .update(update as never);
 
     return getVendorDetails(db, userId, vendorId);
@@ -930,7 +941,11 @@ export async function retryVendorEnrichment(
         getUser(db, userId),
         getVendor(db, userId, vendorId)
     ]);
+    const access = await resolveBudgetAccess(db, userId, vendor.budgetId);
+    requireBudgetPermission(access, 'canManageVendors');
 
-    await enrichVendor(db, config, user, vendor, { force: true });
+    await enrichVendor(db, config, user, access.budget, vendor, {
+        force: true
+    });
     return getVendorDetails(db, userId, vendorId);
 }

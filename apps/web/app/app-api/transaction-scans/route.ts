@@ -2,6 +2,7 @@ import { createXpenserClient } from '@xpenser/client';
 import type { TransactionScanJobResponse } from '@xpenser/contracts';
 import { NextResponse } from 'next/server';
 import { getCurrentSession } from '@/lib/api';
+import { selectedBudgetIdFromCookie } from '@/lib/budgets';
 import { webConfig } from '@/lib/config';
 import {
     assembleScanUploadChunks,
@@ -186,6 +187,7 @@ export async function POST(request: Request) {
 
     try {
         const imageBase64 = image.toString('base64');
+        const budgetId = await selectedBudgetIdFromCookie();
         const attachment = await storeScanUpload({
             buffer: image,
             fileName: body.fileName,
@@ -195,6 +197,7 @@ export async function POST(request: Request) {
         });
         const job = await client.transactionScans.start({
             body: {
+                ...(budgetId ? { budgetId } : {}),
                 imageBase64,
                 mimeType,
                 fileName: body.fileName

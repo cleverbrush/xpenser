@@ -21,6 +21,7 @@ import type {
     TransactionScanItemDb,
     UserDb
 } from '../db/schemas.js';
+import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
 import { listCategories } from './categories.js';
 import { generateStructuredJsonFromContent } from './openai.js';
 import { listTransactions } from './transactions.js';
@@ -157,7 +158,10 @@ type TransactionScanItemQuery = Promise<TransactionScanItemDb[]> & {
 
 type TransactionScanItemTable = {
     readonly insert: (
-        value: Pick<TransactionScanItemDb, 'draftJson' | 'scanId' | 'userId'>
+        value: Pick<
+            TransactionScanItemDb,
+            'budgetId' | 'draftJson' | 'scanId' | 'userId'
+        >
     ) => Promise<TransactionScanItemDb>;
     readonly where: <TValue>(
         selector: (row: TransactionScanItemDb) => TValue,
@@ -826,9 +830,9 @@ async function getUser(db: AppDb, userId: number): Promise<UserDb> {
 
 async function correctionExamples(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<CorrectionExample[]> {
-    const rows = await scanItemTable(db).where(item => item.userId, userId);
+    const rows = await scanItemTable(db).where(item => item.budgetId, budgetId);
 
     return rows
         .filter(row => row.decision)
@@ -982,20 +986,29 @@ export async function scanTransactionsFromImage(
     body: TransactionScanBody,
     options: ScanProgressOptions = {}
 ): Promise<TransactionScanResponse> {
+    const access = await resolveBudgetAccess(db, userId, body.budgetId);
+    requireBudgetPermission(access, 'canCreateTransactions');
     const buffer = imageBuffer(body);
     const imageHash = createHash('sha256').update(buffer).digest('hex');
     options.onProgress?.('preparing');
     const user = await getUser(db, userId);
     const [categories, vendors, recentTransactions, examples] =
         await Promise.all([
-            listCategories(db, userId, { activeOnly: true }),
-            listVendors(db, userId, { limit: maxContextVendors }),
+            listCategories(db, userId, {
+                activeOnly: true,
+                budgetId: access.budget.id
+            }),
+            listVendors(db, userId, {
+                budgetId: access.budget.id,
+                limit: maxContextVendors
+            }),
             listTransactions(db, userId, {
+                budgetId: access.budget.id,
                 direction: 'desc',
                 limit: maxRecentTransactions,
                 page: 1
             }).then(response => response.items),
-            correctionExamples(db, userId)
+            correctionExamples(db, access.budget.id)
         ]);
     const preparedImages = await prepareScanImagesForVision(
         buffer,
@@ -1035,6 +1048,7 @@ export async function scanTransactionsFromImage(
         ...preparedImages.warnings
     ].slice(0, 8);
     const scan = await db.transactionScans.insert({
+        budgetId: access.budget.id,
         userId,
         documentKind: documentKind(parsed.documentKind),
         imageHash,
@@ -1061,6 +1075,7 @@ export async function scanTransactionsFromImage(
         }
 
         const item = await scanItemTable(db).insert({
+            budgetId: access.budget.id,
             scanId: scan.id,
             userId,
             draftJson: JSON.stringify(sanitized)
@@ -1076,14 +1091,14 @@ export async function scanTransactionsFromImage(
     };
 }
 
-async function ensureTransactionOwner(
+async function ensureTransactionBudget(
     db: AppDb,
-    userId: number,
+    budgetId: number,
     transactionId: number
 ): Promise<void> {
     const transaction = await db.transactions
         .where(row => row.id, transactionId)
-        .where(row => row.userId, userId)
+        .where(row => row.budgetId, budgetId)
         .first();
     if (!transaction) {
         throw new TransactionScanInputError('Transaction was not found.');
@@ -1092,11 +1107,13 @@ async function ensureTransactionOwner(
 
 async function storeScanAttachment({
     attachment,
+    budgetId,
     db,
     scan,
     userId
 }: {
     readonly attachment: NonNullable<TransactionScanDecisionBody['attachment']>;
+    readonly budgetId: number;
     readonly db: AppDb;
     readonly scan: TransactionScanDb;
     readonly userId: number;
@@ -1112,7 +1129,7 @@ async function storeScanAttachment({
 
     const existing = await db.transactionScanImages
         .where(row => row.scanId, scan.id)
-        .where(row => row.userId, userId)
+        .where(row => row.budgetId, budgetId)
         .first();
     const values = {
         imageHash,
@@ -1126,12 +1143,13 @@ async function storeScanAttachment({
     if (existing) {
         await db.transactionScanImages
             .where(row => row.id, existing.id)
-            .where(row => row.userId, userId)
+            .where(row => row.budgetId, budgetId)
             .update(values as never);
         return;
     }
 
     await db.transactionScanImages.insert({
+        budgetId,
         scanId: scan.id,
         userId,
         ...values
@@ -1148,14 +1166,15 @@ export async function recordTransactionScanDecision(
     const item = await scanItemTable(db)
         .where(row => row.id, itemId)
         .where(row => row.scanId, scanId)
-        .where(row => row.userId, userId)
         .first();
     if (!item) {
         throw new TransactionScanNotFoundError('Scan item was not found.');
     }
+    const access = await resolveBudgetAccess(db, userId, item.budgetId);
+    requireBudgetPermission(access, 'canCreateTransactions');
     const scan = await db.transactionScans
         .where(row => row.id, scanId)
-        .where(row => row.userId, userId)
+        .where(row => row.budgetId, access.budget.id)
         .first();
     if (!scan) {
         throw new TransactionScanNotFoundError('Scan was not found.');
@@ -1167,10 +1186,11 @@ export async function recordTransactionScanDecision(
                 'Confirmed scan items require a transaction and corrected values.'
             );
         }
-        await ensureTransactionOwner(db, userId, body.transactionId);
+        await ensureTransactionBudget(db, access.budget.id, body.transactionId);
         if (body.attachment) {
             await storeScanAttachment({
                 attachment: body.attachment,
+                budgetId: access.budget.id,
                 db,
                 scan,
                 userId
@@ -1180,7 +1200,7 @@ export async function recordTransactionScanDecision(
 
     await scanItemTable(db)
         .where(row => row.id, itemId)
-        .where(row => row.userId, userId)
+        .where(row => row.budgetId, access.budget.id)
         .update({
             decision: body.decision,
             correctedJson: body.correctedTransaction

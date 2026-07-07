@@ -53,6 +53,7 @@ function user(overrides: Partial<UserDb> = {}): UserDb {
         defaultCurrency: 'USD',
         countryCode: 'UA',
         timezone: 'UTC',
+        mainBudgetId: 1,
         weeklyEmailReportEnabled: true,
         monthlyEmailReportEnabled: true,
         createdAt: timestamp,
@@ -65,6 +66,7 @@ function category(overrides: Partial<CategoryDb> = {}): CategoryDb {
     return {
         id: 1,
         userId: 1,
+        budgetId: 1,
         parentId: null,
         name: 'Groceries',
         type: 'expense',
@@ -80,6 +82,7 @@ function vendor(overrides: Partial<VendorDb> = {}): VendorDb {
     return {
         id: 1,
         userId: 1,
+        budgetId: 1,
         name: 'Silpo',
         normalizedName: 'silpo',
         createdAt: timestamp,
@@ -92,6 +95,7 @@ function transaction(overrides: Partial<TransactionDb> = {}): TransactionDb {
     return {
         id: 1,
         userId: 1,
+        budgetId: 1,
         categoryId: 1,
         vendorId: 1,
         type: 'expense',
@@ -119,11 +123,44 @@ function testDb({
     readonly transactions?: TransactionDb[];
     readonly users?: UserDb[];
 }): AppDb {
+    const budget = {
+        id: 1,
+        name: 'Main',
+        defaultCurrency: 'USD',
+        countryCode: 'UA',
+        createdByUserId: 1,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
+    const member = {
+        budgetId: 1,
+        userId: 1,
+        role: 'admin',
+        canCreateTransactions: true,
+        canUpdateTransactions: true,
+        canDeleteTransactions: true,
+        canManageCategories: true,
+        canManageVendors: true,
+        canManageTags: true,
+        canManageMembers: true,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
     return {
         users: {
             find: vi.fn(async (id: number) =>
                 users.find(candidate => candidate.id === id)
             )
+        },
+        budgets: {
+            find: vi.fn(async () => budget)
+        },
+        budgetMembers: {
+            where: vi.fn(() => ({
+                where: vi.fn(() => ({
+                    first: vi.fn(async () => member)
+                }))
+            }))
         },
         categories: {
             where: vi.fn(

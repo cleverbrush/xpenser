@@ -409,6 +409,157 @@ export const SessionTokenBodySchema = object({
     )
 }).schemaName('SessionTokenBody');
 
+export const BudgetRoleSchema = enumOf('admin', 'member').describe(
+    'Budget access role.'
+);
+
+export const BudgetPermissionsSchema = object({
+    canCreateTransactions: boolean().describe(
+        'Allows creating transactions in the budget.'
+    ),
+    canUpdateTransactions: boolean().describe(
+        'Allows updating transactions in the budget.'
+    ),
+    canDeleteTransactions: boolean().describe(
+        'Allows deleting transactions from the budget.'
+    ),
+    canManageCategories: boolean().describe(
+        'Allows creating, editing, archiving, and deleting budget categories.'
+    ),
+    canManageVendors: boolean().describe(
+        'Allows creating and editing budget vendors.'
+    ),
+    canManageTags: boolean().describe(
+        'Allows creating and assigning transaction tags in the budget.'
+    ),
+    canManageMembers: boolean().describe(
+        'Allows inviting, editing, and removing budget members.'
+    )
+});
+
+export const BudgetSchema = object({
+    /** Unique budget identifier. */
+    id: number().describe('Unique budget identifier.'),
+    /** Budget name shown in navigation and reports. */
+    name: string().describe('Budget name shown in navigation and reports.'),
+    /** Default currency used for new transactions and reports in this budget. */
+    defaultCurrency: CurrencyCodeSchema.describe(
+        'Default currency used for new transactions and reports in this budget.'
+    ),
+    /** Country used to localize vendor enrichment in this budget. */
+    countryCode: CountryCodeSchema.describe(
+        'Country used to localize vendor enrichment in this budget.'
+    ),
+    /** Current user role in this budget. */
+    role: BudgetRoleSchema.describe('Current user role in this budget.'),
+    /** Current user permissions in this budget. */
+    permissions: BudgetPermissionsSchema,
+    /** True when this is the user main budget. */
+    isMain: boolean().describe('True when this is the user main budget.'),
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last update timestamp. */
+    updatedAt: date().coerce().describe('Last update timestamp.')
+}).schemaName('Budget');
+
+export const BudgetMemberSchema = object({
+    /** Budget identifier. */
+    budgetId: number().describe('Budget identifier.'),
+    /** User identifier. */
+    userId: number().describe('User identifier.'),
+    /** User email address. */
+    email: string().describe('User email address.'),
+    /** Member role. */
+    role: BudgetRoleSchema.describe('Member role.'),
+    /** Member permissions. */
+    permissions: BudgetPermissionsSchema,
+    /** Creation timestamp. */
+    createdAt: date().coerce().describe('Creation timestamp.'),
+    /** Last update timestamp. */
+    updatedAt: date().coerce().describe('Last update timestamp.')
+}).schemaName('BudgetMember');
+
+const BudgetIdSchema = number()
+    .coerce()
+    .optional()
+    .describe(
+        'Budget identifier. Defaults to the authenticated user Main budget.'
+    );
+
+export const CreateBudgetBodySchema = object({
+    /** Budget name shown in navigation and reports. */
+    name: string()
+        .required('budget name is required')
+        .nonempty('budget name is required')
+        .maxLength(FieldLimits.budgetName, 'budget name is too long')
+        .describe('Budget name shown in navigation and reports.'),
+    /** Default currency used for new transactions and reports in this budget. */
+    defaultCurrency: CurrencyCodeSchema.optional().describe(
+        'Default currency used for new transactions and reports in this budget.'
+    ),
+    /** Country used to localize vendor enrichment in this budget. */
+    countryCode: CountryCodeSchema.optional().describe(
+        'Country used to localize vendor enrichment in this budget.'
+    )
+}).schemaName('CreateBudgetBody');
+
+export const UpdateBudgetBodySchema = object({
+    /** Budget name shown in navigation and reports. */
+    name: string()
+        .minLength(1, 'budget name is required')
+        .maxLength(FieldLimits.budgetName, 'budget name is too long')
+        .optional()
+        .describe('Budget name shown in navigation and reports.'),
+    /** Default currency used for new transactions and reports in this budget. */
+    defaultCurrency: CurrencyCodeSchema.optional().describe(
+        'Default currency used for new transactions and reports in this budget.'
+    ),
+    /** Country used to localize vendor enrichment in this budget. */
+    countryCode: CountryCodeSchema.optional().describe(
+        'Country used to localize vendor enrichment in this budget.'
+    )
+}).schemaName('UpdateBudgetBody');
+
+export const InviteBudgetMemberBodySchema = object({
+    /** Email address to invite. */
+    email: string()
+        .required('email is required')
+        .nonempty('email is required')
+        .maxLength(FieldLimits.email, 'email is too long')
+        .email('must be a valid email address')
+        .describe('Email address to invite.'),
+    /** Role to grant when the invitation is accepted. */
+    role: BudgetRoleSchema.default('member').describe(
+        'Role to grant when the invitation is accepted.'
+    ),
+    /** Permissions to grant when the invitation is accepted. */
+    permissions: BudgetPermissionsSchema.optional()
+}).schemaName('InviteBudgetMemberBody');
+
+export const UpdateBudgetMemberBodySchema = object({
+    /** Updated member role. */
+    role: BudgetRoleSchema.describe('Updated member role.'),
+    /** Updated member permissions. */
+    permissions: BudgetPermissionsSchema
+}).schemaName('UpdateBudgetMemberBody');
+
+export const AcceptBudgetInvitationBodySchema = object({
+    /** One-time budget invitation token from the magic link. */
+    token: string()
+        .required('invitation token is required')
+        .nonempty('invitation token is required')
+        .maxLength(
+            FieldLimits.budgetInviteToken,
+            'invitation token is too long'
+        )
+        .describe('One-time budget invitation token from the magic link.')
+}).schemaName('AcceptBudgetInvitationBody');
+
+export const BudgetInvitationResponseSchema = object({
+    /** User-facing invitation status message. */
+    message: string().describe('User-facing invitation status message.')
+}).schemaName('BudgetInvitationResponse');
+
 export const TokenResponseSchema = object({
     /** Signed API JWT used as the Bearer token for protected API calls. */
     token: string().describe(
@@ -438,6 +589,10 @@ export const TokenResponseSchema = object({
         timezone: TimeZoneSchema.describe(
             'Time zone used for transaction display and reporting periods.'
         ),
+        /** User Main budget identifier. */
+        mainBudgetId: number()
+            .nullable()
+            .describe('User Main budget identifier.'),
         /** True when the user has at least one category. */
         hasCategories: boolean().describe(
             'True when the user has at least one category.'
@@ -470,6 +625,10 @@ export const UserPreferenceSchema = object({
     timezone: TimeZoneSchema.describe(
         'Time zone used for transaction display and reporting periods.'
     ),
+    /** User Main budget identifier. */
+    mainBudgetId: number().nullable().describe('User Main budget identifier.'),
+    /** Budgets accessible to this user. */
+    budgets: array(BudgetSchema).describe('Budgets accessible to this user.'),
     /** True when the user has at least one category. */
     hasCategories: boolean().describe(
         'True when the user has at least one category.'
@@ -800,6 +959,8 @@ export const CurrencyConversionSchema = object({
 export const CategorySchema = object({
     /** Unique category identifier. */
     id: number().describe('Unique category identifier.'),
+    /** Budget identifier. */
+    budgetId: number().describe('Budget identifier.'),
     /** Category name shown in transaction forms and reports. */
     name: string().describe(
         'Category name shown in transaction forms and reports.'
@@ -846,6 +1007,8 @@ export const CategorySchema = object({
 }).schemaName('Category');
 
 export const CategoryListQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Optional category ordering mode. */
     sort: enumOf('recent-transaction-count')
         .optional()
@@ -860,6 +1023,8 @@ export const CategoryListQuerySchema = object({
 }).schemaName('CategoryListQuery');
 
 export const CreateCategoryBodySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Category name shown in transaction forms and reports. */
     name: string()
         .required('category name is required')
@@ -924,6 +1089,8 @@ export const VendorEnrichmentStatusSchema = enumOf(
 export const VendorSchema = object({
     /** Unique vendor identifier. */
     id: number().describe('Unique vendor identifier.'),
+    /** Budget identifier. */
+    budgetId: number().describe('Budget identifier.'),
     /** User-entered vendor name. */
     name: string().describe('User-entered vendor name.'),
     /** Vendor name shown in transaction forms and reports. */
@@ -986,6 +1153,8 @@ export const VendorSchema = object({
 }).schemaName('Vendor');
 
 export const VendorListQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Text search applied to vendor names and domains. */
     search: string()
         .optional()
@@ -1083,6 +1252,8 @@ export const VendorCandidateSchema = object({
 }).schemaName('VendorCandidate');
 
 export const CreateVendorBodySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** User-entered vendor name. */
     name: string()
         .required('vendor name is required')
@@ -1193,6 +1364,8 @@ export const TransactionTagNameSchema = string()
 export const TransactionTagSchema = object({
     /** Unique transaction tag identifier. */
     id: number().describe('Unique transaction tag identifier.'),
+    /** Budget identifier. */
+    budgetId: number().describe('Budget identifier.'),
     /** User-entered transaction tag name. */
     name: string().describe('User-entered transaction tag name.'),
     /** Number of transactions currently using this tag. */
@@ -1206,6 +1379,8 @@ export const TransactionTagSchema = object({
 }).schemaName('TransactionTag');
 
 export const TransactionTagListQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Text search applied to transaction tag names. */
     search: string()
         .optional()
@@ -1232,6 +1407,8 @@ const TransactionTagNamesBodySchema = array(TransactionTagNameSchema)
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
     id: number().describe('Unique transaction identifier.'),
+    /** Budget identifier. */
+    budgetId: number().describe('Budget identifier.'),
     /** Category identifier selected for the transaction. */
     categoryId: number().describe(
         'Category identifier selected for the transaction.'
@@ -1335,6 +1512,8 @@ export const TransactionSchema = object({
 }).schemaName('Transaction');
 
 export const CreateTransactionBodySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Category identifier selected for the transaction. */
     categoryId: number()
         .required('category is required')
@@ -1411,6 +1590,8 @@ export const UpdateTransactionBodySchema =
     );
 
 export const TransactionListQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Full text search applied to category name and note. */
     search: string()
         .optional()
@@ -1483,6 +1664,8 @@ export const TransactionListQuerySchema = object({
 }).schemaName('TransactionListQuery');
 
 export const TransactionExportQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Full text search applied to category name and note. */
     search: string()
         .optional()
@@ -1675,6 +1858,8 @@ export const TransactionScanDraftSchema = object({
 }).schemaName('TransactionScanDraft');
 
 export const TransactionScanBodySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Raw uploaded image bytes encoded as base64, without a data URL prefix. */
     imageBase64: string()
         .required('image is required')
@@ -1853,6 +2038,8 @@ export const TransactionScanImageResponseSchema = object({
 }).schemaName('TransactionScanImageResponse');
 
 export const DashboardQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Reporting period. */
     period: PeriodSchema.default('day').describe('Reporting period.'),
     /** Date used to choose the reporting period. */
@@ -1872,6 +2059,8 @@ export const DashboardQuerySchema = object({
 }).schemaName('DashboardQuery');
 
 export const PeriodWindowQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Reporting period. */
     period: PeriodSchema.default('day').describe('Reporting period.'),
     /** Date used to choose the center reporting period. */
@@ -1892,6 +2081,8 @@ export const PeriodWindowQuerySchema = object({
 }).schemaName('PeriodWindowQuery');
 
 export const DashboardWindowQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Reporting period. */
     period: PeriodSchema.default('day').describe('Reporting period.'),
     /** Date used to choose the center reporting period. */
@@ -1921,6 +2112,8 @@ export const DashboardWindowQuerySchema = object({
 }).schemaName('DashboardWindowQuery');
 
 export const StatsQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Stats trend grouping. */
     groupBy: StatsGroupBySchema.default('day').describe(
         'Stats trend grouping.'
@@ -1945,6 +2138,8 @@ export const StatsQuerySchema = object({
 }).schemaName('StatsQuery');
 
 export const StatsTagReportQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Reporting period. */
     period: PeriodSchema.default('day').describe('Reporting period.'),
     /** Date used to choose the reporting period. */
@@ -1962,6 +2157,8 @@ export const StatsTagReportQuerySchema = object({
 }).schemaName('StatsTagReportQuery');
 
 export const CategoryTrendQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Category trend timeframe. */
     range: CategoryTrendRangeSchema.default('last-12-months').describe(
         'Category trend timeframe.'
@@ -2669,6 +2866,24 @@ export type CurrencyConversionQuery = InferType<
     typeof CurrencyConversionQuerySchema
 >;
 export type CurrencyConversion = InferType<typeof CurrencyConversionSchema>;
+export type BudgetRole = InferType<typeof BudgetRoleSchema>;
+export type BudgetPermissions = InferType<typeof BudgetPermissionsSchema>;
+export type Budget = InferType<typeof BudgetSchema>;
+export type BudgetMember = InferType<typeof BudgetMemberSchema>;
+export type CreateBudgetBody = InferType<typeof CreateBudgetBodySchema>;
+export type UpdateBudgetBody = InferType<typeof UpdateBudgetBodySchema>;
+export type InviteBudgetMemberBody = InferType<
+    typeof InviteBudgetMemberBodySchema
+>;
+export type UpdateBudgetMemberBody = InferType<
+    typeof UpdateBudgetMemberBodySchema
+>;
+export type AcceptBudgetInvitationBody = InferType<
+    typeof AcceptBudgetInvitationBodySchema
+>;
+export type BudgetInvitationResponse = InferType<
+    typeof BudgetInvitationResponseSchema
+>;
 export type CategoryKind = InferType<typeof CategoryKindSchema>;
 export type Category = InferType<typeof CategorySchema>;
 export type CategoryListQuery = InferType<typeof CategoryListQuerySchema>;

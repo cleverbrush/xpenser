@@ -11,6 +11,7 @@ const timestamp = new Date('2026-05-01T00:00:00.000Z');
 const groceries = {
     id: 1,
     userId: 1,
+    budgetId: 1,
     parentId: null,
     name: 'Groceries',
     type: 'expense',
@@ -21,6 +22,7 @@ const groceries = {
 const walmart = {
     id: 7,
     userId: 1,
+    budgetId: 1,
     name: 'Walmart',
     normalizedName: 'walmart',
     resolvedName: 'Walmart',
@@ -53,6 +55,7 @@ function transaction({
     return {
         id,
         userId: 1,
+        budgetId: 1,
         categoryId: groceries.id,
         category: groceries,
         type: 'expense',
@@ -141,6 +144,8 @@ describe('email report due checks', () => {
 describe('email report OpenAI payload', () => {
     it('labels expense-parent offset categories as income returns', () => {
         const payload = emailReportOpenAiPayload({
+            budgetId: 1,
+            budgetName: 'Main',
             type: 'weekly',
             period: {
                 from: new Date('2026-05-25T00:00:00.000Z'),

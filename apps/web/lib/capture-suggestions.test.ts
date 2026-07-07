@@ -11,6 +11,7 @@ function category(
 ): Category {
     return {
         id,
+        budgetId: 1,
         name,
         type,
         parentId: null,

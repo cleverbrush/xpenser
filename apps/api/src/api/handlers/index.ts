@@ -17,6 +17,16 @@ import {
     updatePreferencesHandler
 } from './auth.js';
 import {
+    acceptBudgetInvitationHandler,
+    createBudgetHandler,
+    inviteBudgetMemberHandler,
+    listBudgetMembersHandler,
+    listBudgetsHandler,
+    removeBudgetMemberHandler,
+    updateBudgetHandler,
+    updateBudgetMemberHandler
+} from './budgets.js';
+import {
     createCategoryHandler,
     deleteCategoryHandler,
     listCategoriesHandler,
@@ -92,6 +102,16 @@ export const handlers = {
         revokeApiKey: revokeApiKeyHandler,
         listMcpOAuthConnections: listMcpOAuthConnectionsHandler,
         revokeMcpOAuthConnection: revokeMcpOAuthConnectionHandler
+    },
+    budgets: {
+        list: listBudgetsHandler,
+        create: createBudgetHandler,
+        update: updateBudgetHandler,
+        members: listBudgetMembersHandler,
+        invite: inviteBudgetMemberHandler,
+        updateMember: updateBudgetMemberHandler,
+        removeMember: removeBudgetMemberHandler,
+        acceptInvitation: acceptBudgetInvitationHandler
     },
     oauth: {
         authorizationRequest: mcpOAuthAuthorizationRequestHandler,

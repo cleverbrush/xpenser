@@ -31,6 +31,7 @@ describe('TransactionDialog', () => {
                     action={action}
                     categories={[
                         {
+                            budgetId: 1,
                             createdAt: new Date('2026-05-01T00:00:00.000Z'),
                             displayName: 'Groceries',
                             hasChildren: false,
@@ -58,6 +59,7 @@ describe('TransactionDialog', () => {
                         tags: [
                             {
                                 id: 1,
+                                budgetId: 1,
                                 name: 'wife',
                                 transactionCount: 1,
                                 createdAt: new Date('2026-05-01T00:00:00.000Z'),

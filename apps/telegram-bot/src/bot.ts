@@ -2,6 +2,7 @@ import { Readable } from 'node:stream';
 import type { Logger } from '@cleverbrush/log';
 import { createXpenserClient, type XpenserClient } from '@xpenser/client';
 import type {
+    Budget,
     Category,
     Currency,
     Transaction,
@@ -22,6 +23,8 @@ import TelegramBot from 'node-telegram-bot-api';
 import type { BotConfig } from './config.js';
 import {
     addCommand,
+    budgetCommand,
+    budgetSelectCallbackPrefix,
     cancelCallback,
     categoriesByRecentUse,
     categoriesWithPreferredFirst,
@@ -70,16 +73,21 @@ type TelegramUserBody = {
     readonly telegramLastName?: string;
 };
 
+type BudgetContext = {
+    readonly budgetId: number;
+    readonly budgetName: string;
+};
+
 type ManualDraft =
-    | {
+    | (BudgetContext & {
           readonly kind: 'manual';
           readonly step: 'amount';
           readonly me: UserPreference;
           readonly categories: readonly Category[];
           readonly currencies: readonly Currency[];
           readonly vendors: readonly Vendor[];
-      }
-    | {
+      })
+    | (BudgetContext & {
           readonly kind: 'manual';
           readonly step: 'currency';
           readonly me: UserPreference;
@@ -87,8 +95,8 @@ type ManualDraft =
           readonly currencies: readonly Currency[];
           readonly vendors: readonly Vendor[];
           readonly amount: number;
-      }
-    | {
+      })
+    | (BudgetContext & {
           readonly kind: 'manual';
           readonly step: 'vendor';
           readonly me: UserPreference;
@@ -99,8 +107,8 @@ type ManualDraft =
           readonly currency: string;
           readonly page: number;
           readonly query?: string;
-      }
-    | {
+      })
+    | (BudgetContext & {
           readonly kind: 'manual';
           readonly step: 'vendor-search';
           readonly me: UserPreference;
@@ -109,8 +117,8 @@ type ManualDraft =
           readonly vendors: readonly Vendor[];
           readonly amount: number;
           readonly currency: string;
-      }
-    | {
+      })
+    | (BudgetContext & {
           readonly kind: 'manual';
           readonly step: 'category';
           readonly me: UserPreference;
@@ -120,23 +128,23 @@ type ManualDraft =
           readonly currency: string;
           readonly vendorId: number | null;
           readonly page: number;
-      }
-    | {
+      })
+    | (BudgetContext & {
           readonly kind: 'manual';
           readonly step: 'note-choice';
           readonly category: Category;
           readonly currency: string;
           readonly amount: number;
           readonly vendorId: number | null;
-      }
-    | {
+      })
+    | (BudgetContext & {
           readonly kind: 'manual';
           readonly step: 'note-text';
           readonly category: Category;
           readonly currency: string;
           readonly amount: number;
           readonly vendorId: number | null;
-      };
+      });
 
 type ScanEditStep =
     | 'edit-amount'
@@ -159,7 +167,7 @@ type ScanDraftValues = {
 
 type ScanDraftDecision = 'confirmed' | 'discarded';
 
-type ScanDraftSession = {
+type ScanDraftSession = BudgetContext & {
     readonly kind: 'scan';
     readonly step: 'review' | ScanEditStep;
     readonly me: UserPreference;
@@ -502,6 +510,28 @@ function savedTransactionSummary(transaction: Transaction): string {
     return `${transaction.type}: ${vendor}${transaction.categoryDisplayName}, ${formatTelegramAmount(transaction.amount, transaction.currency)} (${formatTelegramAmount(transaction.defaultCurrencyAmount, transaction.defaultCurrency)}).`;
 }
 
+function activeBudget(
+    me: UserPreference,
+    selectedBudgetId: number | undefined
+): Budget | undefined {
+    return (
+        me.budgets.find(budget => budget.id === selectedBudgetId) ??
+        me.budgets.find(budget => budget.id === me.mainBudgetId) ??
+        me.budgets[0]
+    );
+}
+
+function budgetKeyboard(me: UserPreference, selectedBudgetId: number) {
+    return {
+        inline_keyboard: me.budgets.map(budget => [
+            {
+                text: `${budget.id === selectedBudgetId ? 'Current: ' : ''}${budget.name}`,
+                callback_data: `${budgetSelectCallbackPrefix}${budget.id}`
+            }
+        ])
+    };
+}
+
 function fileSizeLabel(size: number): string {
     if (size >= 1024 * 1024) {
         return `${(size / (1024 * 1024)).toFixed(1)} MB`;
@@ -513,6 +543,7 @@ export class XpenserTelegramBot {
     readonly #bot: TelegramBot;
     readonly #serviceClient: XpenserClient;
     readonly #sessions = new Map<string, Draft>();
+    readonly #selectedBudgets = new Map<string, number>();
     readonly #logger: Logger;
     #lastPollingErrorMessage: string | undefined;
     #lastPollingErrorLoggedAt = 0;
@@ -555,6 +586,17 @@ export class XpenserTelegramBot {
                     messageId: msg.message_id
                 },
                 () => this.beginAdd(msg)
+            );
+        });
+        this.#bot.onText(/^\/budget(?:@\S+)?$/, msg => {
+            void traceTelegramUpdate(
+                {
+                    updateType: 'command',
+                    command: telegramCommand(msg.text),
+                    chatType: msg.chat.type,
+                    messageId: msg.message_id
+                },
+                () => this.handleBudget(msg)
             );
         });
         this.#bot.onText(/^\/cancel(?:@\S+)?$/, msg => {
@@ -706,6 +748,66 @@ export class XpenserTelegramBot {
         }
     }
 
+    async handleBudget(msg: TelegramBot.Message): Promise<void> {
+        if (!this.isPrivateChat(msg.chat)) {
+            await this.#bot.sendMessage(
+                msg.chat.id,
+                'Please open a private chat with this bot.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
+            );
+            return;
+        }
+
+        const user = telegramUser(msg.from);
+        if (!user) {
+            await this.#bot.sendMessage(
+                msg.chat.id,
+                'Could not read Telegram user.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
+            );
+            return;
+        }
+
+        try {
+            const key = sessionKey(msg.chat.id, user.telegramUserId);
+            const client = await this.userClient(user);
+            const me = await client.auth.me();
+            const budget = activeBudget(me, this.#selectedBudgets.get(key));
+            if (!budget) {
+                await this.#bot.sendMessage(
+                    msg.chat.id,
+                    'No budgets are available for this account.',
+                    {
+                        reply_markup: quickAddReplyKeyboard()
+                    }
+                );
+                return;
+            }
+
+            this.#selectedBudgets.set(key, budget.id);
+            await this.#bot.sendMessage(
+                msg.chat.id,
+                `Active budget: ${budget.name}`,
+                {
+                    reply_markup: budgetKeyboard(me, budget.id)
+                }
+            );
+        } catch (err) {
+            await this.#bot.sendMessage(
+                msg.chat.id,
+                apiErrorMessage(err) ??
+                    'Telegram is not connected. Connect it from xpenser Preferences.',
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
+            );
+        }
+    }
+
     async beginAdd(msg: TelegramBot.Message): Promise<void> {
         if (!this.isPrivateChat(msg.chat)) {
             await this.#bot.sendMessage(
@@ -732,14 +834,36 @@ export class XpenserTelegramBot {
 
         try {
             const client = await this.userClient(user);
-            const [me, categories, currencies, vendors, recentTransactions] =
+            const me = await client.auth.me();
+            const key = sessionKey(msg.chat.id, user.telegramUserId);
+            const budget = activeBudget(me, this.#selectedBudgets.get(key));
+            if (!budget) {
+                await this.#bot.sendMessage(
+                    msg.chat.id,
+                    'No budgets are available for this account.',
+                    {
+                        reply_markup: quickAddReplyKeyboard()
+                    }
+                );
+                return;
+            }
+
+            this.#selectedBudgets.set(key, budget.id);
+            const budgetQuery = { budgetId: budget.id };
+            const [categories, currencies, vendors, recentTransactions] =
                 await Promise.all([
-                    client.auth.me(),
-                    client.categories.list({ query: {} }),
+                    client.categories.list({ query: budgetQuery }),
                     client.currencies.list(),
-                    client.vendors.list({ query: { limit: 100 } }),
+                    client.vendors.list({
+                        query: { ...budgetQuery, limit: 100 }
+                    }),
                     client.transactions.list({
-                        query: { direction: 'desc', limit: 100, page: 1 }
+                        query: {
+                            ...budgetQuery,
+                            direction: 'desc',
+                            limit: 100,
+                            page: 1
+                        }
                     })
                 ]);
 
@@ -768,6 +892,8 @@ export class XpenserTelegramBot {
             const draft: Draft = {
                 kind: 'manual',
                 step: 'amount',
+                budgetId: budget.id,
+                budgetName: budget.name,
                 me,
                 categories: categoriesByRecentUse(
                     categories,
@@ -776,13 +902,10 @@ export class XpenserTelegramBot {
                 currencies,
                 vendors
             };
-            this.#sessions.set(
-                sessionKey(msg.chat.id, user.telegramUserId),
-                draft
-            );
+            this.#sessions.set(key, draft);
             await this.#bot.sendMessage(
                 msg.chat.id,
-                '💸 How much is the transaction? Send a number like 12.50.'
+                `Budget: ${budget.name}\n💸 How much is the transaction? Send a number like 12.50.`
             );
         } catch (err) {
             await this.#bot.sendMessage(
@@ -849,11 +972,28 @@ export class XpenserTelegramBot {
 
         try {
             const client = await this.userClient(user);
-            const [me, categories, currencies, vendors] = await Promise.all([
-                client.auth.me(),
-                client.categories.list({ query: { activeOnly: true } }),
+            const me = await client.auth.me();
+            const key = sessionKey(msg.chat.id, user.telegramUserId);
+            const budget = activeBudget(me, this.#selectedBudgets.get(key));
+            if (!budget) {
+                await this.updateProgressMessage(
+                    msg.chat.id,
+                    progressMessage.message_id,
+                    'No budgets are available for this account.'
+                );
+                return;
+            }
+
+            this.#selectedBudgets.set(key, budget.id);
+            const budgetQuery = { budgetId: budget.id };
+            const [categories, currencies, vendors] = await Promise.all([
+                client.categories.list({
+                    query: { ...budgetQuery, activeOnly: true }
+                }),
                 client.currencies.list(),
-                client.vendors.list({ query: { limit: 100 } })
+                client.vendors.list({
+                    query: { ...budgetQuery, limit: 100 }
+                })
             ]);
 
             if (categories.length === 0) {
@@ -867,6 +1007,7 @@ export class XpenserTelegramBot {
 
             const image = await this.downloadTelegramFile(media);
             const body: TransactionScanBody = {
+                budgetId: budget.id,
                 fileName: media.fileName,
                 imageBase64: image.toString('base64'),
                 mimeType: media.mimeType
@@ -894,10 +1035,11 @@ export class XpenserTelegramBot {
                 return;
             }
 
-            const key = sessionKey(msg.chat.id, user.telegramUserId);
             const session: ScanDraftSession = {
                 kind: 'scan',
                 step: 'review',
+                budgetId: budget.id,
+                budgetName: budget.name,
                 me,
                 categories,
                 currencies,
@@ -961,6 +1103,11 @@ export class XpenserTelegramBot {
             return;
         }
 
+        if (data.startsWith(budgetSelectCallbackPrefix)) {
+            await this.selectBudget(chatId, user, key, data);
+            return;
+        }
+
         const draft = this.#sessions.get(key);
         if (!draft) {
             await this.#bot.sendMessage(
@@ -979,6 +1126,49 @@ export class XpenserTelegramBot {
         }
 
         await this.handleManualCallback(chatId, user, key, draft, data);
+    }
+
+    async selectBudget(
+        chatId: number,
+        user: TelegramUserBody,
+        key: string,
+        data: string
+    ): Promise<void> {
+        const budgetId = Number(data.slice(budgetSelectCallbackPrefix.length));
+        if (!Number.isSafeInteger(budgetId) || budgetId <= 0) {
+            await this.#bot.sendMessage(
+                chatId,
+                'Budget is no longer available.'
+            );
+            return;
+        }
+
+        try {
+            const me = await (await this.userClient(user)).auth.me();
+            const budget = me.budgets.find(item => item.id === budgetId);
+            if (!budget) {
+                await this.#bot.sendMessage(
+                    chatId,
+                    'Budget is no longer available.'
+                );
+                return;
+            }
+
+            this.#selectedBudgets.set(key, budget.id);
+            this.#sessions.delete(key);
+            await this.#bot.sendMessage(
+                chatId,
+                `Active budget: ${budget.name}. Tap Add or send an image to continue.`,
+                {
+                    reply_markup: quickAddReplyKeyboard()
+                }
+            );
+        } catch (err) {
+            await this.#bot.sendMessage(
+                chatId,
+                apiErrorMessage(err) ?? 'Could not change budget.'
+            );
+        }
     }
 
     async handleManualCallback(
@@ -1055,6 +1245,8 @@ export class XpenserTelegramBot {
             this.#sessions.set(key, {
                 kind: 'manual',
                 step: 'note-choice',
+                budgetId: draft.budgetId,
+                budgetName: draft.budgetName,
                 amount: draft.amount,
                 currency: draft.currency,
                 vendorId: draft.vendorId,
@@ -1454,6 +1646,8 @@ export class XpenserTelegramBot {
             const next: ManualDraft = {
                 kind: 'manual',
                 step: 'currency',
+                budgetId: draft.budgetId,
+                budgetName: draft.budgetName,
                 me: draft.me,
                 categories: draft.categories,
                 currencies: draft.currencies,
@@ -1686,6 +1880,8 @@ export class XpenserTelegramBot {
                     {
                         kind: 'manual',
                         step: 'vendor',
+                        budgetId: draft.budgetId,
+                        budgetName: draft.budgetName,
                         me: draft.me,
                         categories: draft.categories,
                         currencies: draft.currencies,
@@ -1702,6 +1898,8 @@ export class XpenserTelegramBot {
             const next: ManualDraft = {
                 kind: 'manual',
                 step: 'vendor',
+                budgetId: draft.budgetId,
+                budgetName: draft.budgetName,
                 me: draft.me,
                 categories: draft.categories,
                 currencies: draft.currencies,
@@ -1734,6 +1932,8 @@ export class XpenserTelegramBot {
         const next: ManualDraft = {
             kind: 'manual',
             step: 'category',
+            budgetId: draft.budgetId,
+            budgetName: draft.budgetName,
             me: draft.me,
             categories: categoriesWithPreferredFirst(
                 draft.categories,
@@ -1763,6 +1963,7 @@ export class XpenserTelegramBot {
             const client = await this.userClient(user);
             const transaction = await client.transactions.create({
                 body: {
+                    budgetId: draft.budgetId,
                     categoryId: draft.category.id,
                     vendorId: draft.vendorId,
                     amount: draft.amount,
@@ -1797,6 +1998,10 @@ export class XpenserTelegramBot {
                 {
                     command: addCommand.slice(1),
                     description: 'Add a transaction'
+                },
+                {
+                    command: budgetCommand.slice(1),
+                    description: 'Choose the active budget'
                 },
                 {
                     command: 'cancel',
@@ -1873,6 +2078,7 @@ export class XpenserTelegramBot {
                 : undefined;
         const lines = [
             `Transaction ${session.index + 1} of ${session.scan.drafts.length}`,
+            `Budget: ${session.budgetName}`,
             `Source: ${session.scan.documentKind.replace('_', ' ')}`,
             `Status: ${session.decisions[draft.id] ?? 'pending'}`,
             '',
@@ -1947,6 +2153,7 @@ export class XpenserTelegramBot {
             const client = await this.userClient(user);
             const transaction = await client.transactions.create({
                 body: {
+                    budgetId: session.budgetId,
                     amount: values.amount,
                     categoryId: values.categoryId,
                     currency: values.currency,

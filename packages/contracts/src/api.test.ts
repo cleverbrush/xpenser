@@ -35,6 +35,14 @@ describe('api contract authorization metadata', () => {
             api.users.revokeApiKey,
             api.users.listMcpOAuthConnections,
             api.users.revokeMcpOAuthConnection,
+            api.budgets.list,
+            api.budgets.create,
+            api.budgets.update,
+            api.budgets.members,
+            api.budgets.invite,
+            api.budgets.updateMember,
+            api.budgets.removeMember,
+            api.budgets.acceptInvitation,
             api.oauth.authorizationRequest,
             api.oauth.authorize,
             api.categories.list,
@@ -56,6 +64,7 @@ describe('api contract authorization metadata', () => {
             api.transactions.update,
             api.transactions.delete,
             api.transactions.scanImage,
+            api.transactionTags.list,
             api.transactionScans.create,
             api.transactionScans.start,
             api.transactionScans.decide,
@@ -63,6 +72,7 @@ describe('api contract authorization metadata', () => {
             api.dashboard.window,
             api.stats.overview,
             api.stats.window,
+            api.stats.tags,
             api.stats.categoryTrend
         ];
 

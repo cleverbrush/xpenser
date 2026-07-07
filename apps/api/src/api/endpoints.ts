@@ -122,6 +122,70 @@ export const DisconnectTelegramEndpoint = api.users.disconnectTelegram
     .tags('users')
     .operationId('disconnectTelegram');
 
+export const ListBudgetsEndpoint = api.budgets.list
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List budgets')
+    .description('Lists budgets accessible to the authenticated user.')
+    .tags('budgets')
+    .operationId('listBudgets');
+
+export const CreateBudgetEndpoint = api.budgets.create
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Create budget')
+    .description('Creates a new budget with the current user as admin.')
+    .tags('budgets')
+    .operationId('createBudget');
+
+export const UpdateBudgetEndpoint = api.budgets.update
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Update budget')
+    .description('Updates budget name and reporting defaults.')
+    .tags('budgets')
+    .operationId('updateBudget');
+
+export const ListBudgetMembersEndpoint = api.budgets.members
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List budget members')
+    .description('Lists members for a budget the current user can manage.')
+    .tags('budgets')
+    .operationId('listBudgetMembers');
+
+export const InviteBudgetMemberEndpoint = api.budgets.invite
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Invite budget member')
+    .description('Sends a magic link invitation for an existing user.')
+    .tags('budgets')
+    .operationId('inviteBudgetMember');
+
+export const UpdateBudgetMemberEndpoint = api.budgets.updateMember
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Update budget member')
+    .description('Updates budget member role and permissions.')
+    .tags('budgets')
+    .operationId('updateBudgetMember');
+
+export const RemoveBudgetMemberEndpoint = api.budgets.removeMember
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Remove budget member')
+    .description('Removes a user from a shared budget.')
+    .tags('budgets')
+    .operationId('removeBudgetMember');
+
+export const AcceptBudgetInvitationEndpoint = api.budgets.acceptInvitation
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Accept budget invitation')
+    .description('Consumes a budget invitation magic link.')
+    .tags('budgets')
+    .operationId('acceptBudgetInvitation');
+
 export const ListApiKeysEndpoint = api.users.listApiKeys
     .authorize(PrincipalSchema)
     .inject({ db: DbToken })
@@ -357,7 +421,7 @@ export const UpdateTransactionEndpoint = api.transactions.update
 
 export const ListTransactionTagsEndpoint = api.transactionTags.list
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('List transaction tags')
     .description('Lists transaction tags owned by the authenticated user.')
     .tags('transaction-tags')
@@ -373,7 +437,7 @@ export const DeleteTransactionEndpoint = api.transactions.delete
 
 export const GetTransactionScanImageEndpoint = api.transactions.scanImage
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken, knex: KnexToken })
     .summary('Get scanned transaction image')
     .description(
         'Returns the original scanner image attached to a confirmed transaction.'
@@ -498,6 +562,16 @@ export const endpoints = {
         revokeApiKey: RevokeApiKeyEndpoint,
         listMcpOAuthConnections: ListMcpOAuthConnectionsEndpoint,
         revokeMcpOAuthConnection: RevokeMcpOAuthConnectionEndpoint
+    },
+    budgets: {
+        list: ListBudgetsEndpoint,
+        create: CreateBudgetEndpoint,
+        update: UpdateBudgetEndpoint,
+        members: ListBudgetMembersEndpoint,
+        invite: InviteBudgetMemberEndpoint,
+        updateMember: UpdateBudgetMemberEndpoint,
+        removeMember: RemoveBudgetMemberEndpoint,
+        acceptInvitation: AcceptBudgetInvitationEndpoint
     },
     oauth: {
         authorizationRequest: McpOAuthAuthorizationRequestEndpoint,

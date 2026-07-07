@@ -18,6 +18,7 @@ import {
     getApiClient,
     getSessionOrRedirect
 } from './api';
+import { selectedBudgetCookie, selectedBudgetIdFromCookie } from './budgets';
 import { getGoogleSignInProvider, webConfig } from './config';
 import { VendorUpdateActionRejected } from './log-templates';
 import { loggerFor } from './logger';
@@ -92,6 +93,10 @@ function booleanString(
     return value === 'true';
 }
 
+function checkboxString(formData: FormData, key: string): boolean {
+    return formData.getAll(key).includes('true');
+}
+
 function editableString(formData: FormData, key: string): string | undefined {
     const value = formData.get(key);
     return typeof value === 'string' ? normalizeFormText(value) : undefined;
@@ -123,6 +128,13 @@ function transactionBody(formData: FormData, editableNote = false) {
             : optionalString(formData, 'note'),
         ...(tags !== undefined ? { tags } : {})
     };
+}
+
+async function withSelectedBudget<T extends Record<string, unknown>>(
+    body: T
+): Promise<T & { readonly budgetId?: number }> {
+    const budgetId = await selectedBudgetIdFromCookie();
+    return budgetId ? { ...body, budgetId } : body;
 }
 
 function vendorBody(formData: FormData) {
@@ -229,6 +241,42 @@ function categoryBody(formData: FormData) {
                 ? ('offset' as const)
                 : ('normal' as const)
     };
+}
+
+function budgetBody(formData: FormData) {
+    return {
+        name: requiredString(formData, 'name'),
+        defaultCurrency: requiredString(formData, 'defaultCurrency')
+            .trim()
+            .toUpperCase(),
+        countryCode:
+            optionalString(formData, 'countryCode')?.toUpperCase() ?? 'US'
+    };
+}
+
+function budgetPermissions(formData: FormData) {
+    return {
+        canCreateTransactions: checkboxString(
+            formData,
+            'canCreateTransactions'
+        ),
+        canUpdateTransactions: checkboxString(
+            formData,
+            'canUpdateTransactions'
+        ),
+        canDeleteTransactions: checkboxString(
+            formData,
+            'canDeleteTransactions'
+        ),
+        canManageCategories: checkboxString(formData, 'canManageCategories'),
+        canManageVendors: checkboxString(formData, 'canManageVendors'),
+        canManageTags: checkboxString(formData, 'canManageTags'),
+        canManageMembers: checkboxString(formData, 'canManageMembers')
+    };
+}
+
+function budgetMemberRole(formData: FormData): 'admin' | 'member' {
+    return requiredString(formData, 'role') === 'admin' ? 'admin' : 'member';
 }
 
 function favoriteCurrencies(formData: FormData, defaultCurrency: string) {
@@ -439,7 +487,7 @@ export async function createCategoryAction(
 ): Promise<Category> {
     const client = await getApiClient();
     const category = await client.categories.create({
-        body: categoryBody(formData)
+        body: await withSelectedBudget(categoryBody(formData))
     });
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
@@ -515,7 +563,7 @@ export async function moveAndDeleteCategoryAction(formData: FormData) {
 export async function createVendorAction(formData: FormData): Promise<Vendor> {
     const client = await getApiClient();
     const vendor = await client.vendors.create({
-        body: vendorBody(formData)
+        body: await withSelectedBudget(vendorBody(formData))
     });
     revalidatePath('/capture');
     revalidatePath('/dashboard');
@@ -635,7 +683,7 @@ export async function retryVendorEnrichmentAction(
 export async function createTransactionAction(formData: FormData) {
     const client = await getApiClient();
     await client.transactions.create({
-        body: transactionBody(formData)
+        body: await withSelectedBudget(transactionBody(formData))
     });
     revalidatePath('/capture');
     revalidatePath('/dashboard');
@@ -649,7 +697,7 @@ export async function createCaptureTransactionAction(
 ): Promise<Transaction> {
     const client = await getApiClient();
     const transaction = await client.transactions.create({
-        body: transactionBody(formData)
+        body: await withSelectedBudget(transactionBody(formData))
     });
     revalidatePath('/capture');
     revalidatePath('/dashboard');
@@ -766,6 +814,89 @@ export async function disconnectTelegramAction() {
     const client = await getApiClient();
     await client.users.disconnectTelegram();
     revalidatePath('/settings/preferences');
+}
+
+export async function selectBudgetAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const returnTo =
+        safeInternalRedirect(optionalString(formData, 'returnTo')) ??
+        '/dashboard';
+    const client = await getApiClient();
+    const me = await client.auth.me();
+    const budget = me.budgets.find(item => item.id === budgetId);
+    if (!budget) {
+        redirect(returnTo);
+    }
+
+    const cookieStore = await cookies();
+    cookieStore.set(selectedBudgetCookie, String(budget.id), {
+        httpOnly: true,
+        maxAge: 365 * 24 * 60 * 60,
+        path: '/',
+        sameSite: 'lax',
+        secure: webConfig.appUrl.startsWith('https://')
+    });
+    redirect(returnTo);
+}
+
+export async function createBudgetAction(formData: FormData) {
+    const client = await getApiClient();
+    const budget = await client.budgets.create({
+        body: budgetBody(formData)
+    });
+    const cookieStore = await cookies();
+    cookieStore.set(selectedBudgetCookie, String(budget.id), {
+        httpOnly: true,
+        maxAge: 365 * 24 * 60 * 60,
+        path: '/',
+        sameSite: 'lax',
+        secure: webConfig.appUrl.startsWith('https://')
+    });
+    revalidatePath('/settings/preferences');
+    redirect('/settings/preferences');
+}
+
+export async function inviteBudgetMemberAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.budgets.invite({
+        params: { id: Number(requiredString(formData, 'budgetId')) },
+        body: {
+            email: requiredString(formData, 'email'),
+            role: budgetMemberRole(formData),
+            permissions: budgetPermissions(formData)
+        }
+    });
+    revalidatePath('/settings/preferences');
+}
+
+export async function removeBudgetMemberAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.budgets.removeMember({
+        params: {
+            budgetId: Number(requiredString(formData, 'budgetId')),
+            userId: Number(requiredString(formData, 'userId'))
+        }
+    });
+    revalidatePath('/settings/preferences');
+}
+
+export async function acceptBudgetInvitationAction(formData: FormData) {
+    const client = await getApiClient();
+    const budget = await client.budgets.acceptInvitation({
+        body: {
+            token: requiredString(formData, 'token')
+        }
+    });
+    const cookieStore = await cookies();
+    cookieStore.set(selectedBudgetCookie, String(budget.id), {
+        httpOnly: true,
+        maxAge: 365 * 24 * 60 * 60,
+        path: '/',
+        sameSite: 'lax',
+        secure: webConfig.appUrl.startsWith('https://')
+    });
+    revalidatePath('/settings/preferences');
+    redirect('/dashboard');
 }
 
 export async function createApiKeyAction(formData: FormData) {

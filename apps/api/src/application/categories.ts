@@ -6,6 +6,7 @@ import type {
     UpdateCategoryBodySchema
 } from '@xpenser/contracts';
 import type { AppDb, CategoryDb, TransactionDb } from '../db/schemas.js';
+import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
 
 export class CategoryHierarchyError extends Error {}
 export class CategoryInUseError extends Error {}
@@ -76,6 +77,7 @@ function mapCategory(
 
     return {
         id: row.id,
+        budgetId: row.budgetId,
         name: row.name,
         type: row.type,
         kind: normalizeCategoryKind(row.kind),
@@ -110,11 +112,11 @@ function compareCategories(
 
 async function usedCategoryIds(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<Set<number>> {
     const transactions = await db.transactions.where(
-        transaction => transaction.userId,
-        userId
+        transaction => transaction.budgetId,
+        budgetId
     );
 
     return new Set(transactions.map(transaction => transaction.categoryId));
@@ -122,13 +124,13 @@ async function usedCategoryIds(
 
 async function recentCategoryTransactions(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<TransactionDb[]> {
     const now = new Date();
     const from = new Date(now.getTime() - recentCategoryWindowMs);
 
     return (await db.transactions
-        .where(transaction => transaction.userId, userId)
+        .where(transaction => transaction.budgetId, budgetId)
         .where(transaction => transaction.occurredAt, '>=', from)
         .where(
             transaction => transaction.occurredAt,
@@ -175,7 +177,22 @@ async function getCategory(
 ): Promise<CategoryDb> {
     const category = await db.categories
         .where(candidate => candidate.id, categoryId)
-        .where(candidate => candidate.userId, userId)
+        .first();
+    if (!category) {
+        throw new CategoryNotFoundError('Category was not found.');
+    }
+    await resolveBudgetAccess(db, userId, (category as CategoryDb).budgetId);
+    return category as CategoryDb;
+}
+
+async function getCategoryInBudget(
+    db: AppDb,
+    budgetId: number,
+    categoryId: number
+): Promise<CategoryDb> {
+    const category = await db.categories
+        .where(candidate => candidate.id, categoryId)
+        .where(candidate => candidate.budgetId, budgetId)
         .first();
     if (!category) {
         throw new CategoryNotFoundError('Category was not found.');
@@ -185,11 +202,11 @@ async function getCategory(
 
 async function categoryHasChildren(
     db: AppDb,
-    userId: number,
+    budgetId: number,
     categoryId: number
 ): Promise<boolean> {
     const children = await db.categories
-        .where(candidate => candidate.userId, userId)
+        .where(candidate => candidate.budgetId, budgetId)
         .where(candidate => candidate.parentId, categoryId)
         .limit(1);
     return children.length > 0;
@@ -197,7 +214,7 @@ async function categoryHasChildren(
 
 async function validateCategoryStructure(
     db: AppDb,
-    userId: number,
+    budgetId: number,
     body: {
         readonly type: 'expense' | 'income';
         readonly parentId?: number | null;
@@ -223,7 +240,7 @@ async function validateCategoryStructure(
         );
     }
 
-    const parent = await getCategory(db, userId, parentId);
+    const parent = await getCategoryInBudget(db, budgetId, parentId);
     if (parent.parentId) {
         throw new CategoryHierarchyError(
             'Only one level of category nesting is supported.'
@@ -254,11 +271,12 @@ export async function listCategories(
     userId: number,
     query: CategoryListQuery = {}
 ): Promise<Category[]> {
+    const access = await resolveBudgetAccess(db, userId, query.budgetId);
     const [categories, inUse, recentTransactions] = await Promise.all([
-        db.categories.where(category => category.userId, userId),
-        usedCategoryIds(db, userId),
+        db.categories.where(category => category.budgetId, access.budget.id),
+        usedCategoryIds(db, access.budget.id),
         query.sort === 'recent-transaction-count'
-            ? recentCategoryTransactions(db, userId)
+            ? recentCategoryTransactions(db, access.budget.id)
             : Promise.resolve([])
     ]);
     const categoryRows = categories as CategoryDb[];
@@ -300,15 +318,18 @@ export async function createCategory(
     userId: number,
     body: CreateCategoryBody
 ): Promise<Category> {
+    const access = await resolveBudgetAccess(db, userId, body.budgetId);
+    requireBudgetPermission(access, 'canManageCategories');
     const parentId = body.parentId ?? null;
     const kind = body.kind ?? 'normal';
-    await validateCategoryStructure(db, userId, {
+    await validateCategoryStructure(db, access.budget.id, {
         type: body.type,
         parentId,
         kind
     });
 
     const created = await db.categories.insert({
+        budgetId: access.budget.id,
         userId,
         parentId: parentId ?? undefined,
         name: body.name.trim(),
@@ -318,8 +339,8 @@ export async function createCategory(
     });
 
     const categories = (await db.categories.where(
-        category => category.userId,
-        userId
+        category => category.budgetId,
+        access.budget.id
     )) as CategoryDb[];
     const categoriesById = new Map(
         categories.map(category => [category.id, category] as const)
@@ -335,8 +356,14 @@ export async function updateCategory(
     body: UpdateCategoryBody
 ): Promise<Category> {
     const current = await getCategory(db, userId, categoryId);
-    const inUse = await usedCategoryIds(db, userId);
-    const hasChildren = await categoryHasChildren(db, userId, categoryId);
+    const access = await resolveBudgetAccess(db, userId, current.budgetId);
+    requireBudgetPermission(access, 'canManageCategories');
+    const inUse = await usedCategoryIds(db, access.budget.id);
+    const hasChildren = await categoryHasChildren(
+        db,
+        access.budget.id,
+        categoryId
+    );
     const structuralChange = hasStructuralChange(current, body);
 
     if (structuralChange && inUse.has(categoryId)) {
@@ -359,7 +386,7 @@ export async function updateCategory(
         kind: body.kind ?? normalizeCategoryKind(current.kind)
     };
 
-    await validateCategoryStructure(db, userId, next, categoryId);
+    await validateCategoryStructure(db, access.budget.id, next, categoryId);
 
     const update: {
         name?: string;
@@ -387,7 +414,7 @@ export async function updateCategory(
 
     const [updated] = await db.categories
         .where(category => category.id, categoryId)
-        .where(category => category.userId, userId)
+        .where(category => category.budgetId, access.budget.id)
         .update(update as never)
         .then(rows => rows as CategoryDb[]);
 
@@ -396,8 +423,8 @@ export async function updateCategory(
     }
 
     const categories = (await db.categories.where(
-        category => category.userId,
-        userId
+        category => category.budgetId,
+        access.budget.id
     )) as CategoryDb[];
     const categoriesById = new Map(
         categories.map(category => [category.id, category] as const)
@@ -422,10 +449,12 @@ export async function deleteCategory(
     categoryId: number
 ): Promise<void> {
     const source = await getCategory(db, userId, categoryId);
+    const access = await resolveBudgetAccess(db, userId, source.budgetId);
+    requireBudgetPermission(access, 'canManageCategories');
 
     const categories = (await db.categories.where(
-        candidate => candidate.userId,
-        userId
+        candidate => candidate.budgetId,
+        access.budget.id
     )) as CategoryDb[];
     const categoriesById = new Map(
         categories.map(category => [category.id, category] as const)
@@ -440,7 +469,7 @@ export async function deleteCategory(
         );
     }
 
-    if (await categoryHasChildren(db, userId, categoryId)) {
+    if (await categoryHasChildren(db, access.budget.id, categoryId)) {
         throw new CategoryHierarchyError(
             'Category cannot be deleted while it has subcategories.'
         );
@@ -457,7 +486,7 @@ export async function deleteCategory(
 
     await db.categories
         .where(candidate => candidate.id, categoryId)
-        .where(candidate => candidate.userId, userId)
+        .where(candidate => candidate.budgetId, access.budget.id)
         .delete();
 }
 
@@ -467,10 +496,14 @@ export async function moveAndDeleteCategory(
     categoryId: number,
     replacementCategoryId: number
 ): Promise<void> {
-    const [source, replacement] = await Promise.all([
-        getCategory(db, userId, categoryId),
-        getCategory(db, userId, replacementCategoryId)
-    ]);
+    const source = await getCategory(db, userId, categoryId);
+    const access = await resolveBudgetAccess(db, userId, source.budgetId);
+    requireBudgetPermission(access, 'canManageCategories');
+    const replacement = await getCategoryInBudget(
+        db,
+        access.budget.id,
+        replacementCategoryId
+    );
 
     if (source.id === replacement.id) {
         throw new CategoryHierarchyError(
@@ -479,8 +512,8 @@ export async function moveAndDeleteCategory(
     }
 
     const categories = (await db.categories.where(
-        candidate => candidate.userId,
-        userId
+        candidate => candidate.budgetId,
+        access.budget.id
     )) as CategoryDb[];
     const categoriesById = new Map(
         categories.map(category => [category.id, category] as const)
@@ -501,7 +534,7 @@ export async function moveAndDeleteCategory(
         );
     }
 
-    if (await categoryHasChildren(db, userId, categoryId)) {
+    if (await categoryHasChildren(db, access.budget.id, categoryId)) {
         throw new CategoryHierarchyError(
             'Category cannot be deleted while it has subcategories.'
         );
@@ -516,7 +549,7 @@ export async function moveAndDeleteCategory(
     const now = new Date();
     await db.transaction(async trx => {
         await trx.transactions
-            .where(transaction => transaction.userId, userId)
+            .where(transaction => transaction.budgetId, access.budget.id)
             .where(transaction => transaction.categoryId, categoryId)
             .update({
                 categoryId: replacement.id,
@@ -526,7 +559,7 @@ export async function moveAndDeleteCategory(
 
         await trx.categories
             .where(candidate => candidate.id, categoryId)
-            .where(candidate => candidate.userId, userId)
+            .where(candidate => candidate.budgetId, access.budget.id)
             .delete();
     });
 }

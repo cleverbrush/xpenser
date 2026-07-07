@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { AmountPrivacyProvider } from '@/components/amount-privacy';
 import { AppNav } from '@/components/app-nav';
-import { getSessionOrRedirect } from '@/lib/api';
+import { getApiClient, getSessionOrRedirect } from '@/lib/api';
+import { selectedBudgetForUser } from '@/lib/budgets';
 import { noIndexRobots } from '@/lib/public-site';
 
 export const dynamic = 'force-dynamic';
@@ -15,10 +16,17 @@ export default async function ProtectedLayout({
     readonly children: React.ReactNode;
 }) {
     const session = await getSessionOrRedirect();
+    const client = await getApiClient();
+    const me = await client.auth.me();
+    const selectedBudget = await selectedBudgetForUser(me);
     return (
         <AmountPrivacyProvider>
             <div className="min-h-dvh bg-background">
-                <AppNav timezone={session.user.timezone} />
+                <AppNav
+                    budgets={me.budgets}
+                    selectedBudgetId={selectedBudget?.id}
+                    timezone={session.user.timezone}
+                />
                 <main className="mx-auto max-w-6xl px-3 pb-24 pt-4 sm:px-4 sm:py-6">
                     {children}
                 </main>

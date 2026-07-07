@@ -58,7 +58,7 @@ export default async function VendorSettingsPage({
     }
 
     const client = await getApiClient();
-    const [me, vendor, transactions] = await Promise.all([
+    const [me, vendor] = await Promise.all([
         client.auth.me(),
         client.vendors
             .get({ params: { id: selectedVendorId } })
@@ -67,16 +67,17 @@ export default async function VendorSettingsPage({
                     notFound();
                 }
                 throw error;
-            }),
-        client.transactions.list({
-            query: {
-                direction: 'desc',
-                limit: 25,
-                vendorId: selectedVendorId,
-                page: 1
-            }
-        })
+            })
     ]);
+    const transactions = await client.transactions.list({
+        query: {
+            budgetId: vendor.budgetId,
+            direction: 'desc',
+            limit: 25,
+            vendorId: selectedVendorId,
+            page: 1
+        }
+    });
 
     return (
         <div className="flex flex-col gap-5 sm:gap-6">

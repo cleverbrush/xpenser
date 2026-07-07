@@ -5,6 +5,7 @@ import { deleteScanUpload } from '@/lib/transaction-scan-upload-store';
 const mocks = vi.hoisted(() => ({
     auth: vi.fn(),
     createXpenserClient: vi.fn(),
+    selectedBudgetIdFromCookie: vi.fn(),
     transactionScanStart: vi.fn()
 }));
 
@@ -14,6 +15,10 @@ vi.mock('@/auth', () => ({
 
 vi.mock('@/lib/config', () => ({
     webConfig: { apiBaseUrl: 'https://api.example.test' }
+}));
+
+vi.mock('@/lib/budgets', () => ({
+    selectedBudgetIdFromCookie: mocks.selectedBudgetIdFromCookie
 }));
 
 vi.mock('@xpenser/client', () => ({
@@ -57,6 +62,7 @@ describe('transaction scan route', () => {
         mocks.createXpenserClient.mockReturnValue({
             transactionScans: { start: mocks.transactionScanStart }
         });
+        mocks.selectedBudgetIdFromCookie.mockResolvedValue(undefined);
         mocks.transactionScanStart.mockResolvedValue({
             jobId: '00000000-0000-4000-8000-000000000042',
             token: 'scan-token'

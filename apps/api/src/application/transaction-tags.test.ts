@@ -67,7 +67,7 @@ describe('transaction tags', () => {
         ormMocks.query.mockReturnValue({ onConflict });
 
         await expect(
-            getOrCreateTransactionTag({} as Knex, 7, {
+            getOrCreateTransactionTag({} as Knex, 7, 1, {
                 name: 'Travel',
                 normalizedName: 'travel'
             })
@@ -79,6 +79,7 @@ describe('transaction tags', () => {
         );
         expect(merge).toHaveBeenCalledWith(
             {
+                budgetId: 1,
                 userId: 7,
                 name: 'Travel',
                 normalizedName: 'travel'
@@ -118,7 +119,7 @@ describe('transaction tags', () => {
         });
 
         await expect(
-            getOrCreateTransactionTag({} as Knex, 7, {
+            getOrCreateTransactionTag({} as Knex, 7, 1, {
                 name: 'Travel',
                 normalizedName: 'travel'
             })

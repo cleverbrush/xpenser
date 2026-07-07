@@ -21,6 +21,7 @@ import {
     type Tool
 } from '@modelcontextprotocol/sdk/types.js';
 import {
+    type Budget,
     type Category,
     type CategoryListQuery,
     type CreateCategoryBody,
@@ -44,6 +45,12 @@ import {
     type VendorListQuery
 } from '@xpenser/contracts';
 import type { Knex } from 'knex';
+import {
+    BudgetAccessError,
+    BudgetNotFoundError,
+    BudgetPermissionError,
+    listBudgets as listUserBudgets
+} from '../application/budgets.js';
 import {
     CategoryHierarchyError,
     CategoryInUseError,
@@ -131,6 +138,7 @@ export type XpenserMcpDataAccess = {
     readonly getCurrentUser: (
         userId: number
     ) => Promise<UserPreference | undefined>;
+    readonly listBudgets: (userId: number) => Promise<Budget[]>;
     readonly listCategories: (
         userId: number,
         query: CategoryListQuery
@@ -201,7 +209,8 @@ export type XpenserMcpDataAccess = {
     readonly getDashboardSummary: (
         userId: number,
         period: DashboardSummary['period'],
-        date?: Date
+        date?: Date,
+        budgetId?: number
     ) => Promise<DashboardSummary>;
     readonly getStatsOverview: (
         userId: number,
@@ -285,6 +294,12 @@ function id(description: string) {
     return number().isInteger().positive().describe(description);
 }
 
+function optionalBudgetId() {
+    return id('Optional budget identifier. Omit to use the Main budget.')
+        .optional()
+        .describe('Optional budget identifier. Omit to use the Main budget.');
+}
+
 function optionalText(description: string, maxLength: number) {
     return string()
         .trim()
@@ -303,6 +318,7 @@ function nullableText(description: string, maxLength: number) {
 }
 
 const CategoryListInputSchema = object({
+    budgetId: optionalBudgetId(),
     sort: enumOf('recent-transaction-count')
         .optional()
         .describe('Optional category ordering mode.'),
@@ -314,6 +330,7 @@ const CategoryListInputSchema = object({
 });
 
 const CreateCategoryInputSchema = object({
+    budgetId: optionalBudgetId(),
     name: string()
         .trim()
         .nonempty()
@@ -366,6 +383,7 @@ const MoveAndDeleteCategoryInputSchema = object({
 });
 
 const VendorListInputSchema = object({
+    budgetId: optionalBudgetId(),
     search: optionalText(
         'Text search applied to vendor names, domains, and descriptions.',
         FieldLimits.vendorSearch
@@ -417,6 +435,7 @@ const VendorCandidateDetailsInputSchema = object({
 });
 
 const CreateVendorInputSchema = object({
+    budgetId: optionalBudgetId(),
     name: string()
         .trim()
         .nonempty()
@@ -469,6 +488,7 @@ const UpdateVendorInputSchema = object({
 });
 
 const TransactionListInputSchema = object({
+    budgetId: optionalBudgetId(),
     search: string()
         .trim()
         .optional()
@@ -503,6 +523,7 @@ const TransactionListInputSchema = object({
 });
 
 const TransactionTagListInputSchema = object({
+    budgetId: optionalBudgetId(),
     search: optionalText(
         'Text search applied to tag names.',
         FieldLimits.transactionTagSearch
@@ -525,6 +546,7 @@ const transactionTagNames = array(
     .describe('Tag names to assign to the transaction.');
 
 const CreateTransactionInputSchema = object({
+    budgetId: optionalBudgetId(),
     categoryId: id('Category identifier selected for the transaction.'),
     vendorId: id('Optional vendor identifier selected for the transaction.')
         .nullable()
@@ -566,6 +588,7 @@ const TransactionIdInputSchema = object({
 });
 
 const DashboardInputSchema = object({
+    budgetId: optionalBudgetId(),
     period: enumOf('day', 'week', 'month', 'quarter', 'year')
         .optional()
         .describe('Reporting period. Defaults to day.'),
@@ -575,6 +598,7 @@ const DashboardInputSchema = object({
 });
 
 const StatsInputSchema = object({
+    budgetId: optionalBudgetId(),
     groupBy: enumOf('hour', 'day', 'week', 'month')
         .optional()
         .describe('Stats trend grouping. Defaults to day.'),
@@ -634,6 +658,7 @@ export function createXpenserMcpDataAccess(
 ): XpenserMcpDataAccess {
     return {
         getCurrentUser: userId => getUserPreference(db, userId),
+        listBudgets: userId => listUserBudgets(db, userId),
         listCategories: (userId, query) =>
             listUserCategories(db, userId, query),
         createCategory: (userId, body) => createUserCategory(db, userId, body),
@@ -662,15 +687,24 @@ export function createXpenserMcpDataAccess(
         listTransactions: (userId, query) =>
             listTransactions(db, userId, query, knex),
         listTransactionTags: (userId, query) =>
-            listTransactionTags(knex, userId, query),
+            listTransactionTags(db, userId, query),
         createTransaction: (userId, body) =>
             createUserTransaction(db, config, userId, body),
         updateTransaction: (userId, transactionId, body) =>
             updateUserTransaction(db, config, userId, transactionId, body),
         deleteTransaction: (userId, transactionId) =>
             deleteUserTransaction(db, userId, transactionId),
-        getDashboardSummary: (userId, period, date) =>
-            dashboardSummary(db, config, userId, period, date),
+        getDashboardSummary: (userId, period, date, budgetId) =>
+            dashboardSummary(
+                db,
+                config,
+                userId,
+                period,
+                date,
+                undefined,
+                undefined,
+                budgetId
+            ),
         getStatsOverview: (userId, query) => statsOverview(db, userId, query)
     };
 }
@@ -705,6 +739,7 @@ export function normalizeCategoryListInput(
     input: CategoryListInput
 ): CategoryListQuery {
     return {
+        budgetId: input.budgetId,
         sort: input.sort,
         activeOnly: input.activeOnly
     };
@@ -714,6 +749,7 @@ export function normalizeVendorListInput(
     input: VendorListInput
 ): VendorListQuery {
     return {
+        budgetId: input.budgetId,
         search: nonempty(input.search),
         limit: input.limit ?? 25
     };
@@ -735,6 +771,7 @@ export function normalizeTransactionListInput(
     const limit = Math.min(100, Math.max(1, input.limit ?? 50));
 
     return {
+        budgetId: input.budgetId,
         search: nonempty(input.search),
         type: input.type,
         categoryId: input.categoryId,
@@ -756,6 +793,7 @@ export function normalizeTransactionTagListInput(
     input: TransactionTagListInput
 ): TransactionTagListQuery {
     return {
+        budgetId: input.budgetId,
         search: nonempty(input.search),
         limit: Math.min(100, Math.max(1, input.limit ?? 25))
     };
@@ -765,6 +803,7 @@ export function normalizeCreateTransactionInput(
     input: CreateTransactionInput
 ): CreateTransactionBody {
     return {
+        budgetId: input.budgetId,
         categoryId: input.categoryId,
         vendorId: input.vendorId,
         amount: input.amount,
@@ -791,6 +830,7 @@ export function normalizeUpdateTransactionInput(
 
 export function normalizeStatsInput(input: StatsInput): StatsQuery {
     return {
+        budgetId: input.budgetId,
         groupBy: input.groupBy ?? 'day',
         timeframe: input.timeframe ?? 'this-month',
         from: parseOptionalDate(input.from, 'from'),
@@ -909,6 +949,9 @@ function mapExpectedError(err: unknown): never {
         err instanceof CategoryHierarchyError ||
         err instanceof CategoryInUseError ||
         err instanceof CategoryNotFoundError ||
+        err instanceof BudgetAccessError ||
+        err instanceof BudgetNotFoundError ||
+        err instanceof BudgetPermissionError ||
         err instanceof LastCategoryError ||
         err instanceof TransactionCategoryError ||
         err instanceof TransactionNotFoundError ||
@@ -934,6 +977,16 @@ export async function handleGetCurrentUser(
     }
 
     return toolResult({ user });
+}
+
+export async function handleListBudgets(
+    context: XpenserMcpToolContext
+): Promise<CallToolResult> {
+    const toolName = 'xpenser_list_budgets';
+    logToolCall(context, toolName);
+    return toolResult({
+        budgets: await context.data.listBudgets(context.principal.userId)
+    });
 }
 
 export async function handleListCategories(
@@ -1242,7 +1295,8 @@ export async function handleGetDashboardSummary(
         dashboard: await context.data.getDashboardSummary(
             context.principal.userId,
             input.period ?? 'day',
-            parseOptionalDate(input.date, 'date')
+            parseOptionalDate(input.date, 'date'),
+            input.budgetId
         )
     });
 }
@@ -1275,10 +1329,19 @@ export function createXpenserMcpTools(
             handler: () => handleGetCurrentUser(context)
         },
         {
+            name: 'xpenser_list_budgets',
+            title: 'List xpenser budgets',
+            description:
+                'Return budgets available to the authenticated xpenser user, including role and permission flags.',
+            inputSchema: EmptyInputSchema,
+            annotations: readOnlyAnnotations,
+            handler: () => handleListBudgets(context)
+        },
+        {
             name: 'xpenser_list_categories',
             title: 'List xpenser categories',
             description:
-                'Return income and expense categories for the authenticated xpenser user.',
+                'Return income and expense categories for the selected xpenser budget.',
             inputSchema: CategoryListInputSchema,
             annotations: readOnlyAnnotations,
             handler: input =>
@@ -1288,7 +1351,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_create_category',
             title: 'Create xpenser category',
             description:
-                'Create an income or expense category for the authenticated xpenser user.',
+                'Create an income or expense category in the selected xpenser budget.',
             inputSchema: CreateCategoryInputSchema,
             annotations: additiveWriteAnnotations,
             handler: input =>
@@ -1331,7 +1394,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_list_vendors',
             title: 'List xpenser vendors',
             description:
-                'Return vendors owned by the authenticated xpenser user, with transaction counts and category suggestions.',
+                'Return vendors in the selected xpenser budget, with transaction counts and category suggestions.',
             inputSchema: VendorListInputSchema,
             annotations: readOnlyAnnotations,
             handler: input =>
@@ -1376,7 +1439,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_create_vendor',
             title: 'Create xpenser vendor',
             description:
-                'Create or reuse a vendor owned by the authenticated xpenser user. Selected candidate metadata may be enriched through Brandfetch.',
+                'Create or reuse a vendor in the selected xpenser budget. Selected candidate metadata may be enriched through Brandfetch.',
             inputSchema: CreateVendorInputSchema,
             annotations: openWorldAdditiveWriteAnnotations,
             handler: input =>
@@ -1406,7 +1469,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_list_transactions',
             title: 'List xpenser transactions',
             description:
-                'Return paginated transactions for the authenticated xpenser user. Amount is the original transaction amount; defaultCurrencyAmount is converted to the user default currency.',
+                'Return paginated transactions for the selected xpenser budget. Amount is the original transaction amount; defaultCurrencyAmount is converted to the budget default currency.',
             inputSchema: TransactionListInputSchema,
             annotations: readOnlyAnnotations,
             handler: input =>
@@ -1416,7 +1479,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_list_transaction_tags',
             title: 'List xpenser transaction tags',
             description:
-                'Return transaction tags owned by the authenticated xpenser user, including usage counts.',
+                'Return transaction tags in the selected xpenser budget, including usage counts.',
             inputSchema: TransactionTagListInputSchema,
             annotations: readOnlyAnnotations,
             handler: input =>
@@ -1429,7 +1492,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_create_transaction',
             title: 'Create xpenser transaction',
             description:
-                'Create a transaction and store its historical exchange rate for the authenticated xpenser user.',
+                'Create a transaction in the selected xpenser budget and store its historical exchange rate.',
             inputSchema: CreateTransactionInputSchema,
             annotations: openWorldAdditiveWriteAnnotations,
             handler: input =>
@@ -1465,7 +1528,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_get_dashboard_summary',
             title: 'Get xpenser dashboard summary',
             description:
-                'Return period totals and category distributions in the user default currency.',
+                'Return selected-budget period totals and category distributions in the budget default currency.',
             inputSchema: DashboardInputSchema,
             annotations: readOnlyAnnotations,
             handler: input =>
@@ -1475,7 +1538,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_get_stats_overview',
             title: 'Get xpenser stats overview',
             description:
-                'Return income, expense, net, savings, trend, category, and comparison statistics in the user default currency.',
+                'Return selected-budget income, expense, net, savings, trend, category, and comparison statistics in the budget default currency.',
             inputSchema: StatsInputSchema,
             annotations: readOnlyAnnotations,
             handler: input =>

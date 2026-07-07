@@ -40,6 +40,7 @@ describe('category transaction availability', () => {
         const car: CategoryDb = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Car',
             type: 'expense',
             parentId: null,
@@ -117,6 +118,7 @@ describe('category popularity ordering', () => {
 type TestTransaction = {
     id: number;
     userId: number;
+    budgetId: number;
     categoryId: number;
     type: 'expense' | 'income';
     updatedAt: Date;
@@ -180,6 +182,7 @@ function categoryRow(
     return {
         id,
         userId: 1,
+        budgetId: 1,
         name,
         type: 'expense',
         parentId: null,
@@ -192,6 +195,12 @@ function categoryRow(
 }
 
 type TestDb = {
+    budgetMembers: {
+        where(): { where(): { first(): Promise<object> } };
+    };
+    budgets: {
+        find(id: number): Promise<object>;
+    };
     categories: {
         where<TValue>(
             selector: (row: CategoryDb) => TValue,
@@ -211,7 +220,40 @@ function testDb(
     categories: CategoryDb[],
     transactions: TestTransaction[]
 ): TestDb {
+    const budget = {
+        id: 1,
+        name: 'Main',
+        defaultCurrency: 'USD',
+        countryCode: 'US',
+        createdByUserId: 1,
+        createdAt: new Date('2026-05-10T12:30:00.000Z'),
+        updatedAt: new Date('2026-05-10T12:30:00.000Z')
+    };
+    const member = {
+        budgetId: 1,
+        userId: 1,
+        role: 'admin',
+        canCreateTransactions: true,
+        canUpdateTransactions: true,
+        canDeleteTransactions: true,
+        canManageCategories: true,
+        canManageVendors: true,
+        canManageTags: true,
+        canManageMembers: true,
+        createdAt: budget.createdAt,
+        updatedAt: budget.updatedAt
+    };
     return {
+        budgets: {
+            find: async () => budget
+        },
+        budgetMembers: {
+            where: () => ({
+                where: () => ({
+                    first: async () => member
+                })
+            })
+        },
         categories: {
             where<TValue>(
                 selector: (row: CategoryDb) => TValue,
@@ -260,6 +302,7 @@ describe('move and delete category', () => {
             {
                 id: 1,
                 userId: 1,
+                budgetId: 1,
                 categoryId: source.id,
                 type: 'income' as const,
                 updatedAt: source.updatedAt
@@ -267,6 +310,7 @@ describe('move and delete category', () => {
             {
                 id: 2,
                 userId: 2,
+                budgetId: 2,
                 categoryId: source.id,
                 type: 'expense' as const,
                 updatedAt: source.updatedAt
@@ -301,6 +345,7 @@ describe('move and delete category', () => {
             {
                 id: 1,
                 userId: 1,
+                budgetId: 1,
                 categoryId: source.id,
                 type: 'expense' as const,
                 updatedAt: source.updatedAt

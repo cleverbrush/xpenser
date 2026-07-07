@@ -6,13 +6,16 @@ import type {
 import { FieldLimits, TransactionTagLimits } from '@xpenser/contracts';
 import type { Knex } from 'knex';
 import {
+    type AppDb,
     type TransactionTagDb,
     TransactionTagDbSchema
 } from '../db/schemas.js';
+import { resolveBudgetAccess } from './budgets.js';
 
 export class TransactionTagError extends Error {}
 
 type TransactionTagRow = {
+    readonly budgetId: number;
     readonly id: number;
     readonly name: string;
     readonly transactionCount: number | string;
@@ -71,6 +74,7 @@ export function normalizeTransactionTagAssignments(
 function mapTransactionTag(row: TransactionTagRow): TransactionTag {
     return {
         id: Number(row.id),
+        budgetId: Number(row.budgetId),
         name: row.name,
         transactionCount: Number(row.transactionCount),
         createdAt: row.createdAt,
@@ -79,19 +83,22 @@ function mapTransactionTag(row: TransactionTagRow): TransactionTag {
 }
 
 export async function listTransactionTags(
-    knex: Knex,
+    db: AppDb,
     userId: number,
     query: TransactionTagListQuery
 ): Promise<TransactionTag[]> {
+    const access = await resolveBudgetAccess(db, userId, query.budgetId);
     const search = query.search?.trim().toLowerCase();
     const limit = Math.min(100, Math.max(1, query.limit ?? 25));
-    const builder = knex('transaction_tags as tag')
+    const builder = db
+        .knex('transaction_tags as tag')
         .leftJoin('transaction_tag_links as link', 'link.tag_id', 'tag.id')
-        .where('tag.user_id', userId)
+        .where('tag.budget_id', access.budget.id)
         .groupBy('tag.id')
         .orderBy('tag.name', 'asc')
         .limit(limit)
         .select({
+            budgetId: 'tag.budget_id',
             id: 'tag.id',
             name: 'tag.name',
             createdAt: 'tag.created_at',
@@ -110,16 +117,18 @@ export async function listTransactionTags(
 export async function getOrCreateTransactionTag(
     knex: Knex,
     userId: number,
+    budgetId: number,
     assignment: TransactionTagAssignment
 ): Promise<number> {
     const tableName = getTableName(TransactionTagDbSchema);
     const tag = await query(knex, TransactionTagDbSchema)
         .onConflict(
-            tag => tag.userId,
+            tag => tag.budgetId,
             tag => tag.normalizedName
         )
         .merge(
             {
+                budgetId,
                 userId,
                 name: assignment.name,
                 normalizedName: assignment.normalizedName
@@ -139,10 +148,10 @@ export async function getOrCreateTransactionTag(
 
 export async function pruneUnusedTransactionTags(
     knex: Knex,
-    userId: number
+    budgetId: number
 ): Promise<void> {
     await knex('transaction_tags as tag')
-        .where('tag.user_id', userId)
+        .where('tag.budget_id', budgetId)
         .whereNotExists(function () {
             this.select(1)
                 .from('transaction_tag_links as link')
@@ -154,6 +163,7 @@ export async function pruneUnusedTransactionTags(
 export async function replaceTransactionTags(
     knex: Knex,
     userId: number,
+    budgetId: number,
     transactionId: number,
     tags: readonly string[]
 ): Promise<void> {
@@ -165,7 +175,7 @@ export async function replaceTransactionTags(
     if (assignments.length > 0) {
         const tagIds = await Promise.all(
             assignments.map(assignment =>
-                getOrCreateTransactionTag(knex, userId, assignment)
+                getOrCreateTransactionTag(knex, userId, budgetId, assignment)
             )
         );
         await knex('transaction_tag_links').insert(
@@ -176,5 +186,5 @@ export async function replaceTransactionTags(
         );
     }
 
-    await pruneUnusedTransactionTags(knex, userId);
+    await pruneUnusedTransactionTags(knex, budgetId);
 }

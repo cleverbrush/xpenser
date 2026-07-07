@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { DashboardExplorer } from '@/components/dashboard-explorer';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import { selectedDashboardCurrency } from '@/lib/dashboard-currencies';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
 import { initialDashboardWindowDate } from '@/lib/dashboard-window';
@@ -20,9 +21,13 @@ export default async function DashboardPage({
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
     const client = await getApiClient();
     const me = await client.auth.me();
+    const budgetQuery = await selectedBudgetQuery(me);
+    const selectedBudget = await selectedBudgetForUser(me);
+    const defaultCurrency =
+        selectedBudget?.defaultCurrency ?? me.defaultCurrency;
     const displayCurrency = selectedDashboardCurrency(
         params.currency,
-        me.defaultCurrency,
+        defaultCurrency,
         me.favoriteCurrencies
     );
     const selectedDate = parseDateParam(params.date, me.timezone);
@@ -30,16 +35,23 @@ export default async function DashboardPage({
     const [categories, currencies, vendors, transactionTags, window] =
         await Promise.all([
             client.categories.list({
-                query: { activeOnly: true, sort: 'recent-transaction-count' }
+                query: {
+                    ...budgetQuery,
+                    activeOnly: true,
+                    sort: 'recent-transaction-count'
+                }
             }),
             client.currencies.list(),
-            client.vendors.list({ query: { limit: 100 } }),
-            client.transactionTags.list({ query: { limit: 100 } }),
+            client.vendors.list({ query: { ...budgetQuery, limit: 100 } }),
+            client.transactionTags.list({
+                query: { ...budgetQuery, limit: 100 }
+            }),
             client.dashboard.window({
                 query: {
+                    ...budgetQuery,
                     after: 2,
                     before: 2,
-                    ...(displayCurrency !== me.defaultCurrency
+                    ...(displayCurrency !== defaultCurrency
                         ? { currency: displayCurrency }
                         : {}),
                     vendorLimit: 0,
@@ -57,7 +69,7 @@ export default async function DashboardPage({
         <DashboardExplorer
             categories={categories}
             currencies={currencies}
-            defaultCurrency={me.defaultCurrency}
+            defaultCurrency={defaultCurrency}
             favoriteCurrencies={me.favoriteCurrencies}
             initialDate={initialDashboardWindowDate(
                 window,

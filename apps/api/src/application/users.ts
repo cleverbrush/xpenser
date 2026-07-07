@@ -14,6 +14,11 @@ import type { Config } from '../config.js';
 import type { AppDb, TransactionDb, UserDb } from '../db/schemas.js';
 import { hashPassword, verifyPassword } from '../security/password.js';
 import { issueToken, tokenExpiresAt } from '../security/token.js';
+import {
+    createMainBudgetForUser,
+    ensureMainBudget,
+    listBudgets
+} from './budgets.js';
 import { sendEmail } from './email.js';
 
 export class DuplicateEmailError extends Error {}
@@ -138,20 +143,29 @@ async function favoriteCurrencies(
     return rows.map(row => row.currency);
 }
 
-async function hasCategories(db: AppDb, userId: number): Promise<boolean> {
+async function hasCategories(
+    db: AppDb,
+    userId: number,
+    budgetId?: number
+): Promise<boolean> {
+    const selectedBudgetId =
+        budgetId ?? (await ensureMainBudget(db, userId)).id;
     const rows = await db.categories
-        .where(category => category.userId, userId)
+        .where(category => category.budgetId, selectedBudgetId)
         .limit(1);
     return rows.length > 0;
 }
 
 async function recentCurrencyTransactions(
     db: AppDb,
-    userId: number
+    userId: number,
+    budgetId?: number
 ): Promise<TransactionDb[]> {
+    const selectedBudgetId =
+        budgetId ?? (await ensureMainBudget(db, userId)).id;
     const rows = (await db.transactions.where(
-        transaction => transaction.userId,
-        userId
+        transaction => transaction.budgetId,
+        selectedBudgetId
     )) as TransactionDb[];
 
     return rows
@@ -255,6 +269,7 @@ function toTokenResponse(
         | 'role'
         | 'countryCode'
         | 'timezone'
+        | 'mainBudgetId'
         | 'weeklyEmailReportEnabled'
         | 'monthlyEmailReportEnabled'
     >,
@@ -278,6 +293,7 @@ function toTokenResponse(
             defaultCurrency: user.defaultCurrency,
             countryCode: normalizeCountryCode(user.countryCode),
             timezone: normalizeTimeZone(user.timezone),
+            mainBudgetId: user.mainBudgetId ?? null,
             hasCategories: categories
         }
     };
@@ -319,10 +335,11 @@ export async function issueUserToken(
         return undefined;
     }
 
+    const mainBudget = await ensureMainBudget(db, userId);
     return toTokenResponse(
         config,
-        user,
-        await hasCategories(db, userId),
+        { ...user, mainBudgetId: user.mainBudgetId ?? mainBudget.id },
+        await hasCategories(db, userId, mainBudget.id),
         expiresInSeconds
     );
 }
@@ -420,6 +437,7 @@ export async function registerUser(
             body.favoriteCurrencies,
             body.defaultCurrency
         );
+        await createMainBudgetForUser(trx, user as UserDb);
 
         return emailConfirmationPendingResponse(user.email);
     });
@@ -452,7 +470,12 @@ export async function loginUser(
         );
     }
 
-    return toTokenResponse(config, user, await hasCategories(db, user.id));
+    const mainBudget = await ensureMainBudget(db, user.id);
+    return toTokenResponse(
+        config,
+        { ...user, mainBudgetId: user.mainBudgetId ?? mainBudget.id },
+        await hasCategories(db, user.id, mainBudget.id)
+    );
 }
 
 export async function confirmEmail(
@@ -659,11 +682,14 @@ export async function getUserPreference(
         return undefined;
     }
 
-    const [favorites, recentTransactions, categories] = await Promise.all([
-        favoriteCurrencies(db, userId),
-        recentCurrencyTransactions(db, userId),
-        hasCategories(db, userId)
-    ]);
+    const mainBudget = await ensureMainBudget(db, userId);
+    const [favorites, recentTransactions, categories, budgets] =
+        await Promise.all([
+            favoriteCurrencies(db, userId),
+            recentCurrencyTransactions(db, userId, mainBudget.id),
+            hasCategories(db, userId, mainBudget.id),
+            listBudgets(db, userId)
+        ]);
     const transactionCurrencies = transactionCurrenciesByRecentPopularity(
         [user.defaultCurrency, ...favorites],
         recentTransactions
@@ -677,6 +703,8 @@ export async function getUserPreference(
         favoriteCurrencies: favorites,
         transactionCurrencies,
         timezone: normalizeTimeZone(user.timezone),
+        mainBudgetId: user.mainBudgetId ?? mainBudget.id,
+        budgets,
         hasCategories: categories,
         weeklyEmailReportEnabled: user.weeklyEmailReportEnabled,
         monthlyEmailReportEnabled: user.monthlyEmailReportEnabled

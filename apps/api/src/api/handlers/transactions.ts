@@ -1,4 +1,8 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
+import {
+    BudgetAccessError,
+    BudgetPermissionError
+} from '../../application/budgets.js';
 import { TransactionTagError } from '../../application/transaction-tags.js';
 import {
     categoryTrend,
@@ -33,10 +37,28 @@ import type {
     UpdateTransactionEndpoint
 } from '../endpoints.js';
 
+function budgetResult(err: unknown) {
+    if (err instanceof BudgetPermissionError) {
+        return ActionResult.forbidden({ message: err.message });
+    }
+    if (err instanceof BudgetAccessError) {
+        return ActionResult.notFound({ message: err.message });
+    }
+    return undefined;
+}
+
 export const listTransactionsHandler: Handler<
     typeof ListTransactionsEndpoint
 > = async ({ query, principal }, { db, knex }) => {
-    return listTransactions(db, principal.userId, query, knex);
+    try {
+        return await listTransactions(db, principal.userId, query, knex);
+    } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
 };
 
 export const exportTransactionsCsvHandler: Handler<
@@ -56,6 +78,10 @@ export const exportTransactionsCsvHandler: Handler<
             'text/csv; charset=utf-8'
         );
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof TransactionExportError) {
             return ActionResult.badRequest({ message: err.message });
         }
@@ -82,6 +108,10 @@ export const createTransactionHandler: Handler<
             `/api/transactions/${transaction.id}`
         );
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof TransactionTagError) {
             return ActionResult.badRequest({ message: err.message });
         }
@@ -104,6 +134,10 @@ export const updateTransactionHandler: Handler<
             body
         );
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof TransactionNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }
@@ -124,6 +158,10 @@ export const deleteTransactionHandler: Handler<
         await deleteTransaction(db, principal.userId, params.id);
         return ActionResult.noContent();
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof TransactionNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }
@@ -133,10 +171,19 @@ export const deleteTransactionHandler: Handler<
 
 export const getTransactionScanImageHandler: Handler<
     typeof GetTransactionScanImageEndpoint
-> = async ({ params, principal }, { knex }) => {
+> = async ({ params, principal }, { db, knex }) => {
     try {
-        return await getTransactionScanImage(knex, principal.userId, params.id);
+        return await getTransactionScanImage(
+            db,
+            knex,
+            principal.userId,
+            params.id
+        );
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof TransactionNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }
@@ -147,52 +194,95 @@ export const getTransactionScanImageHandler: Handler<
 export const dashboardSummaryHandler: Handler<
     typeof DashboardSummaryEndpoint
 > = async ({ query, principal }, { db, config }) => {
-    return dashboardSummary(
-        db,
-        config,
-        principal.userId,
-        query.period ?? 'day',
-        query.date,
-        query.vendorLimit,
-        query.currency
-    );
+    try {
+        return await dashboardSummary(
+            db,
+            config,
+            principal.userId,
+            query.period ?? 'day',
+            query.date,
+            query.vendorLimit,
+            query.currency,
+            query.budgetId
+        );
+    } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
 };
 
 export const dashboardWindowHandler: Handler<
     typeof DashboardWindowEndpoint
 > = async ({ query, principal }, { db, config }) => {
-    return dashboardWindow(db, config, principal.userId, {
-        after: query.after,
-        before: query.before,
-        currency: query.currency,
-        date: query.date,
-        vendorLimit: query.vendorLimit,
-        period: query.period ?? 'day'
-    });
+    try {
+        return await dashboardWindow(db, config, principal.userId, {
+            after: query.after,
+            before: query.before,
+            budgetId: query.budgetId,
+            currency: query.currency,
+            date: query.date,
+            vendorLimit: query.vendorLimit,
+            period: query.period ?? 'day'
+        });
+    } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
 };
 
 export const statsOverviewHandler: Handler<
     typeof StatsOverviewEndpoint
 > = async ({ query, principal }, { db }) => {
-    return statsOverview(db, principal.userId, query);
+    try {
+        return await statsOverview(db, principal.userId, query);
+    } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
 };
 
 export const statsWindowHandler: Handler<typeof StatsWindowEndpoint> = async (
     { query, principal },
     { db }
 ) => {
-    return statsWindow(db, principal.userId, {
-        after: query.after,
-        before: query.before,
-        date: query.date,
-        period: query.period ?? 'day'
-    });
+    try {
+        return await statsWindow(db, principal.userId, {
+            after: query.after,
+            before: query.before,
+            budgetId: query.budgetId,
+            date: query.date,
+            period: query.period ?? 'day'
+        });
+    } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
 };
 
 export const statsTagReportHandler: Handler<
     typeof StatsTagReportEndpoint
 > = async ({ query, principal }, { db }) => {
-    return statsTagReport(db, principal.userId, query);
+    try {
+        return await statsTagReport(db, principal.userId, query);
+    } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
 };
 
 export const categoryTrendHandler: Handler<
@@ -201,6 +291,10 @@ export const categoryTrendHandler: Handler<
     try {
         return await categoryTrend(db, principal.userId, params.id, query);
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof TransactionCategoryError) {
             return ActionResult.badRequest({ message: err.message });
         }

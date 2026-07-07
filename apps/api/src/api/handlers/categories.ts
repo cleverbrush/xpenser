@@ -1,5 +1,9 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
 import {
+    BudgetAccessError,
+    BudgetPermissionError
+} from '../../application/budgets.js';
+import {
     CategoryHierarchyError,
     CategoryInUseError,
     CategoryNotFoundError,
@@ -18,10 +22,28 @@ import type {
     UpdateCategoryEndpoint
 } from '../endpoints.js';
 
+function budgetResult(err: unknown) {
+    if (err instanceof BudgetPermissionError) {
+        return ActionResult.forbidden({ message: err.message });
+    }
+    if (err instanceof BudgetAccessError) {
+        return ActionResult.notFound({ message: err.message });
+    }
+    return undefined;
+}
+
 export const listCategoriesHandler: Handler<
     typeof ListCategoriesEndpoint
 > = async ({ principal, query }, { db }) => {
-    return listCategories(db, principal.userId, query);
+    try {
+        return await listCategories(db, principal.userId, query);
+    } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
+        throw err;
+    }
 };
 
 export const createCategoryHandler: Handler<
@@ -32,6 +54,10 @@ export const createCategoryHandler: Handler<
             await createCategory(db, principal.userId, body)
         );
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof CategoryHierarchyError) {
             return ActionResult.badRequest({ message: err.message });
         }
@@ -45,6 +71,10 @@ export const updateCategoryHandler: Handler<
     try {
         return await updateCategory(db, principal.userId, params.id, body);
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof CategoryNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }
@@ -65,6 +95,10 @@ export const deleteCategoryHandler: Handler<
         await deleteCategory(db, principal.userId, params.id);
         return ActionResult.noContent();
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof CategoryNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }
@@ -93,6 +127,10 @@ export const moveAndDeleteCategoryHandler: Handler<
         );
         return ActionResult.noContent();
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof CategoryNotFoundError) {
             return ActionResult.notFound({ message: err.message });
         }

@@ -8,6 +8,8 @@
 export const FieldLimits = {
     apiKeyName: 120,
     brandfetchBrandId: 100,
+    budgetInviteToken: 128,
+    budgetName: 120,
     categoryName: 120,
     confirmationToken: 128,
     email: 255,

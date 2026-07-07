@@ -1,6 +1,7 @@
 import { createXpenserClient } from '@xpenser/client';
 import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentSession } from '@/lib/api';
+import { selectedBudgetIdFromCookie } from '@/lib/budgets';
 import { webConfig } from '@/lib/config';
 import { periodWindowQuery } from '@/lib/period-window-query';
 
@@ -27,12 +28,16 @@ export async function GET(request: NextRequest) {
     });
 
     try {
+        const budgetId = await selectedBudgetIdFromCookie();
         return NextResponse.json(
             await client.stats.window({
-                query: periodWindowQuery(
-                    request.nextUrl.searchParams,
-                    session.user.timezone
-                )
+                query: {
+                    ...periodWindowQuery(
+                        request.nextUrl.searchParams,
+                        session.user.timezone
+                    ),
+                    ...(budgetId ? { budgetId } : {})
+                }
             })
         );
     } catch (err) {

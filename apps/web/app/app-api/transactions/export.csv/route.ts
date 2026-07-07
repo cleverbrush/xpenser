@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentSession } from '@/lib/api';
+import { selectedBudgetIdFromCookie } from '@/lib/budgets';
 import { webConfig } from '@/lib/config';
 import { buildTransactionListQuery } from '@/lib/transaction-query';
 
@@ -8,10 +9,14 @@ export const runtime = 'nodejs';
 
 function exportApiQuery(
     params: URLSearchParams,
-    timeZone: string
+    timeZone: string,
+    budgetId?: number
 ): URLSearchParams {
     const query = buildTransactionListQuery(params, {}, timeZone);
     const exportParams = new URLSearchParams();
+    if (budgetId) {
+        exportParams.set('budgetId', String(budgetId));
+    }
     const currencies = params.get('currencies');
     if (currencies) {
         exportParams.set('currencies', currencies);
@@ -55,9 +60,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
+    const budgetId = await selectedBudgetIdFromCookie();
     const query = exportApiQuery(
         request.nextUrl.searchParams,
-        session.user.timezone
+        session.user.timezone,
+        budgetId
     );
     if (!query.get('currencies')) {
         return NextResponse.json(
