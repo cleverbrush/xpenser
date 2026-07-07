@@ -8,6 +8,7 @@ import { dateToLocalDateParam, defaultTimeZone } from '@xpenser/timezone';
 import type { Config } from '../config.js';
 import type { AppDb, UserDb } from '../db/schemas.js';
 import { FrankfurterCurrencyCatalogFallback } from '../log-templates.js';
+import { resolveBudgetAccess } from './budgets.js';
 import { frankfurterCurrencyCatalog } from './frankfurter-currency-catalog.js';
 
 type FrankfurterCurrencyResponse =
@@ -204,8 +205,9 @@ export async function convertCurrencyForUser(
         throw new Error('User was not found.');
     }
 
+    const access = await resolveBudgetAccess(db, userId, query.budgetId);
     const currency = query.currency.trim().toUpperCase();
-    const defaultCurrency = user.defaultCurrency.trim().toUpperCase();
+    const defaultCurrency = access.budget.defaultCurrency.trim().toUpperCase();
     const rateDate = transactionDate(
         query.occurredAt ?? new Date(),
         user.timezone

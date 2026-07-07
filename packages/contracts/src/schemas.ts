@@ -440,11 +440,21 @@ export const BudgetPermissionsSchema = object({
 export const BudgetSchema = object({
     /** Unique budget identifier. */
     id: number().describe('Unique budget identifier.'),
-    /** Budget name shown in navigation and reports. */
-    name: string().describe('Budget name shown in navigation and reports.'),
+    /** Budget name shown to the current user in navigation and reports. */
+    name: string().describe(
+        'Budget name shown to the current user in navigation and reports.'
+    ),
     /** Default currency used for new transactions and reports in this budget. */
     defaultCurrency: CurrencyCodeSchema.describe(
         'Default currency used for new transactions and reports in this budget.'
+    ),
+    /** Favorite currencies offered when entering transactions in this budget. */
+    favoriteCurrencies: array(CurrencyCodeSchema).describe(
+        'Favorite currencies offered when entering transactions in this budget.'
+    ),
+    /** Transaction entry currencies ordered by recent usage popularity in this budget. */
+    transactionCurrencies: array(CurrencyCodeSchema).describe(
+        'Transaction entry currencies ordered by recent usage popularity in this budget.'
     ),
     /** Country used to localize vendor enrichment in this budget. */
     countryCode: CountryCodeSchema.describe(
@@ -494,16 +504,24 @@ const BudgetIdSchema = number()
     );
 
 export const CreateBudgetBodySchema = object({
-    /** Budget name shown in navigation and reports. */
+    /** Budget name shown to the creator in navigation and reports. */
     name: string()
         .required('budget name is required')
         .nonempty('budget name is required')
         .maxLength(FieldLimits.budgetName, 'budget name is too long')
-        .describe('Budget name shown in navigation and reports.'),
+        .describe(
+            'Budget name shown to the creator in navigation and reports.'
+        ),
     /** Default currency used for new transactions and reports in this budget. */
     defaultCurrency: CurrencyCodeSchema.optional().describe(
         'Default currency used for new transactions and reports in this budget.'
     ),
+    /** Favorite currencies offered when entering transactions in this budget. */
+    favoriteCurrencies: array(CurrencyCodeSchema)
+        .default([])
+        .describe(
+            'Favorite currencies offered when entering transactions in this budget.'
+        ),
     /** Country used to localize vendor enrichment in this budget. */
     countryCode: CountryCodeSchema.optional().describe(
         'Country used to localize vendor enrichment in this budget.'
@@ -511,16 +529,24 @@ export const CreateBudgetBodySchema = object({
 }).schemaName('CreateBudgetBody');
 
 export const UpdateBudgetBodySchema = object({
-    /** Budget name shown in navigation and reports. */
+    /** Budget name shown only to the current user in navigation and reports. */
     name: string()
         .minLength(1, 'budget name is required')
         .maxLength(FieldLimits.budgetName, 'budget name is too long')
         .optional()
-        .describe('Budget name shown in navigation and reports.'),
+        .describe(
+            'Budget name shown only to the current user in navigation and reports.'
+        ),
     /** Default currency used for new transactions and reports in this budget. */
     defaultCurrency: CurrencyCodeSchema.optional().describe(
         'Default currency used for new transactions and reports in this budget.'
     ),
+    /** Favorite currencies offered when entering transactions in this budget. */
+    favoriteCurrencies: array(CurrencyCodeSchema)
+        .optional()
+        .describe(
+            'Favorite currencies offered when entering transactions in this budget.'
+        ),
     /** Country used to localize vendor enrichment in this budget. */
     countryCode: CountryCodeSchema.optional().describe(
         'Country used to localize vendor enrichment in this budget.'
@@ -577,7 +603,13 @@ export const AcceptBudgetInvitationBodySchema = object({
             FieldLimits.budgetInviteToken,
             'invitation token is too long'
         )
-        .describe('One-time budget invitation token from the magic link.')
+        .describe('One-time budget invitation token from the magic link.'),
+    /** Budget name shown only to the accepting user. */
+    name: string()
+        .required('budget name is required')
+        .nonempty('budget name is required')
+        .maxLength(FieldLimits.budgetName, 'budget name is too long')
+        .describe('Budget name shown only to the accepting user.')
 }).schemaName('AcceptBudgetInvitationBody');
 
 export const BudgetInvitationResponseSchema = object({
@@ -803,17 +835,9 @@ export const McpOAuthAuthorizeResponseSchema = object({
 }).schemaName('McpOAuthAuthorizeResponse');
 
 export const UpdateUserPreferenceBodySchema = object({
-    /** Default currency used for reports and new transactions. */
-    defaultCurrency: CurrencyCodeSchema.describe(
-        'Default currency used for reports and new transactions.'
-    ),
     /** Country used to localize vendor enrichment. */
     countryCode: CountryCodeSchema.optional().describe(
         'Country used to localize vendor enrichment.'
-    ),
-    /** Favorite currencies offered when entering transactions. */
-    favoriteCurrencies: array(CurrencyCodeSchema).describe(
-        'Favorite currencies offered when entering transactions.'
     ),
     /** Time zone used for transaction display and reporting periods. */
     timezone: TimeZoneSchema.optional().describe(
@@ -938,6 +962,8 @@ export const CurrencySchema = object({
 }).schemaName('Currency');
 
 export const CurrencyConversionQuerySchema = object({
+    /** Budget identifier. Defaults to the authenticated user Main budget. */
+    budgetId: BudgetIdSchema,
     /** Amount entered by the user in the original currency. */
     amount: decimalNumber()
         .required('amount is required')
@@ -963,13 +989,13 @@ export const CurrencyConversionSchema = object({
     currency: CurrencyCodeSchema.describe(
         'Currency used for the entered amount.'
     ),
-    /** Amount converted to the user default currency. */
+    /** Amount converted to the budget default currency. */
     defaultCurrencyAmount: decimalNumber().describe(
-        'Amount converted to the user default currency.'
+        'Amount converted to the budget default currency.'
     ),
-    /** User default currency used for conversion. */
+    /** Budget default currency used for conversion. */
     defaultCurrency: CurrencyCodeSchema.describe(
-        'User default currency used for conversion.'
+        'Budget default currency used for conversion.'
     ),
     /** Exchange rate used for the conversion. */
     exchangeRate: decimalNumber().describe(
@@ -1478,13 +1504,13 @@ export const TransactionSchema = object({
     currency: CurrencyCodeSchema.describe(
         'Currency used for the entered amount.'
     ),
-    /** Amount converted to the user default currency at write time. */
+    /** Amount converted to the budget default currency at write time. */
     defaultCurrencyAmount: decimalNumber().describe(
-        'Amount converted to the user default currency at write time.'
+        'Amount converted to the budget default currency at write time.'
     ),
-    /** User default currency used when the transaction was converted. */
+    /** Budget default currency used when the transaction was converted. */
     defaultCurrency: CurrencyCodeSchema.describe(
-        'User default currency used when the transaction was converted.'
+        'Budget default currency used when the transaction was converted.'
     ),
     /** Exchange rate used for the default-currency amount. */
     exchangeRate: decimalNumber().describe(
@@ -2361,13 +2387,13 @@ export const StatsTrendPointSchema = object({
     bucket: string().describe('Stable date or month bucket key.'),
     /** Short label shown on charts. */
     label: string().describe('Short label shown on charts.'),
-    /** Income total in the user's default currency. */
+    /** Income total in the budget default currency. */
     incomeTotal: decimalNumber().describe(
-        "Income total in the user's default currency."
+        'Income total in the budget default currency.'
     ),
-    /** Expense total in the user's default currency. */
+    /** Expense total in the budget default currency. */
     expenseTotal: decimalNumber().describe(
-        "Expense total in the user's default currency."
+        'Expense total in the budget default currency.'
     ),
     /** Income minus expense total for the bucket. */
     netTotal: decimalNumber().describe(
@@ -2398,9 +2424,9 @@ export const StatsCategoryTotalSchema = object({
     ),
     /** Transaction direction. */
     type: CategoryTypeSchema.describe('Transaction direction.'),
-    /** Category total in the user's default currency on the reported side. */
+    /** Category total in the budget default currency on the reported side. */
     total: decimalNumber().describe(
-        "Category total in the user's default currency on the reported side."
+        'Category total in the budget default currency on the reported side.'
     ),
     /** Share of the matching income or expense total, as a percentage. */
     share: decimalNumber().describe(
@@ -2460,9 +2486,9 @@ export const StatsTagTrendPointSchema = object({
     bucket: string().describe('Stable date or month bucket key.'),
     /** Short label shown on charts. */
     label: string().describe('Short label shown on charts.'),
-    /** Expense total in the user's default currency. */
+    /** Expense total in the budget default currency. */
     expenseTotal: decimalNumber().describe(
-        "Expense total in the user's default currency."
+        'Expense total in the budget default currency.'
     ),
     /** Number of expense transactions in the bucket. */
     transactionCount: number().describe(
@@ -2479,9 +2505,9 @@ export const StatsTagTotalSchema = object({
     tagName: string().describe('Tag name shown in reports.'),
     /** Tag bucket kind. */
     kind: StatsTagKindSchema.describe('Tag bucket kind.'),
-    /** Tag total in the user's default currency. */
+    /** Tag total in the budget default currency. */
     total: decimalNumber().describe(
-        "Tag total in the user's default currency."
+        'Tag total in the budget default currency.'
     ),
     /** Share of selected period expenses, as a percentage. */
     share: decimalNumber().describe(
@@ -2518,9 +2544,9 @@ export const StatsTagVendorTotalSchema = object({
     vendorPrimaryColor: string()
         .optional()
         .describe('Vendor primary color, when available.'),
-    /** Vendor total in the user's default currency. */
+    /** Vendor total in the budget default currency. */
     total: decimalNumber().describe(
-        "Vendor total in the user's default currency."
+        'Vendor total in the budget default currency.'
     ),
     /** Number of selected-period expense transactions for this vendor. */
     transactionCount: number().describe(
@@ -2537,9 +2563,9 @@ export const StatsTagDetailSchema = object({
     tagName: string().describe('Selected tag name shown in reports.'),
     /** Selected tag bucket kind. */
     kind: StatsTagKindSchema.describe('Selected tag bucket kind.'),
-    /** Selected tag total in the user's default currency. */
+    /** Selected tag total in the budget default currency. */
     total: decimalNumber().describe(
-        "Selected tag total in the user's default currency."
+        'Selected tag total in the budget default currency.'
     ),
     /** Selected tag share of period expenses, as a percentage. */
     share: decimalNumber().describe(
@@ -2776,9 +2802,9 @@ export const CategoryTrendPointSchema = object({
     to: date()
         .coerce()
         .describe('Bucket end timestamp, clipped to the selected range.'),
-    /** Category total in the user's default currency on the reported side. */
+    /** Category total in the budget default currency on the reported side. */
     total: decimalNumber().describe(
-        "Category total in the user's default currency on the reported side."
+        'Category total in the budget default currency on the reported side.'
     ),
     /** Number of transactions in the bucket. */
     transactionCount: number().describe('Number of transactions in the bucket.')
@@ -2817,9 +2843,9 @@ export const CategoryTrendResponseSchema = object({
     to: date().coerce().describe('Selected range end timestamp.'),
     /** Currency used for totals. */
     currency: CurrencyCodeSchema.describe('Currency used for totals.'),
-    /** Category total in the user's default currency on the reported side. */
+    /** Category total in the budget default currency on the reported side. */
     total: decimalNumber().describe(
-        "Category total in the user's default currency on the reported side."
+        'Category total in the budget default currency on the reported side.'
     ),
     /** Number of selected-range transactions in the category. */
     transactionCount: number().describe(

@@ -38,6 +38,8 @@ function budget(overrides: Partial<Budget> = {}): Budget {
         id: 1,
         name: 'Main',
         defaultCurrency: 'USD',
+        favoriteCurrencies: [],
+        transactionCurrencies: ['USD'],
         countryCode: 'US',
         role: 'admin',
         permissions: {
@@ -96,7 +98,6 @@ function renderSettings({
             currencies={currencies}
             currentUserId={1}
             membersByBudget={membersByBudget}
-            userDefaultCurrency="USD"
         />
     );
 }
@@ -112,21 +113,22 @@ describe('BudgetSettings', () => {
         updateBudgetAction.mockReset();
     });
 
-    it('creates budgets from name and currency only', () => {
+    it('creates budgets from name and budget currencies only', () => {
         renderSettings();
 
         expect(screen.getByPlaceholderText('Shared household')).toBeTruthy();
-        expect(screen.getAllByText('Currency').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Primary').length).toBeGreaterThan(0);
+        expect(
+            screen.getAllByText('Favorite currencies').length
+        ).toBeGreaterThan(0);
         expect(screen.queryByLabelText('Country')).toBeNull();
     });
 
-    it('asks admins to rename Main before inviting members', () => {
+    it('lets admins invite members to Main with a personal budget name', () => {
         renderSettings();
 
-        expect(
-            screen.getByText('Rename this budget before inviting members.')
-        ).toBeTruthy();
-        expect(screen.queryByLabelText('Invite email')).toBeNull();
+        expect(screen.getByLabelText('Invite email')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'Invite' })).toBeTruthy();
     });
 
     it('shows archive controls for active budgets and restore/delete for archived budgets', () => {

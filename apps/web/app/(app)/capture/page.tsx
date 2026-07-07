@@ -11,6 +11,8 @@ export default async function CapturePage() {
     const selectedBudget = await selectedBudgetForUser(me);
     const defaultCurrency =
         selectedBudget?.defaultCurrency ?? me.defaultCurrency;
+    const transactionCurrencies =
+        selectedBudget?.transactionCurrencies ?? me.transactionCurrencies;
     const [
         categories,
         currencies,
@@ -47,7 +49,7 @@ export default async function CapturePage() {
                 vendors={vendors}
                 transactionTags={transactionTags}
                 timezone={me.timezone}
-                transactionCurrencies={me.transactionCurrencies}
+                transactionCurrencies={transactionCurrencies}
             />
         </div>
     );

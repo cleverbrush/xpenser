@@ -3,7 +3,7 @@
  */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import type { Currency, UserPreference } from '@xpenser/contracts';
+import type { UserPreference } from '@xpenser/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PreferencesForm } from './preferences-form';
 import { XpenserWebFormProvider } from './schema-fields';
@@ -14,11 +14,6 @@ vi.mock('@/lib/actions', () => ({
     updatePreferencesAction: (formData: FormData) =>
         updatePreferencesAction(formData)
 }));
-
-const currencies: Currency[] = [
-    { code: 'USD', name: 'US dollar' },
-    { code: 'EUR', name: 'Euro' }
-];
 
 const me: UserPreference = {
     id: 1,
@@ -35,6 +30,8 @@ const me: UserPreference = {
             id: 1,
             name: 'Main',
             defaultCurrency: 'USD',
+            favoriteCurrencies: ['EUR'],
+            transactionCurrencies: ['USD', 'EUR'],
             countryCode: 'US',
             role: 'admin',
             permissions: {
@@ -66,7 +63,7 @@ describe('PreferencesForm', () => {
 
         render(
             <XpenserWebFormProvider>
-                <PreferencesForm currencies={currencies} me={me} />
+                <PreferencesForm me={me} />
             </XpenserWebFormProvider>
         );
 
@@ -83,7 +80,6 @@ describe('PreferencesForm', () => {
 
         const formData = updatePreferencesAction.mock.calls.at(0)?.[0];
         expect(formData).toBeInstanceOf(FormData);
-        expect(formData?.getAll('favoriteCurrencies')).toEqual(['EUR']);
         expect(formData?.get('weeklyEmailReportEnabled')).toBe('false');
         expect(formData?.get('monthlyEmailReportEnabled')).toBe('true');
     });

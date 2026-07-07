@@ -57,6 +57,8 @@ export default async function StatsPage({
     const selectedBudget = await selectedBudgetForUser(me);
     const defaultCurrency =
         selectedBudget?.defaultCurrency ?? me.defaultCurrency;
+    const favoriteCurrencies =
+        selectedBudget?.favoriteCurrencies ?? me.favoriteCurrencies;
     const selectedDate = parseDateParam(params.date, me.timezone);
     const anchorDate = selectedDate ?? new Date();
     const initialView = reportView(params.view);
@@ -89,7 +91,7 @@ export default async function StatsPage({
         <StatsExplorer
             currencies={currencies}
             defaultCurrency={defaultCurrency}
-            favoriteCurrencies={me.favoriteCurrencies}
+            favoriteCurrencies={favoriteCurrencies}
             initialDate={initialStatsDate(window, anchorDate, me.timezone)}
             initialPeriod={period}
             initialTag={initialTag}

@@ -77,6 +77,7 @@ export async function up(knex: Knex): Promise<void> {
             .references('id')
             .inTable('users')
             .onDelete('CASCADE');
+        table.string('display_name', 120).notNullable();
         table.string('role', 32).notNullable();
         table.boolean('can_create_transactions').notNullable().defaultTo(true);
         table.boolean('can_update_transactions').notNullable().defaultTo(false);
@@ -97,6 +98,19 @@ export async function up(knex: Knex): Promise<void> {
             constraintName: 'pk_budget_members'
         });
         table.index(['user_id'], 'idx_budget_members_user_id');
+    });
+
+    await knex.schema.createTable('budget_favorite_currencies', table => {
+        table
+            .integer('budget_id')
+            .notNullable()
+            .references('id')
+            .inTable('budgets')
+            .onDelete('CASCADE');
+        table.string('currency', 3).notNullable();
+        table.primary(['budget_id', 'currency'], {
+            constraintName: 'pk_budget_favorite_currencies'
+        });
     });
 
     await knex.schema.createTable('budget_invitations', table => {
@@ -156,6 +170,7 @@ export async function up(knex: Knex): Promise<void> {
         insert into budget_members (
             budget_id,
             user_id,
+            display_name,
             role,
             can_create_transactions,
             can_update_transactions,
@@ -168,6 +183,7 @@ export async function up(knex: Knex): Promise<void> {
         select
             main_budget_id,
             id,
+            'Main',
             'admin',
             true,
             true,
@@ -179,6 +195,16 @@ export async function up(knex: Knex): Promise<void> {
         from users
         where main_budget_id is not null
     `);
+
+    await knex.raw(`
+        insert into budget_favorite_currencies (budget_id, currency)
+        select distinct u.main_budget_id, currency.currency
+        from user_favorite_currencies currency
+        join users u on u.id = currency.user_id
+        where u.main_budget_id is not null
+    `);
+
+    await knex.schema.dropTableIfExists('user_favorite_currencies');
 
     for (const tableName of budgetScopedTables) {
         await addBudgetColumn(knex, tableName);
@@ -343,6 +369,25 @@ export async function down(knex: Knex): Promise<void> {
     });
 
     await knex.schema.dropTableIfExists('budget_invitations');
+    await knex.schema.createTable('user_favorite_currencies', table => {
+        table
+            .integer('user_id')
+            .notNullable()
+            .references('id')
+            .inTable('users')
+            .onDelete('CASCADE');
+        table.string('currency', 3).notNullable();
+        table.primary(['user_id', 'currency']);
+    });
+    await knex.raw(`
+        insert into user_favorite_currencies (user_id, currency)
+        select distinct u.id, currency.currency
+        from users u
+        join budget_favorite_currencies currency
+          on currency.budget_id = u.main_budget_id
+        where u.main_budget_id is not null
+    `);
+    await knex.schema.dropTableIfExists('budget_favorite_currencies');
     await knex.schema.dropTableIfExists('budget_members');
 
     await knex.schema.alterTable('users', table => {

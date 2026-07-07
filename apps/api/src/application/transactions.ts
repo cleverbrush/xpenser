@@ -335,12 +335,15 @@ async function loadTransactionCreators(
 
 async function loadFavoriteCurrencies(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<string[]> {
-    const rows = await db.favoriteCurrencies
-        .where(currency => currency.userId, userId)
-        .orderBy(currency => currency.currency, 'asc');
-    return rows.map(row => row.currency);
+    const rows = await db.budgetFavoriteCurrencies.where(
+        currency => currency.budgetId,
+        budgetId
+    );
+    return rows
+        .map(row => row.currency.trim().toUpperCase())
+        .sort((left, right) => left.localeCompare(right));
 }
 
 function categoryFields(
@@ -1113,11 +1116,11 @@ export async function exportTransactionsCsv(
     query: TransactionExportQuery,
     knex?: Knex
 ): Promise<{ readonly csv: string; readonly fileName: string }> {
-    const [user, favorites, access] = await Promise.all([
+    const [user, access] = await Promise.all([
         getUser(db, userId),
-        loadFavoriteCurrencies(db, userId),
         resolveBudgetAccess(db, userId, query.budgetId)
     ]);
+    const favorites = await loadFavoriteCurrencies(db, access.budget.id);
     const allowedCurrencies = new Set(
         [access.budget.defaultCurrency, ...favorites].map(currency =>
             currency.trim().toUpperCase()

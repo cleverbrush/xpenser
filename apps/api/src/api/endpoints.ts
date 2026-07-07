@@ -81,7 +81,7 @@ export const GetMeEndpoint = api.auth.me
     .inject({ db: DbToken })
     .summary('Current user')
     .description(
-        'Returns preferences and transaction currency ordering for the authenticated user.'
+        'Returns preferences, accessible budgets, and derived transaction currency ordering for the authenticated user.'
     )
     .tags('users')
     .operationId('getCurrentUser');
@@ -91,7 +91,7 @@ export const UpdatePreferencesEndpoint = api.users.updatePreferences
     .inject({ db: DbToken })
     .summary('Update preferences')
     .description(
-        'Updates the current user default currency, favorite currencies, and timezone.'
+        'Updates the current user country, timezone, and email report preferences.'
     )
     .tags('users')
     .operationId('updateUserPreferences');
@@ -286,7 +286,7 @@ export const ConvertCurrencyEndpoint = api.currencies.convert
     .inject({ db: DbToken, config: ConfigToken })
     .summary('Convert currency')
     .description(
-        'Converts an entered amount to the authenticated user default currency.'
+        'Converts an entered amount to the selected budget default currency.'
     )
     .tags('currencies')
     .operationId('convertCurrency');

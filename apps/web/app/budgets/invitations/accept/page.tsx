@@ -4,7 +4,8 @@ import {
     CardContent,
     CardDescription,
     CardHeader,
-    CardTitle
+    CardTitle,
+    Input
 } from '@xpenser/ui';
 import Link from 'next/link';
 import { acceptBudgetInvitationAction } from '@/lib/actions';
@@ -42,6 +43,20 @@ export default async function AcceptBudgetInvitationPage({
                             className="flex flex-col gap-3"
                         >
                             <input name="token" type="hidden" value={token} />
+                            <label
+                                className="grid gap-1 text-sm"
+                                htmlFor="budget-name"
+                            >
+                                <span className="font-medium">Budget name</span>
+                                <Input
+                                    autoComplete="off"
+                                    id="budget-name"
+                                    maxLength={120}
+                                    name="name"
+                                    placeholder="Shared household"
+                                    required
+                                />
+                            </label>
                             <Button type="submit">Join budget</Button>
                             <Button asChild type="button" variant="outline">
                                 <Link href="/dashboard">Not now</Link>

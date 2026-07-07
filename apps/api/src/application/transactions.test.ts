@@ -42,6 +42,7 @@ function budgetAccessTables() {
     const member = {
         budgetId: 1,
         userId: 1,
+        displayName: 'Main',
         role: 'admin',
         canCreateTransactions: true,
         canUpdateTransactions: true,
@@ -1064,10 +1065,8 @@ describe('transaction CSV export', () => {
                     timezone: 'UTC'
                 }))
             },
-            favoriteCurrencies: {
-                where: vi.fn(() => ({
-                    orderBy: vi.fn(async () => [{ currency: 'EUR' }])
-                }))
+            budgetFavoriteCurrencies: {
+                where: vi.fn(async () => [{ budgetId: 1, currency: 'EUR' }])
             },
             transactions: {
                 include: vi.fn(() => transactionQuery)

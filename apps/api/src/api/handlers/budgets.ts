@@ -176,7 +176,12 @@ export const acceptBudgetInvitationHandler: Handler<
     typeof AcceptBudgetInvitationEndpoint
 > = async ({ body, principal }, { db }) => {
     try {
-        return await acceptBudgetInvitation(db, principal.userId, body.token);
+        return await acceptBudgetInvitation(
+            db,
+            principal.userId,
+            body.token,
+            body.name
+        );
     } catch (err) {
         if (err instanceof BudgetInvitationInvalidError) {
             return ActionResult.badRequest({ message: err.message });

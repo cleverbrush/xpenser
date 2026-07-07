@@ -425,26 +425,31 @@ function vendorById(
 function preferredCurrency(
     me: UserPreference,
     currencies: readonly Currency[],
-    value: string | null | undefined
+    value: string | null | undefined,
+    budgetId?: number
 ): string {
-    const options = preferredCurrencies(me, currencies);
+    const options = preferredCurrencies(me, currencies, budgetId);
+    const budget = budgetId
+        ? me.budgets.find(candidate => candidate.id === budgetId)
+        : undefined;
     const normalized = value?.trim().toUpperCase();
     return normalized && options.includes(normalized)
         ? normalized
-        : (options[0] ?? me.defaultCurrency);
+        : (options[0] ?? budget?.defaultCurrency ?? me.defaultCurrency);
 }
 
 function initialScanValues(
     draft: TransactionScanDraft,
     me: UserPreference,
     categories: readonly Category[],
-    currencies: readonly Currency[]
+    currencies: readonly Currency[],
+    budgetId: number
 ): ScanDraftValues {
     const transactionType = draftCategoryType(draft, categories);
     return {
         amount: draft.amount,
         categoryId: draft.categoryId,
-        currency: preferredCurrency(me, currencies, draft.currency),
+        currency: preferredCurrency(me, currencies, draft.currency, budgetId),
         occurredAt: draft.occurredAt ?? new Date(),
         note: draft.note ?? '',
         transactionType,
@@ -456,12 +461,13 @@ function valuesForScan(
     scan: TransactionScanResponse,
     me: UserPreference,
     categories: readonly Category[],
-    currencies: readonly Currency[]
+    currencies: readonly Currency[],
+    budgetId: number
 ): Record<number, ScanDraftValues> {
     return Object.fromEntries(
         scan.drafts.map(draft => [
             draft.id,
-            initialScanValues(draft, me, categories, currencies)
+            initialScanValues(draft, me, categories, currencies, budgetId)
         ])
     );
 }
@@ -878,10 +884,10 @@ export class XpenserTelegramBot {
                 return;
             }
 
-            if (preferredCurrencies(me, currencies).length === 0) {
+            if (preferredCurrencies(me, currencies, budget.id).length === 0) {
                 await this.#bot.sendMessage(
                     msg.chat.id,
-                    '💱 Set a default or favorite currency in xpenser Preferences first.',
+                    '💱 Set a primary or favorite currency for this budget in xpenser first.',
                     {
                         reply_markup: quickAddReplyKeyboard()
                     }
@@ -1046,7 +1052,13 @@ export class XpenserTelegramBot {
                 vendors,
                 scan,
                 attachment: body,
-                values: valuesForScan(scan, me, categories, currencies),
+                values: valuesForScan(
+                    scan,
+                    me,
+                    categories,
+                    currencies,
+                    budget.id
+                ),
                 decisions: {},
                 index: 0,
                 attachmentSubmitted: false,
@@ -1294,7 +1306,11 @@ export class XpenserTelegramBot {
 
         if (draft.step === 'currency') {
             await this.#bot.sendMessage(chatId, '💱 Choose a currency.', {
-                reply_markup: currencyKeyboard(draft.me, draft.currencies)
+                reply_markup: currencyKeyboard(
+                    draft.me,
+                    draft.currencies,
+                    draft.budgetId
+                )
             });
             return;
         }
@@ -1407,7 +1423,11 @@ export class XpenserTelegramBot {
             };
             this.#sessions.set(key, next);
             await this.#bot.sendMessage(chatId, '💱 Choose currency.', {
-                reply_markup: currencyKeyboard(session.me, session.currencies)
+                reply_markup: currencyKeyboard(
+                    session.me,
+                    session.currencies,
+                    session.budgetId
+                )
             });
             return;
         }
@@ -1497,9 +1517,11 @@ export class XpenserTelegramBot {
         if (session.step === 'edit-currency' && data.startsWith('cur:')) {
             const currency = data.slice('cur:'.length).trim().toUpperCase();
             if (
-                !preferredCurrencies(session.me, session.currencies).includes(
-                    currency
-                )
+                !preferredCurrencies(
+                    session.me,
+                    session.currencies,
+                    session.budgetId
+                ).includes(currency)
             ) {
                 await this.#bot.sendMessage(
                     chatId,
@@ -1656,7 +1678,11 @@ export class XpenserTelegramBot {
             };
             this.#sessions.set(key, next);
             await this.#bot.sendMessage(chatId, '💱 Choose currency.', {
-                reply_markup: currencyKeyboard(draft.me, draft.currencies)
+                reply_markup: currencyKeyboard(
+                    draft.me,
+                    draft.currencies,
+                    draft.budgetId
+                )
             });
             return;
         }
@@ -1666,7 +1692,11 @@ export class XpenserTelegramBot {
                 chatId,
                 '💱 Please choose a currency button.',
                 {
-                    reply_markup: currencyKeyboard(draft.me, draft.currencies)
+                    reply_markup: currencyKeyboard(
+                        draft.me,
+                        draft.currencies,
+                        draft.budgetId
+                    )
                 }
             );
             return;
@@ -1832,7 +1862,11 @@ export class XpenserTelegramBot {
     ): Promise<void> {
         const currency = value.trim().toUpperCase();
         if (
-            !preferredCurrencies(draft.me, draft.currencies).includes(currency)
+            !preferredCurrencies(
+                draft.me,
+                draft.currencies,
+                draft.budgetId
+            ).includes(currency)
         ) {
             await this.#bot.sendMessage(
                 chatId,
@@ -1842,7 +1876,10 @@ export class XpenserTelegramBot {
         }
 
         try {
-            const defaultCurrency = draft.me.defaultCurrency
+            const budget = activeBudget(draft.me, draft.budgetId);
+            const defaultCurrency = (
+                budget?.defaultCurrency ?? draft.me.defaultCurrency
+            )
                 .trim()
                 .toUpperCase();
             const conversion =
@@ -1858,6 +1895,7 @@ export class XpenserTelegramBot {
                     : await (await this.userClient(user)).currencies.convert({
                           query: {
                               amount: draft.amount,
+                              budgetId: draft.budgetId,
                               currency,
                               occurredAt: new Date()
                           }
@@ -1916,7 +1954,11 @@ export class XpenserTelegramBot {
                 apiErrorMessage(err) ??
                     'Could not get this exchange rate. Choose another currency or try again.',
                 {
-                    reply_markup: currencyKeyboard(draft.me, draft.currencies)
+                    reply_markup: currencyKeyboard(
+                        draft.me,
+                        draft.currencies,
+                        draft.budgetId
+                    )
                 }
             );
         }

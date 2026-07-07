@@ -915,6 +915,7 @@ function scanPrompt() {
 function promptInput({
     categories,
     correctionExamples,
+    defaultCurrency,
     imageProcessing,
     recentTransactions,
     user,
@@ -922,6 +923,7 @@ function promptInput({
 }: {
     readonly categories: readonly Category[];
     readonly correctionExamples: readonly CorrectionExample[];
+    readonly defaultCurrency: string;
     readonly imageProcessing: PreparedScanImages['promptContext'];
     readonly recentTransactions: readonly Transaction[];
     readonly user: UserDb;
@@ -929,7 +931,7 @@ function promptInput({
 }) {
     return {
         user: {
-            defaultCurrency: user.defaultCurrency,
+            defaultCurrency,
             timezone: user.timezone,
             localToday: dateToLocalDateParam(new Date(), user.timezone)
         },
@@ -1026,6 +1028,7 @@ export async function scanTransactionsFromImage(
                         promptInput({
                             categories,
                             correctionExamples: examples,
+                            defaultCurrency: access.budget.defaultCurrency,
                             imageProcessing: preparedImages.promptContext,
                             recentTransactions,
                             user,
@@ -1064,7 +1067,7 @@ export async function scanTransactionsFromImage(
     for (const raw of rawTransactions.slice(0, maxDrafts)) {
         const sanitized = sanitizeDraft({
             categories,
-            defaultCurrency: user.defaultCurrency,
+            defaultCurrency: access.budget.defaultCurrency,
             raw,
             recentTransactions,
             timezone: user.timezone,

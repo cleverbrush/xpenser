@@ -139,9 +139,7 @@ describe('shared schemas', () => {
         expect(TimeZoneSchema.validate('Not/AZone').valid).toBe(false);
         expect(
             UpdateUserPreferenceBodySchema.validate({
-                defaultCurrency: 'USD',
                 countryCode: 'US',
-                favoriteCurrencies: ['EUR'],
                 timezone: 'Europe/London'
             }).valid
         ).toBe(true);
@@ -149,9 +147,7 @@ describe('shared schemas', () => {
 
     it('rejects preference and Passport identity values longer than DB columns', () => {
         const timezoneResult = UpdateUserPreferenceBodySchema.validate({
-            defaultCurrency: 'USD',
             countryCode: 'US',
-            favoriteCurrencies: ['EUR'],
             timezone: 'A'.repeat(FieldLimits.timeZone + 1)
         });
         expect(timezoneResult.valid).toBe(false);
@@ -187,6 +183,8 @@ describe('shared schemas', () => {
                     id: 1,
                     name: 'Main',
                     defaultCurrency: 'USD',
+                    favoriteCurrencies: ['EUR'],
+                    transactionCurrencies: ['EUR', 'USD'],
                     countryCode: 'US',
                     role: 'admin',
                     permissions: {
@@ -216,6 +214,8 @@ describe('shared schemas', () => {
             id: 1,
             name: 'Household',
             defaultCurrency: 'USD',
+            favoriteCurrencies: ['EUR'],
+            transactionCurrencies: ['EUR', 'USD'],
             countryCode: 'US',
             role: 'admin',
             permissions: {
@@ -238,6 +238,7 @@ describe('shared schemas', () => {
             UpdateBudgetBodySchema.validate({
                 archived: true,
                 defaultCurrency: 'EUR',
+                favoriteCurrencies: ['USD', 'GBP'],
                 name: 'Shared household'
             }).valid
         ).toBe(true);
@@ -271,9 +272,7 @@ describe('shared schemas', () => {
 
     it('defaults email report preferences to enabled when updating preferences', () => {
         const result = UpdateUserPreferenceBodySchema.validate({
-            defaultCurrency: 'USD',
             countryCode: 'US',
-            favoriteCurrencies: ['EUR'],
             timezone: 'UTC'
         });
 

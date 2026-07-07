@@ -243,13 +243,36 @@ function categoryBody(formData: FormData) {
     };
 }
 
-function budgetBody(formData: FormData) {
+function budgetCreateBody(formData: FormData) {
     const countryCode = optionalString(formData, 'countryCode');
+    const defaultCurrency = requiredString(formData, 'defaultCurrency')
+        .trim()
+        .toUpperCase();
     return {
         name: requiredString(formData, 'name'),
-        defaultCurrency: requiredString(formData, 'defaultCurrency')
-            .trim()
-            .toUpperCase(),
+        defaultCurrency,
+        favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency),
+        ...(countryCode ? { countryCode: countryCode.toUpperCase() } : {})
+    };
+}
+
+function budgetUpdateBody(formData: FormData) {
+    const name = optionalString(formData, 'name');
+    const defaultCurrency = optionalString(formData, 'defaultCurrency')
+        ?.trim()
+        .toUpperCase();
+    const countryCode = optionalString(formData, 'countryCode');
+    return {
+        ...(name ? { name } : {}),
+        ...(defaultCurrency
+            ? {
+                  defaultCurrency,
+                  favoriteCurrencies: favoriteCurrencies(
+                      formData,
+                      defaultCurrency
+                  )
+              }
+            : {}),
         ...(countryCode ? { countryCode: countryCode.toUpperCase() } : {})
     };
 }
@@ -280,10 +303,17 @@ function budgetMemberRole(formData: FormData): 'admin' | 'member' {
 }
 
 function favoriteCurrencies(formData: FormData, defaultCurrency: string) {
-    return formData
-        .getAll('favoriteCurrencies')
-        .filter((value): value is string => typeof value === 'string')
-        .filter(currency => currency !== defaultCurrency);
+    const normalizedDefault = defaultCurrency.trim().toUpperCase();
+    return Array.from(
+        new Set(
+            formData
+                .getAll('favoriteCurrencies')
+                .filter((value): value is string => typeof value === 'string')
+                .map(currency => currency.trim().toUpperCase())
+                .filter(currency => /^[A-Z]{3}$/.test(currency))
+                .filter(currency => currency !== normalizedDefault)
+        )
+    );
 }
 
 function apiErrorMessage(err: unknown): string | undefined {
@@ -780,13 +810,10 @@ export async function deleteTransactionAction(formData: FormData) {
 
 export async function updatePreferencesAction(formData: FormData) {
     const client = await getApiClient();
-    const defaultCurrency = requiredString(formData, 'defaultCurrency');
     await client.users.updatePreferences({
         body: {
-            defaultCurrency,
             countryCode:
                 optionalString(formData, 'countryCode')?.toUpperCase() ?? 'US',
-            favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency),
             timezone: optionalString(formData, 'timezone') ?? 'UTC',
             weeklyEmailReportEnabled: booleanString(
                 formData,
@@ -842,7 +869,7 @@ export async function selectBudgetAction(formData: FormData) {
 export async function createBudgetAction(formData: FormData) {
     const client = await getApiClient();
     const budget = await client.budgets.create({
-        body: budgetBody(formData)
+        body: budgetCreateBody(formData)
     });
     const cookieStore = await cookies();
     cookieStore.set(selectedBudgetCookie, String(budget.id), {
@@ -852,17 +879,17 @@ export async function createBudgetAction(formData: FormData) {
         sameSite: 'lax',
         secure: webConfig.appUrl.startsWith('https://')
     });
-    revalidatePath('/settings/preferences');
-    redirect('/settings/preferences');
+    revalidatePath('/settings/budgets');
+    redirect('/settings/budgets');
 }
 
 export async function updateBudgetAction(formData: FormData) {
     const client = await getApiClient();
     await client.budgets.update({
         params: { id: Number(requiredString(formData, 'budgetId')) },
-        body: budgetBody(formData)
+        body: budgetUpdateBody(formData)
     });
-    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
     revalidatePath('/stats');
@@ -885,7 +912,7 @@ export async function archiveBudgetAction(formData: FormData) {
         body: { archived: true }
     });
     await clearSelectedBudgetIfNeeded(budgetId);
-    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
     revalidatePath('/stats');
@@ -897,7 +924,7 @@ export async function restoreBudgetAction(formData: FormData) {
         params: { id: Number(requiredString(formData, 'budgetId')) },
         body: { archived: false }
     });
-    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
 }
 
 export async function deleteBudgetAction(formData: FormData) {
@@ -907,7 +934,7 @@ export async function deleteBudgetAction(formData: FormData) {
         params: { id: budgetId }
     });
     await clearSelectedBudgetIfNeeded(budgetId);
-    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
     revalidatePath('/dashboard');
     revalidatePath('/transactions');
     revalidatePath('/stats');
@@ -923,7 +950,7 @@ export async function inviteBudgetMemberAction(formData: FormData) {
             permissions: budgetPermissions(formData)
         }
     });
-    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
 }
 
 export async function removeBudgetMemberAction(formData: FormData) {
@@ -934,14 +961,15 @@ export async function removeBudgetMemberAction(formData: FormData) {
             userId: Number(requiredString(formData, 'userId'))
         }
     });
-    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
 }
 
 export async function acceptBudgetInvitationAction(formData: FormData) {
     const client = await getApiClient();
     const budget = await client.budgets.acceptInvitation({
         body: {
-            token: requiredString(formData, 'token')
+            token: requiredString(formData, 'token'),
+            name: requiredString(formData, 'name')
         }
     });
     const cookieStore = await cookies();
@@ -952,7 +980,7 @@ export async function acceptBudgetInvitationAction(formData: FormData) {
         sameSite: 'lax',
         secure: webConfig.appUrl.startsWith('https://')
     });
-    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
     redirect('/dashboard');
 }
 

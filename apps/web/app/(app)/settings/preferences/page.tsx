@@ -7,10 +7,15 @@ import {
     CardHeader,
     CardTitle
 } from '@xpenser/ui';
-import { FolderTreeIcon, Send, StoreIcon, Unlink } from 'lucide-react';
+import {
+    FolderTreeIcon,
+    Send,
+    StoreIcon,
+    Unlink,
+    WalletCardsIcon
+} from 'lucide-react';
 import Link from 'next/link';
 import { ApiKeysSettings } from '@/components/api-keys-settings';
-import { BudgetSettings } from '@/components/budget-settings';
 import { PreferencesForm } from '@/components/forms/preferences-form';
 import {
     createTelegramLinkAction,
@@ -21,26 +26,12 @@ import { publicAppUrl } from '@/lib/public-url';
 
 export default async function PreferencesPage() {
     const client = await getApiClient();
-    const [me, currencies, telegram, apiKeys, mcpConnections, archivedBudgets] =
-        await Promise.all([
-            client.auth.me(),
-            client.currencies.list(),
-            client.users.telegramStatus(),
-            client.users.listApiKeys(),
-            client.users.listMcpOAuthConnections(),
-            client.budgets.list({ query: { status: 'archived' } })
-        ]);
-    const memberEntries = await Promise.all(
-        me.budgets
-            .filter(budget => budget.permissions.canManageMembers)
-            .map(async budget => [
-                budget.id,
-                await client.budgets.members({
-                    params: { id: budget.id }
-                })
-            ])
-    );
-    const membersByBudget = Object.fromEntries(memberEntries);
+    const [me, telegram, apiKeys, mcpConnections] = await Promise.all([
+        client.auth.me(),
+        client.users.telegramStatus(),
+        client.users.listApiKeys(),
+        client.users.listMcpOAuthConnections()
+    ]);
     const telegramName = telegram.telegramUsername
         ? `@${telegram.telegramUsername}`
         : [telegram.telegramFirstName, telegram.telegramLastName]
@@ -53,13 +44,35 @@ export default async function PreferencesPage() {
                 <CardHeader>
                     <CardTitle>User preferences</CardTitle>
                     <CardDescription>
-                        Default currency affects future conversions. Time zone
-                        affects transaction display and reports.
+                        Country localizes vendor enrichment. Time zone affects
+                        transaction display and reports.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <PreferencesForm currencies={currencies} me={me} />
+                    <PreferencesForm me={me} />
                 </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                            <CardTitle>Budgets</CardTitle>
+                            <CardDescription>
+                                Manage budget names, currencies, sharing, and
+                                lifecycle settings.
+                            </CardDescription>
+                        </div>
+                        <Button asChild className="w-full sm:w-auto">
+                            <Link href="/settings/budgets">
+                                <WalletCardsIcon
+                                    aria-hidden
+                                    className="size-4"
+                                />
+                                Manage budgets
+                            </Link>
+                        </Button>
+                    </div>
+                </CardHeader>
             </Card>
             <Card>
                 <CardHeader>
@@ -135,14 +148,6 @@ export default async function PreferencesPage() {
                     </div>
                 </CardHeader>
             </Card>
-            <BudgetSettings
-                archivedBudgets={archivedBudgets}
-                budgets={me.budgets}
-                currencies={currencies}
-                currentUserId={me.id}
-                membersByBudget={membersByBudget}
-                userDefaultCurrency={me.defaultCurrency}
-            />
             <Card>
                 <CardHeader>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

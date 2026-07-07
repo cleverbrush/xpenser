@@ -118,13 +118,21 @@ export function scanImageSizeError(
 
 export function preferredCurrencies(
     me: UserPreference,
-    currencies: readonly Currency[]
+    currencies: readonly Currency[],
+    budgetId?: number
 ): string[] {
     const available = new Set(currencies.map(currency => currency.code));
+    const budget = budgetId
+        ? me.budgets.find(candidate => candidate.id === budgetId)
+        : undefined;
     const configured =
-        me.transactionCurrencies.length > 0
-            ? me.transactionCurrencies
-            : [me.defaultCurrency, ...me.favoriteCurrencies];
+        budget && budget.transactionCurrencies.length > 0
+            ? budget.transactionCurrencies
+            : budget
+              ? [budget.defaultCurrency, ...budget.favoriteCurrencies]
+              : me.transactionCurrencies.length > 0
+                ? me.transactionCurrencies
+                : [me.defaultCurrency, ...me.favoriteCurrencies];
     return Array.from(new Set(configured)).filter(currency =>
         available.has(currency)
     );
@@ -132,9 +140,10 @@ export function preferredCurrencies(
 
 export function currencyKeyboard(
     me: UserPreference,
-    currencies: readonly Currency[]
+    currencies: readonly Currency[],
+    budgetId?: number
 ): InlineKeyboardMarkup {
-    const rows = preferredCurrencies(me, currencies).map(currency => [
+    const rows = preferredCurrencies(me, currencies, budgetId).map(currency => [
         { text: currency, callback_data: `cur:${currency}` }
     ]);
 

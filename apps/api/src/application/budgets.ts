@@ -15,6 +15,7 @@ import type {
     BudgetDb,
     BudgetInvitationDb,
     BudgetMemberDb,
+    TransactionDb,
     UserDb
 } from '../db/schemas.js';
 import { sendEmail } from './email.js';
@@ -64,13 +65,6 @@ function normalizedBudgetName(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
 }
 
-function isMainBudgetName(value: string): boolean {
-    return (
-        normalizedBudgetName(value).toLowerCase() ===
-        mainBudgetName.toLowerCase()
-    );
-}
-
 function normalizedEmail(value: string): string {
     return value.trim().toLowerCase();
 }
@@ -86,6 +80,166 @@ function normalizeCurrency(
 ): string {
     const currency = (value ?? fallback).trim().toUpperCase();
     return /^[A-Z]{3}$/.test(currency) ? currency : fallback;
+}
+
+function normalizeCurrencyList(
+    values: readonly string[] | undefined,
+    defaultCurrency: string
+): string[] {
+    const normalizedDefault = defaultCurrency.trim().toUpperCase();
+    const result: string[] = [];
+    const seen = new Set<string>();
+    for (const value of values ?? []) {
+        const currency = value.trim().toUpperCase();
+        if (
+            !/^[A-Z]{3}$/.test(currency) ||
+            currency === normalizedDefault ||
+            seen.has(currency)
+        ) {
+            continue;
+        }
+        seen.add(currency);
+        result.push(currency);
+    }
+    return result;
+}
+
+async function setBudgetFavoriteCurrencies(
+    db: AppDb,
+    budgetId: number,
+    currencies: readonly string[],
+    defaultCurrency: string
+): Promise<void> {
+    const normalized = normalizeCurrencyList(currencies, defaultCurrency);
+    await db.budgetFavoriteCurrencies
+        .where(currency => currency.budgetId, budgetId)
+        .delete();
+    if (normalized.length > 0) {
+        await db.budgetFavoriteCurrencies.insertMany(
+            normalized.map(currency => ({ budgetId, currency }))
+        );
+    }
+}
+
+async function loadBudgetFavoriteCurrencies(
+    db: AppDb,
+    budgetIds: readonly number[]
+): Promise<ReadonlyMap<number, readonly string[]>> {
+    if (budgetIds.length === 0) {
+        return new Map();
+    }
+
+    const byBudget = new Map<number, readonly string[]>();
+    await Promise.all(
+        Array.from(new Set(budgetIds)).map(async budgetId => {
+            const rows = await db.budgetFavoriteCurrencies.where(
+                currency => currency.budgetId,
+                budgetId
+            );
+            byBudget.set(
+                budgetId,
+                rows
+                    .map(row => row.currency.trim().toUpperCase())
+                    .sort((left, right) => left.localeCompare(right))
+            );
+        })
+    );
+    return byBudget;
+}
+
+async function loadBudgetFavoriteCurrencyList(
+    db: AppDb,
+    budgetId: number
+): Promise<string[]> {
+    const values = await loadBudgetFavoriteCurrencies(db, [budgetId]);
+    return [...(values.get(budgetId) ?? [])];
+}
+
+function transactionCurrenciesByRecentPopularity(
+    currencies: readonly string[],
+    recentTransactions: readonly Pick<TransactionDb, 'currency'>[]
+): string[] {
+    const configuredOrder = new Map<string, number>();
+    const configuredCurrencies: string[] = [];
+
+    for (const currency of currencies) {
+        const normalized = currency.trim().toUpperCase();
+        if (!configuredOrder.has(normalized)) {
+            configuredOrder.set(normalized, configuredCurrencies.length);
+            configuredCurrencies.push(normalized);
+        }
+    }
+
+    const usage = new Map<string, { count: number; latestIndex: number }>();
+    recentTransactions.forEach((transaction, index) => {
+        const currency = transaction.currency.trim().toUpperCase();
+        if (currency === '') {
+            return;
+        }
+        const current = usage.get(currency);
+        if (current) {
+            current.count += 1;
+        } else {
+            usage.set(currency, { count: 1, latestIndex: index });
+        }
+    });
+
+    return Array.from(new Set([...usage.keys(), ...configuredCurrencies])).sort(
+        (left, right) => {
+            const leftUsage = usage.get(left);
+            const rightUsage = usage.get(right);
+            const usageDelta =
+                (rightUsage?.count ?? 0) - (leftUsage?.count ?? 0);
+            if (usageDelta !== 0) {
+                return usageDelta;
+            }
+            if (
+                leftUsage &&
+                rightUsage &&
+                leftUsage.latestIndex !== rightUsage.latestIndex
+            ) {
+                return leftUsage.latestIndex - rightUsage.latestIndex;
+            }
+            if (leftUsage && !rightUsage) {
+                return -1;
+            }
+            if (!leftUsage && rightUsage) {
+                return 1;
+            }
+            return (
+                (configuredOrder.get(left) ?? configuredCurrencies.length) -
+                (configuredOrder.get(right) ?? configuredCurrencies.length)
+            );
+        }
+    );
+}
+
+async function loadRecentTransactionsByBudget(
+    db: AppDb,
+    budgetIds: readonly number[]
+): Promise<ReadonlyMap<number, readonly Pick<TransactionDb, 'currency'>[]>> {
+    if (budgetIds.length === 0) {
+        return new Map();
+    }
+    const rows = (await db
+        .knex('transactions')
+        .whereIn('budget_id', budgetIds)
+        .orderBy('occurred_at', 'desc')
+        .orderBy('id', 'desc')
+        .select({
+            budgetId: 'budget_id',
+            currency: 'currency'
+        })) as Array<{ readonly budgetId: number; readonly currency: string }>;
+    const byBudget = new Map<number, Array<Pick<TransactionDb, 'currency'>>>();
+    for (const row of rows) {
+        const values = byBudget.get(row.budgetId) ?? [];
+        if (values.length >= 10) {
+            continue;
+        }
+        values.push({ currency: row.currency });
+        byBudget.set(row.budgetId, values);
+    }
+    return byBudget;
 }
 
 function permissionsForRole(
@@ -157,15 +311,42 @@ function budgetMemberValues(
     };
 }
 
+async function ensureUniqueActiveBudgetDisplayName(
+    db: AppDb,
+    userId: number,
+    name: string,
+    excludingBudgetId?: number
+): Promise<void> {
+    const query = db
+        .knex('budget_members as member')
+        .join('budgets as budget', 'budget.id', 'member.budget_id')
+        .where('member.user_id', userId)
+        .whereNull('budget.archived_at')
+        .whereRaw('lower(member.display_name) = lower(?)', [name]);
+    if (excludingBudgetId) {
+        query.whereNot('member.budget_id', excludingBudgetId);
+    }
+    const existing = await query.first('member.budget_id');
+    if (existing) {
+        throw new BudgetMemberError(
+            'You already have an active budget with this name.'
+        );
+    }
+}
+
 function mapBudget(
     budget: BudgetDb,
     member: BudgetMemberDb,
-    mainBudgetId: number | null | undefined
+    mainBudgetId: number | null | undefined,
+    favoriteCurrencies: readonly string[] = [],
+    transactionCurrencies: readonly string[] = []
 ): Budget {
     return {
         id: budget.id,
-        name: budget.name,
+        name: member.displayName || budget.name,
         defaultCurrency: budget.defaultCurrency,
+        favoriteCurrencies: [...favoriteCurrencies],
+        transactionCurrencies: [...transactionCurrencies],
         countryCode: normalizeCountryCode(budget.countryCode),
         role: member.role === 'admin' ? 'admin' : 'member',
         permissions: memberPermissions(member),
@@ -232,6 +413,7 @@ export async function ensureMainBudget(
         await trx.budgetMembers.insert({
             budgetId: created.id,
             userId,
+            displayName: mainBudgetName,
             ...budgetMemberValues('admin')
         });
         await trx.users
@@ -244,7 +426,8 @@ export async function ensureMainBudget(
 
 export async function createMainBudgetForUser(
     db: AppDb,
-    user: Pick<UserDb, 'countryCode' | 'defaultCurrency' | 'id'>
+    user: Pick<UserDb, 'countryCode' | 'defaultCurrency' | 'id'>,
+    favoriteCurrencies: readonly string[] = []
 ): Promise<BudgetDb> {
     const budget = (await db.budgets.insert({
         name: 'Main',
@@ -257,8 +440,15 @@ export async function createMainBudgetForUser(
     await db.budgetMembers.insert({
         budgetId: budget.id,
         userId: user.id,
+        displayName: mainBudgetName,
         ...budgetMemberValues('admin')
     });
+    await setBudgetFavoriteCurrencies(
+        db,
+        budget.id,
+        favoriteCurrencies,
+        budget.defaultCurrency
+    );
     await db.users
         .where(row => row.id, user.id)
         .update({ mainBudgetId: budget.id, updatedAt: new Date() });
@@ -327,7 +517,7 @@ export async function listBudgets(
         .orderByRaw('case when budget.id = ? then 0 else 1 end', [
             user?.mainBudgetId ?? 0
         ])
-        .orderBy('budget.name', 'asc')
+        .orderBy('member.display_name', 'asc')
         .select({
             budgetId: 'budget.id',
             name: 'budget.name',
@@ -338,6 +528,7 @@ export async function listBudgets(
             budgetCreatedAt: 'budget.created_at',
             budgetUpdatedAt: 'budget.updated_at',
             userId: 'member.user_id',
+            displayName: 'member.display_name',
             role: 'member.role',
             canCreateTransactions: 'member.can_create_transactions',
             canUpdateTransactions: 'member.can_update_transactions',
@@ -358,6 +549,7 @@ export async function listBudgets(
         readonly budgetCreatedAt: Date;
         readonly budgetUpdatedAt: Date;
         readonly userId: number;
+        readonly displayName: string;
         readonly role: string;
         readonly canCreateTransactions: boolean;
         readonly canUpdateTransactions: boolean;
@@ -370,10 +562,22 @@ export async function listBudgets(
         readonly memberUpdatedAt: Date;
     }>;
 
-    return rows.map(row =>
-        mapBudget(
+    const budgetIds = rows.map(row => Number(row.budgetId));
+    const [favoritesByBudget, recentTransactionsByBudget] = await Promise.all([
+        loadBudgetFavoriteCurrencies(db, budgetIds),
+        loadRecentTransactionsByBudget(db, budgetIds)
+    ]);
+
+    return rows.map(row => {
+        const budgetId = Number(row.budgetId);
+        const favorites = favoritesByBudget.get(budgetId) ?? [];
+        const transactionCurrencies = transactionCurrenciesByRecentPopularity(
+            [row.defaultCurrency, ...favorites],
+            recentTransactionsByBudget.get(budgetId) ?? []
+        );
+        return mapBudget(
             {
-                id: Number(row.budgetId),
+                id: budgetId,
                 name: row.name,
                 defaultCurrency: row.defaultCurrency,
                 countryCode: row.countryCode,
@@ -383,8 +587,9 @@ export async function listBudgets(
                 updatedAt: row.budgetUpdatedAt
             },
             {
-                budgetId: Number(row.budgetId),
+                budgetId,
                 userId: row.userId,
+                displayName: row.displayName,
                 role: row.role,
                 canCreateTransactions: row.canCreateTransactions,
                 canUpdateTransactions: row.canUpdateTransactions,
@@ -396,9 +601,11 @@ export async function listBudgets(
                 createdAt: row.memberCreatedAt,
                 updatedAt: row.memberUpdatedAt
             },
-            user?.mainBudgetId
-        )
-    );
+            user?.mainBudgetId,
+            favorites,
+            transactionCurrencies
+        );
+    });
 }
 
 export async function createBudget(
@@ -414,6 +621,7 @@ export async function createBudget(
     if (!name) {
         throw new BudgetMemberError('Budget name is required.');
     }
+    await ensureUniqueActiveBudgetDisplayName(db, userId, name);
 
     const budget = await db.transaction(async trx => {
         const created = (await trx.budgets.insert({
@@ -431,13 +639,30 @@ export async function createBudget(
         await trx.budgetMembers.insert({
             budgetId: created.id,
             userId,
+            displayName: name,
             ...budgetMemberValues('admin')
         });
+        await setBudgetFavoriteCurrencies(
+            trx,
+            created.id,
+            body.favoriteCurrencies,
+            created.defaultCurrency
+        );
         return created;
     });
 
     const access = await resolveBudgetAccess(db, userId, budget.id);
-    return mapBudget(budget, access.member, user.mainBudgetId);
+    const favorites = await loadBudgetFavoriteCurrencyList(db, budget.id);
+    return mapBudget(
+        budget,
+        access.member,
+        user.mainBudgetId,
+        favorites,
+        transactionCurrenciesByRecentPopularity(
+            [budget.defaultCurrency, ...favorites],
+            []
+        )
+    );
 }
 
 export async function updateBudget(
@@ -449,23 +674,30 @@ export async function updateBudget(
     const access = await resolveBudgetAccess(db, userId, budgetId, {
         allowArchived: true
     });
-    requireBudgetPermission(access, 'canManageMembers');
     const user = (await db.users.find(userId)) as UserDb | undefined;
     const isMain = access.budget.id === user?.mainBudgetId;
+    const sharedSettingsChanged =
+        body.defaultCurrency !== undefined ||
+        body.favoriteCurrencies !== undefined ||
+        body.countryCode !== undefined ||
+        body.archived !== undefined;
+    if (sharedSettingsChanged) {
+        requireBudgetPermission(access, 'canManageMembers');
+    }
 
     const update: {
         archivedAt?: Date | null;
         countryCode?: string;
         defaultCurrency?: string;
-        name?: string;
         updatedAt: Date;
     } = { updatedAt: new Date() };
+    let nextDisplayName = access.member.displayName || access.budget.name;
     if (body.name !== undefined) {
         const name = normalizedBudgetName(body.name);
         if (!name) {
             throw new BudgetMemberError('Budget name is required.');
         }
-        update.name = name;
+        nextDisplayName = name;
     }
     if (body.defaultCurrency !== undefined) {
         update.defaultCurrency = normalizeCurrency(
@@ -483,14 +715,83 @@ export async function updateBudget(
         update.archivedAt = body.archived ? new Date() : null;
     }
 
-    const [updated] = (await db.budgets
-        .where(row => row.id, budgetId)
-        .update(update as never)) as BudgetDb[];
-    if (!updated) {
-        throw new BudgetNotFoundError('Budget was not found.');
+    const willBeArchived =
+        update.archivedAt !== undefined
+            ? update.archivedAt
+            : access.budget.archivedAt;
+    if (
+        !willBeArchived &&
+        (body.name !== undefined || body.archived === false)
+    ) {
+        await ensureUniqueActiveBudgetDisplayName(
+            db,
+            userId,
+            nextDisplayName,
+            budgetId
+        );
     }
 
-    return mapBudget(updated, access.member, user?.mainBudgetId);
+    const updated = await db.transaction(async trx => {
+        let budget = access.budget;
+        let member = access.member;
+        if (body.name !== undefined) {
+            const [updatedMember] = (await trx.budgetMembers
+                .where(row => row.budgetId, budgetId)
+                .where(row => row.userId, userId)
+                .update({
+                    displayName: nextDisplayName,
+                    updatedAt: new Date()
+                } as never)) as BudgetMemberDb[];
+            if (!updatedMember) {
+                throw new BudgetNotFoundError('Budget member was not found.');
+            }
+            member = updatedMember;
+        }
+        if (sharedSettingsChanged) {
+            const [updatedBudget] = (await trx.budgets
+                .where(row => row.id, budgetId)
+                .update(update as never)) as BudgetDb[];
+            if (!updatedBudget) {
+                throw new BudgetNotFoundError('Budget was not found.');
+            }
+            budget = updatedBudget;
+        }
+        if (body.favoriteCurrencies !== undefined) {
+            await setBudgetFavoriteCurrencies(
+                trx,
+                budgetId,
+                body.favoriteCurrencies,
+                budget.defaultCurrency
+            );
+        } else if (body.defaultCurrency !== undefined) {
+            const favorites = await loadBudgetFavoriteCurrencyList(
+                trx,
+                budgetId
+            );
+            await setBudgetFavoriteCurrencies(
+                trx,
+                budgetId,
+                favorites,
+                budget.defaultCurrency
+            );
+        }
+        return { budget, member };
+    });
+
+    const [favorites, recentTransactions] = await Promise.all([
+        loadBudgetFavoriteCurrencyList(db, budgetId),
+        loadRecentTransactionsByBudget(db, [budgetId])
+    ]);
+    return mapBudget(
+        updated.budget,
+        updated.member,
+        user?.mainBudgetId,
+        favorites,
+        transactionCurrenciesByRecentPopularity(
+            [updated.budget.defaultCurrency, ...favorites],
+            recentTransactions.get(budgetId) ?? []
+        )
+    );
 }
 
 export async function deleteBudget(
@@ -535,6 +836,7 @@ export async function listBudgetMembers(
             budgetId: 'member.budget_id',
             userId: 'member.user_id',
             email: 'user.email',
+            displayName: 'member.display_name',
             role: 'member.role',
             canCreateTransactions: 'member.can_create_transactions',
             canUpdateTransactions: 'member.can_update_transactions',
@@ -652,16 +954,16 @@ function htmlEscape(value: string): string {
 async function sendBudgetInvitationEmail(
     config: Config,
     email: string,
-    budget: BudgetDb,
+    budgetName: string,
     token: string
 ): Promise<void> {
     const url = invitationLink(config, token);
-    const safeBudgetName = htmlEscape(budget.name);
+    const safeBudgetName = htmlEscape(budgetName);
     const safeUrl = htmlEscape(url);
     await sendEmail(config, {
         to: email,
-        subject: `Join ${budget.name} on xpenser`,
-        text: `Open this magic link to join ${budget.name} on xpenser: ${url}`,
+        subject: `Join ${budgetName} on xpenser`,
+        text: `Open this magic link to join ${budgetName} on xpenser: ${url}`,
         html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2>Join ${safeBudgetName} on xpenser</h2>
@@ -687,11 +989,6 @@ export async function inviteBudgetMember(
 ): Promise<{ readonly message: string }> {
     const access = await resolveBudgetAccess(db, userId, budgetId);
     requireBudgetPermission(access, 'canManageMembers');
-    if (isMainBudgetName(access.budget.name)) {
-        throw new BudgetMemberError(
-            'Rename this budget before inviting other users.'
-        );
-    }
 
     const email = normalizedEmail(body.email);
     const target = (await db.users.where(row => row.email, email).first()) as
@@ -722,7 +1019,12 @@ export async function inviteBudgetMember(
         expiresAt: new Date(Date.now() + invitationTtlMs),
         consumedAt: undefined
     });
-    await sendBudgetInvitationEmail(config, email, access.budget, token);
+    await sendBudgetInvitationEmail(
+        config,
+        email,
+        access.member.displayName || access.budget.name,
+        token
+    );
 
     return { message: budgetInvitationMessage };
 }
@@ -730,7 +1032,8 @@ export async function inviteBudgetMember(
 export async function acceptBudgetInvitation(
     db: AppDb,
     userId: number,
-    token: string
+    token: string,
+    name: string
 ): Promise<Budget> {
     const tokenHash = hashBudgetInvitationToken(token);
     const user = (await db.users.find(userId)) as UserDb | undefined;
@@ -762,6 +1065,11 @@ export async function acceptBudgetInvitation(
             'Budget invitation is invalid or expired.'
         );
     }
+    const displayName = normalizedBudgetName(name);
+    if (!displayName) {
+        throw new BudgetInvitationInvalidError('Budget name is required.');
+    }
+    await ensureUniqueActiveBudgetDisplayName(db, userId, displayName);
 
     await db.transaction(async trx => {
         await trx
@@ -769,6 +1077,7 @@ export async function acceptBudgetInvitation(
             .insert({
                 budget_id: invitation.budgetId,
                 user_id: userId,
+                display_name: displayName,
                 ...Object.fromEntries(
                     Object.entries({
                         role: invitation.role,
@@ -801,5 +1110,18 @@ export async function acceptBudgetInvitation(
     });
 
     const access = await resolveBudgetAccess(db, userId, invitation.budgetId);
-    return mapBudget(access.budget, access.member, user.mainBudgetId);
+    const [favorites, recentTransactions] = await Promise.all([
+        loadBudgetFavoriteCurrencyList(db, invitation.budgetId),
+        loadRecentTransactionsByBudget(db, [invitation.budgetId])
+    ]);
+    return mapBudget(
+        access.budget,
+        access.member,
+        user.mainBudgetId,
+        favorites,
+        transactionCurrenciesByRecentPopularity(
+            [access.budget.defaultCurrency, ...favorites],
+            recentTransactions.get(invitation.budgetId) ?? []
+        )
+    );
 }

@@ -1323,7 +1323,7 @@ export function createXpenserMcpTools(
             name: 'xpenser_get_current_user',
             title: 'Get current xpenser user',
             description:
-                'Return profile, default currency, transaction currency order, and timezone context for the authenticated xpenser API key owner.',
+                'Return profile, active budgets, derived Main budget currency order, and timezone context for the authenticated xpenser API key owner.',
             inputSchema: EmptyInputSchema,
             annotations: readOnlyAnnotations,
             handler: () => handleGetCurrentUser(context)

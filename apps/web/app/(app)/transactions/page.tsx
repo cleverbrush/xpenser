@@ -21,6 +21,10 @@ export default async function TransactionsPage({
     const selectedBudget = await selectedBudgetForUser(me);
     const defaultCurrency =
         selectedBudget?.defaultCurrency ?? me.defaultCurrency;
+    const favoriteCurrencies =
+        selectedBudget?.favoriteCurrencies ?? me.favoriteCurrencies;
+    const transactionCurrencies =
+        selectedBudget?.transactionCurrencies ?? me.transactionCurrencies;
     const [categories, currencies, vendors, transactionTags, transactions] =
         await Promise.all([
             client.categories.list({ query: budgetQuery }),
@@ -58,7 +62,7 @@ export default async function TransactionsPage({
                 currencies={currencies}
                 currentUserId={me.id}
                 defaultCurrency={defaultCurrency}
-                favoriteCurrencies={me.favoriteCurrencies}
+                favoriteCurrencies={favoriteCurrencies}
                 hasInitialFilters={hasFilters}
                 vendors={vendors}
                 transactionTags={transactionTags}
@@ -66,7 +70,7 @@ export default async function TransactionsPage({
                     ...transactions,
                     hasMore: transactionHasMore(transactions)
                 }}
-                transactionCurrencies={me.transactionCurrencies}
+                transactionCurrencies={transactionCurrencies}
                 timezone={me.timezone}
             />
         </div>

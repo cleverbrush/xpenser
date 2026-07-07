@@ -81,7 +81,16 @@ describe('exchange rates', () => {
         });
     });
 
-    it('converts amounts to the user default currency', async () => {
+    it('converts amounts to the budget default currency', async () => {
+        const budgetMembers = {
+            where: vi.fn(() => budgetMembers),
+            first: vi.fn().mockResolvedValue({
+                budgetId: 2,
+                userId: 1,
+                displayName: 'Travel',
+                role: 'admin'
+            })
+        };
         const db = {
             users: {
                 find: vi.fn().mockResolvedValue({
@@ -90,6 +99,14 @@ describe('exchange rates', () => {
                     timezone: 'UTC'
                 })
             },
+            budgets: {
+                find: vi.fn().mockResolvedValue({
+                    id: 2,
+                    defaultCurrency: 'GBP',
+                    archivedAt: null
+                })
+            },
+            budgetMembers,
             exchangeRates: {
                 where: vi.fn().mockReturnThis(),
                 first: vi.fn().mockResolvedValue({
@@ -103,19 +120,29 @@ describe('exchange rates', () => {
             convertCurrencyForUser(db as never, config, 1, {
                 amount: 12,
                 currency: 'EUR',
+                budgetId: 2,
                 occurredAt: new Date('2026-05-11T12:00:00.000Z')
             })
         ).resolves.toEqual({
             amount: 12,
             currency: 'EUR',
             defaultCurrencyAmount: 18,
-            defaultCurrency: 'USD',
+            defaultCurrency: 'GBP',
             exchangeRate: 1.5,
             exchangeRateDate: '2026-05-11'
         });
     });
 
     it('converts primary-currency amounts without querying exchange rates', async () => {
+        const budgetMembers = {
+            where: vi.fn(() => budgetMembers),
+            first: vi.fn().mockResolvedValue({
+                budgetId: 2,
+                userId: 1,
+                displayName: 'Travel',
+                role: 'admin'
+            })
+        };
         const db = {
             users: {
                 find: vi.fn().mockResolvedValue({
@@ -124,6 +151,14 @@ describe('exchange rates', () => {
                     timezone: 'UTC'
                 })
             },
+            budgets: {
+                find: vi.fn().mockResolvedValue({
+                    id: 2,
+                    defaultCurrency: 'GBP',
+                    archivedAt: null
+                })
+            },
+            budgetMembers,
             exchangeRates: {
                 where: vi.fn()
             }
@@ -132,14 +167,15 @@ describe('exchange rates', () => {
         await expect(
             convertCurrencyForUser(db as never, config, 1, {
                 amount: 12,
-                currency: 'USD',
+                currency: 'GBP',
+                budgetId: 2,
                 occurredAt: new Date('2026-05-11T12:00:00.000Z')
             })
         ).resolves.toEqual({
             amount: 12,
-            currency: 'USD',
+            currency: 'GBP',
             defaultCurrencyAmount: 12,
-            defaultCurrency: 'USD',
+            defaultCurrency: 'GBP',
             exchangeRate: 1,
             exchangeRateDate: '2026-05-11'
         });

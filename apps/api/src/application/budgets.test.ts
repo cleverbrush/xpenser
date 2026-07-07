@@ -90,6 +90,10 @@ type TestData = {
     readonly budgets: BudgetDb[];
     readonly members: BudgetMemberDb[];
     readonly invitations: BudgetInvitationDb[];
+    readonly budgetFavoriteCurrencies: Array<{
+        readonly budgetId: number;
+        readonly currency: string;
+    }>;
     nextBudgetId: number;
     nextInvitationId: number;
 };
@@ -98,6 +102,8 @@ class BudgetListQuery {
     private userId?: number;
     private archived: 'active' | 'archived' | 'all' = 'all';
     private mainBudgetId = 0;
+    private displayName?: string;
+    private excludingBudgetId?: number;
 
     constructor(private readonly data: TestData) {}
 
@@ -135,8 +141,20 @@ class BudgetListQuery {
         return this;
     }
 
-    select(): Promise<object[]> {
-        const rows = this.data.members
+    whereRaw(_sql: string, values: readonly unknown[]): BudgetListQuery {
+        this.displayName = String(values[0] ?? '').toLowerCase();
+        return this;
+    }
+
+    whereNot(column: string, value: unknown): BudgetListQuery {
+        if (column === 'member.budget_id') {
+            this.excludingBudgetId = Number(value);
+        }
+        return this;
+    }
+
+    private rows() {
+        return this.data.members
             .filter(member => member.userId === this.userId)
             .flatMap(member => {
                 const budget = this.data.budgets.find(
@@ -151,6 +169,18 @@ class BudgetListQuery {
                 if (this.archived === 'archived' && !budget.archivedAt) {
                     return [];
                 }
+                if (
+                    this.excludingBudgetId !== undefined &&
+                    member.budgetId === this.excludingBudgetId
+                ) {
+                    return [];
+                }
+                if (
+                    this.displayName !== undefined &&
+                    member.displayName.toLowerCase() !== this.displayName
+                ) {
+                    return [];
+                }
                 return [{ budget, member }];
             })
             .sort((left, right) => {
@@ -160,7 +190,9 @@ class BudgetListQuery {
                 if (right.budget.id === this.mainBudgetId) {
                     return 1;
                 }
-                return left.budget.name.localeCompare(right.budget.name);
+                return left.member.displayName.localeCompare(
+                    right.member.displayName
+                );
             })
             .map(({ budget, member }) => ({
                 budgetId: budget.id,
@@ -172,6 +204,7 @@ class BudgetListQuery {
                 budgetCreatedAt: budget.createdAt,
                 budgetUpdatedAt: budget.updatedAt,
                 userId: member.userId,
+                displayName: member.displayName,
                 role: member.role,
                 canCreateTransactions: member.canCreateTransactions,
                 canUpdateTransactions: member.canUpdateTransactions,
@@ -183,8 +216,14 @@ class BudgetListQuery {
                 memberCreatedAt: member.createdAt,
                 memberUpdatedAt: member.updatedAt
             }));
+    }
 
-        return Promise.resolve(rows);
+    first(): Promise<object | undefined> {
+        return Promise.resolve(this.rows()[0]);
+    }
+
+    select(): Promise<object[]> {
+        return Promise.resolve(this.rows());
     }
 }
 
@@ -245,6 +284,7 @@ function member(
     return {
         budgetId,
         userId,
+        displayName: 'Main',
         role,
         canCreateTransactions: permissions.canCreateTransactions,
         canUpdateTransactions: permissions.canUpdateTransactions,
@@ -300,8 +340,13 @@ function makeDb(overrides: Partial<TestData> = {}) {
                 archivedAt: new Date('2026-05-01T00:00:00.000Z')
             })
         ],
-        members: [member(1, 1), member(2, 1), member(3, 1)],
+        members: [
+            member(1, 1, 'admin', { displayName: 'Main' }),
+            member(2, 1, 'admin', { displayName: 'Travel' }),
+            member(3, 1, 'admin', { displayName: 'Old budget' })
+        ],
         invitations: [],
+        budgetFavoriteCurrencies: [],
         nextBudgetId: 10,
         nextInvitationId: 10,
         ...overrides
@@ -350,6 +395,24 @@ function makeDb(overrides: Partial<TestData> = {}) {
                 value: TValue
             ) => new TestQuery(data.members).where(selector, value)
         },
+        budgetFavoriteCurrencies: {
+            where: <TValue>(
+                selector: (
+                    row: TestData['budgetFavoriteCurrencies'][number]
+                ) => TValue,
+                value: TValue
+            ) =>
+                new TestQuery(data.budgetFavoriteCurrencies).where(
+                    selector,
+                    value
+                ),
+            insertMany: async (
+                values: TestData['budgetFavoriteCurrencies']
+            ) => {
+                data.budgetFavoriteCurrencies.push(...values);
+                return values;
+            }
+        },
         budgetInvitations: {
             insert: async (values: Partial<BudgetInvitationDb>) => {
                 const row = {
@@ -385,6 +448,9 @@ function makeDb(overrides: Partial<TestData> = {}) {
                                     userId,
                                     row.role === 'admin' ? 'admin' : 'member',
                                     {
+                                        displayName: String(
+                                            row.display_name ?? 'Shared budget'
+                                        ),
                                         canCreateTransactions: Boolean(
                                             row.can_create_transactions
                                         ),
@@ -422,6 +488,14 @@ function makeDb(overrides: Partial<TestData> = {}) {
                         })
                     })
                 };
+            }
+            if (table === 'transactions') {
+                const query = {
+                    whereIn: () => query,
+                    orderBy: () => query,
+                    select: async () => []
+                };
+                return query;
             }
             throw new Error(`Unexpected table ${table}`);
         },
@@ -507,19 +581,9 @@ describe('budget lifecycle', () => {
 });
 
 describe('budget invitations', () => {
-    it('requires renaming Main before inviting another user', async () => {
+    it('invites another user to Main without requiring a shared rename', async () => {
         const { data, db } = makeDb();
 
-        await expect(
-            inviteBudgetMember(db, config, 1, 1, {
-                email: 'member@example.com',
-                role: 'member'
-            })
-        ).rejects.toBeInstanceOf(BudgetMemberError);
-        expect(data.invitations).toHaveLength(0);
-        expect(sendEmailMock).not.toHaveBeenCalled();
-
-        await updateBudget(db, 1, 1, { name: 'Household' });
         await expect(
             inviteBudgetMember(db, config, 1, 1, {
                 email: 'member@example.com',
@@ -543,7 +607,7 @@ describe('budget invitations', () => {
         });
 
         await expect(
-            acceptBudgetInvitation(db, 2, 'join-token')
+            acceptBudgetInvitation(db, 2, 'join-token', 'Shared travel')
         ).rejects.toBeInstanceOf(BudgetInvitationInvalidError);
         expect(
             data.members.some(item => item.budgetId === 3 && item.userId === 2)

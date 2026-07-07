@@ -43,10 +43,6 @@ function permissionSummary(member: BudgetMember): string {
     return enabled.length > 0 ? enabled.join(', ') : 'View only';
 }
 
-function isMainName(name: string): boolean {
-    return name.trim().replace(/\s+/g, ' ').toLowerCase() === 'main';
-}
-
 function CurrencySelect({
     currencies,
     defaultValue,
@@ -74,6 +70,40 @@ function CurrencySelect({
     );
 }
 
+function FavoriteCurrencySelect({
+    currencies,
+    defaultCurrency,
+    selectedCurrencies
+}: {
+    readonly currencies: readonly Currency[];
+    readonly defaultCurrency: string;
+    readonly selectedCurrencies: readonly string[];
+}) {
+    const selected = selectedCurrencies.filter(
+        currency => currency !== defaultCurrency
+    );
+    return (
+        <label className="grid gap-1 text-sm">
+            <span className="font-medium">Favorite currencies</span>
+            <select
+                className="min-h-28 rounded-md border bg-background px-3 py-2 text-sm"
+                defaultValue={selected}
+                multiple
+                name="favoriteCurrencies"
+                size={Math.min(6, Math.max(3, currencies.length - 1))}
+            >
+                {currencies
+                    .filter(currency => currency.code !== defaultCurrency)
+                    .map(currency => (
+                        <option key={currency.code} value={currency.code}>
+                            {currency.code}
+                        </option>
+                    ))}
+            </select>
+        </label>
+    );
+}
+
 function BudgetBadges({ budget }: { readonly budget: Budget }) {
     return (
         <div className="flex flex-wrap items-center gap-2">
@@ -88,14 +118,40 @@ function BudgetBadges({ budget }: { readonly budget: Budget }) {
 }
 
 function BudgetDetails({ budget }: { readonly budget: Budget }) {
+    const currencies = [budget.defaultCurrency, ...budget.favoriteCurrencies];
     return (
         <p className="mt-1 text-sm text-muted-foreground">
-            {budget.defaultCurrency} - {budget.countryCode}
+            {currencies.join(', ')}
         </p>
     );
 }
 
-function BudgetEditForm({
+function BudgetNameForm({ budget }: { readonly budget: Budget }) {
+    return (
+        <form
+            action={updateBudgetAction}
+            className="grid gap-3 rounded-md border p-3 sm:grid-cols-[1fr_auto] sm:items-end"
+        >
+            <input name="budgetId" type="hidden" value={budget.id} />
+            <label
+                className="grid gap-1 text-sm"
+                htmlFor={`budget-${budget.id}-name`}
+            >
+                <span className="font-medium">My budget name</span>
+                <Input
+                    defaultValue={budget.name}
+                    id={`budget-${budget.id}-name`}
+                    maxLength={120}
+                    name="name"
+                    required
+                />
+            </label>
+            <Button type="submit">Rename</Button>
+        </form>
+    );
+}
+
+function BudgetCurrencyForm({
     budget,
     currencies
 }: {
@@ -105,28 +161,20 @@ function BudgetEditForm({
     return (
         <form
             action={updateBudgetAction}
-            className="grid gap-3 rounded-md border p-3 sm:grid-cols-[1fr_9rem_auto] sm:items-end"
+            className="grid gap-3 rounded-md border p-3 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:items-end"
         >
             <input name="budgetId" type="hidden" value={budget.id} />
-            <label
-                className="grid gap-1 text-sm"
-                htmlFor={`budget-${budget.id}-name`}
-            >
-                <span className="font-medium">Name</span>
-                <Input
-                    defaultValue={budget.name}
-                    id={`budget-${budget.id}-name`}
-                    maxLength={120}
-                    name="name"
-                    required
-                />
-            </label>
             <CurrencySelect
                 currencies={currencies}
                 defaultValue={budget.defaultCurrency}
-                label="Currency"
+                label="Primary"
             />
-            <Button type="submit">Save</Button>
+            <FavoriteCurrencySelect
+                currencies={currencies}
+                defaultCurrency={budget.defaultCurrency}
+                selectedCurrencies={budget.favoriteCurrencies}
+            />
+            <Button type="submit">Save currencies</Button>
         </form>
     );
 }
@@ -219,14 +267,6 @@ function MemberList({
 }
 
 function InviteForm({ budget }: { readonly budget: Budget }) {
-    if (isMainName(budget.name)) {
-        return (
-            <div className="rounded-md border p-3 text-sm text-muted-foreground">
-                Rename this budget before inviting members.
-            </div>
-        );
-    }
-
     return (
         <form
             action={inviteBudgetMemberAction}
@@ -303,9 +343,16 @@ function ActiveBudgetSection({
                 {canManage ? <ArchiveBudgetForm budget={budget} /> : null}
             </div>
 
+            <div className="mt-4">
+                <BudgetNameForm budget={budget} />
+            </div>
+
             {canManage ? (
                 <div className="mt-4 space-y-4">
-                    <BudgetEditForm budget={budget} currencies={currencies} />
+                    <BudgetCurrencyForm
+                        budget={budget}
+                        currencies={currencies}
+                    />
                     <MemberList
                         budgetId={budget.id}
                         currentUserId={currentUserId}
@@ -342,16 +389,18 @@ export function BudgetSettings({
     budgets,
     currencies,
     currentUserId,
-    membersByBudget,
-    userDefaultCurrency
+    membersByBudget
 }: {
     readonly archivedBudgets: readonly Budget[];
     readonly budgets: readonly Budget[];
     readonly currencies: readonly Currency[];
     readonly currentUserId: number;
     readonly membersByBudget: Readonly<Record<number, readonly BudgetMember[]>>;
-    readonly userDefaultCurrency: string;
 }) {
+    const defaultCurrency =
+        budgets.find(budget => budget.isMain)?.defaultCurrency ??
+        budgets[0]?.defaultCurrency ??
+        'USD';
     return (
         <Card>
             <CardHeader>
@@ -364,7 +413,7 @@ export function BudgetSettings({
             <CardContent className="space-y-6">
                 <form
                     action={createBudgetAction}
-                    className="grid gap-3 rounded-md border p-3 sm:grid-cols-[1fr_9rem_auto] sm:items-end"
+                    className="grid gap-3 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)_auto] sm:items-end"
                 >
                     <label
                         className="grid gap-1 text-sm"
@@ -381,8 +430,13 @@ export function BudgetSettings({
                     </label>
                     <CurrencySelect
                         currencies={currencies}
-                        defaultValue={userDefaultCurrency}
-                        label="Currency"
+                        defaultValue={defaultCurrency}
+                        label="Primary"
+                    />
+                    <FavoriteCurrencySelect
+                        currencies={currencies}
+                        defaultCurrency={defaultCurrency}
+                        selectedCurrencies={[]}
                     />
                     <Button type="submit">Create</Button>
                 </form>

@@ -292,8 +292,6 @@ export const updatePreferencesHandler: Handler<
     const preference = await updateUserPreference(
         db,
         principal.userId,
-        body.defaultCurrency,
-        body.favoriteCurrencies,
         body.countryCode,
         body.timezone,
         body.weeklyEmailReportEnabled,

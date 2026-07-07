@@ -74,15 +74,15 @@ export const UserDbSchema = object({
         'monthlyEmailReportEnabled'
     );
 
-export const FavoriteCurrencyDbSchema = object({
-    userId: number()
-        .hasColumnName('user_id')
-        .references('users', 'id')
+export const BudgetFavoriteCurrencyDbSchema = object({
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
         .onDelete('CASCADE'),
     currency: string()
 })
-    .hasTableName('user_favorite_currencies')
-    .hasPrimaryKey(['userId', 'currency'] as const);
+    .hasTableName('budget_favorite_currencies')
+    .hasPrimaryKey(['budgetId', 'currency'] as const);
 
 export const TelegramAccountDbSchema = object({
     userId: number()
@@ -136,6 +136,7 @@ export const BudgetMemberDbSchema = object({
         .references('users', 'id')
         .onDelete('CASCADE')
         .index('idx_budget_members_user_id'),
+    displayName: string().hasColumnName('display_name'),
     role: string(),
     canCreateTransactions: boolean()
         .hasColumnName('can_create_transactions')
@@ -519,7 +520,9 @@ export const ExchangeRateDbSchema = object({
 }).hasTableName('exchange_rates');
 
 export const UserEntity = defineEntity(UserDbSchema);
-export const FavoriteCurrencyEntity = defineEntity(FavoriteCurrencyDbSchema);
+export const BudgetFavoriteCurrencyEntity = defineEntity(
+    BudgetFavoriteCurrencyDbSchema
+);
 
 export const ExternalIdentityDbSchema = object({
     provider: string(),
@@ -571,7 +574,7 @@ export const ExchangeRateEntity = defineEntity(ExchangeRateDbSchema);
 
 export const entityMap = {
     users: UserEntity,
-    favoriteCurrencies: FavoriteCurrencyEntity,
+    budgetFavoriteCurrencies: BudgetFavoriteCurrencyEntity,
     externalIdentities: ExternalIdentityEntity,
     telegramAccounts: TelegramAccountEntity,
     telegramLinkTokens: TelegramLinkTokenEntity,

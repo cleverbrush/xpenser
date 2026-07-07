@@ -80,7 +80,7 @@ const appFeatures: readonly Feature[] = [
     },
     {
         description:
-            'Use multiple transaction currencies with automatic conversion to your default currency through Frankfurter rates.',
+            'Use multiple transaction currencies with automatic conversion to each budget default currency through Frankfurter rates.',
         icon: CoinsIcon,
         title: 'Multi-currency conversion'
     },
@@ -92,7 +92,7 @@ const appFeatures: readonly Feature[] = [
     },
     {
         description:
-            'Preferences cover default currency, favorite transaction currencies, time zone, API keys, and Telegram bot linking.',
+            'Budget settings cover default and favorite transaction currencies, while preferences cover time zone, API keys, and Telegram bot linking.',
         icon: ListChecksIcon,
         title: 'Personal setup'
     },

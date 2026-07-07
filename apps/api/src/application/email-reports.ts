@@ -36,7 +36,6 @@ type ReportPeriod = {
 
 type ReportUser = Pick<
     UserDb,
-    | 'defaultCurrency'
     | 'email'
     | 'id'
     | 'monthlyEmailReportEnabled'
@@ -1051,7 +1050,6 @@ async function listReportUsers(knex: Knex): Promise<ReportUser[]> {
         .select(
             'id',
             'email',
-            'default_currency as defaultCurrency',
             'timezone',
             'weekly_email_report_enabled as weeklyEmailReportEnabled',
             'monthly_email_report_enabled as monthlyEmailReportEnabled'
@@ -1071,10 +1069,10 @@ async function listReportBudgets(
 ): Promise<Pick<BudgetDb, 'id' | 'name'>[]> {
     const rows = await knex('budgets')
         .join('budget_members', 'budget_members.budget_id', 'budgets.id')
-        .select('budgets.id', 'budgets.name')
+        .select('budgets.id', 'budget_members.display_name as name')
         .where('budget_members.user_id', userId)
         .whereNull('budgets.archived_at')
-        .orderBy('budgets.name', 'asc');
+        .orderBy('budget_members.display_name', 'asc');
 
     return rows as Pick<BudgetDb, 'id' | 'name'>[];
 }

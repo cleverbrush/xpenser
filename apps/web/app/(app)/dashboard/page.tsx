@@ -25,10 +25,14 @@ export default async function DashboardPage({
     const selectedBudget = await selectedBudgetForUser(me);
     const defaultCurrency =
         selectedBudget?.defaultCurrency ?? me.defaultCurrency;
+    const favoriteCurrencies =
+        selectedBudget?.favoriteCurrencies ?? me.favoriteCurrencies;
+    const transactionCurrencies =
+        selectedBudget?.transactionCurrencies ?? me.transactionCurrencies;
     const displayCurrency = selectedDashboardCurrency(
         params.currency,
         defaultCurrency,
-        me.favoriteCurrencies
+        favoriteCurrencies
     );
     const selectedDate = parseDateParam(params.date, me.timezone);
     const anchorDate = selectedDate ?? new Date();
@@ -70,7 +74,7 @@ export default async function DashboardPage({
             categories={categories}
             currencies={currencies}
             defaultCurrency={defaultCurrency}
-            favoriteCurrencies={me.favoriteCurrencies}
+            favoriteCurrencies={favoriteCurrencies}
             initialDate={initialDashboardWindowDate(
                 window,
                 anchorDate,
@@ -82,7 +86,7 @@ export default async function DashboardPage({
             transactionTags={transactionTags}
             vendors={vendors}
             timezone={me.timezone}
-            transactionCurrencies={me.transactionCurrencies}
+            transactionCurrencies={transactionCurrencies}
         />
     );
 }

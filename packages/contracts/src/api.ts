@@ -442,6 +442,7 @@ export const api = defineApi({
             .query(CurrencyConversionQuerySchema)
             .cacheTag('currency-conversion', request => ({
                 amount: request.query.amount,
+                budgetId: request.query.budgetId,
                 currency: request.query.currency,
                 occurredAt: request.query.occurredAt
             }))

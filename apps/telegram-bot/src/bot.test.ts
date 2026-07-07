@@ -104,6 +104,8 @@ const me = {
             id: 1,
             name: 'Main',
             defaultCurrency: 'USD',
+            favoriteCurrencies: [],
+            transactionCurrencies: ['USD'],
             countryCode: 'US',
             role: 'admin',
             permissions: {
