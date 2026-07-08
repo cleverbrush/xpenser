@@ -195,6 +195,15 @@ const auraPlusPlusBadge = {
     width: 265
 } as const;
 
+const toolfioBadge = {
+    alt: 'Featured on Toolfio',
+    darkSrc: 'https://toolfio.com/toolfio-dark-badge.png',
+    height: 54,
+    href: 'https://toolfio.com',
+    lightSrc: 'https://toolfio.com/toolfio-light-badge.png',
+    width: 200
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -608,6 +617,35 @@ function AuraPlusPlusBadge() {
     );
 }
 
+function ToolfioBadge() {
+    return (
+        <a
+            aria-label={toolfioBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={toolfioBadge.href}
+            rel="dofollow noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: Toolfio provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={toolfioBadge.alt}
+                className="block dark:hidden"
+                height={toolfioBadge.height}
+                src={toolfioBadge.lightSrc}
+                width={toolfioBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: Toolfio provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={toolfioBadge.alt}
+                className="hidden dark:block"
+                height={toolfioBadge.height}
+                src={toolfioBadge.darkSrc}
+                width={toolfioBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -637,6 +675,7 @@ function FooterBadges() {
             <EasyDoFollowBadge />
             <ScrollLaunchBadge />
             <AuraPlusPlusBadge />
+            <ToolfioBadge />
             <OpenHuntsBadge />
         </div>
     );
