@@ -704,7 +704,7 @@ test.describe('authenticated app workflows', () => {
         const used = uniqueName('E2E popular used');
         const unused = uniqueName('E2E popular unused');
         const recentOccurredAt = dateTimeLocalValue(
-            new Date(Date.now() - 60 * 60 * 1000)
+            new Date(Date.now() - 24 * 60 * 60 * 1000)
         );
 
         await createCategory(page, mostPopular, 'expense');
