@@ -30,8 +30,49 @@ const config = {
     }
 } as Config;
 
+function budgetAccessTables() {
+    const timestamp = new Date('2026-06-01T00:00:00.000Z');
+    const budget = {
+        id: 1,
+        name: 'Main',
+        defaultCurrency: 'USD',
+        countryCode: 'US',
+        createdByUserId: 12,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
+    const member = {
+        budgetId: 1,
+        userId: 12,
+        role: 'admin',
+        canCreateTransactions: true,
+        canUpdateTransactions: true,
+        canDeleteTransactions: true,
+        canManageCategories: true,
+        canManageVendors: true,
+        canManageTags: true,
+        canManageMembers: true,
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
+
+    return {
+        budgets: {
+            find: vi.fn(async () => budget)
+        },
+        budgetMembers: {
+            where: vi.fn(() => ({
+                where: vi.fn(() => ({
+                    first: vi.fn(async () => member)
+                }))
+            }))
+        }
+    };
+}
+
 function mockDbWithUser(): AppDb {
     return {
+        ...budgetAccessTables(),
         users: {
             find: vi.fn(async () => ({
                 id: 12,
@@ -41,7 +82,8 @@ function mockDbWithUser(): AppDb {
                 role: 'user',
                 defaultCurrency: 'USD',
                 countryCode: 'US',
-                timezone: 'UTC'
+                timezone: 'UTC',
+                mainBudgetId: 1
             }))
         },
         categories: {
@@ -182,7 +224,8 @@ describe('email confirmation', () => {
             role: 'user',
             defaultCurrency: 'USD',
             countryCode: 'US',
-            timezone: 'UTC'
+            timezone: 'UTC',
+            mainBudgetId: 1
         };
         let updateValues: object | undefined;
 
@@ -190,6 +233,7 @@ describe('email confirmation', () => {
         vi.setSystemTime(new Date('2026-06-01T00:00:00.000Z'));
 
         const db = {
+            ...budgetAccessTables(),
             users: {
                 projected: vi.fn(() => ({
                     where: vi.fn(() => ({

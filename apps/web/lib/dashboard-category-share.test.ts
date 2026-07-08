@@ -42,6 +42,8 @@ function category(
         transactionCount: 0,
         trend: [],
         type: 'expense',
+        contributors: [],
+        otherContributorCount: 0,
         ...overrides
     };
 }

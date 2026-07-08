@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { CategoryTrendExplorer } from '@/components/category-trend-explorer';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetQuery } from '@/lib/budgets';
 import {
     type CategoryTrendSearchParams,
     categoryTrendParamValue,
@@ -51,9 +52,13 @@ export default async function CategoryTrendPage({
 
     const client = await getApiClient();
     const me = await client.auth.me();
-    const query = categoryTrendQuery(rawSearchParams, me.timezone);
+    const budgetQuery = await selectedBudgetQuery(me);
+    const query = {
+        ...categoryTrendQuery(rawSearchParams, me.timezone),
+        ...budgetQuery
+    };
     const [categories, trend] = await Promise.all([
-        client.categories.list({ query: {} }),
+        client.categories.list({ query: budgetQuery }),
         client.stats
             .categoryTrend({
                 params: { id: selectedCategoryId },

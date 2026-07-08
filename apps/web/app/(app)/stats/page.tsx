@@ -1,6 +1,7 @@
 import type { StatsTagReport, StatsWindowResponse } from '@xpenser/contracts';
 import { StatsExplorer } from '@/components/stats-explorer';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import {
     dateParam,
     isDashboardPeriod,
@@ -52,6 +53,12 @@ export default async function StatsPage({
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
     const client = await getApiClient();
     const me = await client.auth.me();
+    const budgetQuery = await selectedBudgetQuery(me);
+    const selectedBudget = await selectedBudgetForUser(me);
+    const defaultCurrency =
+        selectedBudget?.defaultCurrency ?? me.defaultCurrency;
+    const favoriteCurrencies =
+        selectedBudget?.favoriteCurrencies ?? me.favoriteCurrencies;
     const selectedDate = parseDateParam(params.date, me.timezone);
     const anchorDate = selectedDate ?? new Date();
     const initialView = reportView(params.view);
@@ -60,6 +67,7 @@ export default async function StatsPage({
         client.currencies.list(),
         client.stats.window({
             query: {
+                ...budgetQuery,
                 after: 2,
                 before: 2,
                 period,
@@ -71,6 +79,7 @@ export default async function StatsPage({
         initialView === 'tags'
             ? await client.stats.tags({
                   query: {
+                      ...budgetQuery,
                       period,
                       ...(selectedDate ? { date: selectedDate } : {}),
                       ...(initialTag ? { tag: initialTag } : {})
@@ -81,8 +90,8 @@ export default async function StatsPage({
     return (
         <StatsExplorer
             currencies={currencies}
-            defaultCurrency={me.defaultCurrency}
-            favoriteCurrencies={me.favoriteCurrencies}
+            defaultCurrency={defaultCurrency}
+            favoriteCurrencies={favoriteCurrencies}
             initialDate={initialStatsDate(window, anchorDate, me.timezone)}
             initialPeriod={period}
             initialTag={initialTag}

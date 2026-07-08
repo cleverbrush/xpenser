@@ -1,5 +1,11 @@
 import { ActionResult, type Handler } from '@cleverbrush/server';
 import {
+    deleteUserAvatar,
+    getUserAvatarImage,
+    UserAvatarError,
+    updateUserAvatar
+} from '../../application/user-avatars.js';
+import {
     confirmEmail,
     DuplicateEmailError,
     EmailNotVerifiedError,
@@ -29,6 +35,7 @@ import {
 } from '../../security/passport.js';
 import type {
     ConfirmEmailEndpoint,
+    DeleteUserAvatarEndpoint,
     GetMeEndpoint,
     GoogleSignInEndpoint,
     LoginEndpoint,
@@ -38,7 +45,9 @@ import type {
     ResendEmailConfirmationEndpoint,
     SessionTokenEndpoint,
     SingleUserSessionTokenEndpoint,
-    UpdatePreferencesEndpoint
+    UpdatePreferencesEndpoint,
+    UpdateUserAvatarEndpoint,
+    UserAvatarImageEndpoint
 } from '../endpoints.js';
 
 const webServiceSecretHeader = 'x-xpenser-web-secret';
@@ -292,8 +301,6 @@ export const updatePreferencesHandler: Handler<
     const preference = await updateUserPreference(
         db,
         principal.userId,
-        body.defaultCurrency,
-        body.favoriteCurrencies,
         body.countryCode,
         body.timezone,
         body.weeklyEmailReportEnabled,
@@ -303,4 +310,61 @@ export const updatePreferencesHandler: Handler<
         return ActionResult.unauthorized({ message: 'User was not found.' });
     }
     return preference;
+};
+
+export const updateUserAvatarHandler: Handler<
+    typeof UpdateUserAvatarEndpoint
+> = async ({ body, principal }, { db }) => {
+    try {
+        const preference = await updateUserAvatar(db, principal.userId, body);
+        if (!preference) {
+            return ActionResult.unauthorized({
+                message: 'User was not found.'
+            });
+        }
+        return preference;
+    } catch (err) {
+        if (err instanceof UserAvatarError) {
+            return ActionResult.badRequest({ message: err.message });
+        }
+        throw err;
+    }
+};
+
+export const deleteUserAvatarHandler: Handler<
+    typeof DeleteUserAvatarEndpoint
+> = async ({ principal }, { db }) => {
+    const preference = await deleteUserAvatar(db, principal.userId);
+    if (!preference) {
+        return ActionResult.unauthorized({ message: 'User was not found.' });
+    }
+    return preference;
+};
+
+export const userAvatarImageHandler: Handler<
+    typeof UserAvatarImageEndpoint
+> = async ({ params, principal }, { db }) => {
+    const image = await getUserAvatarImage(db, principal.userId, params.id);
+    if (!image) {
+        return ActionResult.notFound({
+            message: 'Avatar image was not found.'
+        });
+    }
+
+    return ActionResult.raw(async (_request, response) => {
+        const buffer = Buffer.from(image.imageBase64, 'base64');
+        response.setHeader('Content-Type', image.mimeType);
+        response.setHeader('Content-Length', String(buffer.byteLength));
+        response.setHeader('Cache-Control', 'private, max-age=300');
+        if (image.fileName) {
+            response.setHeader(
+                'Content-Disposition',
+                `inline; filename="${image.fileName.replaceAll('"', '')}"`
+            );
+        }
+        if (image.updatedAt) {
+            response.setHeader('Last-Modified', image.updatedAt.toUTCString());
+        }
+        response.end(buffer);
+    });
 };

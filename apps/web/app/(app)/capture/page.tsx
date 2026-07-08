@@ -1,11 +1,18 @@
 import { redirect } from 'next/navigation';
 import { TransactionCaptureWorkspace } from '@/components/transaction-scan-capture';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import { categoriesByRecentUse } from '@/lib/capture-suggestions';
 
 export default async function CapturePage() {
     const client = await getApiClient();
     const me = await client.auth.me();
+    const budgetQuery = await selectedBudgetQuery(me);
+    const selectedBudget = await selectedBudgetForUser(me);
+    const defaultCurrency =
+        selectedBudget?.defaultCurrency ?? me.defaultCurrency;
+    const transactionCurrencies =
+        selectedBudget?.transactionCurrencies ?? me.transactionCurrencies;
     const [
         categories,
         currencies,
@@ -13,12 +20,16 @@ export default async function CapturePage() {
         transactionTags,
         recentTransactions
     ] = await Promise.all([
-        client.categories.list({ query: { activeOnly: true } }),
+        client.categories.list({
+            query: { ...budgetQuery, activeOnly: true }
+        }),
         client.currencies.list(),
-        client.vendors.list({ query: { limit: 100 } }),
-        client.transactionTags.list({ query: { limit: 100 } }),
+        client.vendors.list({ query: { ...budgetQuery, limit: 100 } }),
+        client.transactionTags.list({
+            query: { ...budgetQuery, limit: 100 }
+        }),
         client.transactions.list({
-            query: { direction: 'desc', limit: 100, page: 1 }
+            query: { ...budgetQuery, direction: 'desc', limit: 100, page: 1 }
         })
     ]);
 
@@ -34,11 +45,11 @@ export default async function CapturePage() {
                     recentTransactions.items
                 )}
                 currencies={currencies}
-                defaultCurrency={me.defaultCurrency}
+                defaultCurrency={defaultCurrency}
                 vendors={vendors}
                 transactionTags={transactionTags}
                 timezone={me.timezone}
-                transactionCurrencies={me.transactionCurrencies}
+                transactionCurrencies={transactionCurrencies}
             />
         </div>
     );

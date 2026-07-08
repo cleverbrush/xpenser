@@ -1,7 +1,12 @@
 import { array, number } from '@cleverbrush/schema';
 import { defineApi, endpoint, route } from '@cleverbrush/server/contract';
 import {
+    AcceptBudgetInvitationBodySchema,
     ApiKeySchema,
+    BudgetAccessRowSchema,
+    BudgetInvitationResponseSchema,
+    BudgetMemberSchema,
+    BudgetSchema,
     CategoryListQuerySchema,
     CategorySchema,
     CategoryTrendQuerySchema,
@@ -9,6 +14,7 @@ import {
     ConfirmEmailBodySchema,
     CreateApiKeyBodySchema,
     CreateApiKeyResponseSchema,
+    CreateBudgetBodySchema,
     CreateCategoryBodySchema,
     CreateTelegramLinkTokenResponseSchema,
     CreateTransactionBodySchema,
@@ -24,8 +30,10 @@ import {
     EmailConfirmationPendingResponseSchema,
     ErrorResponseSchema,
     GoogleSignInBodySchema,
+    InviteBudgetMemberBodySchema,
     LinkTelegramAccountBodySchema,
     LinkTelegramAccountResponseSchema,
+    ListBudgetsQuerySchema,
     LoginBodySchema,
     McpOAuthAuthorizationQuerySchema,
     McpOAuthAuthorizationRequestSchema,
@@ -62,10 +70,13 @@ import {
     TransactionSchema,
     TransactionTagListQuerySchema,
     TransactionTagSchema,
+    UpdateBudgetBodySchema,
+    UpdateBudgetMemberBodySchema,
     UpdateCategoryBodySchema,
     UpdateTransactionBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
+    UserAvatarUploadBodySchema,
     UserPreferenceSchema,
     VendorCandidateDetailsQuerySchema,
     VendorCandidateSchema,
@@ -75,6 +86,15 @@ import {
 } from './schemas.js';
 
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
+const BudgetMembers = route({ id: number().coerce() })`/${t => t.id}/members`;
+const BudgetAccess = route({ id: number().coerce() })`/${t => t.id}/access`;
+const BudgetMemberById = route({
+    budgetId: number().coerce(),
+    userId: number().coerce()
+})`/${t => t.budgetId}/members/${t => t.userId}`;
+const BudgetInvitations = route({ id: number().coerce() })`/${t =>
+    t.id}/invitations`;
+const BudgetInvitationAccept = route`/accept`;
 const CategoryMoveAndDelete = route({ id: number().coerce() })`/${t =>
     t.id}/move-and-delete`;
 const VendorEnrich = route({ id: number().coerce() })`/${t => t.id}/enrich`;
@@ -90,6 +110,10 @@ const TransactionScanJobStatus = route`/jobs/status`;
 const TransactionExportCsv = route`/export.csv`;
 const TransactionScanImage = route({ id: number().coerce() })`/${t =>
     t.id}/scan-image`;
+const budgets = endpoint.resource('/api/budgets').authorize(PrincipalSchema);
+const budgetInvitations = endpoint
+    .resource('/api/budget-invitations')
+    .authorize(PrincipalSchema);
 const categories = endpoint
     .resource('/api/categories')
     .authorize(PrincipalSchema);
@@ -113,6 +137,9 @@ const stats = endpoint.resource('/api/stats').authorize(PrincipalSchema);
 const apiKeys = endpoint
     .resource('/api/users/me/api-keys')
     .authorize(PrincipalSchema);
+const userAvatars = endpoint.resource('/api/users').authorize(PrincipalSchema);
+const CurrentUserAvatar = route`/me/avatar`;
+const UserAvatarImage = route({ id: number().coerce() })`/${t => t.id}/avatar`;
 const mcpConnections = endpoint
     .resource('/api/users/me/mcp-connections')
     .authorize(PrincipalSchema);
@@ -240,6 +267,31 @@ export const api = defineApi({
                 204: null,
                 401: ErrorResponseSchema
             }),
+        updateAvatar: userAvatars
+            .put(CurrentUserAvatar)
+            .body(UserAvatarUploadBodySchema)
+            .clearsCacheTag('user-profile')
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('dashboard')
+            .clearsCacheTag('vendors')
+            .clearsCacheTag('transactions')
+            .responses({
+                200: UserPreferenceSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
+            }),
+        deleteAvatar: userAvatars
+            .delete(CurrentUserAvatar)
+            .clearsCacheTag('user-profile')
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('dashboard')
+            .clearsCacheTag('vendors')
+            .clearsCacheTag('transactions')
+            .responses({
+                200: UserPreferenceSchema,
+                401: ErrorResponseSchema
+            }),
+        avatarImage: userAvatars.get(UserAvatarImage),
         listApiKeys: apiKeys
             .get()
             .cacheTag('api-keys')
@@ -278,6 +330,100 @@ export const api = defineApi({
                 204: null,
                 401: ErrorResponseSchema,
                 404: ErrorResponseSchema
+            })
+    },
+    budgets: {
+        list: budgets
+            .get()
+            .query(ListBudgetsQuerySchema)
+            .cacheTag('budgets')
+            .responses({ 200: array(BudgetSchema) }),
+        create: budgets
+            .post()
+            .body(CreateBudgetBodySchema)
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('user-profile')
+            .responses({
+                201: BudgetSchema,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        update: budgets
+            .patch(ById)
+            .body(UpdateBudgetBodySchema)
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('user-profile')
+            .clearsCacheTag('dashboard')
+            .clearsCacheTag('stats')
+            .responses({
+                200: BudgetSchema,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        delete: budgets
+            .delete(ById)
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('user-profile')
+            .clearsCacheTag('dashboard')
+            .clearsCacheTag('stats')
+            .responses({
+                204: null,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        members: budgets.get(BudgetMembers).responses({
+            200: array(BudgetMemberSchema),
+            400: ErrorResponseSchema,
+            403: ErrorResponseSchema,
+            404: ErrorResponseSchema
+        }),
+        access: budgets.get(BudgetAccess).responses({
+            200: array(BudgetAccessRowSchema),
+            400: ErrorResponseSchema,
+            403: ErrorResponseSchema,
+            404: ErrorResponseSchema
+        }),
+        invite: budgets
+            .post(BudgetInvitations)
+            .body(InviteBudgetMemberBodySchema)
+            .clearsCacheTag('budgets')
+            .responses({
+                200: BudgetInvitationResponseSchema,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        updateMember: budgets
+            .patch(BudgetMemberById)
+            .body(UpdateBudgetMemberBodySchema)
+            .clearsCacheTag('budgets')
+            .responses({
+                200: BudgetMemberSchema,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        removeMember: budgets
+            .delete(BudgetMemberById)
+            .clearsCacheTag('budgets')
+            .responses({
+                204: null,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
+        acceptInvitation: budgetInvitations
+            .post(BudgetInvitationAccept)
+            .body(AcceptBudgetInvitationBodySchema)
+            .clearsCacheTag('budgets')
+            .clearsCacheTag('user-profile')
+            .responses({
+                200: BudgetSchema,
+                400: ErrorResponseSchema,
+                401: ErrorResponseSchema
             })
     },
     oauth: {
@@ -330,6 +476,7 @@ export const api = defineApi({
             .query(CurrencyConversionQuerySchema)
             .cacheTag('currency-conversion', request => ({
                 amount: request.query.amount,
+                budgetId: request.query.budgetId,
                 currency: request.query.currency,
                 occurredAt: request.query.occurredAt
             }))
@@ -344,14 +491,23 @@ export const api = defineApi({
             .get()
             .query(CategoryListQuerySchema)
             .cacheTag('categories')
-            .responses({ 200: array(CategorySchema) }),
+            .responses({
+                200: array(CategorySchema),
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         create: categories
             .post()
             .body(CreateCategoryBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('user-profile')
             .clearsCacheTag('stats')
-            .responses({ 201: CategorySchema, 400: ErrorResponseSchema }),
+            .responses({
+                201: CategorySchema,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         update: categories
             .patch(ById)
             .body(UpdateCategoryBodySchema)
@@ -361,6 +517,7 @@ export const api = defineApi({
             .responses({
                 200: CategorySchema,
                 400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             }),
         delete: categories
@@ -371,6 +528,7 @@ export const api = defineApi({
             .responses({
                 204: null,
                 400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             }),
         moveAndDelete: categories
@@ -384,6 +542,7 @@ export const api = defineApi({
             .responses({
                 204: null,
                 400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             })
     },
@@ -403,16 +562,26 @@ export const api = defineApi({
             .get()
             .query(VendorListQuerySchema)
             .cacheTag('vendors')
-            .responses({ 200: array(VendorSchema) }),
+            .responses({
+                200: array(VendorSchema),
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         get: vendors.get(ById).cacheTag('vendors').responses({
             200: VendorSchema,
+            403: ErrorResponseSchema,
             404: ErrorResponseSchema
         }),
         create: vendors
             .post()
             .body(CreateVendorBodySchema)
             .clearsCacheTag('vendors')
-            .responses({ 201: VendorSchema, 400: ErrorResponseSchema }),
+            .responses({
+                201: VendorSchema,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         update: vendors
             .patch(ById)
             .body(UpdateVendorBodySchema)
@@ -421,6 +590,7 @@ export const api = defineApi({
             .responses({
                 200: VendorSchema,
                 400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             }),
         enrich: vendors
@@ -429,6 +599,7 @@ export const api = defineApi({
             .clearsCacheTag('transactions')
             .responses({
                 200: VendorSchema,
+                403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             })
     },
@@ -437,12 +608,21 @@ export const api = defineApi({
             .get()
             .query(TransactionListQuerySchema)
             .cacheTag('transactions')
-            .responses({ 200: TransactionListResponseSchema }),
+            .responses({
+                200: TransactionListResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         exportCsv: transactions
             .get(TransactionExportCsv)
             .query(TransactionExportQuerySchema)
             .cacheTag('transactions')
-            .producesFile('text/csv', 'Transaction CSV export'),
+            .producesFile('text/csv', 'Transaction CSV export')
+            .responses({
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         create: transactions
             .post()
             .body(CreateTransactionBodySchema)
@@ -453,7 +633,12 @@ export const api = defineApi({
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
-            .responses({ 201: TransactionSchema, 400: ErrorResponseSchema }),
+            .responses({
+                201: TransactionSchema,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         update: transactions
             .patch(ById)
             .body(UpdateTransactionBodySchema)
@@ -467,6 +652,7 @@ export const api = defineApi({
             .responses({
                 200: TransactionSchema,
                 400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             }),
         delete: transactions
@@ -478,9 +664,14 @@ export const api = defineApi({
             .clearsCacheTag('user-profile')
             .clearsCacheTag('dashboard')
             .clearsCacheTag('stats')
-            .responses({ 204: null, 404: ErrorResponseSchema }),
+            .responses({
+                204: null,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         scanImage: transactions.get(TransactionScanImage).responses({
             200: TransactionScanImageResponseSchema,
+            403: ErrorResponseSchema,
             404: ErrorResponseSchema
         })
     },
@@ -489,7 +680,11 @@ export const api = defineApi({
             .get()
             .query(TransactionTagListQuerySchema)
             .cacheTag('transaction-tags')
-            .responses({ 200: array(TransactionTagSchema) })
+            .responses({
+                200: array(TransactionTagSchema),
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            })
     },
     transactionScans: {
         create: transactionScans
@@ -497,7 +692,9 @@ export const api = defineApi({
             .body(TransactionScanBodySchema)
             .responses({
                 201: TransactionScanResponseSchema,
-                400: ErrorResponseSchema
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
             }),
         start: transactionScans
             .post(TransactionScanJobs)
@@ -525,6 +722,7 @@ export const api = defineApi({
             .responses({
                 204: null,
                 400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             })
     },
@@ -534,12 +732,17 @@ export const api = defineApi({
             .authorize(PrincipalSchema)
             .query(DashboardQuerySchema)
             .cacheTag('dashboard', request => ({
+                budgetId: request.query.budgetId,
                 currency: request.query.currency,
                 date: request.query.date,
                 vendorLimit: request.query.vendorLimit,
                 period: request.query.period
             }))
-            .responses({ 200: DashboardSummarySchema }),
+            .responses({
+                200: DashboardSummarySchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         window: endpoint
             .get('/api/dashboard/window')
             .authorize(PrincipalSchema)
@@ -547,12 +750,17 @@ export const api = defineApi({
             .cacheTag('dashboard', request => ({
                 after: request.query.after,
                 before: request.query.before,
+                budgetId: request.query.budgetId,
                 currency: request.query.currency,
                 date: request.query.date,
                 vendorLimit: request.query.vendorLimit,
                 period: request.query.period
             }))
-            .responses({ 200: DashboardWindowResponseSchema })
+            .responses({
+                200: DashboardWindowResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            })
     },
     stats: {
         overview: endpoint
@@ -560,6 +768,7 @@ export const api = defineApi({
             .authorize(PrincipalSchema)
             .query(StatsQuerySchema)
             .cacheTag('stats', request => ({
+                budgetId: request.query.budgetId,
                 date: request.query.date,
                 from: request.query.from,
                 groupBy: request.query.groupBy,
@@ -567,7 +776,11 @@ export const api = defineApi({
                 timeframe: request.query.timeframe,
                 to: request.query.to
             }))
-            .responses({ 200: StatsOverviewSchema }),
+            .responses({
+                200: StatsOverviewSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         window: endpoint
             .get('/api/stats/window')
             .authorize(PrincipalSchema)
@@ -575,23 +788,34 @@ export const api = defineApi({
             .cacheTag('stats', request => ({
                 after: request.query.after,
                 before: request.query.before,
+                budgetId: request.query.budgetId,
                 date: request.query.date,
                 period: request.query.period
             }))
-            .responses({ 200: StatsWindowResponseSchema }),
+            .responses({
+                200: StatsWindowResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         tags: stats
             .get(StatsTags)
             .query(StatsTagReportQuerySchema)
             .cacheTag('stats', request => ({
+                budgetId: request.query.budgetId,
                 date: request.query.date,
                 period: request.query.period,
                 tag: request.query.tag
             }))
-            .responses({ 200: StatsTagReportSchema }),
+            .responses({
+                200: StatsTagReportSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         categoryTrend: stats
             .get(StatsCategoryTrend)
             .query(CategoryTrendQuerySchema)
             .cacheTag('stats', request => ({
+                budgetId: request.query.budgetId,
                 categoryId: request.params.id,
                 from: request.query.from,
                 groupBy: request.query.groupBy,
@@ -600,7 +824,9 @@ export const api = defineApi({
             }))
             .responses({
                 200: CategoryTrendResponseSchema,
-                400: ErrorResponseSchema
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
             })
     }
 });

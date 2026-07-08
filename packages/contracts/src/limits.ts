@@ -8,6 +8,8 @@
 export const FieldLimits = {
     apiKeyName: 120,
     brandfetchBrandId: 100,
+    budgetInviteToken: 128,
+    budgetName: 120,
     categoryName: 120,
     confirmationToken: 128,
     email: 255,
@@ -17,6 +19,8 @@ export const FieldLimits = {
     passportProvider: 50,
     passportSubject: 255,
     password: 256,
+    userAvatarBase64: 700_000,
+    userAvatarFileName: 255,
     telegramFirstName: 128,
     telegramLastName: 128,
     telegramLinkToken: 128,
@@ -33,6 +37,10 @@ export const FieldLimits = {
     vendorName: 160,
     vendorPrimaryColor: 7,
     vendorSearch: 160
+} as const;
+
+export const UserAvatarLimits = {
+    maxImageBytes: 512 * 1024
 } as const;
 
 export const TransactionTagLimits = {

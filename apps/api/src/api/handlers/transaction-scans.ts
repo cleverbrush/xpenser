@@ -4,6 +4,10 @@ import {
     type SubscriptionHandler
 } from '@cleverbrush/server';
 import {
+    BudgetAccessError,
+    BudgetPermissionError
+} from '../../application/budgets.js';
+import {
     getTransactionScanJobStatus,
     startTransactionScanJob,
     subscribeTransactionScanJob
@@ -22,6 +26,16 @@ import type {
     TransactionScanProgressEndpoint
 } from '../endpoints.js';
 
+function budgetResult(err: unknown) {
+    if (err instanceof BudgetPermissionError) {
+        return ActionResult.forbidden({ message: err.message });
+    }
+    if (err instanceof BudgetAccessError) {
+        return ActionResult.notFound({ message: err.message });
+    }
+    return undefined;
+}
+
 export const createTransactionScanHandler: Handler<
     typeof CreateTransactionScanEndpoint
 > = async ({ body, principal }, { db, config }) => {
@@ -37,6 +51,10 @@ export const createTransactionScanHandler: Handler<
             `/api/transaction-scans/${scan.scanId}`
         );
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof TransactionScanInputError) {
             return ActionResult.badRequest({ message: err.message });
         }
@@ -76,6 +94,10 @@ export const decideTransactionScanItemHandler: Handler<
         );
         return ActionResult.noContent();
     } catch (err) {
+        const result = budgetResult(err);
+        if (result) {
+            return result;
+        }
         if (err instanceof TransactionScanInputError) {
             return ActionResult.badRequest({ message: err.message });
         }

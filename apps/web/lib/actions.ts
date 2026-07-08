@@ -7,6 +7,7 @@ import {
     type TransactionScanDecisionBody,
     type TransactionScanImageResponse,
     UpdateVendorBodySchema,
+    UserAvatarLimits,
     type Vendor,
     type VendorCandidate
 } from '@xpenser/contracts';
@@ -18,6 +19,7 @@ import {
     getApiClient,
     getSessionOrRedirect
 } from './api';
+import { selectedBudgetCookie, selectedBudgetIdFromCookie } from './budgets';
 import { getGoogleSignInProvider, webConfig } from './config';
 import { VendorUpdateActionRejected } from './log-templates';
 import { loggerFor } from './logger';
@@ -92,6 +94,10 @@ function booleanString(
     return value === 'true';
 }
 
+function checkboxString(formData: FormData, key: string): boolean {
+    return formData.getAll(key).includes('true');
+}
+
 function editableString(formData: FormData, key: string): string | undefined {
     const value = formData.get(key);
     return typeof value === 'string' ? normalizeFormText(value) : undefined;
@@ -123,6 +129,13 @@ function transactionBody(formData: FormData, editableNote = false) {
             : optionalString(formData, 'note'),
         ...(tags !== undefined ? { tags } : {})
     };
+}
+
+async function withSelectedBudget<T extends Record<string, unknown>>(
+    body: T
+): Promise<T & { readonly budgetId?: number }> {
+    const budgetId = await selectedBudgetIdFromCookie();
+    return budgetId ? { ...body, budgetId } : body;
 }
 
 function vendorBody(formData: FormData) {
@@ -231,11 +244,95 @@ function categoryBody(formData: FormData) {
     };
 }
 
+function budgetCreateBody(formData: FormData) {
+    const countryCode = optionalString(formData, 'countryCode');
+    const defaultCurrency = requiredString(formData, 'defaultCurrency')
+        .trim()
+        .toUpperCase();
+    return {
+        name: requiredString(formData, 'name'),
+        defaultCurrency,
+        favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency),
+        ...(countryCode ? { countryCode: countryCode.toUpperCase() } : {})
+    };
+}
+
+function budgetUpdateBody(formData: FormData) {
+    const name = optionalString(formData, 'name');
+    const defaultCurrency = optionalString(formData, 'defaultCurrency')
+        ?.trim()
+        .toUpperCase();
+    const countryCode = optionalString(formData, 'countryCode');
+    return {
+        ...(name ? { name } : {}),
+        ...(defaultCurrency
+            ? {
+                  defaultCurrency,
+                  favoriteCurrencies: favoriteCurrencies(
+                      formData,
+                      defaultCurrency
+                  )
+              }
+            : {}),
+        ...(countryCode ? { countryCode: countryCode.toUpperCase() } : {})
+    };
+}
+
+function budgetPermissions(formData: FormData) {
+    return {
+        canCreateTransactions: checkboxString(
+            formData,
+            'canCreateTransactions'
+        ),
+        canUpdateTransactions: checkboxString(
+            formData,
+            'canUpdateTransactions'
+        ),
+        canDeleteTransactions: checkboxString(
+            formData,
+            'canDeleteTransactions'
+        ),
+        canManageCategories: checkboxString(formData, 'canManageCategories'),
+        canManageVendors: checkboxString(formData, 'canManageVendors'),
+        canManageTags: checkboxString(formData, 'canManageTags'),
+        canManageMembers: checkboxString(formData, 'canManageMembers')
+    };
+}
+
+function budgetMemberRole(formData: FormData): 'admin' | 'member' {
+    return requiredString(formData, 'role') === 'admin' ? 'admin' : 'member';
+}
+
 function favoriteCurrencies(formData: FormData, defaultCurrency: string) {
-    return formData
-        .getAll('favoriteCurrencies')
-        .filter((value): value is string => typeof value === 'string')
-        .filter(currency => currency !== defaultCurrency);
+    const normalizedDefault = defaultCurrency.trim().toUpperCase();
+    return Array.from(
+        new Set(
+            formData
+                .getAll('favoriteCurrencies')
+                .filter((value): value is string => typeof value === 'string')
+                .map(currency => currency.trim().toUpperCase())
+                .filter(currency => /^[A-Z]{3}$/.test(currency))
+                .filter(currency => currency !== normalizedDefault)
+        )
+    );
+}
+
+function budgetDetailPath(budgetId: number): string {
+    return `/settings/budgets/${budgetId}`;
+}
+
+function avatarFile(formData: FormData): File {
+    const value = formData.get('avatar');
+    if (!(value instanceof File) || value.size === 0) {
+        throw new Error('avatar is required');
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(value.type)) {
+        throw new Error('avatar must be a PNG, JPEG, or WebP image');
+    }
+    if (value.size > UserAvatarLimits.maxImageBytes) {
+        throw new Error('avatar image is too large');
+    }
+    return value;
 }
 
 function apiErrorMessage(err: unknown): string | undefined {
@@ -439,7 +536,7 @@ export async function createCategoryAction(
 ): Promise<Category> {
     const client = await getApiClient();
     const category = await client.categories.create({
-        body: categoryBody(formData)
+        body: await withSelectedBudget(categoryBody(formData))
     });
     revalidatePath('/settings/categories');
     revalidatePath('/settings/preferences');
@@ -515,7 +612,7 @@ export async function moveAndDeleteCategoryAction(formData: FormData) {
 export async function createVendorAction(formData: FormData): Promise<Vendor> {
     const client = await getApiClient();
     const vendor = await client.vendors.create({
-        body: vendorBody(formData)
+        body: await withSelectedBudget(vendorBody(formData))
     });
     revalidatePath('/capture');
     revalidatePath('/dashboard');
@@ -635,7 +732,7 @@ export async function retryVendorEnrichmentAction(
 export async function createTransactionAction(formData: FormData) {
     const client = await getApiClient();
     await client.transactions.create({
-        body: transactionBody(formData)
+        body: await withSelectedBudget(transactionBody(formData))
     });
     revalidatePath('/capture');
     revalidatePath('/dashboard');
@@ -649,7 +746,7 @@ export async function createCaptureTransactionAction(
 ): Promise<Transaction> {
     const client = await getApiClient();
     const transaction = await client.transactions.create({
-        body: transactionBody(formData)
+        body: await withSelectedBudget(transactionBody(formData))
     });
     revalidatePath('/capture');
     revalidatePath('/dashboard');
@@ -732,13 +829,10 @@ export async function deleteTransactionAction(formData: FormData) {
 
 export async function updatePreferencesAction(formData: FormData) {
     const client = await getApiClient();
-    const defaultCurrency = requiredString(formData, 'defaultCurrency');
     await client.users.updatePreferences({
         body: {
-            defaultCurrency,
             countryCode:
                 optionalString(formData, 'countryCode')?.toUpperCase() ?? 'US',
-            favoriteCurrencies: favoriteCurrencies(formData, defaultCurrency),
             timezone: optionalString(formData, 'timezone') ?? 'UTC',
             weeklyEmailReportEnabled: booleanString(
                 formData,
@@ -766,6 +860,227 @@ export async function disconnectTelegramAction() {
     const client = await getApiClient();
     await client.users.disconnectTelegram();
     revalidatePath('/settings/preferences');
+}
+
+export async function selectBudgetAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const returnTo =
+        safeInternalRedirect(optionalString(formData, 'returnTo')) ??
+        '/dashboard';
+    const client = await getApiClient();
+    const me = await client.auth.me();
+    const budget = me.budgets.find(item => item.id === budgetId);
+    if (!budget) {
+        redirect(returnTo);
+    }
+
+    const cookieStore = await cookies();
+    cookieStore.set(selectedBudgetCookie, String(budget.id), {
+        httpOnly: true,
+        maxAge: 365 * 24 * 60 * 60,
+        path: '/',
+        sameSite: 'lax',
+        secure: webConfig.appUrl.startsWith('https://')
+    });
+    redirect(returnTo);
+}
+
+export async function createBudgetAction(formData: FormData) {
+    const client = await getApiClient();
+    const budget = await client.budgets.create({
+        body: budgetCreateBody(formData)
+    });
+    const cookieStore = await cookies();
+    cookieStore.set(selectedBudgetCookie, String(budget.id), {
+        httpOnly: true,
+        maxAge: 365 * 24 * 60 * 60,
+        path: '/',
+        sameSite: 'lax',
+        secure: webConfig.appUrl.startsWith('https://')
+    });
+    revalidatePath('/settings/budgets');
+    redirect(budgetDetailPath(budget.id));
+}
+
+export async function updateBudgetAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const client = await getApiClient();
+    await client.budgets.update({
+        params: { id: budgetId },
+        body: budgetUpdateBody(formData)
+    });
+    revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+}
+
+async function clearSelectedBudgetIfNeeded(budgetId: number) {
+    const selectedBudgetId = await selectedBudgetIdFromCookie();
+    if (selectedBudgetId !== budgetId) {
+        return;
+    }
+    const cookieStore = await cookies();
+    cookieStore.delete(selectedBudgetCookie);
+}
+
+export async function archiveBudgetAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const client = await getApiClient();
+    await client.budgets.update({
+        params: { id: budgetId },
+        body: { archived: true }
+    });
+    await clearSelectedBudgetIfNeeded(budgetId);
+    revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+}
+
+export async function restoreBudgetAction(formData: FormData) {
+    const client = await getApiClient();
+    await client.budgets.update({
+        params: { id: Number(requiredString(formData, 'budgetId')) },
+        body: { archived: false }
+    });
+    revalidatePath('/settings/budgets');
+    revalidatePath(
+        budgetDetailPath(Number(requiredString(formData, 'budgetId')))
+    );
+}
+
+export async function deleteBudgetAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const client = await getApiClient();
+    await client.budgets.delete({
+        params: { id: budgetId }
+    });
+    await clearSelectedBudgetIfNeeded(budgetId);
+    revalidatePath('/settings/budgets');
+    revalidatePath('/dashboard');
+    revalidatePath('/transactions');
+    revalidatePath('/stats');
+}
+
+export async function inviteBudgetMemberAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const client = await getApiClient();
+    await client.budgets.invite({
+        params: { id: budgetId },
+        body: {
+            email: requiredString(formData, 'email'),
+            role: budgetMemberRole(formData),
+            permissions: budgetPermissions(formData)
+        }
+    });
+    revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
+}
+
+export async function updateBudgetMemberAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const userId = Number(requiredString(formData, 'userId'));
+    const client = await getApiClient();
+    await client.budgets.updateMember({
+        params: { budgetId, userId },
+        body: {
+            role: budgetMemberRole(formData),
+            permissions: budgetPermissions(formData)
+        }
+    });
+    revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
+}
+
+export async function removeBudgetMemberAction(formData: FormData) {
+    const budgetId = Number(requiredString(formData, 'budgetId'));
+    const client = await getApiClient();
+    await client.budgets.removeMember({
+        params: {
+            budgetId,
+            userId: Number(requiredString(formData, 'userId'))
+        }
+    });
+    revalidatePath('/settings/budgets');
+    revalidatePath(budgetDetailPath(budgetId));
+}
+
+export async function acceptBudgetInvitationAction(formData: FormData) {
+    const client = await getApiClient();
+    const budget = await client.budgets.acceptInvitation({
+        body: {
+            token: requiredString(formData, 'token'),
+            name: requiredString(formData, 'name')
+        }
+    });
+    const cookieStore = await cookies();
+    cookieStore.set(selectedBudgetCookie, String(budget.id), {
+        httpOnly: true,
+        maxAge: 365 * 24 * 60 * 60,
+        path: '/',
+        sameSite: 'lax',
+        secure: webConfig.appUrl.startsWith('https://')
+    });
+    revalidatePath('/settings/budgets');
+    redirect('/dashboard');
+}
+
+export async function updateUserAvatarAction(formData: FormData) {
+    let file: File;
+    try {
+        file = avatarFile(formData);
+    } catch (err) {
+        return {
+            error:
+                err instanceof Error ? err.message : 'Could not upload avatar.'
+        };
+    }
+    const imageBase64 = Buffer.from(await file.arrayBuffer()).toString(
+        'base64'
+    );
+    const client = await getApiClient();
+    try {
+        await client.users.updateAvatar({
+            body: {
+                mimeType: file.type as
+                    | 'image/jpeg'
+                    | 'image/png'
+                    | 'image/webp',
+                imageBase64,
+                fileName: file.name || undefined
+            }
+        });
+    } catch (err) {
+        if (apiErrorStatus(err) === 400) {
+            return {
+                error:
+                    apiErrorMessage(err) ??
+                    'Could not upload avatar. Choose another image.'
+            };
+        }
+        throw err;
+    }
+    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
+    revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
+    revalidatePath('/transactions');
+    return { success: true };
+}
+
+export async function deleteUserAvatarAction() {
+    const client = await getApiClient();
+    await client.users.deleteAvatar();
+    revalidatePath('/settings/preferences');
+    revalidatePath('/settings/budgets');
+    revalidatePath('/dashboard');
+    revalidatePath('/vendors');
+    revalidatePath('/settings/vendors');
+    revalidatePath('/transactions');
 }
 
 export async function createApiKeyAction(formData: FormData) {

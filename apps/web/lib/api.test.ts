@@ -34,7 +34,8 @@ function tokenResponse(): TokenResponse {
             defaultCurrency: 'USD',
             countryCode: 'US',
             timezone: 'UTC',
-            hasCategories: true
+            hasCategories: true,
+            mainBudgetId: 1
         }
     };
 }

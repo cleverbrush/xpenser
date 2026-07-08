@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FieldLimits, TransactionTagLimits } from './limits.js';
 import {
+    BudgetSchema,
     CategoryListQuerySchema,
     CategorySchema,
     CategoryTrendQuerySchema,
@@ -16,6 +17,7 @@ import {
     EmailConfirmationPendingResponseSchema,
     GoogleSignInBodySchema,
     LinkTelegramAccountBodySchema,
+    ListBudgetsQuerySchema,
     LoginBodySchema,
     MoveAndDeleteCategoryBodySchema,
     PassportExchangeBodySchema,
@@ -38,6 +40,7 @@ import {
     TransactionScanProgressQuerySchema,
     TransactionScanResponseSchema,
     TransactionSchema,
+    UpdateBudgetBodySchema,
     UpdateCategoryBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
@@ -136,9 +139,7 @@ describe('shared schemas', () => {
         expect(TimeZoneSchema.validate('Not/AZone').valid).toBe(false);
         expect(
             UpdateUserPreferenceBodySchema.validate({
-                defaultCurrency: 'USD',
                 countryCode: 'US',
-                favoriteCurrencies: ['EUR'],
                 timezone: 'Europe/London'
             }).valid
         ).toBe(true);
@@ -146,9 +147,7 @@ describe('shared schemas', () => {
 
     it('rejects preference and Passport identity values longer than DB columns', () => {
         const timezoneResult = UpdateUserPreferenceBodySchema.validate({
-            defaultCurrency: 'USD',
             countryCode: 'US',
-            favoriteCurrencies: ['EUR'],
             timezone: 'A'.repeat(FieldLimits.timeZone + 1)
         });
         expect(timezoneResult.valid).toBe(false);
@@ -172,17 +171,86 @@ describe('shared schemas', () => {
         const result = UserPreferenceSchema.validate({
             id: 1,
             email: 'jane@example.com',
+            hasUploadedAvatar: false,
             defaultCurrency: 'USD',
             countryCode: 'US',
             favoriteCurrencies: ['EUR'],
             transactionCurrencies: ['EUR', 'USD'],
             timezone: 'UTC',
             hasCategories: true,
+            mainBudgetId: 1,
+            budgets: [
+                {
+                    id: 1,
+                    name: 'Main',
+                    defaultCurrency: 'USD',
+                    favoriteCurrencies: ['EUR'],
+                    transactionCurrencies: ['EUR', 'USD'],
+                    countryCode: 'US',
+                    role: 'admin',
+                    permissions: {
+                        canCreateTransactions: true,
+                        canUpdateTransactions: true,
+                        canDeleteTransactions: true,
+                        canManageCategories: true,
+                        canManageVendors: true,
+                        canManageTags: true,
+                        canManageMembers: true
+                    },
+                    isMain: true,
+                    archivedAt: null,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                }
+            ],
             weeklyEmailReportEnabled: true,
             monthlyEmailReportEnabled: true
         });
 
         expect(result.valid).toBe(true);
+    });
+
+    it('validates budget lifecycle fields and query controls', () => {
+        const budget = BudgetSchema.validate({
+            id: 1,
+            name: 'Household',
+            defaultCurrency: 'USD',
+            favoriteCurrencies: ['EUR'],
+            transactionCurrencies: ['EUR', 'USD'],
+            countryCode: 'US',
+            role: 'admin',
+            permissions: {
+                canCreateTransactions: true,
+                canUpdateTransactions: true,
+                canDeleteTransactions: true,
+                canManageCategories: true,
+                canManageVendors: true,
+                canManageTags: true,
+                canManageMembers: true
+            },
+            isMain: false,
+            archivedAt: new Date('2026-06-01T00:00:00.000Z'),
+            createdAt: new Date(),
+            updatedAt: new Date()
+        });
+
+        expect(budget.valid).toBe(true);
+        expect(
+            UpdateBudgetBodySchema.validate({
+                archived: true,
+                defaultCurrency: 'EUR',
+                favoriteCurrencies: ['USD', 'GBP'],
+                name: 'Shared household'
+            }).valid
+        ).toBe(true);
+        expect(
+            ListBudgetsQuerySchema.validate({ status: 'archived' }).object
+                ?.status
+        ).toBe('archived');
+        expect(
+            ListBudgetsQuerySchema.validate({ status: 'deleted' } as never)
+                .valid
+        ).toBe(false);
     });
 
     it('validates category archive update payloads', () => {
@@ -205,9 +273,7 @@ describe('shared schemas', () => {
 
     it('defaults email report preferences to enabled when updating preferences', () => {
         const result = UpdateUserPreferenceBodySchema.validate({
-            defaultCurrency: 'USD',
             countryCode: 'US',
-            favoriteCurrencies: ['EUR'],
             timezone: 'UTC'
         });
 
@@ -220,6 +286,7 @@ describe('shared schemas', () => {
         expect(
             CategoryListQuerySchema.validate({
                 activeOnly: 'true',
+                budgetId: '1',
                 sort: 'recent-transaction-count'
             } as never).object?.activeOnly
         ).toBe(true);
@@ -241,6 +308,7 @@ describe('shared schemas', () => {
 
         const result = CategorySchema.validate({
             id: 2,
+            budgetId: 1,
             name: 'Returns',
             type: 'expense',
             kind: 'offset',
@@ -298,6 +366,7 @@ describe('shared schemas', () => {
         expect(
             VendorSchema.validate({
                 id: 3,
+                budgetId: 1,
                 name: 'Trader Joe',
                 displayName: 'Trader Joe',
                 resolvedName: 'Trader Joe',
@@ -309,6 +378,8 @@ describe('shared schemas', () => {
                 suggestedCategoryId: 1,
                 suggestedCategoryDisplayName: 'Groceries',
                 transactionCount: 2,
+                contributors: [],
+                otherContributorCount: 0,
                 createdAt: new Date(),
                 updatedAt: new Date()
             }).valid
@@ -432,7 +503,8 @@ describe('shared schemas', () => {
                     defaultCurrency: 'USD',
                     countryCode: 'US',
                     timezone: 'UTC',
-                    hasCategories: false
+                    hasCategories: false,
+                    mainBudgetId: 1
                 }
             }).valid
         ).toBe(true);
@@ -666,6 +738,7 @@ describe('shared schemas', () => {
         expect(
             TransactionSchema.validate({
                 id: 42,
+                budgetId: 1,
                 categoryId: 1,
                 vendorId: null,
                 categoryName: 'Groceries',
@@ -683,12 +756,17 @@ describe('shared schemas', () => {
                 tags: [
                     {
                         id: 1,
+                        budgetId: 1,
                         name: 'wife',
                         transactionCount: 2,
                         createdAt: new Date('2026-06-01T12:00:00.000Z'),
                         updatedAt: new Date('2026-06-01T12:00:00.000Z')
                     }
                 ],
+                createdBy: {
+                    userId: 1,
+                    email: 'jane@example.com'
+                },
                 scanAttachment: {
                     scanId: 10,
                     scanItemId: 20,
@@ -833,7 +911,9 @@ describe('shared schemas', () => {
                         type: 'expense',
                         total: 100,
                         transactionCount: 3,
-                        trend: [20, 80]
+                        trend: [20, 80],
+                        contributors: [],
+                        otherContributorCount: 0
                     },
                     {
                         vendorId: null,
@@ -841,7 +921,9 @@ describe('shared schemas', () => {
                         type: 'income',
                         total: 50,
                         transactionCount: 1,
-                        trend: [0, 50]
+                        trend: [0, 50],
+                        contributors: [],
+                        otherContributorCount: 0
                     }
                 ],
                 categoryVendorBreakdown: [
@@ -859,7 +941,9 @@ describe('shared schemas', () => {
                         type: 'expense',
                         total: 100,
                         transactionCount: 3,
-                        trend: [20, 80]
+                        trend: [20, 80],
+                        contributors: [],
+                        otherContributorCount: 0
                     }
                 ],
                 byCategory: [],

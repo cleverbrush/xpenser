@@ -2,6 +2,7 @@ import { createXpenserClient } from '@xpenser/client';
 import type { StatsTagReportQuery } from '@xpenser/contracts';
 import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentSession } from '@/lib/api';
+import { selectedBudgetIdFromCookie } from '@/lib/budgets';
 import { webConfig } from '@/lib/config';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
 
@@ -49,12 +50,16 @@ export async function GET(request: NextRequest) {
     });
 
     try {
+        const budgetId = await selectedBudgetIdFromCookie();
         return NextResponse.json(
             await client.stats.tags({
-                query: tagReportQuery(
-                    request.nextUrl.searchParams,
-                    session.user.timezone
-                )
+                query: {
+                    ...tagReportQuery(
+                        request.nextUrl.searchParams,
+                        session.user.timezone
+                    ),
+                    ...(budgetId ? { budgetId } : {})
+                }
             })
         );
     } catch (err) {

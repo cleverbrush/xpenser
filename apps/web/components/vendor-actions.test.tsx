@@ -37,11 +37,14 @@ const timestamp = new Date('2026-06-01T00:00:00.000Z');
 function vendor(overrides: Partial<Vendor> = {}): Vendor {
     return {
         id: 1,
+        budgetId: 1,
         name: 'Old Walmart',
         displayName: 'Old Walmart',
         resolvedName: 'Walmart',
         domain: 'old.example',
         transactionCount: 0,
+        contributors: [],
+        otherContributorCount: 0,
         createdAt: timestamp,
         updatedAt: timestamp,
         ...overrides

@@ -32,6 +32,7 @@ const timestamp = new Date('2026-06-01T12:00:00.000Z');
 function category(overrides: Partial<Category> = {}): Category {
     return {
         id: 7,
+        budgetId: 1,
         name: 'Groceries',
         type: 'expense',
         parentId: null,

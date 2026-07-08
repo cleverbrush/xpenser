@@ -114,6 +114,27 @@ describe('createXpenserClient', () => {
         );
     });
 
+    it('allows callers to disable batching with an API root base URL', () => {
+        createXpenserClient({
+            baseUrl: 'http://api:4000',
+            disableBatching: true
+        });
+
+        expect(middlewareMocks.batching).not.toHaveBeenCalled();
+        expect(middlewareMocks.createClient).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({
+                middlewares: [
+                    { name: 'tracing' },
+                    { name: 'retry' },
+                    { name: 'timeout' },
+                    { name: 'dedupe' },
+                    { name: 'cacheTags' }
+                ]
+            })
+        );
+    });
+
     it('adds external cache tag invalidation when configured', () => {
         const invalidateCacheTag = vi.fn();
 

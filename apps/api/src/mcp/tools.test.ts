@@ -1,5 +1,6 @@
 import { ErrorCode, type McpError } from '@modelcontextprotocol/sdk/types.js';
 import type {
+    Budget,
     Category,
     DashboardSummary,
     StatsOverview,
@@ -48,6 +49,7 @@ const principal: McpPrincipal = {
 function category(overrides: Partial<Category> = {}): Category {
     return {
         id: 1,
+        budgetId: 1,
         name: 'Food',
         type: 'expense',
         parentId: null,
@@ -65,10 +67,13 @@ function category(overrides: Partial<Category> = {}): Category {
 function vendor(overrides: Partial<Vendor> = {}): Vendor {
     return {
         id: 5,
+        budgetId: 1,
         name: 'Store',
         displayName: 'Store',
         domain: 'store.example',
         transactionCount: 1,
+        contributors: [],
+        otherContributorCount: 0,
         createdAt: new Date('2026-05-03T00:00:00.000Z'),
         updatedAt: new Date('2026-05-04T00:00:00.000Z'),
         ...overrides
@@ -90,6 +95,7 @@ function vendorCandidate(
 function transaction(overrides: Partial<Transaction> = {}): Transaction {
     return {
         id: 100,
+        budgetId: 1,
         categoryId: 1,
         vendorId: null,
         categoryName: 'Food',
@@ -107,6 +113,10 @@ function transaction(overrides: Partial<Transaction> = {}): Transaction {
         note: 'Lunch',
         tags: [],
         scanAttachment: null,
+        createdBy: {
+            userId: 1,
+            email: 'test@cleverbrush.com'
+        },
         createdAt: new Date('2026-05-14T01:00:00.000Z'),
         updatedAt: new Date('2026-05-14T01:00:00.000Z'),
         ...overrides
@@ -118,10 +128,37 @@ function transactionTag(
 ): TransactionTag {
     return {
         id: 9,
+        budgetId: 1,
         name: 'wife',
         transactionCount: 2,
         createdAt: new Date('2026-05-06T00:00:00.000Z'),
         updatedAt: new Date('2026-05-07T00:00:00.000Z'),
+        ...overrides
+    };
+}
+
+function budget(overrides: Partial<Budget> = {}): Budget {
+    return {
+        id: 1,
+        name: 'Main',
+        defaultCurrency: 'USD',
+        favoriteCurrencies: [],
+        transactionCurrencies: ['USD'],
+        countryCode: 'US',
+        role: 'admin',
+        permissions: {
+            canCreateTransactions: true,
+            canUpdateTransactions: true,
+            canDeleteTransactions: true,
+            canManageCategories: true,
+            canManageVendors: true,
+            canManageTags: true,
+            canManageMembers: true
+        },
+        isMain: true,
+        archivedAt: null,
+        createdAt: new Date('2026-05-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-05-01T00:00:00.000Z'),
         ...overrides
     };
 }
@@ -212,9 +249,13 @@ describe('MCP tool helpers', () => {
                 transactionCurrencies: ['USD', 'EUR'],
                 timezone: 'UTC',
                 hasCategories: true,
+                hasUploadedAvatar: false,
+                mainBudgetId: 1,
+                budgets: [budget()],
                 weeklyEmailReportEnabled: true,
                 monthlyEmailReportEnabled: true
             })),
+            listBudgets: vi.fn(async () => [budget()]),
             listCategories: vi.fn(async () => [category()]),
             createCategory: vi.fn(async (_userId, body) =>
                 category({
@@ -325,6 +366,7 @@ describe('MCP tool helpers', () => {
 
         expect(tools.map(tool => tool.name)).toEqual([
             'xpenser_get_current_user',
+            'xpenser_list_budgets',
             'xpenser_list_categories',
             'xpenser_create_category',
             'xpenser_update_category',
@@ -390,6 +432,7 @@ describe('MCP tool helpers', () => {
                 limit: 500
             })
         ).toEqual({
+            budgetId: undefined,
             search: 'wife',
             limit: 100
         });
@@ -434,6 +477,7 @@ describe('MCP tool helpers', () => {
         });
 
         expect(data.listCategories).toHaveBeenCalledWith(7, {
+            budgetId: undefined,
             activeOnly: true,
             sort: 'recent-transaction-count'
         });
@@ -550,6 +594,7 @@ describe('MCP tool helpers', () => {
         });
 
         expect(data.listTransactionTags).toHaveBeenCalledWith(7, {
+            budgetId: undefined,
             search: 'wife',
             limit: 10
         });
@@ -645,7 +690,8 @@ describe('MCP tool helpers', () => {
         expect(data.getDashboardSummary).toHaveBeenCalledWith(
             7,
             'month',
-            new Date('2026-05-14T00:00:00.000Z')
+            new Date('2026-05-14T00:00:00.000Z'),
+            undefined
         );
         expect(result.structuredContent).toMatchObject({
             dashboard: { from: '2026-05-01T00:00:00.000Z' }

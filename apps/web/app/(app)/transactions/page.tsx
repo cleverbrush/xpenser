@@ -1,5 +1,6 @@
 import { TransactionsBrowser } from '@/components/transactions-browser';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import {
     buildTransactionListQuery,
     hasTransactionFilters,
@@ -16,21 +17,34 @@ export default async function TransactionsPage({
     const params = await searchParams;
     const client = await getApiClient();
     const me = await client.auth.me();
+    const budgetQuery = await selectedBudgetQuery(me);
+    const selectedBudget = await selectedBudgetForUser(me);
+    const defaultCurrency =
+        selectedBudget?.defaultCurrency ?? me.defaultCurrency;
+    const favoriteCurrencies =
+        selectedBudget?.favoriteCurrencies ?? me.favoriteCurrencies;
+    const transactionCurrencies =
+        selectedBudget?.transactionCurrencies ?? me.transactionCurrencies;
     const [categories, currencies, vendors, transactionTags, transactions] =
         await Promise.all([
-            client.categories.list({ query: {} }),
+            client.categories.list({ query: budgetQuery }),
             client.currencies.list(),
-            client.vendors.list({ query: { limit: 100 } }),
-            client.transactionTags.list({ query: { limit: 100 } }),
+            client.vendors.list({ query: { ...budgetQuery, limit: 100 } }),
+            client.transactionTags.list({
+                query: { ...budgetQuery, limit: 100 }
+            }),
             client.transactions.list({
-                query: buildTransactionListQuery(
-                    params,
-                    {
-                        limit: transactionPageSize,
-                        page: 1
-                    },
-                    me.timezone
-                )
+                query: {
+                    ...buildTransactionListQuery(
+                        params,
+                        {
+                            limit: transactionPageSize,
+                            page: 1
+                        },
+                        me.timezone
+                    ),
+                    ...budgetQuery
+                }
             })
         ]);
     const hasFilters = hasTransactionFilters(params);
@@ -46,8 +60,9 @@ export default async function TransactionsPage({
             <TransactionsBrowser
                 categories={categories}
                 currencies={currencies}
-                defaultCurrency={me.defaultCurrency}
-                favoriteCurrencies={me.favoriteCurrencies}
+                currentUserId={me.id}
+                defaultCurrency={defaultCurrency}
+                favoriteCurrencies={favoriteCurrencies}
                 hasInitialFilters={hasFilters}
                 vendors={vendors}
                 transactionTags={transactionTags}
@@ -55,7 +70,7 @@ export default async function TransactionsPage({
                     ...transactions,
                     hasMore: transactionHasMore(transactions)
                 }}
-                transactionCurrencies={me.transactionCurrencies}
+                transactionCurrencies={transactionCurrencies}
                 timezone={me.timezone}
             />
         </div>

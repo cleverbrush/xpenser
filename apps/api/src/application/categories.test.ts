@@ -9,6 +9,7 @@ import {
     categoryReportingType,
     deleteCategory,
     LastCategoryError,
+    listCategories,
     moveAndDeleteCategory
 } from './categories.js';
 
@@ -40,6 +41,7 @@ describe('category transaction availability', () => {
         const car: CategoryDb = {
             id: 1,
             userId: 1,
+            budgetId: 1,
             name: 'Car',
             type: 'expense',
             parentId: null,
@@ -112,13 +114,54 @@ describe('category popularity ordering', () => {
             )
         ).toEqual([4, 2, 1, 3]);
     });
+
+    it('uses normal category display order as the equal-count fallback', async () => {
+        const now = new Date();
+        const zebra = categoryRow(1, 'Zebra');
+        const alpha = categoryRow(2, 'Alpha');
+        const coffee = categoryRow(3, 'Coffee');
+        const transaction = (
+            id: number,
+            categoryId: number
+        ): TestTransaction => ({
+            id,
+            userId: 1,
+            budgetId: 1,
+            categoryId,
+            type: 'expense',
+            occurredAt: now,
+            updatedAt: now
+        });
+
+        const categories = await listCategories(
+            testDb(
+                [zebra, alpha, coffee],
+                [
+                    transaction(1, zebra.id),
+                    transaction(2, alpha.id),
+                    transaction(3, coffee.id),
+                    transaction(4, coffee.id)
+                ]
+            ) as never,
+            1,
+            { budgetId: 1, sort: 'recent-transaction-count' }
+        );
+
+        expect(categories.map(category => category.name)).toEqual([
+            'Coffee',
+            'Alpha',
+            'Zebra'
+        ]);
+    });
 });
 
 type TestTransaction = {
     id: number;
     userId: number;
+    budgetId: number;
     categoryId: number;
     type: 'expense' | 'income';
+    occurredAt?: Date;
     updatedAt: Date;
 };
 
@@ -128,10 +171,30 @@ class TestQuery<T extends object> implements PromiseLike<T[]> {
         private readonly rows: T[] = source
     ) {}
 
-    where<TValue>(selector: (row: T) => TValue, value: TValue): TestQuery<T> {
+    where<TValue>(
+        selector: (row: T) => TValue,
+        valueOrOperator: TValue | '>=' | '<=',
+        maybeValue?: TValue
+    ): TestQuery<T> {
+        if (valueOrOperator === '>=' || valueOrOperator === '<=') {
+            if (maybeValue == null) {
+                throw new Error('Comparison value is required.');
+            }
+            return new TestQuery(
+                this.source,
+                this.rows.filter(row => {
+                    const actual = selector(row);
+                    const expected = maybeValue;
+                    return valueOrOperator === '>='
+                        ? actual >= expected
+                        : actual <= expected;
+                })
+            );
+        }
+
         return new TestQuery(
             this.source,
-            this.rows.filter(row => selector(row) === value)
+            this.rows.filter(row => selector(row) === valueOrOperator)
         );
     }
 
@@ -180,6 +243,7 @@ function categoryRow(
     return {
         id,
         userId: 1,
+        budgetId: 1,
         name,
         type: 'expense',
         parentId: null,
@@ -192,6 +256,12 @@ function categoryRow(
 }
 
 type TestDb = {
+    budgetMembers: {
+        where(): { where(): { first(): Promise<object> } };
+    };
+    budgets: {
+        find(id: number): Promise<object>;
+    };
     categories: {
         where<TValue>(
             selector: (row: CategoryDb) => TValue,
@@ -211,7 +281,40 @@ function testDb(
     categories: CategoryDb[],
     transactions: TestTransaction[]
 ): TestDb {
+    const budget = {
+        id: 1,
+        name: 'Main',
+        defaultCurrency: 'USD',
+        countryCode: 'US',
+        createdByUserId: 1,
+        createdAt: new Date('2026-05-10T12:30:00.000Z'),
+        updatedAt: new Date('2026-05-10T12:30:00.000Z')
+    };
+    const member = {
+        budgetId: 1,
+        userId: 1,
+        role: 'admin',
+        canCreateTransactions: true,
+        canUpdateTransactions: true,
+        canDeleteTransactions: true,
+        canManageCategories: true,
+        canManageVendors: true,
+        canManageTags: true,
+        canManageMembers: true,
+        createdAt: budget.createdAt,
+        updatedAt: budget.updatedAt
+    };
     return {
+        budgets: {
+            find: async () => budget
+        },
+        budgetMembers: {
+            where: () => ({
+                where: () => ({
+                    first: async () => member
+                })
+            })
+        },
         categories: {
             where<TValue>(
                 selector: (row: CategoryDb) => TValue,
@@ -260,6 +363,7 @@ describe('move and delete category', () => {
             {
                 id: 1,
                 userId: 1,
+                budgetId: 1,
                 categoryId: source.id,
                 type: 'income' as const,
                 updatedAt: source.updatedAt
@@ -267,6 +371,7 @@ describe('move and delete category', () => {
             {
                 id: 2,
                 userId: 2,
+                budgetId: 2,
                 categoryId: source.id,
                 type: 'expense' as const,
                 updatedAt: source.updatedAt
@@ -301,6 +406,7 @@ describe('move and delete category', () => {
             {
                 id: 1,
                 userId: 1,
+                budgetId: 1,
                 categoryId: source.id,
                 type: 'expense' as const,
                 updatedAt: source.updatedAt

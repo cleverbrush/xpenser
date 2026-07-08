@@ -1,5 +1,6 @@
 import { VendorsExplorer } from '@/components/vendors-explorer';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import { selectedDashboardCurrency } from '@/lib/dashboard-currencies';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
 import { initialDashboardWindowDate } from '@/lib/dashboard-window';
@@ -20,26 +21,41 @@ export default async function VendorsPage({
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
     const client = await getApiClient();
     const me = await client.auth.me();
+    const budgetQuery = await selectedBudgetQuery(me);
+    const selectedBudget = await selectedBudgetForUser(me);
+    const defaultCurrency =
+        selectedBudget?.defaultCurrency ?? me.defaultCurrency;
+    const favoriteCurrencies =
+        selectedBudget?.favoriteCurrencies ?? me.favoriteCurrencies;
+    const transactionCurrencies =
+        selectedBudget?.transactionCurrencies ?? me.transactionCurrencies;
     const displayCurrency = selectedDashboardCurrency(
         params.currency,
-        me.defaultCurrency,
-        me.favoriteCurrencies
+        defaultCurrency,
+        favoriteCurrencies
     );
     const selectedDate = parseDateParam(params.date, me.timezone);
     const anchorDate = selectedDate ?? new Date();
     const [categories, currencies, vendors, transactionTags, window] =
         await Promise.all([
             client.categories.list({
-                query: { activeOnly: true, sort: 'recent-transaction-count' }
+                query: {
+                    ...budgetQuery,
+                    activeOnly: true,
+                    sort: 'recent-transaction-count'
+                }
             }),
             client.currencies.list(),
-            client.vendors.list({ query: { limit: 100 } }),
-            client.transactionTags.list({ query: { limit: 100 } }),
+            client.vendors.list({ query: { ...budgetQuery, limit: 100 } }),
+            client.transactionTags.list({
+                query: { ...budgetQuery, limit: 100 }
+            }),
             client.dashboard.window({
                 query: {
+                    ...budgetQuery,
                     after: 2,
                     before: 2,
-                    ...(displayCurrency !== me.defaultCurrency
+                    ...(displayCurrency !== defaultCurrency
                         ? { currency: displayCurrency }
                         : {}),
                     vendorLimit: vendorAnalyticsVendorLimit,
@@ -53,8 +69,8 @@ export default async function VendorsPage({
         <VendorsExplorer
             categories={categories}
             currencies={currencies}
-            defaultCurrency={me.defaultCurrency}
-            favoriteCurrencies={me.favoriteCurrencies}
+            defaultCurrency={defaultCurrency}
+            favoriteCurrencies={favoriteCurrencies}
             initialDate={initialDashboardWindowDate(
                 window,
                 anchorDate,
@@ -66,7 +82,7 @@ export default async function VendorsPage({
             transactionTags={transactionTags}
             vendors={vendors}
             timezone={me.timezone}
-            transactionCurrencies={me.transactionCurrencies}
+            transactionCurrencies={transactionCurrencies}
         />
     );
 }

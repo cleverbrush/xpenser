@@ -42,6 +42,7 @@ function category(
 ): Category {
     return {
         id,
+        budgetId: 1,
         name,
         type,
         parentId: null,
@@ -69,6 +70,7 @@ const currencies: Currency[] = [
 function savedTransaction(): Transaction {
     return {
         id: 42,
+        budgetId: 1,
         categoryId: 7,
         vendorId: null,
         categoryName: 'Groceries',
@@ -84,6 +86,10 @@ function savedTransaction(): Transaction {
         exchangeRateDate: '2026-05-10',
         occurredAt: timestamp,
         tags: [],
+        createdBy: {
+            userId: 1,
+            email: 'test@cleverbrush.com'
+        },
         createdAt: timestamp,
         updatedAt: timestamp
     };
@@ -92,10 +98,13 @@ function savedTransaction(): Transaction {
 function vendor(overrides: Partial<Vendor> = {}): Vendor {
     return {
         id: 5,
+        budgetId: 1,
         name: 'Walmart',
         displayName: 'Walmart',
         domain: 'walmart.com',
         transactionCount: 0,
+        contributors: [],
+        otherContributorCount: 0,
         createdAt: timestamp,
         updatedAt: timestamp,
         ...overrides

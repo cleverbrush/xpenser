@@ -60,7 +60,8 @@ describe('API session token helpers', () => {
                     defaultCurrency: 'USD',
                     countryCode: 'US',
                     timezone: 'UTC',
-                    hasCategories: true
+                    hasCategories: true,
+                    mainBudgetId: 1
                 }
             }
         );

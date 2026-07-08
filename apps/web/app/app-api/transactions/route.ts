@@ -1,6 +1,7 @@
 import { createXpenserClient } from '@xpenser/client';
 import { type NextRequest, NextResponse } from 'next/server';
 import { getCurrentSession } from '@/lib/api';
+import { selectedBudgetIdFromCookie } from '@/lib/budgets';
 import { webConfig } from '@/lib/config';
 import {
     buildTransactionListQuery,
@@ -29,12 +30,16 @@ export async function GET(request: NextRequest) {
         getToken: () => session.apiToken
     });
     try {
+        const budgetId = await selectedBudgetIdFromCookie();
         const transactions = await client.transactions.list({
-            query: buildTransactionListQuery(
-                request.nextUrl.searchParams,
-                {},
-                session.user.timezone
-            )
+            query: {
+                ...buildTransactionListQuery(
+                    request.nextUrl.searchParams,
+                    {},
+                    session.user.timezone
+                ),
+                ...(budgetId ? { budgetId } : {})
+            }
         });
 
         return NextResponse.json({

@@ -13,6 +13,7 @@ import {
 } from '@xpenser/ui';
 import { SearchIcon } from 'lucide-react';
 import Link from 'next/link';
+import { ContributorAvatars } from './contributor-avatars';
 import { VendorLogo, vendorDisplayName } from './vendor-display';
 
 function vendorSubtitle(vendor: Vendor): string {
@@ -29,10 +30,16 @@ function VendorIdentity({ vendor }: { readonly vendor: Vendor }) {
             <VendorLogo vendor={vendor} />
             <div className="min-w-0">
                 <Link
-                    className="block truncate font-medium transition-colors hover:text-primary"
+                    className="flex min-w-0 items-center gap-2 font-medium transition-colors hover:text-primary"
                     href={`/settings/vendors/${vendor.id}`}
                 >
-                    {vendorDisplayName(vendor)}
+                    <span className="truncate">
+                        {vendorDisplayName(vendor)}
+                    </span>
+                    <ContributorAvatars
+                        contributors={vendor.contributors}
+                        otherContributorCount={vendor.otherContributorCount}
+                    />
                 </Link>
                 <p className="truncate text-xs text-muted-foreground">
                     {vendorSubtitle(vendor)}

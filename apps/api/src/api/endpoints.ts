@@ -81,7 +81,7 @@ export const GetMeEndpoint = api.auth.me
     .inject({ db: DbToken })
     .summary('Current user')
     .description(
-        'Returns preferences and transaction currency ordering for the authenticated user.'
+        'Returns preferences, accessible budgets, and derived transaction currency ordering for the authenticated user.'
     )
     .tags('users')
     .operationId('getCurrentUser');
@@ -91,7 +91,7 @@ export const UpdatePreferencesEndpoint = api.users.updatePreferences
     .inject({ db: DbToken })
     .summary('Update preferences')
     .description(
-        'Updates the current user default currency, favorite currencies, and timezone.'
+        'Updates the current user country, timezone, and email report preferences.'
     )
     .tags('users')
     .operationId('updateUserPreferences');
@@ -121,6 +121,112 @@ export const DisconnectTelegramEndpoint = api.users.disconnectTelegram
     .description('Disconnects Telegram from the current user.')
     .tags('users')
     .operationId('disconnectTelegram');
+
+export const UpdateUserAvatarEndpoint = api.users.updateAvatar
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Update user avatar')
+    .description('Stores a manually uploaded avatar for the current user.')
+    .tags('users')
+    .operationId('updateUserAvatar');
+
+export const DeleteUserAvatarEndpoint = api.users.deleteAvatar
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Delete user avatar')
+    .description('Removes the current user manually uploaded avatar.')
+    .tags('users')
+    .operationId('deleteUserAvatar');
+
+export const UserAvatarImageEndpoint = api.users.avatarImage
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('User avatar image')
+    .description('Streams a stored avatar image visible to the current user.')
+    .tags('users')
+    .operationId('userAvatarImage');
+
+export const ListBudgetsEndpoint = api.budgets.list
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List budgets')
+    .description('Lists budgets accessible to the authenticated user.')
+    .tags('budgets')
+    .operationId('listBudgets');
+
+export const CreateBudgetEndpoint = api.budgets.create
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Create budget')
+    .description('Creates a new budget with the current user as admin.')
+    .tags('budgets')
+    .operationId('createBudget');
+
+export const UpdateBudgetEndpoint = api.budgets.update
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Update budget')
+    .description('Updates budget name, defaults, or archive state.')
+    .tags('budgets')
+    .operationId('updateBudget');
+
+export const DeleteBudgetEndpoint = api.budgets.delete
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Delete budget')
+    .description('Permanently deletes an archived non-main budget.')
+    .tags('budgets')
+    .operationId('deleteBudget');
+
+export const ListBudgetMembersEndpoint = api.budgets.members
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List budget members')
+    .description('Lists members for a budget the current user can manage.')
+    .tags('budgets')
+    .operationId('listBudgetMembers');
+
+export const ListBudgetAccessEndpoint = api.budgets.access
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('List budget access')
+    .description(
+        'Lists active members and invitation statuses for a budget the current user can manage.'
+    )
+    .tags('budgets')
+    .operationId('listBudgetAccess');
+
+export const InviteBudgetMemberEndpoint = api.budgets.invite
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken, config: ConfigToken })
+    .summary('Invite budget member')
+    .description('Sends a magic link invitation for an existing user.')
+    .tags('budgets')
+    .operationId('inviteBudgetMember');
+
+export const UpdateBudgetMemberEndpoint = api.budgets.updateMember
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Update budget member')
+    .description('Updates budget member role and permissions.')
+    .tags('budgets')
+    .operationId('updateBudgetMember');
+
+export const RemoveBudgetMemberEndpoint = api.budgets.removeMember
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Remove budget member')
+    .description('Removes a user from a shared budget.')
+    .tags('budgets')
+    .operationId('removeBudgetMember');
+
+export const AcceptBudgetInvitationEndpoint = api.budgets.acceptInvitation
+    .authorize(PrincipalSchema)
+    .inject({ db: DbToken })
+    .summary('Accept budget invitation')
+    .description('Consumes a budget invitation magic link.')
+    .tags('budgets')
+    .operationId('acceptBudgetInvitation');
 
 export const ListApiKeysEndpoint = api.users.listApiKeys
     .authorize(PrincipalSchema)
@@ -214,7 +320,7 @@ export const ConvertCurrencyEndpoint = api.currencies.convert
     .inject({ db: DbToken, config: ConfigToken })
     .summary('Convert currency')
     .description(
-        'Converts an entered amount to the authenticated user default currency.'
+        'Converts an entered amount to the selected budget default currency.'
     )
     .tags('currencies')
     .operationId('convertCurrency');
@@ -357,7 +463,7 @@ export const UpdateTransactionEndpoint = api.transactions.update
 
 export const ListTransactionTagsEndpoint = api.transactionTags.list
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken })
     .summary('List transaction tags')
     .description('Lists transaction tags owned by the authenticated user.')
     .tags('transaction-tags')
@@ -373,7 +479,7 @@ export const DeleteTransactionEndpoint = api.transactions.delete
 
 export const GetTransactionScanImageEndpoint = api.transactions.scanImage
     .authorize(PrincipalSchema)
-    .inject({ knex: KnexToken })
+    .inject({ db: DbToken, knex: KnexToken })
     .summary('Get scanned transaction image')
     .description(
         'Returns the original scanner image attached to a confirmed transaction.'
@@ -493,11 +599,26 @@ export const endpoints = {
         telegramStatus: TelegramStatusEndpoint,
         createTelegramLinkToken: CreateTelegramLinkTokenEndpoint,
         disconnectTelegram: DisconnectTelegramEndpoint,
+        updateAvatar: UpdateUserAvatarEndpoint,
+        deleteAvatar: DeleteUserAvatarEndpoint,
+        avatarImage: UserAvatarImageEndpoint,
         listApiKeys: ListApiKeysEndpoint,
         createApiKey: CreateApiKeyEndpoint,
         revokeApiKey: RevokeApiKeyEndpoint,
         listMcpOAuthConnections: ListMcpOAuthConnectionsEndpoint,
         revokeMcpOAuthConnection: RevokeMcpOAuthConnectionEndpoint
+    },
+    budgets: {
+        list: ListBudgetsEndpoint,
+        create: CreateBudgetEndpoint,
+        update: UpdateBudgetEndpoint,
+        delete: DeleteBudgetEndpoint,
+        members: ListBudgetMembersEndpoint,
+        access: ListBudgetAccessEndpoint,
+        invite: InviteBudgetMemberEndpoint,
+        updateMember: UpdateBudgetMemberEndpoint,
+        removeMember: RemoveBudgetMemberEndpoint,
+        acceptInvitation: AcceptBudgetInvitationEndpoint
     },
     oauth: {
         authorizationRequest: McpOAuthAuthorizationRequestEndpoint,

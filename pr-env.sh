@@ -379,8 +379,64 @@ sync_repo() {
     git -C "$CHECKOUT_DIR" clean -fdx -e .env
 }
 
+docker_volume_created_epoch() {
+    local volume_name="$1"
+    local created_at
+
+    created_at="$(
+        docker volume inspect "$volume_name" --format '{{.CreatedAt}}' \
+            2>/dev/null || true
+    )"
+    [[ -n "$created_at" ]] || return 1
+
+    date -u -d "$created_at" '+%s' 2>/dev/null
+}
+
+database_initialized() {
+    local volume_name="${COMPOSE_PROJECT}_postgres_data"
+    local marker_epoch
+    local volume_epoch
+
+    if [[ ! -f "$DB_INITIALIZED_FILE" ]]; then
+        return 1
+    fi
+
+    marker_epoch="$(stat -c '%Y' "$DB_INITIALIZED_FILE" 2>/dev/null || true)"
+    if [[ ! "$marker_epoch" =~ ^[0-9]+$ ]]; then
+        log "Could not read ${DB_INITIALIZED_FILE} mtime; reinitializing PR database"
+        return 1
+    fi
+
+    volume_epoch="$(docker_volume_created_epoch "$volume_name" || true)"
+    if [[ ! "$volume_epoch" =~ ^[0-9]+$ ]]; then
+        log "Could not read ${volume_name} creation time; reinitializing PR database"
+        return 1
+    fi
+
+    if (( marker_epoch < volume_epoch )); then
+        log "${DB_INITIALIZED_FILE} predates ${volume_name}; reinitializing PR database"
+        return 1
+    fi
+
+    return 0
+}
+
+reset_pr_database() {
+    local pr_container="$1"
+
+    log "Resetting PR database ${POSTGRES_DB} before restore"
+    docker exec -i -e "PGPASSWORD=${POSTGRES_PASSWORD}" "$pr_container" \
+        psql -v ON_ERROR_STOP=1 \
+            -U "$POSTGRES_USER" \
+            -d "$POSTGRES_DB" <<SQL
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC;
+SQL
+}
+
 initialize_database() {
-    if [[ -f "$DB_INITIALIZED_FILE" ]]; then
+    if database_initialized; then
         log "PR database already initialized; preserving existing volume"
         return
     fi
@@ -404,6 +460,8 @@ initialize_database() {
     prod_password="$(docker exec "$prod_container" printenv POSTGRES_PASSWORD 2>/dev/null || true)"
     prod_db="${prod_db:-$POSTGRES_DB}"
     prod_user="${prod_user:-$POSTGRES_USER}"
+
+    reset_pr_database "$pr_container"
 
     log "Copying production database into ${COMPOSE_PROJECT}_postgres_data"
     docker exec -e "PGPASSWORD=${prod_password}" "$prod_container" \

@@ -70,6 +70,7 @@ import { transactionPageSize } from '@/lib/transaction-query';
 import { AmountDisplay } from './amount-display';
 import { DashboardViewSettingsMenu } from './dashboard-view-settings-menu';
 import { TransactionDialog } from './transaction-dialog';
+import { UserAvatar } from './user-avatar';
 import { VendorLogo } from './vendor-display';
 
 type TransactionFeedResponse = {
@@ -240,6 +241,24 @@ function transactionBadges(transaction: Transaction) {
             </Badge>
             <ScanImageReviewButton transaction={transaction} />
         </>
+    );
+}
+
+function transactionCreatorAvatar(
+    transaction: Transaction,
+    currentUserId: number
+) {
+    if (transaction.createdBy.userId === currentUserId) {
+        return null;
+    }
+
+    return (
+        <UserAvatar
+            avatarUrl={transaction.createdBy.avatarUrl}
+            className="size-6"
+            email={transaction.createdBy.email || 'another user'}
+            fallbackClassName="text-[0.65rem]"
+        />
     );
 }
 
@@ -433,6 +452,7 @@ function TransactionActions({
 function TransactionCards({
     categories,
     currencies,
+    currentUserId,
     defaultCurrency,
     transactionTags: availableTransactionTags,
     vendors,
@@ -441,6 +461,7 @@ function TransactionCards({
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
+    readonly currentUserId: number;
     readonly defaultCurrency: string;
     readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
@@ -461,6 +482,10 @@ function TransactionCards({
                             </h2>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
                                 {transactionBadges(transaction)}
+                                {transactionCreatorAvatar(
+                                    transaction,
+                                    currentUserId
+                                )}
                                 <span className="text-xs text-muted-foreground">
                                     {formatDateTime(
                                         transaction.occurredAt,
@@ -493,6 +518,7 @@ function TransactionCards({
 function TransactionTable({
     categories,
     currencies,
+    currentUserId,
     defaultCurrency,
     transactionTags: availableTransactionTags,
     vendors,
@@ -501,6 +527,7 @@ function TransactionTable({
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
+    readonly currentUserId: number;
     readonly defaultCurrency: string;
     readonly transactionTags: readonly TransactionTag[];
     readonly vendors: readonly Vendor[];
@@ -516,6 +543,7 @@ function TransactionTable({
                             <TableHead>Category</TableHead>
                             <TableHead>Vendor</TableHead>
                             <TableHead>Tags</TableHead>
+                            <TableHead>Creator</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>When</TableHead>
@@ -537,6 +565,16 @@ function TransactionTable({
                                 </TableCell>
                                 <TableCell>
                                     {transactionTagBadges(transaction) ?? (
+                                        <span className="text-xs text-muted-foreground">
+                                            -
+                                        </span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {transactionCreatorAvatar(
+                                        transaction,
+                                        currentUserId
+                                    ) ?? (
                                         <span className="text-xs text-muted-foreground">
                                             -
                                         </span>
@@ -583,6 +621,7 @@ function TransactionTable({
 export function TransactionsBrowser({
     categories,
     currencies,
+    currentUserId,
     defaultCurrency,
     favoriteCurrencies,
     hasInitialFilters,
@@ -594,6 +633,7 @@ export function TransactionsBrowser({
 }: {
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
+    readonly currentUserId: number;
     readonly defaultCurrency: string;
     readonly favoriteCurrencies: readonly string[];
     readonly hasInitialFilters: boolean;
@@ -951,6 +991,7 @@ export function TransactionsBrowser({
                     <TransactionCards
                         categories={categories}
                         currencies={dialogCurrencies}
+                        currentUserId={currentUserId}
                         defaultCurrency={defaultCurrency}
                         transactionTags={transactionTags}
                         vendors={vendors}
@@ -960,6 +1001,7 @@ export function TransactionsBrowser({
                     <TransactionTable
                         categories={categories}
                         currencies={dialogCurrencies}
+                        currentUserId={currentUserId}
                         defaultCurrency={defaultCurrency}
                         transactionTags={transactionTags}
                         vendors={vendors}

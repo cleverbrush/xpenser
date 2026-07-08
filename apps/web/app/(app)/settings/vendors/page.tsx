@@ -1,5 +1,6 @@
 import { VendorDirectory } from '@/components/vendor-directory';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetQuery } from '@/lib/budgets';
 
 type VendorSearchParams = {
     readonly search?: string | readonly string[];
@@ -18,8 +19,10 @@ export default async function VendorsSettingsPage({
     const params = await searchParams;
     const search = readSearch(params.search);
     const client = await getApiClient();
+    const me = await client.auth.me();
+    const budgetQuery = await selectedBudgetQuery(me);
     const vendors = await client.vendors.list({
-        query: { limit: 100, search: search || undefined }
+        query: { ...budgetQuery, limit: 100, search: search || undefined }
     });
 
     return (

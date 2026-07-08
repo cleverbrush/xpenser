@@ -14,6 +14,11 @@ import type { Config } from '../config.js';
 import type { AppDb, TransactionDb, UserDb } from '../db/schemas.js';
 import { hashPassword, verifyPassword } from '../security/password.js';
 import { issueToken, tokenExpiresAt } from '../security/token.js';
+import {
+    createMainBudgetForUser,
+    ensureMainBudget,
+    listBudgets
+} from './budgets.js';
 import { sendEmail } from './email.js';
 
 export class DuplicateEmailError extends Error {}
@@ -40,6 +45,27 @@ const emailConfirmationResendMessage =
 function normalizeCountryCode(value: string | undefined): string {
     const countryCode = (value ?? 'US').trim().toUpperCase();
     return /^[A-Z]{2}$/.test(countryCode) ? countryCode : 'US';
+}
+
+function normalizedAvatarUrl(value: string | undefined): string | undefined {
+    if (!value) {
+        return undefined;
+    }
+    try {
+        const url = new URL(value.trim());
+        return url.protocol === 'https:' ? url.toString() : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function userAvatarUrl(
+    user: Pick<UserDb, 'avatarImageMimeType' | 'avatarUrl' | 'id'>
+): string | undefined {
+    if (user.avatarImageMimeType) {
+        return `/app-api/users/${user.id}/avatar`;
+    }
+    return user.avatarUrl ?? undefined;
 }
 
 function normalizedEmail(value: string): string {
@@ -128,39 +154,17 @@ function isUnverifiedLocalUser(
     return user.authProvider === 'local' && user.emailVerified === false;
 }
 
-async function favoriteCurrencies(
+async function hasCategories(
     db: AppDb,
-    userId: number
-): Promise<string[]> {
-    const rows = await db.favoriteCurrencies
-        .where(currency => currency.userId, userId)
-        .orderBy(currency => currency.currency, 'asc');
-    return rows.map(row => row.currency);
-}
-
-async function hasCategories(db: AppDb, userId: number): Promise<boolean> {
+    userId: number,
+    budgetId?: number
+): Promise<boolean> {
+    const selectedBudgetId =
+        budgetId ?? (await ensureMainBudget(db, userId)).id;
     const rows = await db.categories
-        .where(category => category.userId, userId)
+        .where(category => category.budgetId, selectedBudgetId)
         .limit(1);
     return rows.length > 0;
-}
-
-async function recentCurrencyTransactions(
-    db: AppDb,
-    userId: number
-): Promise<TransactionDb[]> {
-    const rows = (await db.transactions.where(
-        transaction => transaction.userId,
-        userId
-    )) as TransactionDb[];
-
-    return rows
-        .sort(
-            (left, right) =>
-                right.occurredAt.getTime() - left.occurredAt.getTime() ||
-                right.id - left.id
-        )
-        .slice(0, 10);
 }
 
 export function transactionCurrenciesByRecentPopularity(
@@ -226,25 +230,6 @@ export function transactionCurrenciesByRecentPopularity(
     );
 }
 
-async function setFavoriteCurrencies(
-    db: AppDb,
-    userId: number,
-    currencies: readonly string[],
-    defaultCurrency: string
-): Promise<void> {
-    const unique = Array.from(
-        new Set(currencies.filter(currency => currency !== defaultCurrency))
-    );
-    await db.favoriteCurrencies
-        .where(currency => currency.userId, userId)
-        .delete();
-    if (unique.length > 0) {
-        await db.favoriteCurrencies.insertMany(
-            unique.map(currency => ({ userId, currency }))
-        );
-    }
-}
-
 function toTokenResponse(
     config: Config,
     user: Pick<
@@ -255,6 +240,7 @@ function toTokenResponse(
         | 'role'
         | 'countryCode'
         | 'timezone'
+        | 'mainBudgetId'
         | 'weeklyEmailReportEnabled'
         | 'monthlyEmailReportEnabled'
     >,
@@ -278,6 +264,7 @@ function toTokenResponse(
             defaultCurrency: user.defaultCurrency,
             countryCode: normalizeCountryCode(user.countryCode),
             timezone: normalizeTimeZone(user.timezone),
+            mainBudgetId: user.mainBudgetId ?? null,
             hasCategories: categories
         }
     };
@@ -319,10 +306,11 @@ export async function issueUserToken(
         return undefined;
     }
 
+    const mainBudget = await ensureMainBudget(db, userId);
     return toTokenResponse(
         config,
-        user,
-        await hasCategories(db, userId),
+        { ...user, mainBudgetId: user.mainBudgetId ?? mainBudget.id },
+        await hasCategories(db, userId, mainBudget.id),
         expiresInSeconds
     );
 }
@@ -355,6 +343,11 @@ export async function issueSingleUserToken(
             emailVerificationExpiresAt: undefined,
             role: 'user',
             authProvider: 'single_user',
+            avatarUrl: undefined,
+            avatarImageBase64: undefined,
+            avatarImageMimeType: undefined,
+            avatarImageFileName: undefined,
+            avatarImageUpdatedAt: undefined,
             defaultCurrency: 'USD',
             countryCode: 'US',
             timezone: defaultTimeZone
@@ -409,16 +402,20 @@ export async function registerUser(
             emailVerificationExpiresAt: confirmation.expiresAt,
             role: 'user',
             authProvider: 'local',
+            avatarUrl: undefined,
+            avatarImageBase64: undefined,
+            avatarImageMimeType: undefined,
+            avatarImageFileName: undefined,
+            avatarImageUpdatedAt: undefined,
             defaultCurrency: body.defaultCurrency,
             countryCode: normalizeCountryCode(body.countryCode),
             timezone: normalizeTimeZone(body.timezone)
         });
 
-        await setFavoriteCurrencies(
+        await createMainBudgetForUser(
             trx,
-            user.id,
-            body.favoriteCurrencies,
-            body.defaultCurrency
+            user as UserDb,
+            body.favoriteCurrencies
         );
 
         return emailConfirmationPendingResponse(user.email);
@@ -452,7 +449,12 @@ export async function loginUser(
         );
     }
 
-    return toTokenResponse(config, user, await hasCategories(db, user.id));
+    const mainBudget = await ensureMainBudget(db, user.id);
+    return toTokenResponse(
+        config,
+        { ...user, mainBudgetId: user.mainBudgetId ?? mainBudget.id },
+        await hasCategories(db, user.id, mainBudget.id)
+    );
 }
 
 export async function confirmEmail(
@@ -530,6 +532,7 @@ async function resolveGoogleIdentity(
     }
 
     return db.transaction(async trx => {
+        const avatarUrl = normalizedAvatarUrl(identity.avatarUrl);
         const existingIdentity = await trx.externalIdentities
             .where(row => row.provider, 'google')
             .where(row => row.providerSubject, identity.providerSubject)
@@ -540,6 +543,11 @@ async function resolveGoogleIdentity(
                 throw new InvalidGoogleIdentityError(
                     'Linked account was not found.'
                 );
+            }
+            if (avatarUrl && user.avatarUrl !== avatarUrl) {
+                await trx.users
+                    .where(candidate => candidate.id, user.id)
+                    .update({ avatarUrl, updatedAt: new Date() });
             }
             return {
                 service_user_id: String(user.id),
@@ -566,10 +574,21 @@ async function resolveGoogleIdentity(
                 emailVerificationExpiresAt: undefined,
                 role: 'user',
                 authProvider: 'google',
+                avatarUrl,
+                avatarImageBase64: undefined,
+                avatarImageMimeType: undefined,
+                avatarImageFileName: undefined,
+                avatarImageUpdatedAt: undefined,
                 defaultCurrency: 'USD',
                 countryCode: 'US',
                 timezone: defaultTimeZone
             }));
+
+        if (avatarUrl && user.avatarUrl !== avatarUrl) {
+            await trx.users
+                .where(candidate => candidate.id, user.id)
+                .update({ avatarUrl, updatedAt: new Date() });
+        }
 
         const userIdentity = await trx.externalIdentities
             .where(row => row.provider, 'google')
@@ -659,24 +678,33 @@ export async function getUserPreference(
         return undefined;
     }
 
-    const [favorites, recentTransactions, categories] = await Promise.all([
-        favoriteCurrencies(db, userId),
-        recentCurrencyTransactions(db, userId),
-        hasCategories(db, userId)
+    const mainBudget = await ensureMainBudget(db, userId);
+    const [categories, budgets] = await Promise.all([
+        hasCategories(db, userId, mainBudget.id),
+        listBudgets(db, userId)
     ]);
-    const transactionCurrencies = transactionCurrenciesByRecentPopularity(
-        [user.defaultCurrency, ...favorites],
-        recentTransactions
-    );
+    const mainBudgetPreference =
+        budgets.find(
+            budget => budget.id === (user.mainBudgetId ?? mainBudget.id)
+        ) ?? budgets[0];
+    const defaultCurrency =
+        mainBudgetPreference?.defaultCurrency ?? user.defaultCurrency;
+    const favorites = mainBudgetPreference?.favoriteCurrencies ?? [];
+    const transactionCurrencies =
+        mainBudgetPreference?.transactionCurrencies ?? [defaultCurrency];
 
     return {
         id: user.id,
         email: user.email,
-        defaultCurrency: user.defaultCurrency,
+        avatarUrl: userAvatarUrl(user),
+        hasUploadedAvatar: Boolean(user.avatarImageMimeType),
+        defaultCurrency,
         countryCode: normalizeCountryCode(user.countryCode),
         favoriteCurrencies: favorites,
         transactionCurrencies,
         timezone: normalizeTimeZone(user.timezone),
+        mainBudgetId: user.mainBudgetId ?? mainBudget.id,
+        budgets,
         hasCategories: categories,
         weeklyEmailReportEnabled: user.weeklyEmailReportEnabled,
         monthlyEmailReportEnabled: user.monthlyEmailReportEnabled
@@ -686,8 +714,6 @@ export async function getUserPreference(
 export async function updateUserPreference(
     db: AppDb,
     userId: number,
-    defaultCurrency: string,
-    currencies: readonly string[],
     countryCode?: string,
     timezone?: string,
     weeklyEmailReportEnabled = true,
@@ -702,7 +728,6 @@ export async function updateUserPreference(
         await trx.users
             .where(candidate => candidate.id, userId)
             .update({
-                defaultCurrency,
                 countryCode: normalizeCountryCode(
                     countryCode ?? user.countryCode
                 ),
@@ -711,7 +736,6 @@ export async function updateUserPreference(
                 monthlyEmailReportEnabled,
                 updatedAt: new Date()
             });
-        await setFavoriteCurrencies(trx, userId, currencies, defaultCurrency);
     });
 
     return getUserPreference(db, userId);

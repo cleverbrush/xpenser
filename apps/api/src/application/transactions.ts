@@ -47,6 +47,7 @@ import type {
     UserDb,
     VendorDb
 } from '../db/schemas.js';
+import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
 import {
     categoryAvailableForTransactions,
     categoryDisplayName,
@@ -62,6 +63,13 @@ import {
     pruneUnusedTransactionTags,
     replaceTransactionTags
 } from './transaction-tags.js';
+import {
+    type ContributorBucket,
+    contributorSummary,
+    loadUserAvatarSummaries,
+    recordContributor,
+    userIdsFromTransactions
+} from './user-avatars.js';
 import { getVendor, VendorNotFoundError } from './vendors.js';
 
 export class TransactionNotFoundError extends Error {}
@@ -77,6 +85,7 @@ type DashboardCategoryVendor =
     DashboardSummary['categoryVendorBreakdown'][number];
 type TransactionScanAttachment = NonNullable<Transaction['scanAttachment']>;
 type TransactionScanAttachmentRow = {
+    readonly budgetId: number;
     readonly createdAt: Date;
     readonly fileName: string | null;
     readonly mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
@@ -91,6 +100,7 @@ type TransactionScanImageRow = TransactionScanAttachmentRow & {
 };
 
 type TransactionTagRow = {
+    readonly budgetId: number;
     readonly createdAt: Date;
     readonly id: number;
     readonly name: string;
@@ -102,6 +112,8 @@ type TransactionTagCountRow = {
     readonly tagId: number;
     readonly transactionCount: number | string;
 };
+
+type TransactionCreator = Transaction['createdBy'];
 
 type StatsBucket = StatsOverview['trend'][number];
 
@@ -126,6 +138,7 @@ type StatsRange = {
 
 type TransactionFilterQuery = Pick<
     TransactionListQuery,
+    | 'budgetId'
     | 'categoryId'
     | 'direction'
     | 'from'
@@ -139,6 +152,7 @@ type TransactionFilterQuery = Pick<
 >;
 
 type FilteredTransactionRows = {
+    readonly budgetId: number;
     readonly categoriesById: ReadonlyMap<number, CategoryDb>;
     readonly rows: readonly TransactionDb[];
     readonly tagsByTransaction: ReadonlyMap<number, readonly TransactionTag[]>;
@@ -155,6 +169,7 @@ type StatsRanges = {
 };
 
 type PeriodWindowQuery = {
+    readonly budgetId?: number;
     readonly period?: DashboardPeriod;
     readonly date?: Date;
     readonly currency?: string;
@@ -275,11 +290,11 @@ async function dashboardReportingAmounts(
 
 async function loadCategoriesById(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<Map<number, CategoryDb>> {
     const categories = (await db.categories.where(
-        category => category.userId,
-        userId
+        category => category.budgetId,
+        budgetId
     )) as CategoryDb[];
 
     return new Map(
@@ -289,24 +304,52 @@ async function loadCategoriesById(
 
 async function loadVendorsById(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<Map<number, VendorDb>> {
     const vendors = (await db.vendors.where(
-        vendor => vendor.userId,
-        userId
+        vendor => vendor.budgetId,
+        budgetId
     )) as VendorDb[];
 
     return new Map(vendors.map(vendor => [vendor.id, vendor] as const));
 }
 
+async function loadTransactionCreators(
+    knex: Knex,
+    transactions: readonly Pick<TransactionDb, 'userId'>[]
+): Promise<Map<number, TransactionCreator>> {
+    const userIds = Array.from(
+        new Set(transactions.map(transaction => transaction.userId))
+    );
+    if (userIds.length === 0) {
+        return new Map();
+    }
+
+    const rows = await loadUserAvatarSummaries({ knex }, userIds);
+
+    return new Map(
+        [...rows.entries()].map(([userId, row]) => [
+            userId,
+            {
+                userId,
+                email: row.email,
+                avatarUrl: row.avatarUrl
+            }
+        ])
+    );
+}
+
 async function loadFavoriteCurrencies(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<string[]> {
-    const rows = await db.favoriteCurrencies
-        .where(currency => currency.userId, userId)
-        .orderBy(currency => currency.currency, 'asc');
-    return rows.map(row => row.currency);
+    const rows = await db.budgetFavoriteCurrencies.where(
+        currency => currency.budgetId,
+        budgetId
+    );
+    return rows
+        .map(row => row.currency.trim().toUpperCase())
+        .sort((left, right) => left.localeCompare(right));
 }
 
 function categoryFields(
@@ -409,7 +452,8 @@ function mapTransaction(
     tagsByTransaction: ReadonlyMap<
         number,
         readonly TransactionTag[]
-    > = new Map()
+    > = new Map(),
+    creatorsById: ReadonlyMap<number, TransactionCreator> = new Map()
 ): Transaction {
     const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
@@ -417,6 +461,7 @@ function mapTransaction(
 
     return {
         id: row.id,
+        budgetId: row.budgetId,
         categoryId: fields.categoryId,
         vendorId: vendor?.id ?? row.vendorId ?? null,
         vendorName: vendor?.name,
@@ -436,6 +481,10 @@ function mapTransaction(
         occurredAt: row.occurredAt,
         note: row.note ?? undefined,
         tags: [...(tagsByTransaction.get(row.id) ?? [])],
+        createdBy: creatorsById.get(row.userId) ?? {
+            userId: row.userId,
+            email: ''
+        },
         scanAttachment: scanAttachments.get(row.id) ?? null,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt
@@ -481,7 +530,7 @@ async function transactionTagCounts(
 
 async function transactionTagsByTransaction(
     knex: Knex | undefined,
-    userId: number,
+    budgetId: number,
     transactionIds: readonly number[]
 ): Promise<Map<number, readonly TransactionTag[]>> {
     const uniqueIds = [...new Set(transactionIds)];
@@ -491,11 +540,12 @@ async function transactionTagsByTransaction(
 
     const rows = (await knex('transaction_tag_links as link')
         .join('transaction_tags as tag', 'tag.id', 'link.tag_id')
-        .where('tag.user_id', userId)
+        .where('tag.budget_id', budgetId)
         .whereIn('link.transaction_id', uniqueIds)
         .orderBy('tag.name', 'asc')
         .select({
             transactionId: 'link.transaction_id',
+            budgetId: 'tag.budget_id',
             id: 'tag.id',
             name: 'tag.name',
             createdAt: 'tag.created_at',
@@ -511,6 +561,7 @@ async function transactionTagsByTransaction(
         const current = tags.get(row.transactionId) ?? [];
         current.push({
             id: Number(row.id),
+            budgetId: Number(row.budgetId),
             name: row.name,
             transactionCount: counts.get(Number(row.id)) ?? 0,
             createdAt: row.createdAt,
@@ -537,7 +588,7 @@ function scanAttachmentFromRow(
 
 async function scanAttachmentsByTransaction(
     knex: Knex | undefined,
-    userId: number,
+    budgetId: number,
     transactionIds: readonly number[]
 ): Promise<Map<number, TransactionScanAttachment>> {
     const uniqueIds = [...new Set(transactionIds)];
@@ -551,13 +602,14 @@ async function scanAttachmentsByTransaction(
             'image.scan_id',
             'item.scan_id'
         )
-        .where('item.user_id', userId)
-        .where('image.user_id', userId)
+        .where('item.budget_id', budgetId)
+        .where('image.budget_id', budgetId)
         .where('item.decision', 'confirmed')
         .whereIn('item.transaction_id', uniqueIds)
         .orderBy('item.decided_at', 'desc')
         .select({
             transactionId: 'item.transaction_id',
+            budgetId: 'item.budget_id',
             scanId: 'item.scan_id',
             scanItemId: 'item.id',
             fileName: 'image.file_name',
@@ -605,12 +657,12 @@ async function getUser(db: AppDb, userId: number): Promise<UserDb> {
 
 async function getCategory(
     db: AppDb,
-    userId: number,
+    budgetId: number,
     categoryId: number
 ): Promise<CategoryDb> {
     const category = await db.categories
         .where(candidate => candidate.id, categoryId)
-        .where(candidate => candidate.userId, userId)
+        .where(candidate => candidate.budgetId, budgetId)
         .first();
     if (!category) {
         throw new TransactionCategoryError('Category was not found.');
@@ -621,10 +673,14 @@ async function getCategory(
 async function validateVendor(
     db: AppDb,
     userId: number,
+    budgetId: number,
     vendorId: number
 ): Promise<void> {
     try {
-        await getVendor(db, userId, vendorId);
+        const vendor = await getVendor(db, userId, vendorId);
+        if (vendor.budgetId !== budgetId) {
+            throw new TransactionCategoryError('Vendor was not found.');
+        }
     } catch (err) {
         if (err instanceof VendorNotFoundError) {
             throw new TransactionCategoryError(err.message);
@@ -640,9 +696,10 @@ async function filteredTransactionRows(
     knex: Knex | undefined,
     options: { readonly includeTagsForAllRows?: boolean } = {}
 ): Promise<FilteredTransactionRows> {
+    const access = await resolveBudgetAccess(db, userId, query.budgetId);
     let builder = db.transactions
         .include(transaction => transaction.category)
-        .where(transaction => transaction.userId, userId);
+        .where(transaction => transaction.budgetId, access.budget.id);
 
     if (query.categoryId) {
         builder = builder.where(
@@ -670,8 +727,8 @@ async function filteredTransactionRows(
         builder
             .orderBy(transaction => transaction.occurredAt, direction)
             .orderBy(transaction => transaction.id, direction),
-        loadCategoriesById(db, userId),
-        loadVendorsById(db, userId)
+        loadCategoriesById(db, access.budget.id),
+        loadVendorsById(db, access.budget.id)
     ]);
     const sortedRows = [...rows].sort(
         direction === 'asc'
@@ -689,7 +746,7 @@ async function filteredTransactionRows(
     const allTagsByTransaction = needsAllTagData
         ? await transactionTagsByTransaction(
               knex ?? db.knex,
-              userId,
+              access.budget.id,
               sortedRows.map(transaction => transaction.id)
           )
         : new Map<number, readonly TransactionTag[]>();
@@ -778,6 +835,7 @@ async function filteredTransactionRows(
         });
 
     return {
+        budgetId: access.budget.id,
         categoriesById,
         rows: filtered,
         tagsByTransaction: allTagsByTransaction,
@@ -795,6 +853,7 @@ export async function listTransactions(
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, Math.max(1, query.limit ?? 50));
     const {
+        budgetId,
         categoriesById,
         rows: filtered,
         tagsByTransaction,
@@ -805,16 +864,20 @@ export async function listTransactions(
     const pageRows = filtered.slice(offset, offset + limit) as TransactionDb[];
     const scanAttachments = await scanAttachmentsByTransaction(
         knex,
-        userId,
+        budgetId,
         pageRows.map(transaction => transaction.id)
     );
     const pageTagsByTransaction = tagsLoadedForAllRows
         ? tagsByTransaction
         : await transactionTagsByTransaction(
               knex ?? db.knex,
-              userId,
+              budgetId,
               pageRows.map(transaction => transaction.id)
           );
+    const creatorsById = await loadTransactionCreators(
+        knex ?? db.knex,
+        pageRows
+    );
 
     return {
         items: pageRows.map(transaction =>
@@ -823,7 +886,8 @@ export async function listTransactions(
                 categoriesById,
                 vendorsById,
                 scanAttachments,
-                pageTagsByTransaction
+                pageTagsByTransaction,
+                creatorsById
             )
         ),
         total: filtered.length,
@@ -1058,12 +1122,13 @@ export async function exportTransactionsCsv(
     query: TransactionExportQuery,
     knex?: Knex
 ): Promise<{ readonly csv: string; readonly fileName: string }> {
-    const [user, favorites] = await Promise.all([
+    const [user, access] = await Promise.all([
         getUser(db, userId),
-        loadFavoriteCurrencies(db, userId)
+        resolveBudgetAccess(db, userId, query.budgetId)
     ]);
+    const favorites = await loadFavoriteCurrencies(db, access.budget.id);
     const allowedCurrencies = new Set(
-        [user.defaultCurrency, ...favorites].map(currency =>
+        [access.budget.defaultCurrency, ...favorites].map(currency =>
             currency.trim().toUpperCase()
         )
     );
@@ -1083,22 +1148,24 @@ export async function exportTransactionsCsv(
         );
     }
 
-    const { categoriesById, rows, tagsByTransaction, vendorsById } =
+    const { budgetId, categoriesById, rows, tagsByTransaction, vendorsById } =
         await filteredTransactionRows(db, userId, query, knex, {
             includeTagsForAllRows: true
         });
     const scanAttachments = await scanAttachmentsByTransaction(
         knex,
-        userId,
+        budgetId,
         rows.map(transaction => transaction.id)
     );
+    const creatorsById = await loadTransactionCreators(knex ?? db.knex, rows);
     const transactions = rows.map(transaction =>
         mapTransaction(
             transaction,
             categoriesById,
             vendorsById,
             scanAttachments,
-            tagsByTransaction
+            tagsByTransaction,
+            creatorsById
         )
     );
     const rates = await exportCurrencyRates(
@@ -1122,9 +1189,14 @@ export async function createTransaction(
     body: CreateTransactionBody
 ): Promise<Transaction> {
     return db.transaction(async trx => {
+        const access = await resolveBudgetAccess(trx, userId, body.budgetId);
+        requireBudgetPermission(access, 'canCreateTransactions');
+        if ((body.tags?.length ?? 0) > 0) {
+            requireBudgetPermission(access, 'canManageTags');
+        }
         const [user, categoriesById] = await Promise.all([
             getUser(trx, userId),
-            loadCategoriesById(trx, userId)
+            loadCategoriesById(trx, access.budget.id)
         ]);
         const category = categoriesById.get(body.categoryId);
         if (!category) {
@@ -1136,18 +1208,19 @@ export async function createTransaction(
             );
         }
         if (body.vendorId !== undefined && body.vendorId !== null) {
-            await validateVendor(trx, userId, body.vendorId);
+            await validateVendor(trx, userId, access.budget.id, body.vendorId);
         }
         const date = transactionDate(body.occurredAt, user.timezone);
         const exchange = await getExchangeRate(
             trx,
             config,
             body.currency,
-            user.defaultCurrency,
+            access.budget.defaultCurrency,
             date
         );
 
         const created = await trx.transactions.insert({
+            budgetId: access.budget.id,
             userId,
             categoryId: body.categoryId,
             vendorId: body.vendorId ?? undefined,
@@ -1155,7 +1228,7 @@ export async function createTransaction(
             amount: body.amount,
             currency: body.currency,
             defaultCurrencyAmount: convertAmount(body.amount, exchange.rate),
-            defaultCurrency: user.defaultCurrency,
+            defaultCurrency: access.budget.defaultCurrency,
             exchangeRate: exchange.rate,
             exchangeRateDate: exchange.rateDate,
             occurredAt: body.occurredAt,
@@ -1165,6 +1238,7 @@ export async function createTransaction(
         await replaceTransactionTags(
             trx.knex,
             userId,
+            access.budget.id,
             created.id,
             body.tags ?? []
         );
@@ -1178,30 +1252,35 @@ export async function getTransaction(
     userId: number,
     transactionId: number
 ): Promise<Transaction> {
-    const [row, categoriesById, vendorsById, tagsByTransaction] =
-        await Promise.all([
-            db.transactions
-                .include(transaction => transaction.category)
-                .where(transaction => transaction.id, transactionId)
-                .where(transaction => transaction.userId, userId)
-                .first(),
-            loadCategoriesById(db, userId),
-            loadVendorsById(db, userId),
-            transactionTagsByTransaction(db.knex, userId, [transactionId])
-        ]);
+    const row = (await db.transactions
+        .include(transaction => transaction.category)
+        .where(transaction => transaction.id, transactionId)
+        .first()) as TransactionDb | undefined;
     if (!row) {
         throw new TransactionNotFoundError('Transaction was not found.');
     }
+    const access = await resolveBudgetAccess(db, userId, row.budgetId);
+    const [categoriesById, vendorsById, tagsByTransaction, creatorsById] =
+        await Promise.all([
+            loadCategoriesById(db, access.budget.id),
+            loadVendorsById(db, access.budget.id),
+            transactionTagsByTransaction(db.knex, access.budget.id, [
+                transactionId
+            ]),
+            loadTransactionCreators(db.knex, [row])
+        ]);
     return mapTransaction(
-        row as TransactionDb,
+        row,
         categoriesById,
         vendorsById,
         new Map(),
-        tagsByTransaction
+        tagsByTransaction,
+        creatorsById
     );
 }
 
 export async function getTransactionScanImage(
+    db: AppDb,
     knex: Knex,
     userId: number,
     transactionId: number
@@ -1212,14 +1291,13 @@ export async function getTransactionScanImage(
             'image.scan_id',
             'item.scan_id'
         )
-        .where('item.user_id', userId)
-        .where('image.user_id', userId)
         .where('item.transaction_id', transactionId)
         .where('item.decision', 'confirmed')
         .orderBy('item.decided_at', 'desc')
         .select({
             scanId: 'item.scan_id',
             scanItemId: 'item.id',
+            budgetId: 'item.budget_id',
             fileName: 'image.file_name',
             mimeType: 'image.mime_type',
             sizeBytes: 'image.size_bytes',
@@ -1231,6 +1309,7 @@ export async function getTransactionScanImage(
     if (!row) {
         throw new TransactionNotFoundError('Scanned image was not found.');
     }
+    await resolveBudgetAccess(db, userId, Number(row.budgetId));
 
     return {
         ...scanAttachmentFromRow({ ...row, transactionId }),
@@ -1247,6 +1326,11 @@ export async function updateTransaction(
 ): Promise<Transaction> {
     return db.transaction(async trx => {
         const current = await getTransaction(trx, userId, transactionId);
+        const access = await resolveBudgetAccess(trx, userId, current.budgetId);
+        requireBudgetPermission(access, 'canUpdateTransactions');
+        if (body.tags !== undefined) {
+            requireBudgetPermission(access, 'canManageTags');
+        }
         const next = {
             categoryId: body.categoryId ?? current.categoryId,
             vendorId:
@@ -1259,7 +1343,7 @@ export async function updateTransaction(
 
         const [user, categoriesById] = await Promise.all([
             getUser(trx, userId),
-            loadCategoriesById(trx, userId)
+            loadCategoriesById(trx, access.budget.id)
         ]);
         const category = categoriesById.get(next.categoryId);
         if (!category) {
@@ -1277,19 +1361,19 @@ export async function updateTransaction(
             );
         }
         if (next.vendorId !== undefined && next.vendorId !== null) {
-            await validateVendor(trx, userId, next.vendorId);
+            await validateVendor(trx, userId, access.budget.id, next.vendorId);
         }
         const exchange = await getExchangeRate(
             trx,
             config,
             next.currency,
-            user.defaultCurrency,
+            access.budget.defaultCurrency,
             transactionDate(next.occurredAt, user.timezone)
         );
 
         await trx.transactions
             .where(transaction => transaction.id, transactionId)
-            .where(transaction => transaction.userId, userId)
+            .where(transaction => transaction.budgetId, access.budget.id)
             .update({
                 categoryId: next.categoryId,
                 vendorId: (next.vendorId ?? null) as never,
@@ -1300,7 +1384,7 @@ export async function updateTransaction(
                     next.amount,
                     exchange.rate
                 ),
-                defaultCurrency: user.defaultCurrency,
+                defaultCurrency: access.budget.defaultCurrency,
                 exchangeRate: exchange.rate,
                 exchangeRateDate: exchange.rateDate,
                 occurredAt: next.occurredAt,
@@ -1312,6 +1396,7 @@ export async function updateTransaction(
             await replaceTransactionTags(
                 trx.knex,
                 userId,
+                access.budget.id,
                 transactionId,
                 body.tags
             );
@@ -1327,14 +1412,26 @@ export async function deleteTransaction(
     transactionId: number
 ): Promise<void> {
     await db.transaction(async trx => {
+        const current = await trx.transactions
+            .where(transaction => transaction.id, transactionId)
+            .first();
+        if (!current) {
+            throw new TransactionNotFoundError('Transaction was not found.');
+        }
+        const access = await resolveBudgetAccess(
+            trx,
+            userId,
+            (current as TransactionDb).budgetId
+        );
+        requireBudgetPermission(access, 'canDeleteTransactions');
         const deleted = await trx.transactions
             .where(transaction => transaction.id, transactionId)
-            .where(transaction => transaction.userId, userId)
+            .where(transaction => transaction.budgetId, access.budget.id)
             .delete();
         if (deleted === 0) {
             throw new TransactionNotFoundError('Transaction was not found.');
         }
-        await pruneUnusedTransactionTags(trx.knex, userId);
+        await pruneUnusedTransactionTags(trx.knex, access.budget.id);
     });
 }
 
@@ -2333,14 +2430,56 @@ function emptyDashboardCategory(
         transactionCount: 0,
         previousPeriodTotal: 0,
         percentChange: 0,
-        trend: Array.from({ length: bucketCount }, () => 0)
+        trend: Array.from({ length: bucketCount }, () => 0),
+        contributors: [],
+        otherContributorCount: 0
     };
+}
+
+function contributorBucketFor(
+    bucketsByKey: Map<string, ContributorBucket>,
+    key: string
+): ContributorBucket {
+    const bucket = bucketsByKey.get(key) ?? new Map<number, Date>();
+    bucketsByKey.set(key, bucket);
+    return bucket;
+}
+
+function recordDashboardContributor(
+    bucketsByKey: Map<string, ContributorBucket>,
+    key: string,
+    row: Pick<TransactionDb, 'occurredAt' | 'userId'>,
+    currentUserId?: number
+): void {
+    recordContributor(
+        contributorBucketFor(bucketsByKey, key),
+        row,
+        currentUserId
+    );
+}
+
+function applyDashboardContributors<
+    T extends { contributors: unknown; otherContributorCount: number }
+>(
+    rowsByKey: ReadonlyMap<string, T>,
+    bucketsByKey: ReadonlyMap<string, ContributorBucket>,
+    usersById: Parameters<typeof contributorSummary>[1]
+): void {
+    for (const [key, row] of rowsByKey) {
+        const contributors = contributorSummary(
+            bucketsByKey.get(key),
+            usersById
+        );
+        Object.assign(row, contributors);
+    }
 }
 
 function rollUpParentDashboardCategories(
     categories: readonly DashboardCategory[],
     bucketCount: number,
-    categoriesById: ReadonlyMap<number, CategoryDb>
+    categoriesById: ReadonlyMap<number, CategoryDb>,
+    contributorsByKey: ReadonlyMap<string, ContributorBucket> = new Map(),
+    usersById: Parameters<typeof contributorSummary>[1] = new Map()
 ): DashboardCategory[] {
     const rollups = new Map<string, DashboardCategory>();
 
@@ -2361,9 +2500,14 @@ function rollUpParentDashboardCategories(
     }
 
     for (const category of rollups.values()) {
+        const key = `${category.type}:${category.categoryId}`;
         category.percentChange = percentChange(
             category.total,
             category.previousPeriodTotal
+        );
+        Object.assign(
+            category,
+            contributorSummary(contributorsByKey.get(key), usersById)
         );
     }
 
@@ -2377,12 +2521,12 @@ function rollUpParentDashboardCategories(
 
 async function transactionsForRange(
     db: AppDb,
-    userId: number,
+    budgetId: number,
     range: StatsRange
 ) {
     return (await db.transactions
         .include(transaction => transaction.category)
-        .where(transaction => transaction.userId, userId)
+        .where(transaction => transaction.budgetId, budgetId)
         .whereBetween(
             transaction => transaction.occurredAt,
             [range.from, range.to]
@@ -2391,11 +2535,11 @@ async function transactionsForRange(
 
 async function transactionsForCategory(
     db: AppDb,
-    userId: number,
+    budgetId: number,
     categoryId: number
 ) {
     return (await db.transactions
-        .where(transaction => transaction.userId, userId)
+        .where(transaction => transaction.budgetId, budgetId)
         .where(transaction => transaction.categoryId, categoryId)
         .orderBy(transaction => transaction.occurredAt, 'asc')
         .orderBy(transaction => transaction.id, 'asc')) as TransactionDb[];
@@ -2407,13 +2551,14 @@ export async function categoryTrend(
     categoryId: number,
     query: CategoryTrendQuery
 ): Promise<CategoryTrendResponse> {
-    const [user, category] = await Promise.all([
+    const [user, access] = await Promise.all([
         getUser(db, userId),
-        getCategory(db, userId, categoryId)
+        resolveBudgetAccess(db, userId, query.budgetId)
     ]);
+    const category = await getCategory(db, access.budget.id, categoryId);
     const [rows, categoriesById] = await Promise.all([
-        transactionsForCategory(db, userId, category.id),
-        loadCategoriesById(db, userId)
+        transactionsForCategory(db, access.budget.id, category.id),
+        loadCategoriesById(db, access.budget.id)
     ]);
     const range = resolveCategoryTrendRange(query, {
         categoryCreatedAt: category.createdAt,
@@ -2424,7 +2569,7 @@ export async function categoryTrend(
     return summarizeCategoryTrendRows({
         category,
         categoriesById,
-        currency: user.defaultCurrency,
+        currency: access.budget.defaultCurrency,
         groupBy: categoryTrendGroupBy(query.groupBy),
         range,
         rows,
@@ -2442,13 +2587,19 @@ export function summarizeDashboardRows(
     categoriesById: ReadonlyMap<number, CategoryDb>,
     vendorsById: ReadonlyMap<number, VendorDb>,
     vendorLimit = dashboardVendorLimit,
-    reportingAmounts?: DashboardReportingAmounts
+    reportingAmounts?: DashboardReportingAmounts,
+    currentUserId?: number,
+    usersById: Parameters<typeof contributorSummary>[1] = new Map()
 ): DashboardSummary {
     const bucketCount = dashboardTrendBucketCount(period, range, user.timezone);
     const totalsByCategory = new Map<string, DashboardCategory>();
     const totalsByVendor = new Map<string, DashboardVendor>();
     const totalsByCategoryVendor = new Map<string, DashboardCategoryVendor>();
     const previousCategoriesByKey = new Map<string, DashboardCategory>();
+    const contributorsByCategory = new Map<string, ContributorBucket>();
+    const contributorsByParentCategory = new Map<string, ContributorBucket>();
+    const contributorsByVendor = new Map<string, ContributorBucket>();
+    const contributorsByCategoryVendor = new Map<string, ContributorBucket>();
     const comparisonRange = resolveDashboardComparisonRange(
         period,
         range,
@@ -2488,7 +2639,9 @@ export function summarizeDashboardRows(
             transactionCount: 0,
             previousPeriodTotal: 0,
             percentChange: 0,
-            trend: Array.from({ length: bucketCount }, () => 0)
+            trend: Array.from({ length: bucketCount }, () => 0),
+            contributors: [],
+            otherContributorCount: 0
         };
         const total = dashboardTransactionAmount(
             row,
@@ -2509,6 +2662,19 @@ export function summarizeDashboardRows(
                 (current.trend[bucketIndex] ?? 0) + total;
         }
         totalsByCategory.set(key, current);
+        recordDashboardContributor(
+            contributorsByCategory,
+            key,
+            row,
+            currentUserId
+        );
+        const parentFields = parentCategoryFields(fields, categoriesById);
+        recordDashboardContributor(
+            contributorsByParentCategory,
+            `${parentFields.type}:${parentFields.categoryId}`,
+            row,
+            currentUserId
+        );
 
         const rowVendorFields = dashboardVendorFields(row, vendorsById);
         if (!rowVendorFields) {
@@ -2521,7 +2687,9 @@ export function summarizeDashboardRows(
             type: fields.type,
             total: 0,
             transactionCount: 0,
-            trend: Array.from({ length: bucketCount }, () => 0)
+            trend: Array.from({ length: bucketCount }, () => 0),
+            contributors: [],
+            otherContributorCount: 0
         };
         currentVendor.total += total;
         currentVendor.transactionCount += 1;
@@ -2530,6 +2698,12 @@ export function summarizeDashboardRows(
                 (currentVendor.trend[bucketIndex] ?? 0) + total;
         }
         totalsByVendor.set(vendorKey, currentVendor);
+        recordDashboardContributor(
+            contributorsByVendor,
+            vendorKey,
+            row,
+            currentUserId
+        );
 
         const categoryVendorKey = `${key}:${
             rowVendorFields.vendorId ?? 'none'
@@ -2541,7 +2715,9 @@ export function summarizeDashboardRows(
                 ...rowVendorFields,
                 total: 0,
                 transactionCount: 0,
-                trend: Array.from({ length: bucketCount }, () => 0)
+                trend: Array.from({ length: bucketCount }, () => 0),
+                contributors: [],
+                otherContributorCount: 0
             } satisfies DashboardCategoryVendor);
         currentCategoryVendor.total += total;
         currentCategoryVendor.transactionCount += 1;
@@ -2553,6 +2729,12 @@ export function summarizeDashboardRows(
                 (currentCategoryVendor.trend[bucketIndex] ?? 0) + total;
         }
         totalsByCategoryVendor.set(categoryVendorKey, currentCategoryVendor);
+        recordDashboardContributor(
+            contributorsByCategoryVendor,
+            categoryVendorKey,
+            row,
+            currentUserId
+        );
     }
 
     for (const [key, category] of totalsByCategory) {
@@ -2561,6 +2743,17 @@ export function summarizeDashboardRows(
         category.previousPeriodTotal = previousTotal;
         category.percentChange = percentChange(category.total, previousTotal);
     }
+    applyDashboardContributors(
+        totalsByCategory,
+        contributorsByCategory,
+        usersById
+    );
+    applyDashboardContributors(totalsByVendor, contributorsByVendor, usersById);
+    applyDashboardContributors(
+        totalsByCategoryVendor,
+        contributorsByCategoryVendor,
+        usersById
+    );
 
     const categoriesForParentRollups = [
         ...totalsByCategory.values(),
@@ -2578,7 +2771,9 @@ export function summarizeDashboardRows(
     const byParentCategory = rollUpParentDashboardCategories(
         categoriesForParentRollups,
         bucketCount,
-        categoriesById
+        categoriesById,
+        contributorsByParentCategory,
+        usersById
     ).filter(category => category.transactionCount > 0);
     const topVendors = Array.from(totalsByVendor.values())
         .sort(
@@ -2636,9 +2831,17 @@ export async function dashboardSummary(
     period: DashboardPeriod,
     date?: Date,
     vendorLimit = dashboardVendorLimit,
-    currency?: string
+    currency?: string,
+    budgetId?: number
 ): Promise<DashboardSummary> {
-    const user = await getUser(db, userId);
+    const [user, access] = await Promise.all([
+        getUser(db, userId),
+        resolveBudgetAccess(db, userId, budgetId)
+    ]);
+    const reportUser = {
+        ...user,
+        defaultCurrency: access.budget.defaultCurrency
+    };
     const range = resolveDashboardRange(
         period,
         date,
@@ -2652,22 +2855,26 @@ export async function dashboardSummary(
     );
     const [rows, previousRows, categoriesById, vendorsById] = await Promise.all(
         [
-            transactionsForRange(db, userId, range),
-            transactionsForRange(db, userId, comparisonRange),
-            loadCategoriesById(db, userId),
-            loadVendorsById(db, userId)
+            transactionsForRange(db, access.budget.id, range),
+            transactionsForRange(db, access.budget.id, comparisonRange),
+            loadCategoriesById(db, access.budget.id),
+            loadVendorsById(db, access.budget.id)
         ]
     );
     const reportingAmounts = await dashboardReportingAmounts(
         db,
         config,
-        user,
+        reportUser,
         [...rows, ...previousRows],
         currency
     );
+    const usersById = await loadUserAvatarSummaries(
+        db,
+        userIdsFromTransactions(rows, userId)
+    );
 
     return summarizeDashboardRows(
-        user,
+        reportUser,
         period,
         range,
         rows,
@@ -2675,7 +2882,9 @@ export async function dashboardSummary(
         categoriesById,
         vendorsById,
         vendorLimit,
-        reportingAmounts
+        reportingAmounts,
+        userId,
+        usersById
     );
 }
 
@@ -2685,7 +2894,14 @@ export async function dashboardWindow(
     userId: number,
     query: PeriodWindowQuery
 ): Promise<DashboardWindowResponse> {
-    const user = await getUser(db, userId);
+    const [user, access] = await Promise.all([
+        getUser(db, userId),
+        resolveBudgetAccess(db, userId, query.budgetId)
+    ]);
+    const reportUser = {
+        ...user,
+        defaultCurrency: access.budget.defaultCurrency
+    };
     const now = new Date();
     const period = query.period ?? 'day';
     const dates = resolveDashboardPeriodWindow(
@@ -2711,27 +2927,31 @@ export async function dashboardWindow(
     const [allRows, categoriesById, vendorsById] = await Promise.all([
         transactionsForRange(
             db,
-            userId,
+            access.budget.id,
             encompassingRange(
                 plans.flatMap(plan => [plan.range, plan.previousRange])
             )
         ),
-        loadCategoriesById(db, userId),
-        loadVendorsById(db, userId)
+        loadCategoriesById(db, access.budget.id),
+        loadVendorsById(db, access.budget.id)
     ]);
     const reportingAmounts = await dashboardReportingAmounts(
         db,
         config,
-        user,
+        reportUser,
         allRows,
         query.currency
+    );
+    const usersById = await loadUserAvatarSummaries(
+        db,
+        userIdsFromTransactions(allRows, userId)
     );
 
     return {
         items: plans.map(plan => ({
             date: plan.date,
             summary: summarizeDashboardRows(
-                user,
+                reportUser,
                 period,
                 plan.range,
                 rowsInRange(allRows, plan.range),
@@ -2739,7 +2959,9 @@ export async function dashboardWindow(
                 categoriesById,
                 vendorsById,
                 query.vendorLimit ?? dashboardVendorLimit,
-                reportingAmounts
+                reportingAmounts,
+                userId,
+                usersById
             )
         }))
     };
@@ -2860,7 +3082,14 @@ export async function statsOverview(
     userId: number,
     query: StatsQuery
 ): Promise<StatsOverview> {
-    const user = await getUser(db, userId);
+    const [user, access] = await Promise.all([
+        getUser(db, userId),
+        resolveBudgetAccess(db, userId, query.budgetId)
+    ]);
+    const reportUser = {
+        ...user,
+        defaultCurrency: access.budget.defaultCurrency
+    };
     const groupBy = (query.groupBy ?? 'day') as StatsGroupBy;
     const timeframe = (
         query.period ? 'custom' : (query.timeframe ?? 'this-month')
@@ -2872,14 +3101,14 @@ export async function statsOverview(
     );
     const [selectedRows, previousPeriodRows, previousYearRows, categoriesById] =
         await Promise.all([
-            transactionsForRange(db, userId, ranges.selected),
-            transactionsForRange(db, userId, ranges.previousPeriod),
-            transactionsForRange(db, userId, ranges.previousYear),
-            loadCategoriesById(db, userId)
+            transactionsForRange(db, access.budget.id, ranges.selected),
+            transactionsForRange(db, access.budget.id, ranges.previousPeriod),
+            transactionsForRange(db, access.budget.id, ranges.previousYear),
+            loadCategoriesById(db, access.budget.id)
         ]);
 
     return summarizeStatsRows(
-        user,
+        reportUser,
         groupBy,
         timeframe,
         ranges,
@@ -2892,12 +3121,12 @@ export async function statsOverview(
 
 async function transactionTagNameById(
     db: AppDb,
-    userId: number,
+    budgetId: number,
     tagId: number
 ): Promise<string | undefined> {
     const row = (await db
         .knex('transaction_tags')
-        .where('user_id', userId)
+        .where('budget_id', budgetId)
         .where('id', tagId)
         .select({ name: 'name' })
         .first()) as { readonly name: string } | undefined;
@@ -2910,7 +3139,14 @@ export async function statsTagReport(
     userId: number,
     query: StatsTagReportQuery
 ): Promise<StatsTagReport> {
-    const user = await getUser(db, userId);
+    const [user, access] = await Promise.all([
+        getUser(db, userId),
+        resolveBudgetAccess(db, userId, query.budgetId)
+    ]);
+    const reportUser = {
+        ...user,
+        defaultCurrency: access.budget.defaultCurrency
+    };
     const now = new Date();
     const period = query.period ?? 'day';
     const range = resolveDashboardRange(
@@ -2920,13 +3156,13 @@ export async function statsTagReport(
         user.timezone
     );
     const [rows, categoriesById, vendorsById] = await Promise.all([
-        transactionsForRange(db, userId, range),
-        loadCategoriesById(db, userId),
-        loadVendorsById(db, userId)
+        transactionsForRange(db, access.budget.id, range),
+        loadCategoriesById(db, access.budget.id),
+        loadVendorsById(db, access.budget.id)
     ]);
     const tagsByTransaction = await transactionTagsByTransaction(
         db.knex,
-        userId,
+        access.budget.id,
         rows.map(transaction => transaction.id)
     );
     const tagTotals = new Map<
@@ -3011,7 +3247,7 @@ export async function statsTagReport(
     } else if (typeof query.tag === 'number') {
         const tagName =
             tagTotals.get(query.tag)?.tagName ??
-            (await transactionTagNameById(db, userId, query.tag));
+            (await transactionTagNameById(db, access.budget.id, query.tag));
         if (tagName) {
             selectedTag = summarizeStatsTagDetail({
                 categoriesById,
@@ -3036,7 +3272,7 @@ export async function statsTagReport(
         period,
         from: range.from,
         to: range.to,
-        currency: user.defaultCurrency,
+        currency: reportUser.defaultCurrency,
         expenseTotal,
         expenseCount: expenseRows.length,
         untaggedCount: untaggedRows.length,
@@ -3050,7 +3286,14 @@ export async function statsWindow(
     userId: number,
     query: PeriodWindowQuery
 ): Promise<StatsWindowResponse> {
-    const user = await getUser(db, userId);
+    const [user, access] = await Promise.all([
+        getUser(db, userId),
+        resolveBudgetAccess(db, userId, query.budgetId)
+    ]);
+    const reportUser = {
+        ...user,
+        defaultCurrency: access.budget.defaultCurrency
+    };
     const now = new Date();
     const period = query.period ?? 'day';
     const groupBy = dashboardStatsGroupBy(period);
@@ -3085,16 +3328,16 @@ export async function statsWindow(
     );
     const [selectedAndPreviousRows, previousYearRows, categoriesById] =
         await Promise.all([
-            transactionsForRange(db, userId, selectedRowsRange),
-            transactionsForRange(db, userId, previousYearRowsRange),
-            loadCategoriesById(db, userId)
+            transactionsForRange(db, access.budget.id, selectedRowsRange),
+            transactionsForRange(db, access.budget.id, previousYearRowsRange),
+            loadCategoriesById(db, access.budget.id)
         ]);
 
     return {
         items: plans.map(plan => ({
             date: plan.date,
             overview: summarizeStatsRows(
-                user,
+                reportUser,
                 groupBy,
                 timeframe,
                 plan.ranges,

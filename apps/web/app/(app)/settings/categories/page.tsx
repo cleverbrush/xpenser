@@ -1,9 +1,13 @@
 import { CategoryManager } from '@/components/category-manager';
 import { getApiClient } from '@/lib/api';
+import { selectedBudgetQuery } from '@/lib/budgets';
 
 export default async function CategoriesPage() {
     const client = await getApiClient();
-    const categories = await client.categories.list({ query: {} });
+    const me = await client.auth.me();
+    const categories = await client.categories.list({
+        query: await selectedBudgetQuery(me)
+    });
 
     return (
         <div className="flex flex-col gap-5 sm:gap-6">

@@ -11,6 +11,7 @@ import type { Knex } from 'knex';
 import type { Config } from '../config.js';
 import type {
     AppDb,
+    BudgetDb,
     CategoryDb,
     TransactionDb,
     UserDb,
@@ -35,7 +36,6 @@ type ReportPeriod = {
 
 type ReportUser = Pick<
     UserDb,
-    | 'defaultCurrency'
     | 'email'
     | 'id'
     | 'monthlyEmailReportEnabled'
@@ -45,6 +45,7 @@ type ReportUser = Pick<
 
 type ReportSendOutcome = {
     readonly type: EmailReportType;
+    readonly budgetId: number;
     readonly status: 'sent' | 'skipped';
     readonly from: Date;
     readonly to: Date;
@@ -105,6 +106,8 @@ type NotedTransaction = NotableTransaction & {
 
 type ReportAnalytics = {
     readonly type: EmailReportType;
+    readonly budgetId: number;
+    readonly budgetName: string;
     readonly period: ReportPeriod;
     readonly periodLabel: string;
     readonly currency: string;
@@ -453,25 +456,25 @@ function vendorSummariesForReport(
 
 async function transactionsForPeriod(
     db: AppDb,
-    userId: number,
+    budgetId: number,
     period: ReportPeriod
 ): Promise<TransactionDb[]> {
     return (await db.transactions
         .include(transaction => transaction.category)
-        .where(transaction => transaction.userId, userId)
+        .where(transaction => transaction.budgetId, budgetId)
         .whereBetween(
             transaction => transaction.occurredAt,
             [period.from, period.to]
         )) as TransactionDb[];
 }
 
-async function categoriesForUser(
+async function categoriesForBudget(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<Map<number, CategoryDb>> {
     const categories = (await db.categories.where(
-        category => category.userId,
-        userId
+        category => category.budgetId,
+        budgetId
     )) as CategoryDb[];
 
     return new Map(
@@ -479,13 +482,13 @@ async function categoriesForUser(
     );
 }
 
-async function vendorsForUser(
+async function vendorsForBudget(
     db: AppDb,
-    userId: number
+    budgetId: number
 ): Promise<Map<number, VendorDb>> {
     const vendors = (await db.vendors.where(
-        vendor => vendor.userId,
-        userId
+        vendor => vendor.budgetId,
+        budgetId
     )) as VendorDb[];
 
     return new Map(vendors.map(vendor => [vendor.id, vendor] as const));
@@ -494,6 +497,7 @@ async function vendorsForUser(
 async function buildReportAnalytics(
     db: AppDb,
     user: ReportUser,
+    budget: Pick<BudgetDb, 'id' | 'name'>,
     type: EmailReportType,
     period: ReportPeriod
 ): Promise<ReportAnalytics | undefined> {
@@ -503,11 +507,12 @@ async function buildReportAnalytics(
                 date: period.from,
                 groupBy: type === 'weekly' ? 'day' : 'week',
                 period: type === 'weekly' ? 'week' : 'month',
-                timeframe: 'custom'
+                timeframe: 'custom',
+                budgetId: budget.id
             }),
-            transactionsForPeriod(db, user.id, period),
-            categoriesForUser(db, user.id),
-            vendorsForUser(db, user.id)
+            transactionsForPeriod(db, budget.id, period),
+            categoriesForBudget(db, budget.id),
+            vendorsForBudget(db, budget.id)
         ]);
 
     if (overview.transactionCount === 0) {
@@ -552,6 +557,8 @@ async function buildReportAnalytics(
 
     return {
         type,
+        budgetId: budget.id,
+        budgetName: budget.name,
         period,
         periodLabel: periodLabel(period, user.timezone),
         currency: overview.currency,
@@ -596,6 +603,10 @@ export function emailReportOpenAiPayload(analytics: ReportAnalytics) {
             type: analytics.type,
             period: analytics.periodLabel,
             currency: analytics.currency,
+            budget: {
+                id: analytics.budgetId,
+                name: analytics.budgetName
+            },
             dataSemantics: {
                 totals: 'Income, expenses, category totals, trends, and averages use each category reporting side.',
                 categoryKinds: {
@@ -606,7 +617,7 @@ export function emailReportOpenAiPayload(analytics: ReportAnalytics) {
                     'amount is the positive magnitude; categoryImpact is the positive contribution to the reported income or expense category; netImpact is the signed impact on net position.',
                 notes: 'Transaction notes are user-provided context. Use them when relevant, but do not invent vendors, purposes, or details beyond the note text.',
                 vendors:
-                    'Vendors include only linked expense transactions in this report period. Unlinked transactions are absent from vendor summaries. Vendor names, domains, and descriptions come from user records and enrichment data when available.'
+                    'Vendors include only linked expense transactions in this budget and report period. Unlinked transactions are absent from vendor summaries. Vendor names, domains, and descriptions come from budget records and enrichment data when available.'
             },
             totals: {
                 income: analytics.incomeTotal,
@@ -715,7 +726,7 @@ async function generateInsights(
 
 function reportSubject(analytics: ReportAnalytics, insights: ReportInsights) {
     const cadence = analytics.type === 'weekly' ? 'Weekly' : 'Monthly';
-    return `${cadence} xpenser report: ${insights.headline}`;
+    return `${cadence} xpenser report for ${analytics.budgetName}: ${insights.headline}`;
 }
 
 function statsUrl(
@@ -732,6 +743,7 @@ function statsUrl(
         'date',
         dateToLocalDateParam(analytics.period.from, timeZone)
     );
+    url.searchParams.set('budgetId', String(analytics.budgetId));
     return url.toString();
 }
 
@@ -749,6 +761,7 @@ function emailText(
         insights.headline,
         '',
         `${analytics.type === 'weekly' ? 'Weekly' : 'Monthly'} report for ${analytics.periodLabel}`,
+        `Budget: ${analytics.budgetName}`,
         insights.recap,
         '',
         `Income: ${money(analytics.incomeTotal, analytics.currency)}`,
@@ -830,6 +843,7 @@ function emailHtml(
     return `
         <div style="font-family:Inter,Arial,sans-serif;max-width:640px;margin:0 auto;color:#0f172a;line-height:1.5;">
             <p style="color:#64748b;margin:0 0 8px;">${analytics.type === 'weekly' ? 'Weekly' : 'Monthly'} report for ${analytics.periodLabel}</p>
+            <p style="color:#64748b;margin:0 0 8px;">Budget: ${htmlEscape(analytics.budgetName)}</p>
             <h1 style="font-size:24px;line-height:1.2;margin:0 0 12px;">${htmlEscape(insights.headline)}</h1>
             <p>${htmlEscape(insights.recap)}</p>
             <table style="width:100%;border-collapse:collapse;margin:20px 0;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;">
@@ -863,25 +877,28 @@ async function sendReportEmail(
 
 function scheduledDeliveryKey(
     userId: number,
+    budgetId: number,
     type: EmailReportType,
     period: ReportPeriod
 ): string {
-    return `${userId}:${type}:${period.from.toISOString()}`;
+    return `${userId}:${budgetId}:${type}:${period.from.toISOString()}`;
 }
 
 async function claimDelivery(
     knex: Knex,
     config: Config,
     user: ReportUser,
+    budget: Pick<BudgetDb, 'id'>,
     type: EmailReportType,
     trigger: ReportTrigger,
     period: ReportPeriod
 ): Promise<number | undefined> {
-    const deliveryKey = scheduledDeliveryKey(user.id, type, period);
+    const deliveryKey = scheduledDeliveryKey(user.id, budget.id, type, period);
     const result = await knex.raw<{ rows: { id: number }[] }>(
         `
         insert into email_report_deliveries (
             user_id,
+            budget_id,
             delivery_key,
             report_type,
             trigger,
@@ -892,7 +909,7 @@ async function claimDelivery(
             attempts,
             created_at,
             updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, 'pending', 1, now(), now())
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, now(), now())
         on conflict (delivery_key) do update
         set status = 'pending',
             attempts = email_report_deliveries.attempts + 1,
@@ -904,6 +921,7 @@ async function claimDelivery(
         `,
         [
             user.id,
+            budget.id,
             deliveryKey,
             type,
             trigger,
@@ -959,6 +977,7 @@ async function sendEmailReport(
     knex: Knex,
     config: Config,
     user: ReportUser,
+    budget: Pick<BudgetDb, 'id' | 'name'>,
     type: EmailReportType,
     trigger: ReportTrigger,
     now: Date
@@ -969,6 +988,7 @@ async function sendEmailReport(
         knex,
         config,
         user,
+        budget,
         type,
         trigger,
         period
@@ -976,6 +996,7 @@ async function sendEmailReport(
     if (!deliveryId) {
         return {
             type,
+            budgetId: budget.id,
             status: 'skipped',
             from: period.from,
             to: period.to,
@@ -984,11 +1005,18 @@ async function sendEmailReport(
     }
 
     try {
-        const analytics = await buildReportAnalytics(db, user, type, period);
+        const analytics = await buildReportAnalytics(
+            db,
+            user,
+            budget,
+            type,
+            period
+        );
         if (!analytics) {
             await markDeliverySkipped(knex, deliveryId);
             return {
                 type,
+                budgetId: budget.id,
                 status: 'skipped',
                 from: period.from,
                 to: period.to,
@@ -1004,7 +1032,13 @@ async function sendEmailReport(
             insights
         );
         await markDeliverySent(knex, deliveryId, messageId);
-        return { type, status: 'sent', from: period.from, to: period.to };
+        return {
+            type,
+            budgetId: budget.id,
+            status: 'sent',
+            from: period.from,
+            to: period.to
+        };
     } catch (err) {
         await markDeliveryFailed(knex, deliveryId, err);
         throw err;
@@ -1016,7 +1050,6 @@ async function listReportUsers(knex: Knex): Promise<ReportUser[]> {
         .select(
             'id',
             'email',
-            'default_currency as defaultCurrency',
             'timezone',
             'weekly_email_report_enabled as weeklyEmailReportEnabled',
             'monthly_email_report_enabled as monthlyEmailReportEnabled'
@@ -1028,6 +1061,20 @@ async function listReportUsers(knex: Knex): Promise<ReportUser[]> {
         });
 
     return rows as ReportUser[];
+}
+
+async function listReportBudgets(
+    knex: Knex,
+    userId: number
+): Promise<Pick<BudgetDb, 'id' | 'name'>[]> {
+    const rows = await knex('budgets')
+        .join('budget_members', 'budget_members.budget_id', 'budgets.id')
+        .select('budgets.id', 'budget_members.display_name as name')
+        .where('budget_members.user_id', userId)
+        .whereNull('budgets.archived_at')
+        .orderBy('budget_members.display_name', 'asc');
+
+    return rows as Pick<BudgetDb, 'id' | 'name'>[];
 }
 
 export async function sendDueEmailReports(
@@ -1048,23 +1095,28 @@ export async function sendDueEmailReports(
             now,
             config.emailReports.deliveryHourLocal
         );
+        const budgets = await listReportBudgets(knex, user.id);
         for (const type of types) {
-            try {
-                await sendEmailReport(
-                    db,
-                    knex,
-                    config,
-                    user,
-                    type,
-                    'scheduled',
-                    now
-                );
-            } catch (err) {
-                logger.error('Email report delivery failed', {
-                    Error: err instanceof Error ? err.message : String(err),
-                    ReportType: type,
-                    UserId: user.id
-                });
+            for (const budget of budgets) {
+                try {
+                    await sendEmailReport(
+                        db,
+                        knex,
+                        config,
+                        user,
+                        budget,
+                        type,
+                        'scheduled',
+                        now
+                    );
+                } catch (err) {
+                    logger.error('Email report delivery failed', {
+                        BudgetId: budget.id,
+                        Error: err instanceof Error ? err.message : String(err),
+                        ReportType: type,
+                        UserId: user.id
+                    });
+                }
             }
         }
     }

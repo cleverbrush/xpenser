@@ -26,6 +26,8 @@ function vendor(
         total: id * 10,
         transactionCount: id,
         trend: [id * 5, id * 10],
+        contributors: [],
+        otherContributorCount: 0,
         ...overrides
     };
 }
@@ -50,7 +52,9 @@ function categoryVendor(
         type: vendorRow.type,
         total,
         transactionCount: 1,
-        trend: [0, total]
+        trend: [0, total],
+        contributors: [],
+        otherContributorCount: 0
     };
 }
 
