@@ -177,6 +177,42 @@ describe('LandingPage', () => {
         expect(auraPlusPlusDarkBadgeImage?.className).toContain('hidden');
         expect(auraPlusPlusDarkBadgeImage?.className).toContain('dark:block');
 
+        const toolfioBadgeLink = screen.getByRole('link', {
+            name: /Featured on Toolfio/i
+        });
+        expect(toolfioBadgeLink).toHaveProperty('href', 'https://toolfio.com/');
+        expect(toolfioBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(toolfioBadgeLink.getAttribute('rel')).toBe(
+            'dofollow noopener noreferrer'
+        );
+
+        const toolfioBadgeImages = screen.getAllByAltText(
+            'Featured on Toolfio'
+        );
+        expect(toolfioBadgeImages).toHaveLength(2);
+
+        const toolfioLightBadgeImage = toolfioBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://toolfio.com/toolfio-light-badge.png'
+        );
+        expect(toolfioLightBadgeImage).toBeTruthy();
+        expect(toolfioLightBadgeImage?.getAttribute('width')).toBe('200');
+        expect(toolfioLightBadgeImage?.getAttribute('height')).toBe('54');
+        expect(toolfioLightBadgeImage?.className).toContain('block');
+        expect(toolfioLightBadgeImage?.className).toContain('dark:hidden');
+
+        const toolfioDarkBadgeImage = toolfioBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://toolfio.com/toolfio-dark-badge.png'
+        );
+        expect(toolfioDarkBadgeImage).toBeTruthy();
+        expect(toolfioDarkBadgeImage?.getAttribute('width')).toBe('200');
+        expect(toolfioDarkBadgeImage?.getAttribute('height')).toBe('54');
+        expect(toolfioDarkBadgeImage?.className).toContain('hidden');
+        expect(toolfioDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });
