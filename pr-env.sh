@@ -421,6 +421,20 @@ database_initialized() {
     return 0
 }
 
+reset_pr_database() {
+    local pr_container="$1"
+
+    log "Resetting PR database ${POSTGRES_DB} before restore"
+    docker exec -i -e "PGPASSWORD=${POSTGRES_PASSWORD}" "$pr_container" \
+        psql -v ON_ERROR_STOP=1 \
+            -U "$POSTGRES_USER" \
+            -d "$POSTGRES_DB" <<SQL
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC;
+SQL
+}
+
 initialize_database() {
     if database_initialized; then
         log "PR database already initialized; preserving existing volume"
@@ -446,6 +460,8 @@ initialize_database() {
     prod_password="$(docker exec "$prod_container" printenv POSTGRES_PASSWORD 2>/dev/null || true)"
     prod_db="${prod_db:-$POSTGRES_DB}"
     prod_user="${prod_user:-$POSTGRES_USER}"
+
+    reset_pr_database "$pr_container"
 
     log "Copying production database into ${COMPOSE_PROJECT}_postgres_data"
     docker exec -e "PGPASSWORD=${prod_password}" "$prod_container" \

@@ -8,6 +8,7 @@ const prEnvScript = readFileSync(resolve(repoRoot, 'pr-env.sh'), 'utf8');
 const shellDomain = '$' + '{DOMAIN}';
 const shellPassportProject = '$' + '{PASSPORT_PROJECT}';
 const shellPassportEnvironment = '$' + '{PASSPORT_ENVIRONMENT}';
+const shellPostgresDb = '$' + '{POSTGRES_DB}';
 
 describe('PR environment script', () => {
     it('registers Passport against the public /api backend', () => {
@@ -53,5 +54,15 @@ describe('PR environment script', () => {
         expect(prEnvScript).toContain(
             'if (( marker_epoch < volume_epoch )); then'
         );
+    });
+
+    it('resets only the PR database schema before restoring production', () => {
+        expect(prEnvScript).toContain('reset_pr_database()');
+        expect(prEnvScript).toContain(
+            `log "Resetting PR database ${shellPostgresDb} before restore"`
+        );
+        expect(prEnvScript).toContain('psql -v ON_ERROR_STOP=1');
+        expect(prEnvScript).toContain('DROP SCHEMA IF EXISTS public CASCADE;');
+        expect(prEnvScript).toContain('reset_pr_database "$pr_container"');
     });
 });
