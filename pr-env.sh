@@ -379,8 +379,50 @@ sync_repo() {
     git -C "$CHECKOUT_DIR" clean -fdx -e .env
 }
 
+docker_volume_created_epoch() {
+    local volume_name="$1"
+    local created_at
+
+    created_at="$(
+        docker volume inspect "$volume_name" --format '{{.CreatedAt}}' \
+            2>/dev/null || true
+    )"
+    [[ -n "$created_at" ]] || return 1
+
+    date -u -d "$created_at" '+%s' 2>/dev/null
+}
+
+database_initialized() {
+    local volume_name="${COMPOSE_PROJECT}_postgres_data"
+    local marker_epoch
+    local volume_epoch
+
+    if [[ ! -f "$DB_INITIALIZED_FILE" ]]; then
+        return 1
+    fi
+
+    marker_epoch="$(stat -c '%Y' "$DB_INITIALIZED_FILE" 2>/dev/null || true)"
+    if [[ ! "$marker_epoch" =~ ^[0-9]+$ ]]; then
+        log "Could not read ${DB_INITIALIZED_FILE} mtime; reinitializing PR database"
+        return 1
+    fi
+
+    volume_epoch="$(docker_volume_created_epoch "$volume_name" || true)"
+    if [[ ! "$volume_epoch" =~ ^[0-9]+$ ]]; then
+        log "Could not read ${volume_name} creation time; reinitializing PR database"
+        return 1
+    fi
+
+    if (( marker_epoch < volume_epoch )); then
+        log "${DB_INITIALIZED_FILE} predates ${volume_name}; reinitializing PR database"
+        return 1
+    fi
+
+    return 0
+}
+
 initialize_database() {
-    if [[ -f "$DB_INITIALIZED_FILE" ]]; then
+    if database_initialized; then
         log "PR database already initialized; preserving existing volume"
         return
     fi

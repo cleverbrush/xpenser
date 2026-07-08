@@ -38,4 +38,20 @@ describe('PR environment script', () => {
         expect(prEnvScript).toContain('AUTH_GOOGLE_ID=');
         expect(prEnvScript).toContain('AUTH_GOOGLE_SECRET=');
     });
+
+    it('reinitializes when the PR database marker predates the Docker volume', () => {
+        expect(prEnvScript).toContain('database_initialized()');
+        expect(prEnvScript).toContain(
+            `local volume_name="$` + `{COMPOSE_PROJECT}_postgres_data"`
+        );
+        expect(prEnvScript).toContain(
+            `docker volume inspect "$volume_name" --format '{{.CreatedAt}}'`
+        );
+        expect(prEnvScript).toContain(
+            `marker_epoch="$(stat -c '%Y' "$DB_INITIALIZED_FILE"`
+        );
+        expect(prEnvScript).toContain(
+            'if (( marker_epoch < volume_epoch )); then'
+        );
+    });
 });
