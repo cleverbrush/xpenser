@@ -9,6 +9,7 @@ import {
     categoryReportingType,
     deleteCategory,
     LastCategoryError,
+    listCategories,
     moveAndDeleteCategory
 } from './categories.js';
 
@@ -113,6 +114,45 @@ describe('category popularity ordering', () => {
             )
         ).toEqual([4, 2, 1, 3]);
     });
+
+    it('uses normal category display order as the equal-count fallback', async () => {
+        const now = new Date();
+        const zebra = categoryRow(1, 'Zebra');
+        const alpha = categoryRow(2, 'Alpha');
+        const coffee = categoryRow(3, 'Coffee');
+        const transaction = (
+            id: number,
+            categoryId: number
+        ): TestTransaction => ({
+            id,
+            userId: 1,
+            budgetId: 1,
+            categoryId,
+            type: 'expense',
+            occurredAt: now,
+            updatedAt: now
+        });
+
+        const categories = await listCategories(
+            testDb(
+                [zebra, alpha, coffee],
+                [
+                    transaction(1, zebra.id),
+                    transaction(2, alpha.id),
+                    transaction(3, coffee.id),
+                    transaction(4, coffee.id)
+                ]
+            ) as never,
+            1,
+            { budgetId: 1, sort: 'recent-transaction-count' }
+        );
+
+        expect(categories.map(category => category.name)).toEqual([
+            'Coffee',
+            'Alpha',
+            'Zebra'
+        ]);
+    });
 });
 
 type TestTransaction = {
@@ -121,6 +161,7 @@ type TestTransaction = {
     budgetId: number;
     categoryId: number;
     type: 'expense' | 'income';
+    occurredAt?: Date;
     updatedAt: Date;
 };
 
@@ -130,10 +171,30 @@ class TestQuery<T extends object> implements PromiseLike<T[]> {
         private readonly rows: T[] = source
     ) {}
 
-    where<TValue>(selector: (row: T) => TValue, value: TValue): TestQuery<T> {
+    where<TValue>(
+        selector: (row: T) => TValue,
+        valueOrOperator: TValue | '>=' | '<=',
+        maybeValue?: TValue
+    ): TestQuery<T> {
+        if (valueOrOperator === '>=' || valueOrOperator === '<=') {
+            if (maybeValue == null) {
+                throw new Error('Comparison value is required.');
+            }
+            return new TestQuery(
+                this.source,
+                this.rows.filter(row => {
+                    const actual = selector(row);
+                    const expected = maybeValue;
+                    return valueOrOperator === '>='
+                        ? actual >= expected
+                        : actual <= expected;
+                })
+            );
+        }
+
         return new TestQuery(
             this.source,
-            this.rows.filter(row => selector(row) === value)
+            this.rows.filter(row => selector(row) === valueOrOperator)
         );
     }
 

@@ -293,15 +293,16 @@ export async function listCategories(
               categoryAvailableForTransactions(category, categoriesById)
           )
         : categoryRows;
+    const categoriesInDisplayOrder = [...filteredCategories].sort(
+        (left, right) => compareCategories(categoriesById, left, right)
+    );
     const orderedCategories =
         query.sort === 'recent-transaction-count'
             ? categoriesByRecentTransactionCount(
-                  filteredCategories,
+                  categoriesInDisplayOrder,
                   recentTransactions
               )
-            : [...filteredCategories].sort((left, right) =>
-                  compareCategories(categoriesById, left, right)
-              );
+            : categoriesInDisplayOrder;
 
     return orderedCategories.map(category =>
         mapCategory(

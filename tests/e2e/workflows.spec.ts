@@ -703,6 +703,9 @@ test.describe('authenticated app workflows', () => {
         const mostPopular = uniqueName('E2E popular most');
         const used = uniqueName('E2E popular used');
         const unused = uniqueName('E2E popular unused');
+        const recentOccurredAt = dateTimeLocalValue(
+            new Date(Date.now() - 60 * 60 * 1000)
+        );
 
         await createCategory(page, mostPopular, 'expense');
         await createCategory(page, used, 'expense');
@@ -713,21 +716,24 @@ test.describe('authenticated app workflows', () => {
             mostPopular,
             'expense',
             '12.34',
-            uniqueName('E2E note')
+            uniqueName('E2E note'),
+            recentOccurredAt
         );
         await createTransaction(
             page,
             mostPopular,
             'expense',
             '12.34',
-            uniqueName('E2E note')
+            uniqueName('E2E note'),
+            recentOccurredAt
         );
         await createTransaction(
             page,
             used,
             'expense',
             '12.34',
-            uniqueName('E2E note')
+            uniqueName('E2E note'),
+            recentOccurredAt
         );
 
         await page.goto('/dashboard');
