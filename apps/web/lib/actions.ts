@@ -1029,24 +1029,47 @@ export async function acceptBudgetInvitationAction(formData: FormData) {
 }
 
 export async function updateUserAvatarAction(formData: FormData) {
-    const file = avatarFile(formData);
+    let file: File;
+    try {
+        file = avatarFile(formData);
+    } catch (err) {
+        return {
+            error:
+                err instanceof Error ? err.message : 'Could not upload avatar.'
+        };
+    }
     const imageBase64 = Buffer.from(await file.arrayBuffer()).toString(
         'base64'
     );
     const client = await getApiClient();
-    await client.users.updateAvatar({
-        body: {
-            mimeType: file.type as 'image/jpeg' | 'image/png' | 'image/webp',
-            imageBase64,
-            fileName: file.name || undefined
+    try {
+        await client.users.updateAvatar({
+            body: {
+                mimeType: file.type as
+                    | 'image/jpeg'
+                    | 'image/png'
+                    | 'image/webp',
+                imageBase64,
+                fileName: file.name || undefined
+            }
+        });
+    } catch (err) {
+        if (apiErrorStatus(err) === 400) {
+            return {
+                error:
+                    apiErrorMessage(err) ??
+                    'Could not upload avatar. Choose another image.'
+            };
         }
-    });
+        throw err;
+    }
     revalidatePath('/settings/preferences');
     revalidatePath('/settings/budgets');
     revalidatePath('/dashboard');
     revalidatePath('/vendors');
     revalidatePath('/settings/vendors');
     revalidatePath('/transactions');
+    return { success: true };
 }
 
 export async function deleteUserAvatarAction() {

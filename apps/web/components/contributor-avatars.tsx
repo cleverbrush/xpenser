@@ -1,12 +1,7 @@
 'use client';
 
 import type { UserAvatarSummary } from '@xpenser/contracts';
-import { Avatar, AvatarFallback, AvatarImage } from '@xpenser/ui';
-
-function fallbackText(user: UserAvatarSummary): string {
-    const source = user.displayName || user.email;
-    return source.slice(0, 2).toUpperCase();
-}
+import { UserAvatar } from './user-avatar';
 
 export function ContributorAvatars({
     className = '',
@@ -28,19 +23,14 @@ export function ContributorAvatars({
     return (
         <div className={`flex shrink-0 items-center -space-x-1 ${className}`}>
             {visible.map(user => (
-                <Avatar
+                <UserAvatar
+                    avatarUrl={user.avatarUrl}
                     className="size-5 border border-background"
+                    displayName={user.displayName}
+                    email={user.email}
+                    fallbackClassName="text-[0.58rem]"
                     key={user.userId}
-                    title={user.displayName || user.email}
-                >
-                    <AvatarImage
-                        alt={user.displayName || user.email}
-                        src={user.avatarUrl}
-                    />
-                    <AvatarFallback className="text-[0.58rem]">
-                        {fallbackText(user)}
-                    </AvatarFallback>
-                </Avatar>
+                />
             ))}
             {hiddenCount > 0 ? (
                 <span className="flex size-5 items-center justify-center rounded-full border border-background bg-muted text-[0.58rem] font-medium text-muted-foreground">

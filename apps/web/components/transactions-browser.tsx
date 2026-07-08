@@ -70,6 +70,7 @@ import { transactionPageSize } from '@/lib/transaction-query';
 import { AmountDisplay } from './amount-display';
 import { DashboardViewSettingsMenu } from './dashboard-view-settings-menu';
 import { TransactionDialog } from './transaction-dialog';
+import { UserAvatar } from './user-avatar';
 import { VendorLogo } from './vendor-display';
 
 type TransactionFeedResponse = {
@@ -243,7 +244,7 @@ function transactionBadges(transaction: Transaction) {
     );
 }
 
-function transactionCreatorBadge(
+function transactionCreatorAvatar(
     transaction: Transaction,
     currentUserId: number
 ) {
@@ -252,9 +253,12 @@ function transactionCreatorBadge(
     }
 
     return (
-        <Badge variant="outline">
-            Added by {transaction.createdBy.email || 'another user'}
-        </Badge>
+        <UserAvatar
+            avatarUrl={transaction.createdBy.avatarUrl}
+            className="size-6"
+            email={transaction.createdBy.email || 'another user'}
+            fallbackClassName="text-[0.65rem]"
+        />
     );
 }
 
@@ -478,7 +482,7 @@ function TransactionCards({
                             </h2>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
                                 {transactionBadges(transaction)}
-                                {transactionCreatorBadge(
+                                {transactionCreatorAvatar(
                                     transaction,
                                     currentUserId
                                 )}
@@ -539,7 +543,7 @@ function TransactionTable({
                             <TableHead>Category</TableHead>
                             <TableHead>Vendor</TableHead>
                             <TableHead>Tags</TableHead>
-                            <TableHead>Added by</TableHead>
+                            <TableHead>Creator</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>Amount</TableHead>
                             <TableHead>When</TableHead>
@@ -567,7 +571,7 @@ function TransactionTable({
                                     )}
                                 </TableCell>
                                 <TableCell>
-                                    {transactionCreatorBadge(
+                                    {transactionCreatorAvatar(
                                         transaction,
                                         currentUserId
                                     ) ?? (
