@@ -204,6 +204,15 @@ const toolfioBadge = {
     width: 200
 } as const;
 
+const earlyHuntBadge = {
+    alt: 'Featured on EarlyHunt',
+    darkSrc: 'https://earlyhunt.com/badges/earlyhunt-badge-dark.svg',
+    height: 58,
+    href: 'https://earlyhunt.com/project/xpenser',
+    lightSrc: 'https://earlyhunt.com/badges/earlyhunt-badge-light.svg',
+    width: 265
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -646,6 +655,35 @@ function ToolfioBadge() {
     );
 }
 
+function EarlyHuntBadge() {
+    return (
+        <a
+            aria-label={earlyHuntBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={earlyHuntBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: EarlyHunt provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={earlyHuntBadge.alt}
+                className="block dark:hidden"
+                height={earlyHuntBadge.height}
+                src={earlyHuntBadge.lightSrc}
+                width={earlyHuntBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: EarlyHunt provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={earlyHuntBadge.alt}
+                className="hidden dark:block"
+                height={earlyHuntBadge.height}
+                src={earlyHuntBadge.darkSrc}
+                width={earlyHuntBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -676,6 +714,7 @@ function FooterBadges() {
             <ScrollLaunchBadge />
             <AuraPlusPlusBadge />
             <ToolfioBadge />
+            <EarlyHuntBadge />
             <OpenHuntsBadge />
         </div>
     );
