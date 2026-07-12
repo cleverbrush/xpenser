@@ -213,6 +213,15 @@ const earlyHuntBadge = {
     width: 265
 } as const;
 
+const dangBadge = {
+    alt: 'Verified on DANG!',
+    darkSrc: 'https://assets.dang.ai/badges/dang-verified-dark.png',
+    height: 94,
+    href: 'https://dang.ai',
+    lightSrc: 'https://assets.dang.ai/badges/dang-verified-light.png',
+    width: 260
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -684,6 +693,35 @@ function EarlyHuntBadge() {
     );
 }
 
+function DangBadge() {
+    return (
+        <a
+            aria-label={dangBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={dangBadge.href}
+            rel="dofollow noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: DANG provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={dangBadge.alt}
+                className="block h-auto max-w-full dark:hidden"
+                height={dangBadge.height}
+                src={dangBadge.lightSrc}
+                width={dangBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: DANG provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={dangBadge.alt}
+                className="hidden h-auto max-w-full dark:block"
+                height={dangBadge.height}
+                src={dangBadge.darkSrc}
+                width={dangBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -715,6 +753,7 @@ function FooterBadges() {
             <AuraPlusPlusBadge />
             <ToolfioBadge />
             <EarlyHuntBadge />
+            <DangBadge />
             <OpenHuntsBadge />
         </div>
     );

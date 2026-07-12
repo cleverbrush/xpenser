@@ -252,6 +252,40 @@ describe('LandingPage', () => {
         expect(earlyHuntDarkBadgeImage?.className).toContain('hidden');
         expect(earlyHuntDarkBadgeImage?.className).toContain('dark:block');
 
+        const dangBadgeLink = screen.getByRole('link', {
+            name: /Verified on DANG!/i
+        });
+        expect(dangBadgeLink).toHaveProperty('href', 'https://dang.ai/');
+        expect(dangBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(dangBadgeLink.getAttribute('rel')).toBe(
+            'dofollow noopener noreferrer'
+        );
+
+        const dangBadgeImages = screen.getAllByAltText('Verified on DANG!');
+        expect(dangBadgeImages).toHaveLength(2);
+
+        const dangLightBadgeImage = dangBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://assets.dang.ai/badges/dang-verified-light.png'
+        );
+        expect(dangLightBadgeImage).toBeTruthy();
+        expect(dangLightBadgeImage?.getAttribute('width')).toBe('260');
+        expect(dangLightBadgeImage?.getAttribute('height')).toBe('94');
+        expect(dangLightBadgeImage?.className).toContain('block');
+        expect(dangLightBadgeImage?.className).toContain('dark:hidden');
+
+        const dangDarkBadgeImage = dangBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://assets.dang.ai/badges/dang-verified-dark.png'
+        );
+        expect(dangDarkBadgeImage).toBeTruthy();
+        expect(dangDarkBadgeImage?.getAttribute('width')).toBe('260');
+        expect(dangDarkBadgeImage?.getAttribute('height')).toBe('94');
+        expect(dangDarkBadgeImage?.className).toContain('hidden');
+        expect(dangDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });
