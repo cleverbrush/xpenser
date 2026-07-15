@@ -653,6 +653,8 @@ describe('budget lifecycle', () => {
 
 describe('budget invitations', () => {
     it('lists active members and invitation statuses for admin access management', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-07-01T00:00:00.000Z'));
         const { db } = makeDb({
             invitations: [
                 invitation(2, 'pending@example.com', 'join-token', {
