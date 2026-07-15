@@ -222,6 +222,15 @@ const dangBadge = {
     width: 260
 } as const;
 
+const twelveToolsBadge = {
+    alt: 'Featured on Twelve Tools',
+    darkSrc: 'https://twelve.tools/badge0-dark.svg',
+    height: 54,
+    href: 'https://twelve.tools',
+    lightSrc: 'https://twelve.tools/badge0-white.svg',
+    width: 200
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -722,6 +731,35 @@ function DangBadge() {
     );
 }
 
+function TwelveToolsBadge() {
+    return (
+        <a
+            aria-label={twelveToolsBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={twelveToolsBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: Twelve Tools provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={twelveToolsBadge.alt}
+                className="block dark:hidden"
+                height={twelveToolsBadge.height}
+                src={twelveToolsBadge.lightSrc}
+                width={twelveToolsBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: Twelve Tools provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={twelveToolsBadge.alt}
+                className="hidden dark:block"
+                height={twelveToolsBadge.height}
+                src={twelveToolsBadge.darkSrc}
+                width={twelveToolsBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -754,6 +792,7 @@ function FooterBadges() {
             <ToolfioBadge />
             <EarlyHuntBadge />
             <DangBadge />
+            <TwelveToolsBadge />
             <OpenHuntsBadge />
         </div>
     );

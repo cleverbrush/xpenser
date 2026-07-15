@@ -286,6 +286,45 @@ describe('LandingPage', () => {
         expect(dangDarkBadgeImage?.className).toContain('hidden');
         expect(dangDarkBadgeImage?.className).toContain('dark:block');
 
+        const twelveToolsBadgeLink = screen.getByRole('link', {
+            name: /Featured on Twelve Tools/i
+        });
+        expect(twelveToolsBadgeLink).toHaveProperty(
+            'href',
+            'https://twelve.tools/'
+        );
+        expect(twelveToolsBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(twelveToolsBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const twelveToolsBadgeImages = screen.getAllByAltText(
+            'Featured on Twelve Tools'
+        );
+        expect(twelveToolsBadgeImages).toHaveLength(2);
+
+        const twelveToolsLightBadgeImage = twelveToolsBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://twelve.tools/badge0-white.svg'
+        );
+        expect(twelveToolsLightBadgeImage).toBeTruthy();
+        expect(twelveToolsLightBadgeImage?.getAttribute('width')).toBe('200');
+        expect(twelveToolsLightBadgeImage?.getAttribute('height')).toBe('54');
+        expect(twelveToolsLightBadgeImage?.className).toContain('block');
+        expect(twelveToolsLightBadgeImage?.className).toContain('dark:hidden');
+
+        const twelveToolsDarkBadgeImage = twelveToolsBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://twelve.tools/badge0-dark.svg'
+        );
+        expect(twelveToolsDarkBadgeImage).toBeTruthy();
+        expect(twelveToolsDarkBadgeImage?.getAttribute('width')).toBe('200');
+        expect(twelveToolsDarkBadgeImage?.getAttribute('height')).toBe('54');
+        expect(twelveToolsDarkBadgeImage?.className).toContain('hidden');
+        expect(twelveToolsDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });
