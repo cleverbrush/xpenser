@@ -325,6 +325,47 @@ describe('LandingPage', () => {
         expect(twelveToolsDarkBadgeImage?.className).toContain('hidden');
         expect(twelveToolsDarkBadgeImage?.className).toContain('dark:block');
 
+        const wiredBusinessBadgeLink = screen.getByRole('link', {
+            name: /Featured on Wired Business/i
+        });
+        expect(wiredBusinessBadgeLink).toHaveProperty(
+            'href',
+            'https://wired.business/'
+        );
+        expect(wiredBusinessBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(wiredBusinessBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const wiredBusinessBadgeImages = screen.getAllByAltText(
+            'Featured on Wired Business'
+        );
+        expect(wiredBusinessBadgeImages).toHaveLength(2);
+
+        const wiredBusinessLightBadgeImage = wiredBusinessBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://wired.business/badge0-white.svg'
+        );
+        expect(wiredBusinessLightBadgeImage).toBeTruthy();
+        expect(wiredBusinessLightBadgeImage?.getAttribute('width')).toBe('200');
+        expect(wiredBusinessLightBadgeImage?.getAttribute('height')).toBe('54');
+        expect(wiredBusinessLightBadgeImage?.className).toContain('block');
+        expect(wiredBusinessLightBadgeImage?.className).toContain(
+            'dark:hidden'
+        );
+
+        const wiredBusinessDarkBadgeImage = wiredBusinessBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://wired.business/badge0-dark.svg'
+        );
+        expect(wiredBusinessDarkBadgeImage).toBeTruthy();
+        expect(wiredBusinessDarkBadgeImage?.getAttribute('width')).toBe('200');
+        expect(wiredBusinessDarkBadgeImage?.getAttribute('height')).toBe('54');
+        expect(wiredBusinessDarkBadgeImage?.className).toContain('hidden');
+        expect(wiredBusinessDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });
