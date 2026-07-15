@@ -231,6 +231,15 @@ const twelveToolsBadge = {
     width: 200
 } as const;
 
+const wiredBusinessBadge = {
+    alt: 'Featured on Wired Business',
+    darkSrc: 'https://wired.business/badge0-dark.svg',
+    height: 54,
+    href: 'https://wired.business',
+    lightSrc: 'https://wired.business/badge0-white.svg',
+    width: 200
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -760,6 +769,35 @@ function TwelveToolsBadge() {
     );
 }
 
+function WiredBusinessBadge() {
+    return (
+        <a
+            aria-label={wiredBusinessBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={wiredBusinessBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: Wired Business provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={wiredBusinessBadge.alt}
+                className="block dark:hidden"
+                height={wiredBusinessBadge.height}
+                src={wiredBusinessBadge.lightSrc}
+                width={wiredBusinessBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: Wired Business provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={wiredBusinessBadge.alt}
+                className="hidden dark:block"
+                height={wiredBusinessBadge.height}
+                src={wiredBusinessBadge.darkSrc}
+                width={wiredBusinessBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -793,6 +831,7 @@ function FooterBadges() {
             <EarlyHuntBadge />
             <DangBadge />
             <TwelveToolsBadge />
+            <WiredBusinessBadge />
             <OpenHuntsBadge />
         </div>
     );
