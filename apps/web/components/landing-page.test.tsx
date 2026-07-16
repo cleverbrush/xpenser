@@ -366,6 +366,45 @@ describe('LandingPage', () => {
         expect(wiredBusinessDarkBadgeImage?.className).toContain('hidden');
         expect(wiredBusinessDarkBadgeImage?.className).toContain('dark:block');
 
+        const findlyToolsBadgeLink = screen.getByRole('link', {
+            name: /Featured on Findly\.tools/i
+        });
+        expect(findlyToolsBadgeLink).toHaveProperty(
+            'href',
+            'https://findly.tools/xpenser?utm_source=xpenser'
+        );
+        expect(findlyToolsBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(findlyToolsBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const findlyToolsBadgeImages = screen.getAllByAltText(
+            'Featured on Findly.tools'
+        );
+        expect(findlyToolsBadgeImages).toHaveLength(2);
+
+        const findlyToolsLightBadgeImage = findlyToolsBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://findly.tools/badges/findly-tools-badge-light.svg'
+        );
+        expect(findlyToolsLightBadgeImage).toBeTruthy();
+        expect(findlyToolsLightBadgeImage?.getAttribute('width')).toBe('175');
+        expect(findlyToolsLightBadgeImage?.getAttribute('height')).toBe('55');
+        expect(findlyToolsLightBadgeImage?.className).toContain('block');
+        expect(findlyToolsLightBadgeImage?.className).toContain('dark:hidden');
+
+        const findlyToolsDarkBadgeImage = findlyToolsBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://findly.tools/badges/findly-tools-badge-dark.svg'
+        );
+        expect(findlyToolsDarkBadgeImage).toBeTruthy();
+        expect(findlyToolsDarkBadgeImage?.getAttribute('width')).toBe('175');
+        expect(findlyToolsDarkBadgeImage?.getAttribute('height')).toBe('55');
+        expect(findlyToolsDarkBadgeImage?.className).toContain('hidden');
+        expect(findlyToolsDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });

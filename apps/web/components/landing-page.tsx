@@ -240,6 +240,15 @@ const wiredBusinessBadge = {
     width: 200
 } as const;
 
+const findlyToolsBadge = {
+    alt: 'Featured on Findly.tools',
+    darkSrc: 'https://findly.tools/badges/findly-tools-badge-dark.svg',
+    height: 55,
+    href: 'https://findly.tools/xpenser?utm_source=xpenser',
+    lightSrc: 'https://findly.tools/badges/findly-tools-badge-light.svg',
+    width: 175
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -798,6 +807,35 @@ function WiredBusinessBadge() {
     );
 }
 
+function FindlyToolsBadge() {
+    return (
+        <a
+            aria-label={findlyToolsBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={findlyToolsBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: Findly.tools provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={findlyToolsBadge.alt}
+                className="block dark:hidden"
+                height={findlyToolsBadge.height}
+                src={findlyToolsBadge.lightSrc}
+                width={findlyToolsBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: Findly.tools provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={findlyToolsBadge.alt}
+                className="hidden dark:block"
+                height={findlyToolsBadge.height}
+                src={findlyToolsBadge.darkSrc}
+                width={findlyToolsBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -832,6 +870,7 @@ function FooterBadges() {
             <DangBadge />
             <TwelveToolsBadge />
             <WiredBusinessBadge />
+            <FindlyToolsBadge />
             <OpenHuntsBadge />
         </div>
     );
