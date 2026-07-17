@@ -88,6 +88,36 @@ test('serves the public blog index and a published post', async ({ page }) => {
     );
 });
 
+test('publishes the TypeScript 7 migration benchmark', async ({ page }) => {
+    await page.goto('/blog/typescript-7-migration');
+
+    await expect(
+        page.getByRole('heading', {
+            name: 'TypeScript 7 migration: xpenser build-time results'
+        })
+    ).toBeVisible();
+    await expect(
+        page.getByText('TypeScript 7 migration', { exact: true })
+    ).toBeVisible();
+    await expect(page.getByRole('table').first()).toContainText(
+        '69.5% faster'
+    );
+    await expect(page.getByRole('table').first()).toContainText(
+        '34.4% faster'
+    );
+    await expect(
+        page.getByRole('link', { name: 'open-source expense tracker' })
+    ).toHaveAttribute('href', '/open-source-expense-tracker');
+    await expect(page.getByRole('link', { name: 'PR #75' })).toHaveAttribute(
+        'href',
+        'https://github.com/cleverbrush/xpenser/pull/75'
+    );
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
+        'content',
+        /\/og-image\.png$/
+    );
+});
+
 test('serves the public API contract through Swagger UI', async ({
     page,
     request
