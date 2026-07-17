@@ -2,7 +2,7 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json turbo.json tsconfig.base.json tsconfig.json vitest.config.ts biome.json ./
+COPY package.json package-lock.json turbo.json tsconfig.base.json tsconfig.json vitest.config.ts biome.json ./
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/telegram-bot/package.json ./apps/telegram-bot/package.json
@@ -11,7 +11,7 @@ COPY packages/client/package.json ./packages/client/package.json
 COPY packages/timezone/package.json ./packages/timezone/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 
-RUN npm install --ignore-scripts
+RUN npm ci --ignore-scripts
 
 COPY apps/api ./apps/api
 COPY packages ./packages

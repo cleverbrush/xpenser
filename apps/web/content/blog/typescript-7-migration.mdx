@@ -121,6 +121,14 @@ Using a preview has a cost. Keystatic and NextAuth peer ranges do not yet declar
 
 This is the migration's main residual risk. The Next preview is exact-pinned, the build passes, and preview behavior is covered, but we should return to the stable Next channel once the TypeScript 7 CLI path ships there and ecosystem peer ranges catch up.
 
+### 4. Container builds had to use the lockfile
+
+The first preview deployment exposed a reproducibility problem that the host build could not show. Both Dockerfiles copied workspace manifests but omitted `package-lock.json`, then ran `npm install`. The Alpine container resolved 1,110 packages while the validated workspace installed 1,065. That unlocked dependency graph produced a cascade of schema-inference errors during the API's TypeScript check.
+
+This was dependency drift, not evidence that the TypeScript 7 Alpine compiler applies different type semantics. Copying the lockfile and switching both builders to `npm ci --ignore-scripts` made the Node 22 Alpine API and web images reproduce the validated graph. Both image builds then passed, including the Next.js production check and all 81 generated pages.
+
+The distinction matters for migration testing: a new compiler can make an existing nondeterministic build look like a compiler regression. Reproduce the exact failing environment, compare the resolved dependency count, and freeze the graph before changing application types.
+
 ## A practical TypeScript monorepo migration checklist
 
 The sequence that worked for xpenser is reusable even when the exact tools differ:
