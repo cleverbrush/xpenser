@@ -27,12 +27,17 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/src/db/migrations ./migrations
-COPY --from=builder /app/apps/api/package.json ./package.json
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/src/db/migrations ./apps/api/migrations
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+
+WORKDIR /app/apps/api
+
+RUN node --input-type=module --eval "import.meta.resolve('@cleverbrush/env')"
 
 ENV NODE_ENV=production
-ENV MIGRATIONS_DIR=/app/migrations
+ENV MIGRATIONS_DIR=/app/apps/api/migrations
 EXPOSE 4000
 
 USER appuser

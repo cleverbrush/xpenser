@@ -123,9 +123,11 @@ This is the migration's main residual risk. The Next preview is exact-pinned, th
 
 ### 4. Container builds had to use the lockfile
 
-The first preview deployment exposed a reproducibility problem that the host build could not show. Both Dockerfiles copied workspace manifests but omitted `package-lock.json`, then ran `npm install`. The Alpine container resolved 1,110 packages while the validated workspace installed 1,065. That unlocked dependency graph produced a cascade of schema-inference errors during the API's TypeScript check.
+The first preview deployment exposed a reproducibility problem that the host build could not show. The application Dockerfiles copied workspace manifests but omitted `package-lock.json`, then ran `npm install`. The Alpine container resolved 1,110 packages while the validated workspace installed 1,065. That unlocked dependency graph produced a cascade of schema-inference errors during the API's TypeScript check.
 
-This was dependency drift, not evidence that the TypeScript 7 Alpine compiler applies different type semantics. Copying the lockfile and switching both builders to `npm ci --ignore-scripts` made the Node 22 Alpine API and web images reproduce the validated graph. Both image builds then passed, including the Next.js production check and all 81 generated pages.
+This was dependency drift, not evidence that the TypeScript 7 Alpine compiler applies different type semantics. Copying the lockfile and switching every builder to `npm ci --ignore-scripts` made the Node 22 Alpine API, web, and Telegram images reproduce the validated graph.
+
+The locked graph also exposed a runtime packaging assumption: npm correctly installed app-specific packages such as `@cleverbrush/env` under the API workspace, but the runtime image copied only the root `node_modules` and relocated the compiled app to `/app/dist`. Preserving the workspace directory and its nested dependencies fixed Node's package resolution. A build-stage resolution check now fails the image early if that layout regresses, and preview deployment failures print container status and logs. All three image builds then passed, including the Next.js production check and all 81 generated pages.
 
 The distinction matters for migration testing: a new compiler can make an existing nondeterministic build look like a compiler regression. Reproduce the exact failing environment, compare the resolved dependency count, and freeze the graph before changing application types.
 
@@ -147,7 +149,7 @@ For xpenser, that last point matters because the project is more than a compiler
 
 ## What we validated
 
-The final migration passed a clean `npm ci`, repository lint, all workspace type checks, 518 unit tests across 95 files, and a cache-disabled production build. The build produced the expected declaration entry points for the API client, contracts, timezone helpers, UI library, and Telegram bot.
+The final migration passed a clean `npm ci`, repository lint, all workspace type checks, 519 unit tests across 95 files, and a cache-disabled production build. The build produced the expected declaration entry points for the API client, contracts, timezone helpers, UI library, and Telegram bot.
 
 We also added semantic table rendering to the existing [Markdown blog workflow](/blog/markdown-blog-workflow), because benchmark data should remain readable on both desktop and mobile. That component change has unit coverage, as does the replacement GTM loader. The broader framework setup remains documented in our [Cleverbrush Framework adoption post](/blog/cleverbrush-framework-4-4-0-adoption).
 
