@@ -1,3 +1,11 @@
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
+} from '@xpenser/ui';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { ComponentProps } from 'react';
@@ -41,6 +49,12 @@ export const mdxComponents = {
             {...props}
         />
     ),
+    table: Table,
+    tbody: TableBody,
+    td: TableCell,
+    th: TableHead,
+    thead: TableHeader,
+    tr: TableRow,
     ul: (props: ComponentProps<'ul'>) => (
         <ul className="ml-5 list-disc space-y-2" {...props} />
     )

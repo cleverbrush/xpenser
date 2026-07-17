@@ -8,7 +8,7 @@
     "scripts": {
         "dev": "tsx watch --env-file=.env --import @opentelemetry/instrumentation/hook.mjs src/index.ts",
         "start": "node --import @opentelemetry/instrumentation/hook.mjs --import ./dist/telemetry.js dist/index.js",
-        "build": "tsup && tsc --noEmit -p tsconfig.json",
+        "build": "tsup && tsc -p tsconfig.build.json",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "clean": "rm -rf dist tsconfig.tsbuildinfo"
     },
@@ -31,6 +31,6 @@
         "@types/node-telegram-bot-api": "^0.64.7",
         "tsup": "8.5.1",
         "tsx": "4.21.0",
-        "typescript": "6.0.3"
+        "typescript": "7.0.2"
     }
 }

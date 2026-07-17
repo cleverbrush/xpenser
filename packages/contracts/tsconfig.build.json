@@ -1,0 +1,14 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "emitDeclarationOnly": true,
+        "noEmit": false
+    },
+    "include": [
+        "src/index.ts",
+        "src/api.ts",
+        "src/hosted-auth.ts",
+        "src/schemas.ts",
+        "src/session.ts"
+    ]
+}

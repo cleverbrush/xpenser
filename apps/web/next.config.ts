@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
         proxyClientMaxBodySize: 20 * 1024 * 1024,
         serverActions: {
             bodySizeLimit: '20mb'
-        }
+        },
+        useTypeScriptCli: true
     },
     transpilePackages: [
         '@xpenser/ui',

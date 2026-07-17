@@ -37,4 +37,33 @@ describe('mdxComponents', () => {
             )
         ).toBeTruthy();
     });
+
+    it('renders responsive semantic tables for benchmark data', () => {
+        render(
+            <mdxComponents.table aria-label="TypeScript build comparison">
+                <mdxComponents.thead>
+                    <mdxComponents.tr>
+                        <mdxComponents.th>Compiler</mdxComponents.th>
+                        <mdxComponents.th>Median</mdxComponents.th>
+                    </mdxComponents.tr>
+                </mdxComponents.thead>
+                <mdxComponents.tbody>
+                    <mdxComponents.tr>
+                        <mdxComponents.td>TypeScript 7</mdxComponents.td>
+                        <mdxComponents.td>1.00s</mdxComponents.td>
+                    </mdxComponents.tr>
+                </mdxComponents.tbody>
+            </mdxComponents.table>
+        );
+
+        const table = screen.getByRole('table', {
+            name: 'TypeScript build comparison'
+        });
+
+        expect(table.parentElement?.className).toContain('overflow-auto');
+        expect(
+            screen.getByRole('columnheader', { name: 'Compiler' })
+        ).toBeTruthy();
+        expect(screen.getByRole('cell', { name: 'TypeScript 7' })).toBeTruthy();
+    });
 });

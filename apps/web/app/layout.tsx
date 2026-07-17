@@ -1,8 +1,8 @@
-import { GoogleTagManager } from '@next/third-parties/google';
 import type { Metadata } from 'next';
 import 'swagger-ui-dist/swagger-ui.css';
 import './globals.css';
 import { XpenserWebFormProvider } from '@/components/forms/schema-fields';
+import { GoogleTagManager } from '@/components/google-tag-manager';
 import { ThemeProvider } from '@/components/theme-provider';
 import { webConfig } from '@/lib/config';
 import {
