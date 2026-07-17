@@ -108,10 +108,9 @@ test('publishes the TypeScript 7 migration benchmark', async ({ page }) => {
     await expect(
         page.getByRole('link', { name: 'open-source expense tracker' })
     ).toHaveAttribute('href', '/open-source-expense-tracker');
-    await expect(page.getByRole('link', { name: 'PR #75' })).toHaveAttribute(
-        'href',
-        'https://github.com/cleverbrush/xpenser/pull/75'
-    );
+    await expect(
+        page.getByRole('link', { name: 'PR #75', exact: true })
+    ).toHaveAttribute('href', 'https://github.com/cleverbrush/xpenser/pull/75');
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute(
         'content',
         /\/og-image\.png$/
