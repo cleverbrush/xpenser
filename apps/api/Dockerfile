@@ -34,6 +34,8 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 
 WORKDIR /app/apps/api
 
+# npm can place app-scoped packages below the workspace instead of hoisting
+# them. Fail the image build if the runtime copy can no longer resolve one.
 RUN node --input-type=module --eval "import.meta.resolve('@cleverbrush/env')"
 
 ENV NODE_ENV=production
