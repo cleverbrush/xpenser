@@ -25,7 +25,7 @@
     ],
     "packageManager": "npm@11.12.1",
     "overrides": {
-        "next": "$next"
+        "next": "16.3.0-preview.6"
     },
     "workspaces": [
         "apps/*",
