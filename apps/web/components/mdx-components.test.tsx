@@ -3,7 +3,9 @@
  */
 
 import { render, screen } from '@testing-library/react';
+import { MDXRemote } from 'next-mdx-remote/rsc';
 import { describe, expect, it } from 'vitest';
+import { blogMdxOptions } from '@/lib/mdx';
 import { mdxComponents } from './mdx-components';
 
 describe('mdxComponents', () => {
@@ -65,5 +67,23 @@ describe('mdxComponents', () => {
             screen.getByRole('columnheader', { name: 'Compiler' })
         ).toBeTruthy();
         expect(screen.getByRole('cell', { name: 'TypeScript 7' })).toBeTruthy();
+    });
+
+    it('parses Markdown benchmark tables before rendering components', async () => {
+        const content = await MDXRemote({
+            components: mdxComponents,
+            options: blogMdxOptions,
+            source: `| Compiler | Median |
+| --- | ---: |
+| TypeScript 7 | 8.898s |`
+        });
+
+        render(content);
+
+        expect(screen.getByRole('table')).toBeTruthy();
+        expect(
+            screen.getByRole('columnheader', { name: 'Compiler' })
+        ).toBeTruthy();
+        expect(screen.getByRole('cell', { name: '8.898s' })).toBeTruthy();
     });
 });

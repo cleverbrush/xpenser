@@ -30,6 +30,7 @@
         "react": "19.2.7",
         "react-dom": "19.2.7",
         "recharts": "^3.8.1",
+        "remark-gfm": "4.0.1",
         "swagger-ui-dist": "^5.32.8"
     },
     "devDependencies": {
