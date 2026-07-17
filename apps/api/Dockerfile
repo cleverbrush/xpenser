@@ -2,7 +2,7 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json turbo.json tsconfig.base.json tsconfig.json vitest.config.ts biome.json ./
+COPY package.json package-lock.json turbo.json tsconfig.base.json tsconfig.json vitest.config.ts biome.json ./
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/telegram-bot/package.json ./apps/telegram-bot/package.json
@@ -11,7 +11,7 @@ COPY packages/client/package.json ./packages/client/package.json
 COPY packages/timezone/package.json ./packages/timezone/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 
-RUN npm install --ignore-scripts
+RUN npm ci --ignore-scripts
 
 COPY apps/api ./apps/api
 COPY packages ./packages
@@ -27,12 +27,19 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/src/db/migrations ./migrations
-COPY --from=builder /app/apps/api/package.json ./package.json
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/src/db/migrations ./apps/api/migrations
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
+
+WORKDIR /app/apps/api
+
+# npm can place app-scoped packages below the workspace instead of hoisting
+# them. Fail the image build if the runtime copy can no longer resolve one.
+RUN node --input-type=module --eval "import.meta.resolve('@cleverbrush/env')"
 
 ENV NODE_ENV=production
-ENV MIGRATIONS_DIR=/app/migrations
+ENV MIGRATIONS_DIR=/app/apps/api/migrations
 EXPOSE 4000
 
 USER appuser

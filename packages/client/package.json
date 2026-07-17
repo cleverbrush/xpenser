@@ -11,7 +11,7 @@
         }
     },
     "scripts": {
-        "build": "tsup && tsc --noEmit -p tsconfig.json",
+        "build": "tsup && tsc -p tsconfig.build.json",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "clean": "rm -rf dist tsconfig.tsbuildinfo"
     },
@@ -22,6 +22,6 @@
     },
     "devDependencies": {
         "tsup": "8.5.1",
-        "typescript": "6.0.3"
+        "typescript": "7.0.2"
     }
 }

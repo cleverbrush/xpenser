@@ -1,0 +1,166 @@
+---
+title: "TypeScript 7 migration: xpenser build-time results"
+slug: typescript-7-migration
+description: "See how xpenser migrated its TypeScript monorepo to TypeScript 7.0.2, solved toolchain gaps, and measured compiler and build-time gains."
+sourcePrNumber: "75"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/75"
+heroImage: ""
+heroImageAlt: ""
+publishedAt: 2026-07-17
+updatedAt: 2026-07-17
+targetKeyword: "TypeScript 7 migration"
+keywords:
+  - "TypeScript 7 build performance"
+  - "native TypeScript compiler"
+  - "TypeScript monorepo migration"
+  - "Next.js TypeScript 7"
+draft: false
+---
+
+The xpenser TypeScript 7 migration made our compiler-only check **69.5% faster** and our clean production build **34.4% faster** in a controlled local benchmark. Median compiler time fell from 29.181 seconds with TypeScript 6.0.3 to 8.898 seconds with TypeScript 7.0.2. The median cache-disabled build fell from 40.353 seconds to 26.484 seconds.
+
+Those are xpenser results, not a promise for every codebase. We measured the same committed source, Next.js version, build configuration, and machine five times per compiler. We changed only the installed TypeScript version in a disposable control checkout, alternated the run order, and kept an outlier in the published samples.
+
+The speedup was real, but upgrading the dependency was only the first line of the migration. TypeScript 7 uses a native compiler, does not expose the TypeScript 6 programmatic API, and rejects legacy configuration. That affected declaration bundling, Next.js integration, and package peer ranges across this npm monorepo.
+
+## TypeScript 7 build performance at a glance
+
+The main result is the median of five measured runs. A warm-up ran for each compiler before the measurements and is reported separately below.
+
+| Benchmark | TypeScript 6.0.3 median | TypeScript 7.0.2 median | Time saved | Improvement |
+| --- | ---: | ---: | ---: | ---: |
+| Compiler-only workspace check | 29.181s | 8.898s | 20.283s | 69.5% faster (3.28× throughput) |
+| Clean production build | 40.353s | 26.484s | 13.869s | 34.4% faster (1.52× throughput) |
+
+The compiler-only result is the clearest view of the native TypeScript compiler. The production build is deliberately broader: it also bundles packages with tsup, emits declarations, builds the API and Telegram bot, compiles the Next.js application with Turbopack, and generates static pages. Work that TypeScript does not own dilutes the compiler speedup, so a 34.4% end-to-end improvement is the more useful expectation for this repository.
+
+Microsoft describes TypeScript 7 as a native Go port that uses shared-memory parallelism, and its [TypeScript 7.0 release announcement](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/) explains why large projects can see substantially shorter checks. Our result is smaller than the headline examples in that announcement, which is exactly why we measured xpenser instead of repeating a general benchmark.
+
+## Benchmark methodology
+
+The comparison used commit `d032f8afff4351a0c1548243b77a88912733ce80`, the first validated migration checkpoint in [PR #75](https://github.com/cleverbrush/xpenser/pull/75). We created a detached TypeScript 6 control from that commit and changed the TypeScript pins from `7.0.2` to `6.0.3`. The application source, Next.js preview, tsup configuration, declaration pipeline, compiler options, and npm scripts stayed the same. Each checkout received its own clean dependency installation and lockfile resolution for its compiler package.
+
+The benchmark machine was an 8-vCPU Linux environment on a 13th Gen Intel Core i5-13500, running Node.js 24.15.0 and npm 11.12.1. Results from CI hardware or a developer laptop will differ.
+
+For the compiler-only measurement, every workspace ran a non-incremental type check:
+
+```shell
+npm run typecheck --workspaces --if-present -- --incremental false
+```
+
+For the full-build measurement, generated package output, `.next`, and TypeScript build information were removed before the timer started. Turbo's local and remote caches were disabled:
+
+```shell
+npm run clean
+npm run build -- --cache=local:,remote:
+```
+
+We ran one excluded warm-up for both benchmarks and both compiler versions. The five measured trials alternated TypeScript 6 and 7; rounds two and four reversed the order. That does not make a small local benchmark laboratory-grade, but it reduces the chance that one compiler benefits consistently from going first.
+
+## Every measured sample
+
+Publishing all samples makes the median auditable and shows the variation that a single timing would conceal.
+
+| Round | TypeScript 6 compiler | TypeScript 7 compiler | TypeScript 6 full build | TypeScript 7 full build |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 29.181s | 8.817s | 40.067s | 26.872s |
+| 2 | 28.555s | 8.866s | 40.897s | 26.000s |
+| 3 | 29.894s | 9.883s | 40.214s | 25.808s |
+| 4 | 29.329s | 8.898s | 44.317s | 35.861s |
+| 5 | 28.887s | 9.099s | 40.353s | 26.484s |
+
+Round four was slower for both full builds. TypeScript 7 still completed first, but the shared slowdown suggests host contention or another machine-level disturbance rather than a compiler-specific regression. We retained the round and used the median, which is less sensitive to one unusually slow pair than an average.
+
+The excluded warm-ups were 30.617 seconds versus 9.299 seconds for compiler checks and 46.073 seconds versus 28.591 seconds for full builds. They point in the same direction as the measured medians, but they do not contribute to the reported improvement.
+
+## Why the dependency upgrade was not enough
+
+TypeScript 7.0.2 installs under the familiar `typescript` package name and provides the familiar `tsc` command. Underneath that interface, however, it is a different toolchain. The release does not include the TypeScript 6 compiler API, and configuration deprecated by TypeScript 6 becomes an error.
+
+That distinction exposed three integration boundaries in xpenser.
+
+### 1. Legacy compiler configuration had to go
+
+The shared configuration still contained `baseUrl` and `ignoreDeprecations: "6.0"`. TypeScript 7 does not accept that migration bridge. We removed both settings and kept the web alias explicit through:
+
+```json
+{
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
+}
+```
+
+The change is small, but it is a good reason to make a TypeScript 7 migration from a clean TypeScript 6 baseline. Resolve deprecation warnings first; do not use an ignore flag as a permanent compatibility layer.
+
+### 2. Declaration generation could no longer use tsup's TypeScript API path
+
+xpenser used tsup 8.5.1 for both JavaScript bundles and bundled `.d.ts` output. Its declaration worker loads TypeScript's programmatic API. TypeScript 7.0 intentionally ships without that API, so the old `dts: true` path could not run.
+
+We kept tsup for fast JavaScript bundling and moved declaration output to the compiler:
+
+```json
+{
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json"
+  }
+}
+```
+
+Each publishable workspace now has a small `tsconfig.build.json` with `emitDeclarationOnly: true`. This separation is less magical and better aligned with the TypeScript 7 support boundary: the bundler owns JavaScript, while `tsc` owns declarations.
+
+The official release notes recommend a side-by-side TypeScript 6 compatibility package for tools that still require the old API. That is useful when a dependency cannot be changed. It was unnecessary here because declaration emit already exists in the TypeScript 7 CLI and all expected package entry declarations were verified after a clean build.
+
+### 3. Next.js needed its TypeScript 7 CLI path
+
+The web application moved from stable Next.js 16.2.6 to the pinned `16.3.0-preview.6` release and enabled `experimental.useTypeScriptCli`. The production-build output now confirms that the TypeScript CLI experiment is active before running the check. Next's general [TypeScript configuration guide](https://nextjs.org/docs/app/api-reference/config/typescript) remains the reference for its generated route types and `next-env.d.ts`.
+
+Using a preview has a cost. Keystatic and NextAuth peer ranges do not yet declare this prerelease as compatible, so the root package pins and overrides Next to one version. The `@next/third-parties` range also blocked a strict clean installation. We removed that package and replaced its only use—a Google Tag Manager loader—with a small, tested component built on the first-party `next/script` API.
+
+This is the migration's main residual risk. The Next preview is exact-pinned, the build passes, and preview behavior is covered, but we should return to the stable Next channel once the TypeScript 7 CLI path ships there and ecosystem peer ranges catch up.
+
+### 4. Container builds had to use the lockfile
+
+The first preview deployment exposed a reproducibility problem that the host build could not show. The application Dockerfiles copied workspace manifests but omitted `package-lock.json`, then ran `npm install`. The Alpine container resolved 1,110 packages while the validated workspace installed 1,065. That unlocked dependency graph produced a cascade of schema-inference errors during the API's TypeScript check.
+
+This was dependency drift, not evidence that the TypeScript 7 Alpine compiler applies different type semantics. Copying the lockfile and switching every builder to `npm ci --ignore-scripts` made the Node 22 Alpine API, web, and Telegram images reproduce the validated graph.
+
+The locked graph also exposed a runtime packaging assumption: npm correctly installed app-specific packages such as `@cleverbrush/env` under the API workspace, but the runtime image copied only the root `node_modules` and relocated the compiled app to `/app/dist`. Preserving the workspace directory and its nested dependencies fixed Node's package resolution. A build-stage resolution check now fails the image early if that layout regresses, and preview deployment failures print container status and logs. All three image builds then passed, including the Next.js production check and all 81 generated pages.
+
+The distinction matters for migration testing: a new compiler can make an existing nondeterministic build look like a compiler regression. Reproduce the exact failing environment, compare the resolved dependency count, and freeze the graph before changing application types.
+
+## A practical TypeScript monorepo migration checklist
+
+The sequence that worked for xpenser is reusable even when the exact tools differ:
+
+1. **Start from a clean TypeScript 6 build.** Remove deprecated options and confirm the existing test suite passes.
+2. **Inventory compiler API consumers.** Search bundlers, declaration tools, linters, framework plugins, and editor integrations for programmatic TypeScript usage.
+3. **Pin the compiler everywhere.** A workspace should not accidentally mix TypeScript 6 and 7 executables.
+4. **Let the compiler emit declarations.** If a wrapper requires the removed API, use `tsc --emitDeclarationOnly` or the official TypeScript 6 compatibility package.
+5. **Verify framework integration.** A passing standalone `tsc` command does not prove that a framework build invokes the native CLI.
+6. **Run a clean installation.** Peer-range and lockfile problems often appear only after `npm ci`.
+7. **Compare identical source.** Benchmarking the old branch against a feature branch mixes compiler gains with unrelated code and dependency changes.
+8. **Measure both narrow and broad workflows.** Compiler-only timing explains the tool improvement; the complete build shows the value developers and CI will actually receive.
+9. **Publish the limits.** Hardware, cache state, sample count, outliers, and non-compiler work all belong next to the headline.
+
+For xpenser, that last point matters because the project is more than a compiler fixture. It is an [open-source expense tracker](/open-source-expense-tracker) with a Next.js web app, typed API, Telegram capture flow, shared packages, and [personal finance API and MCP tools](/personal-finance-api-mcp). Faster types help all those workspaces, while the full production build still spends time on application bundling and page generation.
+
+## What we validated
+
+The final migration passed a clean `npm ci`, repository lint, all workspace type checks, 520 unit tests across 95 files, and a cache-disabled production build. The build produced the expected declaration entry points for the API client, contracts, timezone helpers, UI library, and Telegram bot.
+
+We also added semantic table rendering to the existing [Markdown blog workflow](/blog/markdown-blog-workflow), because benchmark data should remain readable on both desktop and mobile. That component change has unit coverage, as does the replacement GTM loader. The broader framework setup remains documented in our [Cleverbrush Framework adoption post](/blog/cleverbrush-framework-4-4-0-adoption).
+
+What we did not measure is equally important. This benchmark does not cover editor responsiveness, memory use, incremental rebuilds, production runtime performance, or GitHub Actions wall time. TypeScript is erased before the application runs, so the migration should not be described as making user requests faster. It makes static checks and build work faster.
+
+## Was the TypeScript 7 migration worth it?
+
+For xpenser, yes. Saving a median 20.283 seconds on a complete non-incremental workspace check changes the feedback loop immediately. Saving 13.869 seconds on a clean production build is smaller in percentage terms but applies to a workflow that runs locally and in delivery pipelines.
+
+The migration also forced useful architectural clarity. Declaration emit no longer depends on a bundler's private access to the compiler API, framework type checking is explicit, and the performance claim is backed by reproducible samples in the same pull request as the code.
+
+The tradeoff is the exact-pinned Next.js preview and temporary peer override. We accepted that boundary because the application, tests, and complete build all validate the integration, and because it lets the Next production build use TypeScript 7 rather than leaving the web workspace on the older checker. We will track the stable Next.js release instead of treating the preview configuration as permanent.
+
+You can inspect the implementation and review discussion in [xpenser PR #75](https://github.com/cleverbrush/xpenser/pull/75), which closes [issue #74](https://github.com/cleverbrush/xpenser/issues/74). If you are evaluating the product rather than its build system, start with the [xpenser home page](/) or the open-source tracker overview linked above.

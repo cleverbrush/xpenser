@@ -11,6 +11,7 @@ import {
     getPublishedBlogPosts
 } from '@/lib/blog';
 import { webConfig } from '@/lib/config';
+import { blogMdxOptions } from '@/lib/mdx';
 
 type BlogPostRouteProps = {
     readonly params: Promise<{
@@ -57,7 +58,11 @@ export default async function BlogPostRoutePage({
         <>
             <JsonLdScript data={createBlogPostJsonLd(post)} />
             <BlogPostPage post={post}>
-                <MDXRemote components={mdxComponents} source={post.content} />
+                <MDXRemote
+                    components={mdxComponents}
+                    options={blogMdxOptions}
+                    source={post.content}
+                />
             </BlogPostPage>
         </>
     );

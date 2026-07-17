@@ -35,6 +35,18 @@ describe('blog helpers', () => {
         expect(post?.targetKeyword).toBe('markdown blog workflow');
     });
 
+    it('reads the TypeScript 7 migration benchmark post', async () => {
+        const post = await getPublishedBlogPost('typescript-7-migration');
+
+        expect(post?.title).toBe(
+            'TypeScript 7 migration: xpenser build-time results'
+        );
+        expect(post?.targetKeyword).toBe('TypeScript 7 migration');
+        expect(post?.sourcePrNumber).toBe(75);
+        expect(post?.content).toContain('69.5% faster');
+        expect(post?.content).toContain('34.4% faster');
+    });
+
     it('filters drafts and sorts posts by newest publish date', () => {
         const posts = filterPublishedBlogPosts([
             blogPost({ publishedAt: '2026-01-01', slug: 'older' }),

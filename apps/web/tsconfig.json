@@ -1,7 +1,6 @@
 {
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
-        "baseUrl": ".",
         "jsx": "preserve",
         "noEmit": true,
         "incremental": true,

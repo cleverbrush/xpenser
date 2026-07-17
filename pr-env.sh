@@ -777,7 +777,12 @@ deploy() {
     initialize_database
 
     log "Building and starting PR web/API for ${ENV_NAME}"
-    compose up -d --build --remove-orphans api web
+    if ! compose up -d --build --remove-orphans api web; then
+        log "PR web/API startup failed; capturing container diagnostics"
+        compose ps || true
+        compose logs --no-color --tail=200 api web || true
+        return 1
+    fi
 
     local api_container
     api_container="$(find_compose_container "$COMPOSE_PROJECT" api)"
