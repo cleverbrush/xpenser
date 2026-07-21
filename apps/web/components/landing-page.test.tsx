@@ -450,6 +450,25 @@ describe('LandingPage', () => {
         expect(neeedDirectoryDarkBadgeImage?.className).toContain('hidden');
         expect(neeedDirectoryDarkBadgeImage?.className).toContain('dark:block');
 
+        const foundrListBadgeLink = screen.getByRole('link', {
+            name: /Featured on FoundrList/i
+        });
+        expect(foundrListBadgeLink).toHaveProperty(
+            'href',
+            'https://www.foundrlist.com/product/xpenser?utm_source=badge&utm_medium=embed'
+        );
+        expect(foundrListBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(foundrListBadgeLink.getAttribute('rel')).toBe('noopener');
+
+        const foundrListBadgeImage = screen.getByAltText(
+            'Featured on FoundrList'
+        );
+        expect(foundrListBadgeImage.getAttribute('src')).toBe(
+            'https://www.foundrlist.com/api/badge/xpenser'
+        );
+        expect(foundrListBadgeImage.getAttribute('width')).toBe('150');
+        expect(foundrListBadgeImage.getAttribute('height')).toBe('48');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });

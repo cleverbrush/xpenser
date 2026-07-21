@@ -258,6 +258,14 @@ const neeedDirectoryBadge = {
     width: 139
 } as const;
 
+const foundrListBadge = {
+    alt: 'Featured on FoundrList',
+    height: 48,
+    href: 'https://www.foundrlist.com/product/xpenser?utm_source=badge&utm_medium=embed',
+    src: 'https://www.foundrlist.com/api/badge/xpenser',
+    width: 150
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -874,6 +882,25 @@ function NeeedDirectoryBadge() {
     );
 }
 
+function FoundrListBadge() {
+    return (
+        <a
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={foundrListBadge.href}
+            rel="noopener"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: FoundrList provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={foundrListBadge.alt}
+                height={foundrListBadge.height}
+                src={foundrListBadge.src}
+                width={foundrListBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -910,6 +937,7 @@ function FooterBadges() {
             <WiredBusinessBadge />
             <FindlyToolsBadge />
             <NeeedDirectoryBadge />
+            <FoundrListBadge />
             <OpenHuntsBadge />
         </div>
     );
