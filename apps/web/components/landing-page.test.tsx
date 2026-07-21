@@ -405,6 +405,51 @@ describe('LandingPage', () => {
         expect(findlyToolsDarkBadgeImage?.className).toContain('hidden');
         expect(findlyToolsDarkBadgeImage?.className).toContain('dark:block');
 
+        const neeedDirectoryBadgeLink = screen.getByRole('link', {
+            name: /Featured on neeed\.directory/i
+        });
+        expect(neeedDirectoryBadgeLink).toHaveProperty(
+            'href',
+            'https://neeed.directory/products/xpenser?utm_source=xpenser'
+        );
+        expect(neeedDirectoryBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(neeedDirectoryBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const neeedDirectoryBadgeImages = screen.getAllByAltText(
+            'Featured on neeed.directory'
+        );
+        expect(neeedDirectoryBadgeImages).toHaveLength(2);
+
+        const neeedDirectoryLightBadgeImage = neeedDirectoryBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://neeed.directory/badges/neeed-badge-light.svg'
+        );
+        expect(neeedDirectoryLightBadgeImage).toBeTruthy();
+        expect(neeedDirectoryLightBadgeImage?.getAttribute('width')).toBe(
+            '139'
+        );
+        expect(neeedDirectoryLightBadgeImage?.getAttribute('height')).toBe(
+            '44'
+        );
+        expect(neeedDirectoryLightBadgeImage?.className).toContain('block');
+        expect(neeedDirectoryLightBadgeImage?.className).toContain(
+            'dark:hidden'
+        );
+
+        const neeedDirectoryDarkBadgeImage = neeedDirectoryBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://neeed.directory/badges/neeed-badge-dark.svg'
+        );
+        expect(neeedDirectoryDarkBadgeImage).toBeTruthy();
+        expect(neeedDirectoryDarkBadgeImage?.getAttribute('width')).toBe('139');
+        expect(neeedDirectoryDarkBadgeImage?.getAttribute('height')).toBe('44');
+        expect(neeedDirectoryDarkBadgeImage?.className).toContain('hidden');
+        expect(neeedDirectoryDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });

@@ -249,6 +249,15 @@ const findlyToolsBadge = {
     width: 175
 } as const;
 
+const neeedDirectoryBadge = {
+    alt: 'Featured on neeed.directory',
+    darkSrc: 'https://neeed.directory/badges/neeed-badge-dark.svg',
+    height: 44,
+    href: 'https://neeed.directory/products/xpenser?utm_source=xpenser',
+    lightSrc: 'https://neeed.directory/badges/neeed-badge-light.svg',
+    width: 139
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -836,6 +845,35 @@ function FindlyToolsBadge() {
     );
 }
 
+function NeeedDirectoryBadge() {
+    return (
+        <a
+            aria-label={neeedDirectoryBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={neeedDirectoryBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: neeed.directory provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={neeedDirectoryBadge.alt}
+                className="block dark:hidden"
+                height={neeedDirectoryBadge.height}
+                src={neeedDirectoryBadge.lightSrc}
+                width={neeedDirectoryBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: neeed.directory provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={neeedDirectoryBadge.alt}
+                className="hidden dark:block"
+                height={neeedDirectoryBadge.height}
+                src={neeedDirectoryBadge.darkSrc}
+                width={neeedDirectoryBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -871,6 +909,7 @@ function FooterBadges() {
             <TwelveToolsBadge />
             <WiredBusinessBadge />
             <FindlyToolsBadge />
+            <NeeedDirectoryBadge />
             <OpenHuntsBadge />
         </div>
     );
