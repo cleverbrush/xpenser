@@ -17,6 +17,7 @@ test('shows Google sign-in on the public login screen', async ({ page }) => {
 test('shows sign in and create account actions on the public index', async ({
     page
 }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
     await page.goto('/');
 
     const main = page.locator('main');
@@ -29,6 +30,33 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(
         main.getByRole('link', { exact: true, name: 'xpenser blog' }).first()
     ).toHaveAttribute('href', '/blog');
+
+    const neeedDirectoryBadge = page.getByRole('link', {
+        name: 'Featured on neeed.directory'
+    });
+    await expect(neeedDirectoryBadge).toHaveAttribute(
+        'href',
+        'https://neeed.directory/products/xpenser?utm_source=xpenser'
+    );
+    await expect(neeedDirectoryBadge).toHaveAttribute('target', '_blank');
+    await expect(neeedDirectoryBadge).toHaveAttribute(
+        'rel',
+        'noopener noreferrer'
+    );
+
+    const lightBadge = neeedDirectoryBadge.locator(
+        'img[src="https://neeed.directory/badges/neeed-badge-light.svg"]'
+    );
+    const darkBadge = neeedDirectoryBadge.locator(
+        'img[src="https://neeed.directory/badges/neeed-badge-dark.svg"]'
+    );
+    await expect(lightBadge).toBeVisible();
+    await expect(darkBadge).toBeHidden();
+
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(lightBadge).toBeHidden();
+    await expect(darkBadge).toBeVisible();
 });
 
 test('serves the public blog index and a published post', async ({ page }) => {
