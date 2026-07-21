@@ -57,6 +57,23 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(page.locator('html')).toHaveClass(/dark/);
     await expect(lightBadge).toBeHidden();
     await expect(darkBadge).toBeVisible();
+
+    const foundrListBadge = page.getByRole('link', {
+        name: 'Featured on FoundrList'
+    });
+    await expect(foundrListBadge).toHaveAttribute(
+        'href',
+        'https://www.foundrlist.com/product/xpenser?utm_source=badge&utm_medium=embed'
+    );
+    await expect(foundrListBadge).toHaveAttribute('target', '_blank');
+    await expect(foundrListBadge).toHaveAttribute('rel', 'noopener');
+
+    const foundrListBadgeImage = foundrListBadge.locator(
+        'img[src="https://www.foundrlist.com/api/badge/xpenser"]'
+    );
+    await expect(foundrListBadgeImage).toBeVisible();
+    await expect(foundrListBadgeImage).toHaveAttribute('width', '150');
+    await expect(foundrListBadgeImage).toHaveAttribute('height', '48');
 });
 
 test('serves the public blog index and a published post', async ({ page }) => {
