@@ -53,10 +53,37 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(lightBadge).toBeVisible();
     await expect(darkBadge).toBeHidden();
 
+    const acidToolsBadge = page.getByRole('link', { name: 'Acid Tools' });
+    await expect(acidToolsBadge).toHaveAttribute(
+        'href',
+        'https://acidtools.com/ai/xpenser-cleverbrush'
+    );
+    await expect(acidToolsBadge).toHaveAttribute('target', '_blank');
+    await expect(acidToolsBadge).toHaveAttribute(
+        'rel',
+        'noopener noreferrer'
+    );
+
+    const acidToolsLightBadge = acidToolsBadge.locator(
+        'img[src="https://acidtools.com/assets/images/badge.png"]'
+    );
+    const acidToolsDarkBadge = acidToolsBadge.locator(
+        'img[src="https://acidtools.com/assets/images/badge-dark.png"]'
+    );
+    await acidToolsBadge.scrollIntoViewIfNeeded();
+    await expect(acidToolsLightBadge).toBeVisible();
+    await expect(acidToolsLightBadge).toHaveAttribute('height', '54');
+    await expect(acidToolsLightBadge).toHaveAttribute('loading', 'lazy');
+    await expect(acidToolsDarkBadge).toBeHidden();
+    await expect(acidToolsDarkBadge).toHaveAttribute('height', '54');
+    await expect(acidToolsDarkBadge).toHaveAttribute('loading', 'lazy');
+
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/dark/);
     await expect(lightBadge).toBeHidden();
     await expect(darkBadge).toBeVisible();
+    await expect(acidToolsLightBadge).toBeHidden();
+    await expect(acidToolsDarkBadge).toBeVisible();
 
     const foundrListBadge = page.getByRole('link', {
         name: 'Featured on FoundrList'

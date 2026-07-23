@@ -469,6 +469,45 @@ describe('LandingPage', () => {
         expect(foundrListBadgeImage.getAttribute('width')).toBe('150');
         expect(foundrListBadgeImage.getAttribute('height')).toBe('48');
 
+        const acidToolsBadgeLink = screen.getByRole('link', {
+            name: /Acid Tools/i
+        });
+        expect(acidToolsBadgeLink).toHaveProperty(
+            'href',
+            'https://acidtools.com/ai/xpenser-cleverbrush'
+        );
+        expect(acidToolsBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(acidToolsBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const acidToolsBadgeImages = screen.getAllByAltText('Acid Tools');
+        expect(acidToolsBadgeImages).toHaveLength(2);
+
+        const acidToolsLightBadgeImage = acidToolsBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://acidtools.com/assets/images/badge.png'
+        );
+        expect(acidToolsLightBadgeImage).toBeTruthy();
+        expect(acidToolsLightBadgeImage?.getAttribute('width')).toBeNull();
+        expect(acidToolsLightBadgeImage?.getAttribute('height')).toBe('54');
+        expect(acidToolsLightBadgeImage?.getAttribute('loading')).toBe('lazy');
+        expect(acidToolsLightBadgeImage?.className).toContain('block');
+        expect(acidToolsLightBadgeImage?.className).toContain('dark:hidden');
+
+        const acidToolsDarkBadgeImage = acidToolsBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://acidtools.com/assets/images/badge-dark.png'
+        );
+        expect(acidToolsDarkBadgeImage).toBeTruthy();
+        expect(acidToolsDarkBadgeImage?.getAttribute('width')).toBeNull();
+        expect(acidToolsDarkBadgeImage?.getAttribute('height')).toBe('54');
+        expect(acidToolsDarkBadgeImage?.getAttribute('loading')).toBe('lazy');
+        expect(acidToolsDarkBadgeImage?.className).toContain('hidden');
+        expect(acidToolsDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });

@@ -266,6 +266,14 @@ const foundrListBadge = {
     width: 150
 } as const;
 
+const acidToolsBadge = {
+    alt: 'Acid Tools',
+    darkSrc: 'https://acidtools.com/assets/images/badge-dark.png',
+    height: 54,
+    href: 'https://acidtools.com/ai/xpenser-cleverbrush',
+    lightSrc: 'https://acidtools.com/assets/images/badge.png'
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -901,6 +909,35 @@ function FoundrListBadge() {
     );
 }
 
+function AcidToolsBadge() {
+    return (
+        <a
+            aria-label={acidToolsBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={acidToolsBadge.href}
+            rel="noopener noreferrer"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: Acid Tools provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={acidToolsBadge.alt}
+                className="block dark:hidden"
+                height={acidToolsBadge.height}
+                loading="lazy"
+                src={acidToolsBadge.lightSrc}
+            />
+            {/* biome-ignore lint/performance/noImgElement: Acid Tools provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={acidToolsBadge.alt}
+                className="hidden dark:block"
+                height={acidToolsBadge.height}
+                loading="lazy"
+                src={acidToolsBadge.darkSrc}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -938,6 +975,7 @@ function FooterBadges() {
             <FindlyToolsBadge />
             <NeeedDirectoryBadge />
             <FoundrListBadge />
+            <AcidToolsBadge />
             <OpenHuntsBadge />
         </div>
     );
