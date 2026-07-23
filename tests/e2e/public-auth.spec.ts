@@ -70,6 +70,7 @@ test('shows sign in and create account actions on the public index', async ({
     const acidToolsDarkBadge = acidToolsBadge.locator(
         'img[src="https://acidtools.com/assets/images/badge-dark.png"]'
     );
+    await acidToolsBadge.scrollIntoViewIfNeeded();
     await expect(acidToolsLightBadge).toBeVisible();
     await expect(acidToolsLightBadge).toHaveAttribute('height', '54');
     await expect(acidToolsLightBadge).toHaveAttribute('loading', 'lazy');
