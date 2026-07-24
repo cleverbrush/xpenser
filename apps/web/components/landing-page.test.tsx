@@ -508,6 +508,45 @@ describe('LandingPage', () => {
         expect(acidToolsDarkBadgeImage?.className).toContain('hidden');
         expect(acidToolsDarkBadgeImage?.className).toContain('dark:block');
 
+        const smolLaunchBadgeLink = screen.getByRole('link', {
+            name: /xpenser — Featured on Smol Launch/i
+        });
+        expect(smolLaunchBadgeLink).toHaveProperty(
+            'href',
+            'https://smollaunch.com/'
+        );
+        expect(smolLaunchBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(smolLaunchBadgeLink.getAttribute('rel')).toBe('noopener');
+
+        const smolLaunchBadgeImages = screen.getAllByAltText(
+            'xpenser — Featured on Smol Launch'
+        );
+        expect(smolLaunchBadgeImages).toHaveLength(2);
+
+        const smolLaunchLightBadgeImage = smolLaunchBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://smollaunch.com/badges/featured.svg'
+        );
+        expect(smolLaunchLightBadgeImage).toBeTruthy();
+        expect(smolLaunchLightBadgeImage?.getAttribute('width')).toBe('250');
+        expect(smolLaunchLightBadgeImage?.getAttribute('height')).toBe('60');
+        expect(smolLaunchLightBadgeImage?.getAttribute('loading')).toBe('lazy');
+        expect(smolLaunchLightBadgeImage?.className).toContain('block');
+        expect(smolLaunchLightBadgeImage?.className).toContain('dark:hidden');
+
+        const smolLaunchDarkBadgeImage = smolLaunchBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://smollaunch.com/badges/featured-dark.svg'
+        );
+        expect(smolLaunchDarkBadgeImage).toBeTruthy();
+        expect(smolLaunchDarkBadgeImage?.getAttribute('width')).toBe('250');
+        expect(smolLaunchDarkBadgeImage?.getAttribute('height')).toBe('60');
+        expect(smolLaunchDarkBadgeImage?.getAttribute('loading')).toBe('lazy');
+        expect(smolLaunchDarkBadgeImage?.className).toContain('hidden');
+        expect(smolLaunchDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });

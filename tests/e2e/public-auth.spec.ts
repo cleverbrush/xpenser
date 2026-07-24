@@ -78,12 +78,40 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(acidToolsDarkBadge).toHaveAttribute('height', '54');
     await expect(acidToolsDarkBadge).toHaveAttribute('loading', 'lazy');
 
+    const smolLaunchBadge = page.getByRole('link', {
+        name: 'xpenser — Featured on Smol Launch'
+    });
+    await expect(smolLaunchBadge).toHaveAttribute(
+        'href',
+        'https://smollaunch.com'
+    );
+    await expect(smolLaunchBadge).toHaveAttribute('target', '_blank');
+    await expect(smolLaunchBadge).toHaveAttribute('rel', 'noopener');
+
+    const smolLaunchLightBadge = smolLaunchBadge.locator(
+        'img[src="https://smollaunch.com/badges/featured.svg"]'
+    );
+    const smolLaunchDarkBadge = smolLaunchBadge.locator(
+        'img[src="https://smollaunch.com/badges/featured-dark.svg"]'
+    );
+    await smolLaunchBadge.scrollIntoViewIfNeeded();
+    await expect(smolLaunchLightBadge).toBeVisible();
+    await expect(smolLaunchLightBadge).toHaveAttribute('width', '250');
+    await expect(smolLaunchLightBadge).toHaveAttribute('height', '60');
+    await expect(smolLaunchLightBadge).toHaveAttribute('loading', 'lazy');
+    await expect(smolLaunchDarkBadge).toBeHidden();
+    await expect(smolLaunchDarkBadge).toHaveAttribute('width', '250');
+    await expect(smolLaunchDarkBadge).toHaveAttribute('height', '60');
+    await expect(smolLaunchDarkBadge).toHaveAttribute('loading', 'lazy');
+
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/dark/);
     await expect(lightBadge).toBeHidden();
     await expect(darkBadge).toBeVisible();
     await expect(acidToolsLightBadge).toBeHidden();
     await expect(acidToolsDarkBadge).toBeVisible();
+    await expect(smolLaunchLightBadge).toBeHidden();
+    await expect(smolLaunchDarkBadge).toBeVisible();
 
     const foundrListBadge = page.getByRole('link', {
         name: 'Featured on FoundrList'
