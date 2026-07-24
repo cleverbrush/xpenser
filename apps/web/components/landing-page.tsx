@@ -274,6 +274,15 @@ const acidToolsBadge = {
     lightSrc: 'https://acidtools.com/assets/images/badge.png'
 } as const;
 
+const smolLaunchBadge = {
+    alt: 'xpenser — Featured on Smol Launch',
+    darkSrc: 'https://smollaunch.com/badges/featured-dark.svg',
+    height: 60,
+    href: 'https://smollaunch.com',
+    lightSrc: 'https://smollaunch.com/badges/featured.svg',
+    width: 250
+} as const;
+
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -938,6 +947,37 @@ function AcidToolsBadge() {
     );
 }
 
+function SmolLaunchBadge() {
+    return (
+        <a
+            aria-label={smolLaunchBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={smolLaunchBadge.href}
+            rel="noopener"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: Smol Launch provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={smolLaunchBadge.alt}
+                className="block dark:hidden"
+                height={smolLaunchBadge.height}
+                loading="lazy"
+                src={smolLaunchBadge.lightSrc}
+                width={smolLaunchBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: Smol Launch provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={smolLaunchBadge.alt}
+                className="hidden dark:block"
+                height={smolLaunchBadge.height}
+                loading="lazy"
+                src={smolLaunchBadge.darkSrc}
+                width={smolLaunchBadge.width}
+            />
+        </a>
+    );
+}
+
 function OpenHuntsBadge() {
     return (
         <a
@@ -976,6 +1016,7 @@ function FooterBadges() {
             <NeeedDirectoryBadge />
             <FoundrListBadge />
             <AcidToolsBadge />
+            <SmolLaunchBadge />
             <OpenHuntsBadge />
         </div>
     );
