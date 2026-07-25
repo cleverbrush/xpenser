@@ -104,6 +104,35 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(smolLaunchDarkBadge).toHaveAttribute('height', '60');
     await expect(smolLaunchDarkBadge).toHaveAttribute('loading', 'lazy');
 
+    const launchLlamaBadge = page.getByRole('link', {
+        name: 'As seen on Launch Llama Newsletter'
+    });
+    await expect(launchLlamaBadge).toHaveAttribute(
+        'href',
+        'https://tools.launchllama.co?utm_source=badge&utm_medium=referral'
+    );
+    await expect(launchLlamaBadge).toHaveAttribute('target', '_blank');
+    await expect(launchLlamaBadge).toHaveAttribute(
+        'rel',
+        'noopener noreferrer'
+    );
+
+    const launchLlamaLightBadge = launchLlamaBadge.locator(
+        'img[src="https://tools.launchllama.co/featured-badge.png?v=2"]'
+    );
+    const launchLlamaDarkBadge = launchLlamaBadge.locator(
+        'img[src="https://tools.launchllama.co/featured-badge-white.png?v=2"]'
+    );
+    await launchLlamaBadge.scrollIntoViewIfNeeded();
+    await expect(launchLlamaLightBadge).toBeVisible();
+    await expect(launchLlamaLightBadge).toHaveAttribute('width', '200');
+    await expect(launchLlamaLightBadge).toHaveAttribute('height', '50');
+    await expect(launchLlamaLightBadge).toHaveAttribute('loading', 'lazy');
+    await expect(launchLlamaDarkBadge).toBeHidden();
+    await expect(launchLlamaDarkBadge).toHaveAttribute('width', '200');
+    await expect(launchLlamaDarkBadge).toHaveAttribute('height', '50');
+    await expect(launchLlamaDarkBadge).toHaveAttribute('loading', 'lazy');
+
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/dark/);
     await expect(lightBadge).toBeHidden();
@@ -112,6 +141,8 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(acidToolsDarkBadge).toBeVisible();
     await expect(smolLaunchLightBadge).toBeHidden();
     await expect(smolLaunchDarkBadge).toBeVisible();
+    await expect(launchLlamaLightBadge).toBeHidden();
+    await expect(launchLlamaDarkBadge).toBeVisible();
 
     const foundrListBadge = page.getByRole('link', {
         name: 'Featured on FoundrList'

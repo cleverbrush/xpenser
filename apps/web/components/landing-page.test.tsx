@@ -547,6 +547,49 @@ describe('LandingPage', () => {
         expect(smolLaunchDarkBadgeImage?.className).toContain('hidden');
         expect(smolLaunchDarkBadgeImage?.className).toContain('dark:block');
 
+        const launchLlamaBadgeLink = screen.getByRole('link', {
+            name: /As seen on Launch Llama Newsletter/i
+        });
+        expect(launchLlamaBadgeLink).toHaveProperty(
+            'href',
+            'https://tools.launchllama.co/?utm_source=badge&utm_medium=referral'
+        );
+        expect(launchLlamaBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(launchLlamaBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const launchLlamaBadgeImages = screen.getAllByAltText(
+            'As seen on Launch Llama Newsletter'
+        );
+        expect(launchLlamaBadgeImages).toHaveLength(2);
+
+        const launchLlamaLightBadgeImage = launchLlamaBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://tools.launchllama.co/featured-badge.png?v=2'
+        );
+        expect(launchLlamaLightBadgeImage).toBeTruthy();
+        expect(launchLlamaLightBadgeImage?.getAttribute('width')).toBe('200');
+        expect(launchLlamaLightBadgeImage?.getAttribute('height')).toBe('50');
+        expect(launchLlamaLightBadgeImage?.getAttribute('loading')).toBe(
+            'lazy'
+        );
+        expect(launchLlamaLightBadgeImage?.className).toContain('block');
+        expect(launchLlamaLightBadgeImage?.className).toContain('dark:hidden');
+
+        const launchLlamaDarkBadgeImage = launchLlamaBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://tools.launchllama.co/featured-badge-white.png?v=2'
+        );
+        expect(launchLlamaDarkBadgeImage).toBeTruthy();
+        expect(launchLlamaDarkBadgeImage?.getAttribute('width')).toBe('200');
+        expect(launchLlamaDarkBadgeImage?.getAttribute('height')).toBe('50');
+        expect(launchLlamaDarkBadgeImage?.getAttribute('loading')).toBe('lazy');
+        expect(launchLlamaDarkBadgeImage?.className).toContain('hidden');
+        expect(launchLlamaDarkBadgeImage?.className).toContain('dark:block');
+
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });
