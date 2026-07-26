@@ -152,7 +152,6 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(superLaunchBadgeImage).toHaveAttribute('height', '300');
     await expect(superLaunchBadgeImage).toHaveAttribute('loading', 'lazy');
     await expect(superLaunchBadgeImage).toHaveCSS('width', '300px');
-    await expect(superLaunchBadgeImage).toHaveCSS('height', '300px');
 
     const superLaunchBadgeImageSrc =
         await superLaunchBadgeImage.getAttribute('src');
@@ -172,6 +171,23 @@ test('shows sign in and create account actions on the public index', async ({
             )
         )
         .toBeGreaterThan(0);
+    const superLaunchBadgeDimensions = await superLaunchBadgeImage.evaluate(
+        image => {
+            const rect = image.getBoundingClientRect();
+            const htmlImage = image as HTMLImageElement;
+            return {
+                naturalAspectRatio:
+                    htmlImage.naturalWidth / htmlImage.naturalHeight,
+                renderedAspectRatio: rect.width / rect.height,
+                renderedWidth: rect.width
+            };
+        }
+    );
+    expect(superLaunchBadgeDimensions.renderedWidth).toBe(300);
+    expect(superLaunchBadgeDimensions.renderedAspectRatio).toBeCloseTo(
+        superLaunchBadgeDimensions.naturalAspectRatio,
+        1
+    );
 
     const [superLaunchProductPage] = await Promise.all([
         page.waitForEvent('popup'),
