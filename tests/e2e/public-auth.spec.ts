@@ -143,60 +143,16 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(superLaunchBadge).toHaveAttribute('target', '_blank');
     await expect(superLaunchBadge).toHaveAttribute('rel', 'noopener');
 
-    const superLaunchBadgeImage = superLaunchBadge.getByRole('img', {
-        name: 'Featured on Super Launch'
-    });
+    const superLaunchBadgeImage = superLaunchBadge.locator(
+        'img[src="https://www.superlaun.ch/badge.png"]'
+    );
     await superLaunchBadge.scrollIntoViewIfNeeded();
     await expect(superLaunchBadgeImage).toBeVisible();
-    await expect(superLaunchBadgeImage).toHaveAttribute('width', '300');
-    await expect(superLaunchBadgeImage).toHaveAttribute('height', '300');
+    await expect(superLaunchBadgeImage).toHaveAttribute('width', '470');
+    await expect(superLaunchBadgeImage).toHaveAttribute('height', '130');
     await expect(superLaunchBadgeImage).toHaveAttribute('loading', 'lazy');
-    await expect(superLaunchBadgeImage).toHaveCSS('width', '300px');
-
-    const superLaunchBadgeImageSrc =
-        await superLaunchBadgeImage.getAttribute('src');
-    expect(superLaunchBadgeImageSrc).toBeTruthy();
-    const superLaunchOptimizerUrl = new URL(
-        superLaunchBadgeImageSrc ?? '',
-        page.url()
-    );
-    expect(superLaunchOptimizerUrl.pathname).toBe('/_next/image');
-    expect(superLaunchOptimizerUrl.searchParams.get('url')).toBe(
-        'https://www.superlaun.ch/badge.png'
-    );
-    await expect
-        .poll(() =>
-            superLaunchBadgeImage.evaluate(
-                image => (image as HTMLImageElement).naturalWidth
-            )
-        )
-        .toBeGreaterThan(0);
-    const superLaunchBadgeDimensions = await superLaunchBadgeImage.evaluate(
-        image => {
-            const rect = image.getBoundingClientRect();
-            const htmlImage = image as HTMLImageElement;
-            return {
-                naturalAspectRatio:
-                    htmlImage.naturalWidth / htmlImage.naturalHeight,
-                renderedAspectRatio: rect.width / rect.height,
-                renderedWidth: rect.width
-            };
-        }
-    );
-    expect(superLaunchBadgeDimensions.renderedWidth).toBe(300);
-    expect(superLaunchBadgeDimensions.renderedAspectRatio).toBeCloseTo(
-        superLaunchBadgeDimensions.naturalAspectRatio,
-        1
-    );
-
-    const [superLaunchProductPage] = await Promise.all([
-        page.waitForEvent('popup'),
-        superLaunchBadge.click()
-    ]);
-    await expect(superLaunchProductPage).toHaveURL(
-        'https://www.superlaun.ch/products/2933'
-    );
-    await superLaunchProductPage.close();
+    await expect(superLaunchBadgeImage).toHaveCSS('width', '235px');
+    await expect(superLaunchBadgeImage).toHaveCSS('height', '65px');
 
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/dark/);

@@ -603,20 +603,15 @@ describe('LandingPage', () => {
         const superLaunchBadgeImage = screen.getByAltText(
             'Featured on Super Launch'
         );
-        const superLaunchBadgeImageSrc =
-            superLaunchBadgeImage.getAttribute('src');
-        expect(superLaunchBadgeImageSrc).toBeTruthy();
-        const superLaunchOptimizerUrl = new URL(
-            superLaunchBadgeImageSrc ?? '',
-            'http://localhost'
-        );
-        expect(superLaunchOptimizerUrl.pathname).toBe('/_next/image');
-        expect(superLaunchOptimizerUrl.searchParams.get('url')).toBe(
+        expect(superLaunchBadgeImage.getAttribute('src')).toBe(
             'https://www.superlaun.ch/badge.png'
         );
-        expect(superLaunchBadgeImage.getAttribute('width')).toBe('300');
-        expect(superLaunchBadgeImage.getAttribute('height')).toBe('300');
+        expect(superLaunchBadgeImage.getAttribute('width')).toBe('470');
+        expect(superLaunchBadgeImage.getAttribute('height')).toBe('130');
         expect(superLaunchBadgeImage.getAttribute('loading')).toBe('lazy');
+        expect(superLaunchBadgeImage.getAttribute('style')).toBe(
+            'height: auto; width: 235px;'
+        );
 
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i

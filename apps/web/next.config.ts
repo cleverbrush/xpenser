@@ -8,17 +8,6 @@ const nextConfig: NextConfig = {
         },
         useTypeScriptCli: true
     },
-    images: {
-        remotePatterns: [
-            {
-                protocol: 'https',
-                hostname: 'www.superlaun.ch',
-                port: '',
-                pathname: '/badge.png',
-                search: ''
-            }
-        ]
-    },
     transpilePackages: [
         '@xpenser/ui',
         '@xpenser/client',
