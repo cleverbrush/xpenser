@@ -292,14 +292,6 @@ const launchLlamaBadge = {
     width: 200
 } as const;
 
-const superLaunchBadge = {
-    alt: 'Featured on Super Launch',
-    height: 130,
-    href: 'https://www.superlaun.ch/products/2933',
-    src: 'https://www.superlaun.ch/badge.png',
-    width: 470
-} as const;
-
 const openHuntsBadge = {
     alt: 'OpenHunts Club Member',
     height: 105,
@@ -1029,19 +1021,15 @@ function LaunchLlamaBadge() {
 function SuperLaunchBadge() {
     return (
         <a
-            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            href={superLaunchBadge.href}
+            href="https://www.superlaun.ch/products/2933"
             rel="noopener"
             target="_blank"
         >
-            {/* biome-ignore lint/performance/noImgElement: Super Launch provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
-            <img
-                alt={superLaunchBadge.alt}
-                height={superLaunchBadge.height}
-                loading="lazy"
-                src={superLaunchBadge.src}
-                style={{ height: 'auto', width: '235px' }}
-                width={superLaunchBadge.width}
+            <Image
+                alt="Featured on Super Launch"
+                height="300"
+                src="https://www.superlaun.ch/badge.png"
+                width="300"
             />
         </a>
     );
