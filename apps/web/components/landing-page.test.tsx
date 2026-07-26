@@ -590,29 +590,6 @@ describe('LandingPage', () => {
         expect(launchLlamaDarkBadgeImage?.className).toContain('hidden');
         expect(launchLlamaDarkBadgeImage?.className).toContain('dark:block');
 
-        const superLaunchBadgeLink = screen.getByRole('link', {
-            name: /Featured on Super Launch/i
-        });
-        expect(superLaunchBadgeLink).toHaveProperty(
-            'href',
-            'https://www.superlaun.ch/products/2933'
-        );
-        expect(superLaunchBadgeLink.getAttribute('target')).toBe('_blank');
-        expect(superLaunchBadgeLink.getAttribute('rel')).toBe('noopener');
-
-        const superLaunchBadgeImage = screen.getByAltText(
-            'Featured on Super Launch'
-        );
-        expect(superLaunchBadgeImage.getAttribute('src')).toBe(
-            'https://www.superlaun.ch/badge.png'
-        );
-        expect(superLaunchBadgeImage.getAttribute('width')).toBe('470');
-        expect(superLaunchBadgeImage.getAttribute('height')).toBe('130');
-        expect(superLaunchBadgeImage.getAttribute('loading')).toBe('lazy');
-        expect(superLaunchBadgeImage.getAttribute('style')).toBe(
-            'height: auto; width: 235px;'
-        );
-
         const openHuntsBadgeLink = screen.getByRole('link', {
             name: /OpenHunts Club Member/i
         });

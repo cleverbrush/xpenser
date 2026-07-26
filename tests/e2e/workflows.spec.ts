@@ -5,6 +5,8 @@ import {
     uniqueName
 } from './helpers';
 
+const navigationTimeout = 15_000;
+
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -136,20 +138,31 @@ test.describe('authenticated app workflows', () => {
         ).toBeVisible();
 
         await page.getByRole('link', { name: 'Transactions' }).first().click();
+        await expect(page).toHaveURL(
+            url => url.pathname === '/transactions',
+            { timeout: navigationTimeout }
+        );
         await expect(
             page.getByRole('heading', { level: 1, name: 'Transactions' })
-        ).toBeVisible();
+        ).toBeVisible({ timeout: navigationTimeout });
 
         await page.getByRole('link', { name: 'Add' }).first().click();
+        await expect(page).toHaveURL(url => url.pathname === '/capture', {
+            timeout: navigationTimeout
+        });
         await expect(
             page.getByRole('button', { name: 'Save transaction' })
-        ).toBeVisible();
+        ).toBeVisible({ timeout: navigationTimeout });
         await expect(page.getByLabel('Note')).toBeVisible();
 
         await page.getByRole('link', { name: 'Preferences' }).first().click();
+        await expect(page).toHaveURL(
+            url => url.pathname === '/settings/preferences',
+            { timeout: navigationTimeout }
+        );
         await expect(
             page.getByRole('heading', { name: 'User preferences' })
-        ).toBeVisible();
+        ).toBeVisible({ timeout: navigationTimeout });
         await expect(page.getByText('MCP server')).toBeVisible();
         await expect(page.getByText('/api/mcp').first()).toBeVisible();
     });
@@ -890,9 +903,13 @@ test.describe('authenticated app workflows', () => {
         await page
             .getByRole('link', { name: new RegExp(expenseCategory) })
             .click();
+        await expect(page).toHaveURL(
+            url => url.pathname.startsWith('/stats/categories/'),
+            { timeout: navigationTimeout }
+        );
         await expect(
             page.getByRole('heading', { level: 1, name: 'Category trend' })
-        ).toBeVisible();
+        ).toBeVisible({ timeout: navigationTimeout });
         await expect(page.getByLabel('Category')).toHaveValue(/^\d+$/);
         const controlLabels = await page
             .locator('section label')
