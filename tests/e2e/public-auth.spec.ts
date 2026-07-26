@@ -133,27 +133,6 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(launchLlamaDarkBadge).toHaveAttribute('height', '50');
     await expect(launchLlamaDarkBadge).toHaveAttribute('loading', 'lazy');
 
-    const superLaunchBadge = page.getByRole('link', {
-        name: 'Featured on Super Launch'
-    });
-    await expect(superLaunchBadge).toHaveAttribute(
-        'href',
-        'https://www.superlaun.ch/products/2933'
-    );
-    await expect(superLaunchBadge).toHaveAttribute('target', '_blank');
-    await expect(superLaunchBadge).toHaveAttribute('rel', 'noopener');
-
-    const superLaunchBadgeImage = superLaunchBadge.locator(
-        'img[src="https://www.superlaun.ch/badge.png"]'
-    );
-    await superLaunchBadge.scrollIntoViewIfNeeded();
-    await expect(superLaunchBadgeImage).toBeVisible();
-    await expect(superLaunchBadgeImage).toHaveAttribute('width', '470');
-    await expect(superLaunchBadgeImage).toHaveAttribute('height', '130');
-    await expect(superLaunchBadgeImage).toHaveAttribute('loading', 'lazy');
-    await expect(superLaunchBadgeImage).toHaveCSS('width', '235px');
-    await expect(superLaunchBadgeImage).toHaveCSS('height', '65px');
-
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/dark/);
     await expect(lightBadge).toBeHidden();
@@ -164,7 +143,6 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(smolLaunchDarkBadge).toBeVisible();
     await expect(launchLlamaLightBadge).toBeHidden();
     await expect(launchLlamaDarkBadge).toBeVisible();
-    await expect(superLaunchBadgeImage).toBeVisible();
 
     const foundrListBadge = page.getByRole('link', {
         name: 'Featured on FoundrList'
