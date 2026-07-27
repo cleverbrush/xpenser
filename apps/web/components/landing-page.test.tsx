@@ -614,6 +614,44 @@ describe('LandingPage', () => {
         expect(openHuntsBadgeImage.getAttribute('style')).toBe(
             'height: auto; width: 195px;'
         );
+
+        const indieHuntBadgeLink = screen.getByRole('link', {
+            name: /Featured on IndieHunt/i
+        });
+        expect(indieHuntBadgeLink).toHaveProperty(
+            'href',
+            'https://indiehunt.io/project/xpenser'
+        );
+        expect(indieHuntBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(indieHuntBadgeLink.getAttribute('rel')).toBe('noopener');
+
+        const indieHuntBadgeImages = screen.getAllByAltText(
+            'Featured on IndieHunt'
+        );
+        expect(indieHuntBadgeImages).toHaveLength(2);
+
+        const indieHuntLightBadgeImage = indieHuntBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://indiehunt.io/badges/indiehunt-badge-light.svg'
+        );
+        expect(indieHuntLightBadgeImage).toBeTruthy();
+        expect(indieHuntLightBadgeImage?.getAttribute('width')).toBe('265');
+        expect(indieHuntLightBadgeImage?.getAttribute('height')).toBe('58');
+        expect(indieHuntLightBadgeImage?.className).toContain('block');
+        expect(indieHuntLightBadgeImage?.className).toContain('dark:hidden');
+
+        const indieHuntDarkBadgeImage = indieHuntBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://indiehunt.io/badges/indiehunt-badge-dark.svg'
+        );
+        expect(indieHuntDarkBadgeImage).toBeTruthy();
+        expect(indieHuntDarkBadgeImage?.getAttribute('width')).toBe('265');
+        expect(indieHuntDarkBadgeImage?.getAttribute('height')).toBe('58');
+        expect(indieHuntDarkBadgeImage?.className).toContain('hidden');
+        expect(indieHuntDarkBadgeImage?.className).toContain('dark:block');
+
         expect(
             screen.getByText(
                 /read or manage vendors, categories, and transactions/i

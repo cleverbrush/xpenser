@@ -133,6 +133,30 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(launchLlamaDarkBadge).toHaveAttribute('height', '50');
     await expect(launchLlamaDarkBadge).toHaveAttribute('loading', 'lazy');
 
+    const indieHuntBadge = page.getByRole('link', {
+        name: 'Featured on IndieHunt'
+    });
+    await expect(indieHuntBadge).toHaveAttribute(
+        'href',
+        'https://indiehunt.io/project/xpenser'
+    );
+    await expect(indieHuntBadge).toHaveAttribute('target', '_blank');
+    await expect(indieHuntBadge).toHaveAttribute('rel', 'noopener');
+
+    const indieHuntLightBadge = indieHuntBadge.locator(
+        'img[src="https://indiehunt.io/badges/indiehunt-badge-light.svg"]'
+    );
+    const indieHuntDarkBadge = indieHuntBadge.locator(
+        'img[src="https://indiehunt.io/badges/indiehunt-badge-dark.svg"]'
+    );
+    await indieHuntBadge.scrollIntoViewIfNeeded();
+    await expect(indieHuntLightBadge).toBeVisible();
+    await expect(indieHuntLightBadge).toHaveAttribute('width', '265');
+    await expect(indieHuntLightBadge).toHaveAttribute('height', '58');
+    await expect(indieHuntDarkBadge).toBeHidden();
+    await expect(indieHuntDarkBadge).toHaveAttribute('width', '265');
+    await expect(indieHuntDarkBadge).toHaveAttribute('height', '58');
+
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/dark/);
     await expect(lightBadge).toBeHidden();
@@ -143,6 +167,8 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(smolLaunchDarkBadge).toBeVisible();
     await expect(launchLlamaLightBadge).toBeHidden();
     await expect(launchLlamaDarkBadge).toBeVisible();
+    await expect(indieHuntLightBadge).toBeHidden();
+    await expect(indieHuntDarkBadge).toBeVisible();
 
     const foundrListBadge = page.getByRole('link', {
         name: 'Featured on FoundrList'

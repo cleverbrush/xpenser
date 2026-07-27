@@ -301,6 +301,15 @@ const openHuntsBadge = {
     width: 486
 } as const;
 
+const indieHuntBadge = {
+    alt: 'Featured on IndieHunt',
+    darkSrc: 'https://indiehunt.io/badges/indiehunt-badge-dark.svg',
+    height: 58,
+    href: 'https://indiehunt.io/project/xpenser',
+    lightSrc: 'https://indiehunt.io/badges/indiehunt-badge-light.svg',
+    width: 265
+} as const;
+
 const apiCurlExample = `curl ${openApiSpecPath}
 curl ${mcpEndpointPath} \\
   -H "Authorization: Bearer \${XPENSER_API_KEY}"`;
@@ -1039,6 +1048,35 @@ function OpenHuntsBadge() {
     );
 }
 
+function IndieHuntBadge() {
+    return (
+        <a
+            aria-label={indieHuntBadge.alt}
+            className="block w-fit rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            href={indieHuntBadge.href}
+            rel="noopener"
+            target="_blank"
+        >
+            {/* biome-ignore lint/performance/noImgElement: IndieHunt provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={indieHuntBadge.alt}
+                className="block dark:hidden"
+                height={indieHuntBadge.height}
+                src={indieHuntBadge.lightSrc}
+                width={indieHuntBadge.width}
+            />
+            {/* biome-ignore lint/performance/noImgElement: IndieHunt provides this hosted badge snippet, and next/image would need remote config for a tiny footer badge. */}
+            <img
+                alt={indieHuntBadge.alt}
+                className="hidden dark:block"
+                height={indieHuntBadge.height}
+                src={indieHuntBadge.darkSrc}
+                width={indieHuntBadge.width}
+            />
+        </a>
+    );
+}
+
 function FooterBadges() {
     return (
         <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
@@ -1059,6 +1097,7 @@ function FooterBadges() {
             <SmolLaunchBadge />
             <LaunchLlamaBadge />
             <OpenHuntsBadge />
+            <IndieHuntBadge />
         </div>
     );
 }
