@@ -652,6 +652,47 @@ describe('LandingPage', () => {
         expect(indieHuntDarkBadgeImage?.className).toContain('hidden');
         expect(indieHuntDarkBadgeImage?.className).toContain('dark:block');
 
+        const weLikeToolsBadgeLink = screen.getByRole('link', {
+            name: /We Like Tools/i
+        });
+        expect(weLikeToolsBadgeLink).toHaveProperty(
+            'href',
+            'https://weliketools.com/tool/xpenser-cleverbrush'
+        );
+        expect(weLikeToolsBadgeLink.getAttribute('target')).toBe('_blank');
+        expect(weLikeToolsBadgeLink.getAttribute('rel')).toBe(
+            'noopener noreferrer'
+        );
+
+        const weLikeToolsBadgeImages = screen.getAllByAltText('We Like Tools');
+        expect(weLikeToolsBadgeImages).toHaveLength(2);
+
+        const weLikeToolsLightBadgeImage = weLikeToolsBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://weliketools.com/assets/images/badge.png'
+        );
+        expect(weLikeToolsLightBadgeImage).toBeTruthy();
+        expect(weLikeToolsLightBadgeImage?.getAttribute('width')).toBeNull();
+        expect(weLikeToolsLightBadgeImage?.getAttribute('height')).toBe('54');
+        expect(weLikeToolsLightBadgeImage?.getAttribute('loading')).toBe(
+            'lazy'
+        );
+        expect(weLikeToolsLightBadgeImage?.className).toContain('block');
+        expect(weLikeToolsLightBadgeImage?.className).toContain('dark:hidden');
+
+        const weLikeToolsDarkBadgeImage = weLikeToolsBadgeImages.find(
+            image =>
+                image.getAttribute('src') ===
+                'https://weliketools.com/assets/images/badge-dark.png'
+        );
+        expect(weLikeToolsDarkBadgeImage).toBeTruthy();
+        expect(weLikeToolsDarkBadgeImage?.getAttribute('width')).toBeNull();
+        expect(weLikeToolsDarkBadgeImage?.getAttribute('height')).toBe('54');
+        expect(weLikeToolsDarkBadgeImage?.getAttribute('loading')).toBe('lazy');
+        expect(weLikeToolsDarkBadgeImage?.className).toContain('hidden');
+        expect(weLikeToolsDarkBadgeImage?.className).toContain('dark:block');
+
         expect(
             screen.getByText(
                 /read or manage vendors, categories, and transactions/i

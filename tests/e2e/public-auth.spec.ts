@@ -157,6 +157,33 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(indieHuntDarkBadge).toHaveAttribute('width', '265');
     await expect(indieHuntDarkBadge).toHaveAttribute('height', '58');
 
+    const weLikeToolsBadge = page.getByRole('link', {
+        name: 'We Like Tools'
+    });
+    await expect(weLikeToolsBadge).toHaveAttribute(
+        'href',
+        'https://weliketools.com/tool/xpenser-cleverbrush'
+    );
+    await expect(weLikeToolsBadge).toHaveAttribute('target', '_blank');
+    await expect(weLikeToolsBadge).toHaveAttribute(
+        'rel',
+        'noopener noreferrer'
+    );
+
+    const weLikeToolsLightBadge = weLikeToolsBadge.locator(
+        'img[src="https://weliketools.com/assets/images/badge.png"]'
+    );
+    const weLikeToolsDarkBadge = weLikeToolsBadge.locator(
+        'img[src="https://weliketools.com/assets/images/badge-dark.png"]'
+    );
+    await weLikeToolsBadge.scrollIntoViewIfNeeded();
+    await expect(weLikeToolsLightBadge).toBeVisible();
+    await expect(weLikeToolsLightBadge).toHaveAttribute('height', '54');
+    await expect(weLikeToolsLightBadge).toHaveAttribute('loading', 'lazy');
+    await expect(weLikeToolsDarkBadge).toBeHidden();
+    await expect(weLikeToolsDarkBadge).toHaveAttribute('height', '54');
+    await expect(weLikeToolsDarkBadge).toHaveAttribute('loading', 'lazy');
+
     await page.emulateMedia({ colorScheme: 'dark' });
     await expect(page.locator('html')).toHaveClass(/dark/);
     await expect(lightBadge).toBeHidden();
@@ -169,6 +196,8 @@ test('shows sign in and create account actions on the public index', async ({
     await expect(launchLlamaDarkBadge).toBeVisible();
     await expect(indieHuntLightBadge).toBeHidden();
     await expect(indieHuntDarkBadge).toBeVisible();
+    await expect(weLikeToolsLightBadge).toBeHidden();
+    await expect(weLikeToolsDarkBadge).toBeVisible();
 
     const foundrListBadge = page.getByRole('link', {
         name: 'Featured on FoundrList'
