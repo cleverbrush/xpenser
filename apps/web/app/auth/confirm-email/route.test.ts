@@ -28,13 +28,15 @@ vi.mock('@/lib/config', () => ({
     webConfig: { singleUser: { enabled: false } }
 }));
 
+vi.mock('@/lib/public-url', () => ({
+    publicAppUrl: (path: string) => new URL(path, 'https://app.example.test')
+}));
+
 import { NextRequest } from 'next/server';
 import { GET } from './route';
 
 function confirmationRequest(search = '') {
-    return new NextRequest(
-        `https://app.example.test/auth/confirm-email${search}`
-    );
+    return new NextRequest(`https://0.0.0.0:3000/auth/confirm-email${search}`);
 }
 
 describe('email confirmation route', () => {
