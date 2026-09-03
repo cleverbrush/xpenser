@@ -14,6 +14,43 @@ test('shows Google sign-in on the public login screen', async ({ page }) => {
     ).toBeVisible();
 });
 
+for (const scenario of [
+    {
+        name: 'an invalid email confirmation token',
+        path: '/auth/confirm-email?token=invalid-email-confirmation-token'
+    },
+    {
+        name: 'a missing email confirmation token',
+        path: '/auth/confirm-email'
+    }
+]) {
+    test(`shows email confirmation recovery for ${scenario.name}`, async ({
+        page
+    }) => {
+        const response = await page.goto(scenario.path);
+
+        expect(response?.status()).toBe(200);
+        await expect(page).toHaveURL(
+            /\/login\?confirmation=invalid-or-expired$/
+        );
+
+        const recovery = page.getByRole('region', {
+            name: 'Confirmation link is invalid or expired.'
+        });
+        await expect(recovery).toBeVisible();
+        await expect(
+            recovery.getByText(
+                'Enter your email to request a new confirmation link.'
+            )
+        ).toBeVisible();
+        await expect(recovery.getByLabel('Email')).toHaveValue('');
+        await expect(
+            recovery.getByRole('button', { name: 'Send link' })
+        ).toBeVisible();
+        await expect(page.getByText('Internal Server Error')).toHaveCount(0);
+    });
+}
+
 test('shows sign in and create account actions on the public index', async ({
     page
 }) => {
