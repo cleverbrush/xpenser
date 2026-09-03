@@ -1,0 +1,39 @@
+---
+title: "Leave feedback from the xpenser navigation"
+slug: leave-feedback
+description: "xpenser added an optional in-app feedback form that sends feedback, feature requests, and bug reports to a server-side n8n webhook."
+sourcePrNumber: "88"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/88"
+publishedAt: 2026-09-03
+updatedAt: 2026-09-03
+targetKeyword: "in-app feedback form"
+keywords:
+  - "expense tracker feedback"
+  - "feature request form"
+  - "self-hosted feedback webhook"
+  - "n8n webhook integration"
+draft: false
+---
+
+xpenser users can now send feedback, request a feature, or report a bug without leaving the authenticated app.
+
+This release came from [PR #88](https://github.com/cleverbrush/xpenser/pull/88). It adds a short, accessible form to the top navigation while keeping delivery configuration on the server.
+
+## What changed
+
+- Added feedback, feature request, and bug report types.
+- Added a text area with clear pending, success, and error states.
+- Sent submissions to a server-configured n8n webhook with user and page context.
+- Hid the feedback action when no webhook is configured.
+
+## Why it matters
+
+Feedback is most useful when people can share it at the moment they notice something. The form keeps that path close to the dashboard while giving maintainers enough context to understand the submission.
+
+The optional configuration also preserves the flexibility of a [self-hosted personal finance tracker](/self-hosted-personal-finance-tracker): deployments that do not want an external feedback workflow simply leave it disabled.
+
+## Privacy and deployment
+
+The webhook URL stays in server-only configuration and is never sent to browser JavaScript. Submissions include the selected type, feedback text, authenticated user id and email, the current page path, and deployment context. Self-hosters control the receiving n8n workflow and whether the feature appears.
+
+For a broader overview, visit the [xpenser home page](/). Developers can also explore the [personal finance API and MCP tools](/personal-finance-api-mcp).
