@@ -410,7 +410,7 @@ Notes:
   read/write. GitHub requires this permission to delete repository
   environments during cleanup.
 
-Create optional repository secret `FEEDBACK_WEBHOOK_URL` with a preview-safe
+Create optional repository variable `FEEDBACK_WEBHOOK_URL` with a preview-safe
 n8n webhook when PR environments should expose and exercise the in-app feedback
 flow. Without it, the feedback action stays hidden.
 

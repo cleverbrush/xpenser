@@ -114,7 +114,7 @@ jobs:
           EMAIL_FROM: ${{ vars.EMAIL_FROM || secrets.EMAIL_FROM }}
           EMAIL_REPORTS_ENABLED: ${{ vars.EMAIL_REPORTS_ENABLED || secrets.EMAIL_REPORTS_ENABLED || '0' }}
           EMAIL_REPORTS_SCHEDULER_ENABLED: ${{ vars.EMAIL_REPORTS_SCHEDULER_ENABLED || '0' }}
-          FEEDBACK_WEBHOOK_URL: ${{ secrets.FEEDBACK_WEBHOOK_URL }}
+          FEEDBACK_WEBHOOK_URL: ${{ vars.FEEDBACK_WEBHOOK_URL }}
           PR_ENV_DOMAIN_PROJECT: ${{ vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser' }}
           PR_ENV_DOMAIN_SUFFIX: ${{ vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com' }}
           PR_ENV_DNS_RECORD_CONTENT: ${{ vars.PR_ENV_DNS_RECORD_CONTENT || format('{0}.{1}', vars.PR_ENV_DOMAIN_PROJECT || vars.PR_ENV_PROJECT_NAME || 'xpenser', vars.PR_ENV_DOMAIN_SUFFIX || 'cleverbrush.com') }}
