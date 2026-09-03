@@ -120,8 +120,16 @@ const nextAuth: NextAuthResult = NextAuth(() => {
         trustHost: true,
         logger: {
             error(error) {
+                const errorType = authErrorType(error);
+                if (errorType === 'CredentialsSignin') {
+                    authLogger.warn(AuthWarningLogged, {
+                        AuthWarningCode: errorType
+                    });
+                    return;
+                }
+
                 authLogger.error(error, AuthErrorLogged, {
-                    AuthErrorType: authErrorType(error),
+                    AuthErrorType: errorType,
                     AuthErrorMessage: error.message
                 });
             },
@@ -221,9 +229,21 @@ const nextAuth: NextAuthResult = NextAuth(() => {
                 },
                 authorize: async credentials => {
                     const token = String(credentials?.token ?? '');
-                    const response = await apiClient().auth.confirmEmail({
-                        body: { token }
-                    });
+                    let response: Awaited<
+                        ReturnType<
+                            ReturnType<typeof apiClient>['auth']['confirmEmail']
+                        >
+                    >;
+                    try {
+                        response = await apiClient().auth.confirmEmail({
+                            body: { token }
+                        });
+                    } catch (err) {
+                        if (apiErrorStatus(err) === 400) {
+                            return null;
+                        }
+                        throw err;
+                    }
 
                     return {
                         id: String(response.user.id),
