@@ -127,7 +127,8 @@ test.describe('authenticated app workflows', () => {
 
         const dialog = page.getByRole('dialog', { name: 'Leave feedback' });
         await expect(dialog).toBeVisible();
-        await dialog.getByLabel('Type').selectOption('feature_request');
+        await dialog.getByRole('combobox', { name: 'Type' }).click();
+        await page.getByRole('option', { name: 'Feature request' }).click();
         await dialog
             .getByLabel('What would you like to share?')
             .fill(`Automated PR preview QA ${Date.now()}`);

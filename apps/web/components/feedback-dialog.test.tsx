@@ -3,8 +3,14 @@
  */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { XpenserFormProvider } from '@xpenser/ui';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FeedbackDialog } from './feedback-dialog';
+
+Element.prototype.scrollIntoView = vi.fn();
+HTMLElement.prototype.hasPointerCapture = vi.fn();
+HTMLElement.prototype.setPointerCapture = vi.fn();
+HTMLElement.prototype.releasePointerCapture = vi.fn();
 
 const submitFeedbackAction = vi.fn();
 
@@ -15,6 +21,14 @@ vi.mock('@/lib/feedback-action', () => ({
     submitFeedbackAction: (formData: FormData) => submitFeedbackAction(formData)
 }));
 
+function renderFeedbackDialog(compact = false) {
+    return render(
+        <XpenserFormProvider>
+            <FeedbackDialog compact={compact} />
+        </XpenserFormProvider>
+    );
+}
+
 describe('FeedbackDialog', () => {
     beforeEach(() => {
         submitFeedbackAction.mockReset();
@@ -22,12 +36,17 @@ describe('FeedbackDialog', () => {
 
     it('submits the selected type, text, and current path', async () => {
         submitFeedbackAction.mockResolvedValue({ success: true });
-        render(<FeedbackDialog />);
+        renderFeedbackDialog();
 
         fireEvent.click(screen.getByRole('button', { name: 'Leave feedback' }));
-        fireEvent.change(screen.getByLabelText('Type'), {
-            target: { value: 'feature_request' }
+        fireEvent.pointerDown(screen.getByRole('combobox', { name: 'Type' }), {
+            button: 0,
+            ctrlKey: false,
+            pointerType: 'mouse'
         });
+        fireEvent.click(
+            await screen.findByRole('option', { name: 'Feature request' })
+        );
         fireEvent.change(
             screen.getByLabelText('What would you like to share?'),
             {
@@ -53,16 +72,16 @@ describe('FeedbackDialog', () => {
                 ) as HTMLTextAreaElement
             ).value
         ).toBe('');
-        expect((screen.getByLabelText('Type') as HTMLSelectElement).value).toBe(
-            'feedback'
-        );
+        expect(
+            screen.getByRole('combobox', { name: 'Type' }).textContent
+        ).toContain('Feedback');
     });
 
     it('keeps the dialog open and shows server errors inline', async () => {
         submitFeedbackAction.mockResolvedValue({
             error: 'Could not send feedback. Please try again.'
         });
-        render(<FeedbackDialog compact />);
+        renderFeedbackDialog(true);
 
         fireEvent.click(screen.getByRole('button', { name: 'Leave feedback' }));
         fireEvent.change(
@@ -79,5 +98,22 @@ describe('FeedbackDialog', () => {
         expect(
             screen.getByRole('dialog', { name: 'Leave feedback' })
         ).toBeTruthy();
+    });
+
+    it('shows schema validation errors without calling the server action', async () => {
+        renderFeedbackDialog();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave feedback' }));
+        fireEvent.change(
+            screen.getByLabelText('What would you like to share?'),
+            { target: { value: '   ' } }
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
+
+        expect(
+            (await screen.findByText('Enter your feedback before sending.'))
+                .textContent
+        ).toContain('Enter your feedback before sending.');
+        expect(submitFeedbackAction).not.toHaveBeenCalled();
     });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
 import {
     Button,
     Dialog,
@@ -10,26 +11,28 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    Field,
     FieldDescription,
     FieldError,
     FieldGroup,
-    FieldLabel,
-    Textarea
+    type SelectRendererFieldProps
 } from '@xpenser/ui';
 import { MessageSquareTextIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
 import { submitFeedbackAction } from '@/lib/feedback-action';
-import { isNextRedirectError } from './forms/form-utils';
-
-type FeedbackType = 'feedback' | 'feature_request' | 'bug';
+import {
+    FeedbackFormSchema,
+    FeedbackTextMaxLength,
+    type FeedbackType
+} from '@/lib/feedback-schema';
+import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 
 export function FeedbackDialog({
     compact = false
 }: {
     readonly compact?: boolean;
 }) {
+    const form = useSchemaForm(FeedbackFormSchema);
     const pathname = usePathname();
     const [error, setError] = useState<string | null>(null);
     const [message, setMessage] = useState<string | null>(null);
@@ -37,35 +40,45 @@ export function FeedbackDialog({
     const [pending, setPending] = useState(false);
     const [type, setType] = useState<FeedbackType>('feedback');
 
+    function resetForm() {
+        form.reset({ text: '', type: 'feedback' });
+        setType('feedback');
+    }
+
     function handleOpenChange(nextOpen: boolean) {
         setOpen(nextOpen);
         if (!nextOpen) {
             setError(null);
             setMessage(null);
-            setType('feedback');
+            resetForm();
         }
     }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        const form = event.currentTarget;
-        const formData = new FormData(form);
-        formData.set('type', type);
+        setError(null);
+        setMessage(null);
+
+        form.setValue({ type });
+        const result = await form.submit();
+        if (!result.valid || !result.object) {
+            return;
+        }
+
+        const formData = valuesToFormData(result.object);
         formData.set('path', pathname);
 
         setPending(true);
-        setError(null);
-        setMessage(null);
         try {
-            const result = await submitFeedbackAction(formData);
-            if ('error' in result) {
+            const actionResult = await submitFeedbackAction(formData);
+            if ('error' in actionResult) {
                 setError(
-                    result.error ?? 'Could not send feedback. Please try again.'
+                    actionResult.error ??
+                        'Could not send feedback. Please try again.'
                 );
                 return;
             }
-            form.reset();
-            setType('feedback');
+            resetForm();
             setMessage('Thanks — your feedback was sent.');
         } catch (caught) {
             if (isNextRedirectError(caught)) {
@@ -102,47 +115,56 @@ export function FeedbackDialog({
                 </DialogHeader>
                 <form noValidate onSubmit={handleSubmit}>
                     <FieldGroup>
-                        <Field>
-                            <FieldLabel htmlFor="feedback-type">
-                                Type
-                            </FieldLabel>
-                            <select
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                                disabled={pending}
-                                id="feedback-type"
-                                name="type"
-                                onChange={event =>
-                                    setType(
-                                        event.currentTarget
-                                            .value as FeedbackType
-                                    )
-                                }
-                                value={type}
-                            >
-                                <option value="feedback">Feedback</option>
-                                <option value="feature_request">
-                                    Feature request
-                                </option>
-                                <option value="bug">Bug</option>
-                            </select>
-                        </Field>
-                        <Field>
-                            <FieldLabel htmlFor="feedback-text">
-                                What would you like to share?
-                            </FieldLabel>
-                            <Textarea
-                                disabled={pending}
-                                id="feedback-text"
-                                maxLength={5_000}
-                                name="text"
-                                placeholder="Tell us what happened or what would make xpenser better."
-                                required
-                                rows={6}
+                        <SchemaField
+                            fieldProps={
+                                {
+                                    disabled: pending,
+                                    onValueChange: (value, field) => {
+                                        const nextType = value as FeedbackType;
+                                        setType(nextType);
+                                        field.onChange(nextType);
+                                    },
+                                    options: [
+                                        {
+                                            label: 'Feedback',
+                                            value: 'feedback'
+                                        },
+                                        {
+                                            label: 'Feature request',
+                                            value: 'feature_request'
+                                        },
+                                        { label: 'Bug', value: 'bug' }
+                                    ],
+                                    value: type
+                                } satisfies SelectRendererFieldProps
+                            }
+                            forProperty={field => field.type}
+                            form={form}
+                            label="Type"
+                            name="feedback-type"
+                            variant="select"
+                        />
+                        <div className="grid gap-2">
+                            <SchemaField
+                                fieldProps={{
+                                    'aria-describedby':
+                                        'feedback-text-description',
+                                    disabled: pending,
+                                    maxLength: FeedbackTextMaxLength,
+                                    placeholder:
+                                        'Tell us what happened or what would make xpenser better.',
+                                    rows: 6
+                                }}
+                                forProperty={field => field.text}
+                                form={form}
+                                label="What would you like to share?"
+                                name="feedback-text"
+                                variant="textarea"
                             />
-                            <FieldDescription>
+                            <FieldDescription id="feedback-text-description">
                                 Maximum 5,000 characters.
                             </FieldDescription>
-                        </Field>
+                        </div>
                         {error ? (
                             <FieldError role="alert">{error}</FieldError>
                         ) : null}

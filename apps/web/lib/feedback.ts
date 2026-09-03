@@ -1,14 +1,18 @@
-export const FeedbackTypes = ['feedback', 'feature_request', 'bug'] as const;
-export type FeedbackType = (typeof FeedbackTypes)[number];
+import {
+    FeedbackFormSchema,
+    type FeedbackFormValues,
+    type FeedbackType
+} from './feedback-schema';
 
-export const FeedbackTextMaxLength = 5_000;
+export {
+    FeedbackTextMaxLength,
+    type FeedbackType,
+    FeedbackTypes
+} from './feedback-schema';
+
 const FeedbackPathMaxLength = 2_048;
 
-export type FeedbackInput = {
-    readonly path: string;
-    readonly text: string;
-    readonly type: FeedbackType;
-};
+export type FeedbackInput = FeedbackFormValues & { readonly path: string };
 
 export type FeedbackPayload = {
     readonly type: FeedbackType;
@@ -35,14 +39,12 @@ export type FeedbackDeliveryResult =
 
 export class FeedbackInputError extends Error {}
 
-function normalizedFormText(value: FormDataEntryValue | null): string {
-    return typeof value === 'string'
-        ? value.replace(/\r\n?/g, '\n').trim()
-        : '';
+function normalizedFormString(value: FormDataEntryValue | null): string {
+    return typeof value === 'string' ? value.replace(/\r\n?/g, '\n') : '';
 }
 
 function normalizedPath(value: FormDataEntryValue | null): string {
-    const path = normalizedFormText(value);
+    const path = normalizedFormString(value).trim();
     if (
         path.length === 0 ||
         path.length > FeedbackPathMaxLength ||
@@ -55,25 +57,22 @@ function normalizedPath(value: FormDataEntryValue | null): string {
 }
 
 export function feedbackInputFromFormData(formData: FormData): FeedbackInput {
-    const rawType = normalizedFormText(formData.get('type'));
-    if (!FeedbackTypes.includes(rawType as FeedbackType)) {
-        throw new FeedbackInputError('Choose a valid feedback type.');
-    }
-
-    const text = normalizedFormText(formData.get('text'));
-    if (!text) {
-        throw new FeedbackInputError('Enter your feedback before sending.');
-    }
-    if (text.length > FeedbackTextMaxLength) {
-        throw new FeedbackInputError(
-            `Feedback must be ${FeedbackTextMaxLength.toLocaleString('en')} characters or fewer.`
-        );
+    const untrustedValues = {
+        text: normalizedFormString(formData.get('text')),
+        type: normalizedFormString(formData.get('type'))
+    } as FeedbackFormValues;
+    const result = FeedbackFormSchema.validate(untrustedValues);
+    if (!result.valid || !result.object) {
+        const message =
+            result.getErrorsFor(field => field.type).errors[0] ??
+            result.getErrorsFor(field => field.text).errors[0] ??
+            'Check your feedback and try again.';
+        throw new FeedbackInputError(message);
     }
 
     return {
         path: normalizedPath(formData.get('path')),
-        text,
-        type: rawType as FeedbackType
+        ...result.object
     };
 }
 
