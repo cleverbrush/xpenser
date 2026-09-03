@@ -118,6 +118,27 @@ async function swipeReportAreaFromBlankSpace(
 }
 
 test.describe('authenticated app workflows', () => {
+    test('submits feedback from the top navigation', async ({ page }) => {
+        await page.goto('/dashboard');
+        await page
+            .getByRole('button', { name: 'Leave feedback' })
+            .filter({ visible: true })
+            .click();
+
+        const dialog = page.getByRole('dialog', { name: 'Leave feedback' });
+        await expect(dialog).toBeVisible();
+        await dialog.getByLabel('Type').selectOption('feature_request');
+        await dialog
+            .getByLabel('What would you like to share?')
+            .fill(`Automated PR preview QA ${Date.now()}`);
+        await dialog.getByRole('button', { name: 'Send feedback' }).click();
+
+        await expect(dialog.getByRole('status')).toContainText(
+            'your feedback was sent',
+            { timeout: 15_000 }
+        );
+    });
+
     test('signs out to the public index page', async ({ page }) => {
         await page.goto('/dashboard');
         await page.getByRole('button', { name: 'Sign out' }).click();
