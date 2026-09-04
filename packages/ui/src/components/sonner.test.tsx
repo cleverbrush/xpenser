@@ -29,6 +29,12 @@ describe('Toaster', () => {
         expect(renderSonner.mock.calls[0]?.[0]).toEqual(
             expect.objectContaining({
                 duration: 4_000,
+                mobileOffset: {
+                    bottom: 80,
+                    left: 16,
+                    right: 16,
+                    top: 16
+                },
                 position: 'bottom-right',
                 style: expect.objectContaining({
                     '--normal-bg': 'hsl(var(--popover))',

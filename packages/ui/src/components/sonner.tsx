@@ -24,6 +24,7 @@ function Toaster({ ...props }: ToasterProps) {
                 error: <OctagonXIcon className="size-4" />,
                 loading: <Loader2Icon className="size-4 animate-spin" />
             }}
+            mobileOffset={{ bottom: 80, left: 16, right: 16, top: 16 }}
             position="bottom-right"
             style={
                 {
