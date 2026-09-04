@@ -30,6 +30,11 @@ describe('Toaster', () => {
             expect.objectContaining({
                 duration: 4_000,
                 position: 'bottom-right',
+                style: expect.objectContaining({
+                    '--normal-bg': 'hsl(var(--popover))',
+                    '--normal-border': 'hsl(var(--border))',
+                    '--normal-text': 'hsl(var(--popover-foreground))'
+                }),
                 theme: 'dark'
             })
         );
