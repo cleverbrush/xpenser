@@ -1,10 +1,10 @@
 import { BudgetSettings } from '@/components/budget-settings';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentUser } from '@/lib/api';
 
 export default async function BudgetsPage() {
     const client = await getApiClient();
     const [me, currencies, archivedBudgets] = await Promise.all([
-        client.auth.me(),
+        getCurrentUser(),
         client.currencies.list(),
         client.budgets.list({ query: { status: 'archived' } })
     ]);

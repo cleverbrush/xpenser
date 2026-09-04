@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import { VendorProfileActions } from '@/components/vendor-actions';
 import { VendorLogo, vendorDisplayName } from '@/components/vendor-display';
 import { VendorTransactionHistory } from '@/components/vendor-transaction-history';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentUser } from '@/lib/api';
 
 type VendorPageParams = {
     readonly vendorId: string;
@@ -59,7 +59,7 @@ export default async function VendorSettingsPage({
 
     const client = await getApiClient();
     const [me, vendor] = await Promise.all([
-        client.auth.me(),
+        getCurrentUser(),
         client.vendors
             .get({ params: { id: selectedVendorId } })
             .catch(error => {

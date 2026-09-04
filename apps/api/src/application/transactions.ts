@@ -160,6 +160,20 @@ type FilteredTransactionRows = {
     readonly vendorsById: ReadonlyMap<number, VendorDb>;
 };
 
+type TransactionListRow = TransactionDb & {
+    readonly categoryKind: 'normal' | 'offset';
+    readonly categoryName: string;
+    readonly categoryParentId: number | null;
+    readonly categoryParentName: string | null;
+    readonly categoryType: 'expense' | 'income';
+    readonly vendorLogoUrl: string | null;
+    readonly vendorName: string | null;
+};
+
+type TransactionCountRow = {
+    readonly total: number | string;
+};
+
 type CategoryTrendBucket = CategoryTrendResponse['trend'][number];
 
 type StatsRanges = {
@@ -491,6 +505,51 @@ function mapTransaction(
     };
 }
 
+function mapListedTransaction(
+    row: TransactionListRow,
+    scanAttachments: ReadonlyMap<number, TransactionScanAttachment>,
+    tagsByTransaction: ReadonlyMap<number, readonly TransactionTag[]>,
+    creatorsById: ReadonlyMap<number, TransactionCreator>
+): Transaction {
+    const type = categoryReportingType(
+        { kind: row.categoryKind, type: row.categoryType },
+        row.type
+    );
+
+    return {
+        id: row.id,
+        budgetId: row.budgetId,
+        categoryId: row.categoryId,
+        vendorId: row.vendorId ?? null,
+        vendorName: row.vendorName ?? undefined,
+        vendorLogoUrl: row.vendorLogoUrl ?? undefined,
+        categoryName: row.categoryName,
+        categoryDisplayName: row.categoryParentName
+            ? `${row.categoryParentName} -> ${row.categoryName}`
+            : row.categoryName,
+        categoryParentId: row.categoryParentId,
+        categoryParentName: row.categoryParentName ?? undefined,
+        categoryKind: row.categoryKind,
+        type,
+        amount: Number(row.amount),
+        currency: row.currency,
+        defaultCurrencyAmount: Number(row.defaultCurrencyAmount),
+        defaultCurrency: row.defaultCurrency,
+        exchangeRate: Number(row.exchangeRate),
+        exchangeRateDate: row.exchangeRateDate,
+        occurredAt: row.occurredAt,
+        note: row.note ?? undefined,
+        tags: [...(tagsByTransaction.get(row.id) ?? [])],
+        createdBy: creatorsById.get(row.userId) ?? {
+            userId: row.userId,
+            email: ''
+        },
+        scanAttachment: scanAttachments.get(row.id) ?? null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
+    };
+}
+
 function transactionTagIds(value: string | undefined): number[] {
     if (!value) {
         return [];
@@ -504,6 +563,153 @@ function transactionTagIds(value: string | undefined): number[] {
                 .filter(item => Number.isInteger(item) && item > 0)
         )
     ];
+}
+
+function transactionSearchPattern(value: string): string {
+    return `%${value.replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_')}%`;
+}
+
+export function transactionListBaseQuery(
+    knex: Knex,
+    budgetId: number,
+    query: TransactionFilterQuery
+): Knex.QueryBuilder {
+    const builder = knex('transactions as tx')
+        .join('categories as category', 'category.id', 'tx.category_id')
+        .leftJoin('categories as parent', 'parent.id', 'category.parent_id')
+        .leftJoin('vendors as vendor', 'vendor.id', 'tx.vendor_id')
+        .where('tx.budget_id', budgetId);
+
+    if (query.categoryId) {
+        builder.where('tx.category_id', query.categoryId);
+    }
+    if (query.from) {
+        builder.where('tx.occurred_at', '>=', query.from);
+    }
+    if (query.to) {
+        builder.where('tx.occurred_at', '<=', query.to);
+    }
+    if (query.vendorId === 'none') {
+        builder.whereNull('tx.vendor_id');
+    } else if (query.vendorId) {
+        builder.where('tx.vendor_id', query.vendorId);
+    }
+    if (query.type) {
+        builder.whereRaw(
+            `CASE
+                WHEN category.kind = 'offset'
+                    THEN CASE category.type
+                        WHEN 'expense' THEN 'income'
+                        ELSE 'expense'
+                    END
+                ELSE category.type
+            END = ?`,
+            [query.type]
+        );
+    }
+    if (query.parentCategoryId) {
+        builder.where(parentBuilder => {
+            parentBuilder
+                .where('tx.category_id', query.parentCategoryId)
+                .orWhere('category.parent_id', query.parentCategoryId);
+        });
+    }
+
+    const tagIds = transactionTagIds(query.tagIds);
+    for (const tagId of tagIds) {
+        builder.whereExists(
+            knex('transaction_tag_links as selected_link')
+                .join(
+                    'transaction_tags as selected_tag',
+                    'selected_tag.id',
+                    'selected_link.tag_id'
+                )
+                .select(knex.raw('1'))
+                .whereRaw('selected_link.transaction_id = tx.id')
+                .where('selected_tag.budget_id', budgetId)
+                .where('selected_link.tag_id', tagId)
+        );
+    }
+    if (query.untagged === true) {
+        builder.whereNotExists(
+            knex('transaction_tag_links as untagged_link')
+                .join(
+                    'transaction_tags as untagged_tag',
+                    'untagged_tag.id',
+                    'untagged_link.tag_id'
+                )
+                .select(knex.raw('1'))
+                .whereRaw('untagged_link.transaction_id = tx.id')
+                .where('untagged_tag.budget_id', budgetId)
+        );
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+        const pattern = transactionSearchPattern(search);
+        const tagSearch = knex('transaction_tag_links as search_link')
+            .join(
+                'transaction_tags as search_tag',
+                'search_tag.id',
+                'search_link.tag_id'
+            )
+            .select(knex.raw('1'))
+            .whereRaw('search_link.transaction_id = tx.id')
+            .where('search_tag.budget_id', budgetId)
+            .whereRaw("search_tag.name ILIKE ? ESCAPE '!'", [pattern]);
+        builder.where(searchBuilder => {
+            searchBuilder
+                .whereRaw("category.name ILIKE ? ESCAPE '!'", [pattern])
+                .orWhereRaw(
+                    "COALESCE(parent.name || ' -> ' || category.name, category.name) ILIKE ? ESCAPE '!'",
+                    [pattern]
+                )
+                .orWhereRaw("vendor.name ILIKE ? ESCAPE '!'", [pattern])
+                .orWhereRaw("vendor.domain ILIKE ? ESCAPE '!'", [pattern])
+                .orWhereRaw("tx.note ILIKE ? ESCAPE '!'", [pattern])
+                .orWhereExists(tagSearch);
+        });
+    }
+
+    return builder;
+}
+
+export function transactionListPageQuery(
+    builder: Knex.QueryBuilder,
+    direction: 'asc' | 'desc',
+    limit: number,
+    offset: number
+) {
+    return builder
+        .select({
+            id: 'tx.id',
+            budgetId: 'tx.budget_id',
+            userId: 'tx.user_id',
+            categoryId: 'tx.category_id',
+            vendorId: 'tx.vendor_id',
+            type: 'tx.type',
+            amount: 'tx.amount',
+            currency: 'tx.currency',
+            defaultCurrencyAmount: 'tx.default_currency_amount',
+            defaultCurrency: 'tx.default_currency',
+            exchangeRate: 'tx.exchange_rate',
+            exchangeRateDate: 'tx.exchange_rate_date',
+            occurredAt: 'tx.occurred_at',
+            note: 'tx.note',
+            createdAt: 'tx.created_at',
+            updatedAt: 'tx.updated_at',
+            categoryName: 'category.name',
+            categoryType: 'category.type',
+            categoryKind: 'category.kind',
+            categoryParentId: 'category.parent_id',
+            categoryParentName: 'parent.name',
+            vendorName: 'vendor.name',
+            vendorLogoUrl: 'vendor.logo_url'
+        })
+        .orderBy('tx.occurred_at', direction)
+        .orderBy('tx.id', direction)
+        .limit(limit)
+        .offset(offset);
 }
 
 async function transactionTagCounts(
@@ -852,45 +1058,34 @@ export async function listTransactions(
 ) {
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(100, Math.max(1, query.limit ?? 50));
-    const {
-        budgetId,
-        categoriesById,
-        rows: filtered,
-        tagsByTransaction,
-        tagsLoadedForAllRows,
-        vendorsById
-    } = await filteredTransactionRows(db, userId, query, knex);
+    const access = await resolveBudgetAccess(db, userId, query.budgetId);
+    const budgetId = access.budget.id;
+    const database = knex ?? db.knex;
     const offset = (page - 1) * limit;
-    const pageRows = filtered.slice(offset, offset + limit) as TransactionDb[];
-    const scanAttachments = await scanAttachmentsByTransaction(
-        knex,
-        budgetId,
-        pageRows.map(transaction => transaction.id)
-    );
-    const pageTagsByTransaction = tagsLoadedForAllRows
-        ? tagsByTransaction
-        : await transactionTagsByTransaction(
-              knex ?? db.knex,
-              budgetId,
-              pageRows.map(transaction => transaction.id)
-          );
-    const creatorsById = await loadTransactionCreators(
-        knex ?? db.knex,
-        pageRows
-    );
+    const direction = query.direction ?? 'desc';
+    const baseQuery = transactionListBaseQuery(database, budgetId, query);
+    const [countRows, pageRows] = (await Promise.all([
+        baseQuery.clone().count({ total: 'tx.id' }),
+        transactionListPageQuery(baseQuery.clone(), direction, limit, offset)
+    ])) as [TransactionCountRow[], TransactionListRow[]];
+    const transactionIds = pageRows.map(transaction => transaction.id);
+    const [scanAttachments, pageTagsByTransaction, creatorsById] =
+        await Promise.all([
+            scanAttachmentsByTransaction(database, budgetId, transactionIds),
+            transactionTagsByTransaction(database, budgetId, transactionIds),
+            loadTransactionCreators(database, pageRows)
+        ]);
 
     return {
         items: pageRows.map(transaction =>
-            mapTransaction(
+            mapListedTransaction(
                 transaction,
-                categoriesById,
-                vendorsById,
                 scanAttachments,
                 pageTagsByTransaction,
                 creatorsById
             )
         ),
-        total: filtered.length,
+        total: Number(countRows[0]?.total ?? 0),
         page,
         limit
     };

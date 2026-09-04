@@ -5,6 +5,7 @@ import {
 import type { TokenResponse } from '@xpenser/contracts';
 import { revalidateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 import { expiredSessionPath } from './auth-routes';
 import { getWebApiServiceSecret, webConfig } from './config';
 
@@ -45,7 +46,7 @@ function sessionFromTokenResponse(response: TokenResponse): CurrentWebSession {
     };
 }
 
-export async function getCurrentSession(): Promise<CurrentWebSession | null> {
+async function loadCurrentSession(): Promise<CurrentWebSession | null> {
     if (webConfig.singleUser?.enabled) {
         return sessionFromTokenResponse(
             await trustedApiClient().auth.singleUserSessionToken()
@@ -71,6 +72,8 @@ export async function getCurrentSession(): Promise<CurrentWebSession | null> {
     };
 }
 
+export const getCurrentSession = cache(loadCurrentSession);
+
 export async function getSessionOrRedirect() {
     const session = await getCurrentSession();
     if (!session?.apiToken) {
@@ -84,7 +87,7 @@ type ApiClientOptions = Pick<
     'disableBatching' | 'retryOnTimeout' | 'timeoutMs'
 >;
 
-export async function getApiClient(options: ApiClientOptions = {}) {
+async function createAuthenticatedApiClient(options: ApiClientOptions = {}) {
     const session = await getSessionOrRedirect();
     return createXpenserClient({
         baseUrl: webConfig.apiBaseUrl,
@@ -98,6 +101,19 @@ export async function getApiClient(options: ApiClientOptions = {}) {
         timeoutMs: options.timeoutMs
     });
 }
+
+const getDefaultApiClient = cache(createAuthenticatedApiClient);
+
+export function getApiClient(options?: ApiClientOptions) {
+    return options
+        ? createAuthenticatedApiClient(options)
+        : getDefaultApiClient();
+}
+
+export const getCurrentUser = cache(async () => {
+    const client = await getDefaultApiClient();
+    return client.auth.me();
+});
 
 export function getAnonymousApiClient() {
     return createXpenserClient({ baseUrl: webConfig.apiBaseUrl });

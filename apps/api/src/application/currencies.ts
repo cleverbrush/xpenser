@@ -20,10 +20,28 @@ type FrankfurterRateResponse = {
     readonly rate?: number;
 };
 
+type CurrencyCatalogState = {
+    currencies: Currency[];
+    nextRefreshAt: number;
+    refreshPromise?: Promise<void>;
+};
+
+type CurrencyCatalogLoaderOptions = {
+    readonly fetch?: typeof fetch;
+    readonly now?: () => number;
+    readonly refreshIntervalMs?: number;
+    readonly retryDelayMs?: number;
+    readonly timeoutMs?: number;
+};
+
 export type ExchangeRate = {
     readonly rate: number;
     readonly rateDate: string;
 };
+
+const currencyCatalogRefreshIntervalMs = 24 * 60 * 60 * 1000;
+const currencyCatalogRetryDelayMs = 5 * 60 * 1000;
+const currencyCatalogTimeoutMs = 2_000;
 
 export function transactionDate(
     value: Date,
@@ -59,11 +77,11 @@ function sortCurrencies(currencies: readonly Currency[]): Currency[] {
     return [...currencies].sort((a, b) => a.code.localeCompare(b.code));
 }
 
-function fallbackCurrencies(
+function logCurrencyCatalogFallback(
     logger?: Pick<Logger, 'warn'>,
     reason?: string,
     error?: unknown
-): Currency[] {
+): void {
     logger?.warn(FrankfurterCurrencyCatalogFallback, {
         Reason: reason,
         Error:
@@ -73,7 +91,6 @@ function fallbackCurrencies(
                   ? undefined
                   : String(error)
     });
-    return [...frankfurterCurrencyCatalog];
 }
 
 function normalizeCurrencies(payload: FrankfurterCurrencyResponse): Currency[] {
@@ -107,35 +124,83 @@ function normalizeCurrencies(payload: FrankfurterCurrencyResponse): Currency[] {
     });
 }
 
-export async function listCurrencies(
+async function fetchCurrencyCatalog(
     config: Config,
-    logger?: Pick<Logger, 'warn'>
+    fetcher: typeof fetch,
+    timeoutMs: number
 ): Promise<Currency[]> {
-    try {
-        const response = await fetch(
-            `${config.frankfurter.baseUrl}/currencies`
-        );
-        if (!response.ok) {
-            return fallbackCurrencies(
-                logger,
-                `Frankfurter returned HTTP ${response.status}`
-            );
-        }
-
-        const payload = (await response.json()) as FrankfurterCurrencyResponse;
-        const currencies = normalizeCurrencies(payload);
-        if (currencies.length === 0) {
-            return fallbackCurrencies(
-                logger,
-                'Frankfurter payload contained no valid currencies'
-            );
-        }
-
-        return sortCurrencies(currencies);
-    } catch (error) {
-        return fallbackCurrencies(logger, 'Frankfurter request failed', error);
+    const response = await fetcher(`${config.frankfurter.baseUrl}/currencies`, {
+        signal: AbortSignal.timeout(timeoutMs)
+    });
+    if (!response.ok) {
+        throw new Error(`Frankfurter returned HTTP ${response.status}`);
     }
+
+    const payload = (await response.json()) as FrankfurterCurrencyResponse;
+    const currencies = normalizeCurrencies(payload);
+    if (currencies.length === 0) {
+        throw new Error('Frankfurter payload contained no valid currencies');
+    }
+
+    return sortCurrencies(currencies);
 }
+
+export function createCurrencyCatalogLoader(
+    options: CurrencyCatalogLoaderOptions = {}
+) {
+    const fetcher = options.fetch ?? fetch;
+    const now = options.now ?? Date.now;
+    const refreshIntervalMs =
+        options.refreshIntervalMs ?? currencyCatalogRefreshIntervalMs;
+    const retryDelayMs = options.retryDelayMs ?? currencyCatalogRetryDelayMs;
+    const timeoutMs = options.timeoutMs ?? currencyCatalogTimeoutMs;
+    const states = new Map<string, CurrencyCatalogState>();
+
+    return async function loadCurrencyCatalog(
+        config: Config,
+        logger?: Pick<Logger, 'warn'>
+    ): Promise<Currency[]> {
+        const key = config.frankfurter.baseUrl;
+        let state = states.get(key);
+        if (!state) {
+            state = {
+                currencies: sortCurrencies(frankfurterCurrencyCatalog),
+                nextRefreshAt: 0
+            };
+            states.set(key, state);
+        }
+
+        if (!state.refreshPromise && now() >= state.nextRefreshAt) {
+            const refreshPromise = fetchCurrencyCatalog(
+                config,
+                fetcher,
+                timeoutMs
+            )
+                .then(currencies => {
+                    state.currencies = currencies;
+                    state.nextRefreshAt = now() + refreshIntervalMs;
+                })
+                .catch(error => {
+                    logCurrencyCatalogFallback(
+                        logger,
+                        'Frankfurter request failed',
+                        error
+                    );
+                    state.nextRefreshAt = now() + retryDelayMs;
+                })
+                .finally(() => {
+                    if (state.refreshPromise === refreshPromise) {
+                        state.refreshPromise = undefined;
+                    }
+                });
+            state.refreshPromise = refreshPromise;
+        }
+
+        return [...state.currencies];
+    };
+}
+
+export const listCurrencies = createCurrencyCatalogLoader();
 
 export async function getExchangeRate(
     db: AppDb,

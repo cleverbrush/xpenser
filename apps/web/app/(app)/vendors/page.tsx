@@ -1,5 +1,5 @@
 import { VendorsExplorer } from '@/components/vendors-explorer';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentUser } from '@/lib/api';
 import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import { selectedDashboardCurrency } from '@/lib/dashboard-currencies';
 import { isDashboardPeriod, parseDateParam } from '@/lib/dashboard-periods';
@@ -20,7 +20,7 @@ export default async function VendorsPage({
     const params = await searchParams;
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
     const client = await getApiClient();
-    const me = await client.auth.me();
+    const me = await getCurrentUser();
     const budgetQuery = await selectedBudgetQuery(me);
     const selectedBudget = await selectedBudgetForUser(me);
     const defaultCurrency =

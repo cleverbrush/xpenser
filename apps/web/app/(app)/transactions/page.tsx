@@ -1,5 +1,5 @@
 import { TransactionsBrowser } from '@/components/transactions-browser';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentUser } from '@/lib/api';
 import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import {
     buildTransactionListQuery,
@@ -16,7 +16,7 @@ export default async function TransactionsPage({
 }) {
     const params = await searchParams;
     const client = await getApiClient();
-    const me = await client.auth.me();
+    const me = await getCurrentUser();
     const budgetQuery = await selectedBudgetQuery(me);
     const selectedBudget = await selectedBudgetForUser(me);
     const defaultCurrency =

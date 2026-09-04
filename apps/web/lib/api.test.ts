@@ -9,6 +9,22 @@ const nextCacheMocks = vi.hoisted(() => ({
     revalidateTag: vi.fn()
 }));
 
+vi.mock('react', () => ({
+    cache: <Args extends readonly unknown[], Result>(
+        fn: (...args: Args) => Result
+    ) => {
+        let result: Result | undefined;
+        let called = false;
+        return (...args: Args) => {
+            if (!called) {
+                result = fn(...args);
+                called = true;
+            }
+            return result as Result;
+        };
+    }
+}));
+
 vi.mock('@xpenser/client', () => ({
     createXpenserClient: clientMocks.createXpenserClient
 }));
@@ -105,5 +121,47 @@ describe('web API client factory', () => {
         expect(clientMocks.createXpenserClient).toHaveBeenCalledWith({
             baseUrl: 'http://api:4000'
         });
+    });
+
+    it('deduplicates the session, default client, and current user in a server render', async () => {
+        stubSingleUserEnv();
+        const trustedClient = {
+            auth: {
+                singleUserSessionToken: vi
+                    .fn()
+                    .mockResolvedValue(tokenResponse())
+            }
+        };
+        const me = { id: 7, email: 'owner@example.com' };
+        const authenticatedClient = {
+            auth: { me: vi.fn().mockResolvedValue(me) }
+        };
+        clientMocks.createXpenserClient
+            .mockReturnValueOnce(trustedClient)
+            .mockReturnValueOnce(authenticatedClient);
+
+        const { getApiClient, getCurrentSession, getCurrentUser } =
+            await import('./api');
+        const [firstSession, secondSession, firstClient, secondClient] =
+            await Promise.all([
+                getCurrentSession(),
+                getCurrentSession(),
+                getApiClient(),
+                getApiClient()
+            ]);
+        const [firstUser, secondUser] = await Promise.all([
+            getCurrentUser(),
+            getCurrentUser()
+        ]);
+
+        expect(firstSession).toBe(secondSession);
+        expect(firstClient).toBe(secondClient);
+        expect(firstUser).toBe(me);
+        expect(secondUser).toBe(me);
+        expect(
+            trustedClient.auth.singleUserSessionToken
+        ).toHaveBeenCalledOnce();
+        expect(authenticatedClient.auth.me).toHaveBeenCalledOnce();
+        expect(clientMocks.createXpenserClient).toHaveBeenCalledTimes(2);
     });
 });

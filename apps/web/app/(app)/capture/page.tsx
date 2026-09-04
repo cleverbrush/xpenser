@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation';
 import { TransactionCaptureWorkspace } from '@/components/transaction-scan-capture';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentUser } from '@/lib/api';
 import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import { categoriesByRecentUse } from '@/lib/capture-suggestions';
 
 export default async function CapturePage() {
     const client = await getApiClient();
-    const me = await client.auth.me();
+    const me = await getCurrentUser();
     const budgetQuery = await selectedBudgetQuery(me);
     const selectedBudget = await selectedBudgetForUser(me);
     const defaultCurrency =
