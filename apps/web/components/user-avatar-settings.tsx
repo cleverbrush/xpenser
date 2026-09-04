@@ -10,7 +10,8 @@ import {
     CardHeader,
     CardTitle,
     FieldError,
-    Input
+    Input,
+    toast
 } from '@xpenser/ui';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useState } from 'react';
@@ -38,7 +39,6 @@ function avatarValidationError(file: File | null): string | undefined {
 export function UserAvatarSettings({ me }: { readonly me: UserPreference }) {
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
-    const [message, setMessage] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -52,19 +52,16 @@ export function UserAvatarSettings({ me }: { readonly me: UserPreference }) {
                 : null;
         if (!file) {
             setError('Choose an avatar image.');
-            setMessage(null);
             return;
         }
         const validationError = avatarValidationError(file);
         if (validationError) {
             setError(validationError);
-            setMessage(null);
             return;
         }
 
         setPending(true);
         setError(null);
-        setMessage(null);
         try {
             const formData = new FormData();
             formData.append('avatar', file);
@@ -74,7 +71,7 @@ export function UserAvatarSettings({ me }: { readonly me: UserPreference }) {
                 return;
             }
             form.reset();
-            setMessage('Avatar uploaded.');
+            toast.success('Avatar uploaded.');
             router.refresh();
         } catch (caught) {
             if (isNextRedirectError(caught)) {
@@ -135,14 +132,6 @@ export function UserAvatarSettings({ me }: { readonly me: UserPreference }) {
                         </form>
                         {error ? (
                             <FieldError role="alert">{error}</FieldError>
-                        ) : null}
-                        {message ? (
-                            <p
-                                className="text-sm text-muted-foreground"
-                                role="status"
-                            >
-                                {message}
-                            </p>
                         ) : null}
                         {me.hasUploadedAvatar ? (
                             <form action={deleteUserAvatarAction}>

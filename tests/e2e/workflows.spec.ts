@@ -134,8 +134,10 @@ test.describe('authenticated app workflows', () => {
             .fill(`Automated PR preview QA ${Date.now()}`);
         await dialog.getByRole('button', { name: 'Send feedback' }).click();
 
-        await expect(dialog.getByRole('status')).toContainText(
-            'your feedback was sent',
+        await expect(dialog).toBeHidden({ timeout: 15_000 });
+        await expect(
+            page.getByText('Thanks — your feedback was sent.')
+        ).toBeVisible(
             { timeout: 15_000 }
         );
     });

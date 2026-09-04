@@ -1,3 +1,4 @@
+import { Toaster } from '@xpenser/ui';
 import type { Metadata } from 'next';
 import 'swagger-ui-dist/swagger-ui.css';
 import './globals.css';
@@ -61,6 +62,7 @@ export default function RootLayout({
                     enableSystem
                 >
                     <XpenserWebFormProvider>{children}</XpenserWebFormProvider>
+                    <Toaster />
                 </ThemeProvider>
             </body>
         </html>

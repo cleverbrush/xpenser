@@ -14,7 +14,8 @@ import {
     FieldDescription,
     FieldError,
     FieldGroup,
-    type SelectRendererFieldProps
+    type SelectRendererFieldProps,
+    toast
 } from '@xpenser/ui';
 import { MessageSquareTextIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
@@ -35,7 +36,6 @@ export function FeedbackDialog({
     const form = useSchemaForm(FeedbackFormSchema);
     const pathname = usePathname();
     const [error, setError] = useState<string | null>(null);
-    const [message, setMessage] = useState<string | null>(null);
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState(false);
     const [type, setType] = useState<FeedbackType>('feedback');
@@ -49,7 +49,6 @@ export function FeedbackDialog({
         setOpen(nextOpen);
         if (!nextOpen) {
             setError(null);
-            setMessage(null);
             resetForm();
         }
     }
@@ -57,7 +56,6 @@ export function FeedbackDialog({
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setError(null);
-        setMessage(null);
 
         form.setValue({ type });
         const result = await form.submit();
@@ -78,8 +76,8 @@ export function FeedbackDialog({
                 );
                 return;
             }
-            resetForm();
-            setMessage('Thanks — your feedback was sent.');
+            handleOpenChange(false);
+            toast.success('Thanks — your feedback was sent.');
         } catch (caught) {
             if (isNextRedirectError(caught)) {
                 throw caught;
@@ -167,14 +165,6 @@ export function FeedbackDialog({
                         </div>
                         {error ? (
                             <FieldError role="alert">{error}</FieldError>
-                        ) : null}
-                        {message ? (
-                            <p
-                                className="text-sm text-muted-foreground"
-                                role="status"
-                            >
-                                {message}
-                            </p>
                         ) : null}
                         <DialogFooter>
                             <DialogClose asChild>
