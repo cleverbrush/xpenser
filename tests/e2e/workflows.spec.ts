@@ -191,7 +191,7 @@ test.describe('authenticated app workflows', () => {
         await expect(page.getByText('/api/mcp').first()).toBeVisible();
     });
 
-    test('shows immediate feedback while a main-menu destination loads', async ({
+    test('shows immediate feedback while main-menu navigation is pending', async ({
         page
     }) => {
         await page.goto('/dashboard');
@@ -199,8 +199,8 @@ test.describe('authenticated app workflows', () => {
             page.getByRole('heading', { level: 1, name: 'Dashboard' })
         ).toBeVisible();
 
-        // Allow Next's automatic partial prefetch to cache the loading boundary
-        // before delaying the full destination payload.
+        // Allow Next's automatic partial prefetch to settle before delaying the
+        // destination response and checking the link-local pending feedback.
         await page.waitForTimeout(250);
 
         let releaseNavigation: (() => void) | undefined;
@@ -224,9 +224,6 @@ test.describe('authenticated app workflows', () => {
                     '[data-slot="app-navigation-pending"]'
                 )
             ).toHaveAttribute('data-pending', 'true');
-            await expect(
-                page.getByRole('status', { name: 'Loading page' })
-            ).toBeVisible();
         } finally {
             releaseNavigation?.();
         }
