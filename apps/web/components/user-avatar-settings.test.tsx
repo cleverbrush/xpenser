@@ -4,12 +4,14 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { UserAvatarLimits, type UserPreference } from '@xpenser/contracts';
+import { toast } from '@xpenser/ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UserAvatarSettings } from './user-avatar-settings';
 
 const refresh = vi.fn();
 const updateUserAvatarAction = vi.fn();
 const deleteUserAvatarAction = vi.fn();
+const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => 1);
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ refresh })
@@ -46,6 +48,7 @@ describe('UserAvatarSettings', () => {
         refresh.mockReset();
         updateUserAvatarAction.mockReset();
         deleteUserAvatarAction.mockReset();
+        toastSuccess.mockClear();
     });
 
     it('rejects unsupported avatar files before calling the action', async () => {
@@ -66,6 +69,7 @@ describe('UserAvatarSettings', () => {
             'Upload a PNG, JPEG, or WebP image.'
         );
         expect(updateUserAvatarAction).not.toHaveBeenCalled();
+        expect(toastSuccess).not.toHaveBeenCalled();
     });
 
     it('rejects oversized avatar files before calling the action', async () => {
@@ -88,6 +92,7 @@ describe('UserAvatarSettings', () => {
             'Avatar image must be 512 KB or smaller.'
         );
         expect(updateUserAvatarAction).not.toHaveBeenCalled();
+        expect(toastSuccess).not.toHaveBeenCalled();
     });
 
     it('uploads an avatar and refreshes the current page', async () => {
@@ -107,7 +112,7 @@ describe('UserAvatarSettings', () => {
             expect(updateUserAvatarAction).toHaveBeenCalledOnce()
         );
         expect(refresh).toHaveBeenCalledOnce();
-        expect(screen.getByRole('status').textContent).toBe('Avatar uploaded.');
+        expect(toastSuccess).toHaveBeenCalledWith('Avatar uploaded.');
     });
 
     it('shows server action errors inline', async () => {
@@ -129,5 +134,6 @@ describe('UserAvatarSettings', () => {
             'Could not upload avatar.'
         );
         expect(refresh).not.toHaveBeenCalled();
+        expect(toastSuccess).not.toHaveBeenCalled();
     });
 });

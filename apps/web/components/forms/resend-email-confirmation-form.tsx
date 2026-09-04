@@ -1,7 +1,14 @@
 'use client';
 
 import { FieldLimits } from '@xpenser/contracts';
-import { Button, Field, FieldError, FieldLabel, Input } from '@xpenser/ui';
+import {
+    Button,
+    Field,
+    FieldError,
+    FieldLabel,
+    Input,
+    toast
+} from '@xpenser/ui';
 import { type FormEvent, useId, useState } from 'react';
 import { resendEmailConfirmationAction } from '@/lib/actions';
 import { valuesToFormData } from './form-utils';
@@ -14,14 +21,12 @@ export function ResendEmailConfirmationForm({
     const emailId = useId();
     const [email, setEmail] = useState(initialEmail);
     const [error, setError] = useState<string | null>(null);
-    const [message, setMessage] = useState<string | null>(null);
     const [pending, setPending] = useState(false);
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setPending(true);
         setError(null);
-        setMessage(null);
 
         try {
             const response = await resendEmailConfirmationAction(
@@ -30,7 +35,7 @@ export function ResendEmailConfirmationForm({
             if (response && 'error' in response && response.error) {
                 setError(response.error);
             } else if (response && 'message' in response && response.message) {
-                setMessage(response.message);
+                toast.success(response.message);
             }
         } catch {
             setError('Could not send a confirmation link.');
@@ -56,9 +61,6 @@ export function ResendEmailConfirmationForm({
                         {pending ? 'Sending...' : 'Send link'}
                     </Button>
                 </div>
-                {message ? (
-                    <p className="text-sm text-muted-foreground">{message}</p>
-                ) : null}
                 {error ? <FieldError role="alert">{error}</FieldError> : null}
             </Field>
         </form>

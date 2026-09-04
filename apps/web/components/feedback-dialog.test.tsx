@@ -3,7 +3,7 @@
  */
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { XpenserFormProvider } from '@xpenser/ui';
+import { toast, XpenserFormProvider } from '@xpenser/ui';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FeedbackDialog } from './feedback-dialog';
 
@@ -13,6 +13,7 @@ HTMLElement.prototype.setPointerCapture = vi.fn();
 HTMLElement.prototype.releasePointerCapture = vi.fn();
 
 const submitFeedbackAction = vi.fn();
+const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => 1);
 
 vi.mock('next/navigation', () => ({
     usePathname: () => '/transactions'
@@ -32,6 +33,7 @@ function renderFeedbackDialog(compact = false) {
 describe('FeedbackDialog', () => {
     beforeEach(() => {
         submitFeedbackAction.mockReset();
+        toastSuccess.mockClear();
     });
 
     it('submits the selected type, text, and current path', async () => {
@@ -62,9 +64,16 @@ describe('FeedbackDialog', () => {
         expect(submitted.get('type')).toBe('feature_request');
         expect(submitted.get('text')).toBe('Please add a forecast view.');
         expect(submitted.get('path')).toBe('/transactions');
-        expect(screen.getByRole('status').textContent).toContain(
-            'your feedback was sent'
+        await waitFor(() =>
+            expect(
+                screen.queryByRole('dialog', { name: 'Leave feedback' })
+            ).toBeNull()
         );
+        expect(toastSuccess).toHaveBeenCalledWith(
+            'Thanks — your feedback was sent.'
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Leave feedback' }));
         expect(
             (
                 screen.getByLabelText(
@@ -98,6 +107,7 @@ describe('FeedbackDialog', () => {
         expect(
             screen.getByRole('dialog', { name: 'Leave feedback' })
         ).toBeTruthy();
+        expect(toastSuccess).not.toHaveBeenCalled();
     });
 
     it('shows schema validation errors without calling the server action', async () => {
@@ -115,5 +125,6 @@ describe('FeedbackDialog', () => {
                 .textContent
         ).toContain('Enter your feedback before sending.');
         expect(submitFeedbackAction).not.toHaveBeenCalled();
+        expect(toastSuccess).not.toHaveBeenCalled();
     });
 });
