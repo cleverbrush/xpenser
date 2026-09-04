@@ -191,6 +191,55 @@ test.describe('authenticated app workflows', () => {
         await expect(page.getByText('/api/mcp').first()).toBeVisible();
     });
 
+    test('shows immediate feedback while a main-menu destination loads', async ({
+        page
+    }) => {
+        await page.goto('/dashboard');
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Dashboard' })
+        ).toBeVisible();
+
+        // Allow Next's automatic partial prefetch to cache the loading boundary
+        // before delaying the full destination payload.
+        await page.waitForTimeout(250);
+
+        let releaseNavigation: (() => void) | undefined;
+        const navigationGate = new Promise<void>(resolve => {
+            releaseNavigation = resolve;
+        });
+        await page.route(/\/transactions(?:\?.*)?$/, async route => {
+            if (route.request().headers().rsc === '1') {
+                await navigationGate;
+            }
+            await route.continue();
+        });
+
+        const transactionsLink = page
+            .getByRole('link', { name: 'Transactions' })
+            .first();
+        try {
+            await transactionsLink.click({ noWaitAfter: true });
+            await expect(
+                transactionsLink.locator(
+                    '[data-slot="app-navigation-pending"]'
+                )
+            ).toHaveAttribute('data-pending', 'true');
+            await expect(
+                page.getByRole('status', { name: 'Loading page' })
+            ).toBeVisible();
+        } finally {
+            releaseNavigation?.();
+        }
+
+        await expect(page).toHaveURL(
+            url => url.pathname === '/transactions',
+            { timeout: navigationTimeout }
+        );
+        await expect(
+            page.getByRole('heading', { level: 1, name: 'Transactions' })
+        ).toBeVisible({ timeout: navigationTimeout });
+    });
+
     test('swipes sparse dashboard and vendor reports from empty body space', async ({
         page
     }) => {

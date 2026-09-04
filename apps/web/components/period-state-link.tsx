@@ -1,7 +1,6 @@
 'use client';
 
 import { resolveDashboardRangeInTimeZone } from '@xpenser/timezone';
-import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ComponentProps } from 'react';
 import {
@@ -9,6 +8,7 @@ import {
     isDashboardPeriod,
     parseDateParam
 } from '@/lib/dashboard-periods';
+import { AppNavigationLink } from './app-navigation-link';
 
 const periodSourcePaths = new Set(['/dashboard', '/vendors', '/stats']);
 const periodTargetPaths = new Set([
@@ -19,7 +19,10 @@ const periodTargetPaths = new Set([
 ]);
 const currencyStatePaths = new Set(['/dashboard', '/vendors']);
 
-type PeriodStateLinkProps = Omit<ComponentProps<typeof Link>, 'href'> & {
+type PeriodStateLinkProps = Omit<
+    ComponentProps<typeof AppNavigationLink>,
+    'href'
+> & {
     readonly href: string;
     readonly timezone?: string;
 };
@@ -67,12 +70,12 @@ export function PeriodStateLink({
         periodTargetPaths.has(targetPath);
 
     if (!shouldPreserve) {
-        return <Link href={href} {...props} />;
+        return <AppNavigationLink href={href} {...props} />;
     }
 
     if (targetPath === '/transactions') {
         return (
-            <Link
+            <AppNavigationLink
                 href={transactionPeriodHref(searchParams, timezone)}
                 {...props}
             />
@@ -95,6 +98,9 @@ export function PeriodStateLink({
 
     const query = params.toString();
     return (
-        <Link href={query ? `${targetPath}?${query}` : targetPath} {...props} />
+        <AppNavigationLink
+            href={query ? `${targetPath}?${query}` : targetPath}
+            {...props}
+        />
     );
 }

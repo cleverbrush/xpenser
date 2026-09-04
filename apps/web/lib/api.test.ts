@@ -6,7 +6,12 @@ const clientMocks = vi.hoisted(() => ({
 }));
 
 const nextCacheMocks = vi.hoisted(() => ({
-    revalidateTag: vi.fn()
+    revalidateTag: vi.fn(),
+    unstableCache: vi.fn(
+        <Args extends readonly unknown[], Result>(
+            fn: (...args: Args) => Result
+        ) => fn
+    )
 }));
 
 vi.mock('react', () => ({
@@ -30,7 +35,8 @@ vi.mock('@xpenser/client', () => ({
 }));
 
 vi.mock('next/cache', () => ({
-    revalidateTag: nextCacheMocks.revalidateTag
+    revalidateTag: nextCacheMocks.revalidateTag,
+    unstable_cache: nextCacheMocks.unstableCache
 }));
 
 vi.mock('next/navigation', () => ({
@@ -133,12 +139,14 @@ describe('web API client factory', () => {
             }
         };
         const me = { id: 7, email: 'owner@example.com' };
-        const authenticatedClient = {
+        const authenticatedClient = { name: 'authenticated-client' };
+        const profileClient = {
             auth: { me: vi.fn().mockResolvedValue(me) }
         };
         clientMocks.createXpenserClient
             .mockReturnValueOnce(trustedClient)
-            .mockReturnValueOnce(authenticatedClient);
+            .mockReturnValueOnce(authenticatedClient)
+            .mockReturnValueOnce(profileClient);
 
         const { getApiClient, getCurrentSession, getCurrentUser } =
             await import('./api');
@@ -161,7 +169,18 @@ describe('web API client factory', () => {
         expect(
             trustedClient.auth.singleUserSessionToken
         ).toHaveBeenCalledOnce();
-        expect(authenticatedClient.auth.me).toHaveBeenCalledOnce();
-        expect(clientMocks.createXpenserClient).toHaveBeenCalledTimes(2);
+        expect(profileClient.auth.me).toHaveBeenCalledOnce();
+        expect(clientMocks.createXpenserClient).toHaveBeenCalledTimes(3);
+        expect(
+            clientMocks.createXpenserClient.mock.calls[2]?.[0]
+        ).toMatchObject({
+            baseUrl: 'http://api:4000',
+            disableBatching: true
+        });
+        expect(nextCacheMocks.unstableCache).toHaveBeenCalledWith(
+            expect.any(Function),
+            ['current-user'],
+            { revalidate: 30, tags: ['user-profile'] }
+        );
     });
 });

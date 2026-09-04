@@ -3,7 +3,7 @@ import {
     type XpenserClientOptions
 } from '@xpenser/client';
 import type { TokenResponse } from '@xpenser/contracts';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag, unstable_cache } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import { expiredSessionPath } from './auth-routes';
@@ -110,9 +110,25 @@ export function getApiClient(options?: ApiClientOptions) {
         : getDefaultApiClient();
 }
 
+const loadCachedCurrentUser = unstable_cache(
+    async (apiBaseUrl: string, apiToken: string) => {
+        const client = createXpenserClient({
+            baseUrl: apiBaseUrl,
+            disableBatching: true,
+            getToken: () => apiToken,
+            onUnauthorized: () => {
+                redirect(expiredSessionPath);
+            }
+        });
+        return client.auth.me();
+    },
+    ['current-user'],
+    { revalidate: 30, tags: ['user-profile'] }
+);
+
 export const getCurrentUser = cache(async () => {
-    const client = await getDefaultApiClient();
-    return client.auth.me();
+    const session = await getSessionOrRedirect();
+    return loadCachedCurrentUser(webConfig.apiBaseUrl, session.apiToken);
 });
 
 export function getAnonymousApiClient() {
