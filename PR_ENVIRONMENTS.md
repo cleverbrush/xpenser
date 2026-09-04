@@ -410,6 +410,10 @@ Notes:
   read/write. GitHub requires this permission to delete repository
   environments during cleanup.
 
+Create optional repository variable `FEEDBACK_WEBHOOK_URL` with a preview-safe
+n8n webhook when PR environments should expose and exercise the in-app feedback
+flow. Without it, the feedback action stays hidden.
+
 Create optional secret `PR_ENV_NGINX_SSH_PORT` if the nginx SSH daemon does not
 use port `22`.
 
@@ -563,6 +567,7 @@ b64() {
   b64 "$EMAIL_FROM"
   b64 "$EMAIL_REPORTS_ENABLED"
   b64 "$EMAIL_REPORTS_SCHEDULER_ENABLED"
+  b64 "$FEEDBACK_WEBHOOK_URL"
 } | PR_ENV_SECRET_STREAM=1 /opt/pr-env/pr-env-proxy.sh deploy 123 <commit-sha>
 
 # Cleanup keeps the endpoint slot empty because cleanup does not export

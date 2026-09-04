@@ -33,7 +33,7 @@ describe('metadata routes', () => {
     it('serves only public sitemap URLs', async () => {
         const urls = (await sitemap()).map(entry => entry.url);
 
-        expect(urls).toHaveLength(81);
+        expect(urls).toHaveLength(82);
         expect(urls).toEqual(
             expect.arrayContaining([
                 'https://xpenser.cleverbrush.com/',
@@ -41,6 +41,7 @@ describe('metadata routes', () => {
                 'https://xpenser.cleverbrush.com/open-source-expense-tracker',
                 'https://xpenser.cleverbrush.com/personal-finance-api-mcp',
                 'https://xpenser.cleverbrush.com/blog',
+                'https://xpenser.cleverbrush.com/blog/leave-feedback',
                 'https://xpenser.cleverbrush.com/api-docs',
                 `https://xpenser.cleverbrush.com${alternativesIndexPage.path}`,
                 ...alternativeProducts.map(

@@ -10,16 +10,19 @@ import Link from 'next/link';
 import { logoutAction } from '@/lib/actions';
 import { webConfig } from '@/lib/config';
 import { BudgetSelector } from './budget-selector';
+import { FeedbackDialog } from './feedback-dialog';
 import { MobileTabBar } from './mobile-tab-bar';
 import { PeriodStateLink } from './period-state-link';
 import { ThemeToggle } from './theme-toggle';
 
 export function AppNav({
     budgets,
+    feedbackEnabled,
     selectedBudgetId,
     timezone
 }: {
     readonly budgets: readonly Budget[];
+    readonly feedbackEnabled: boolean;
     readonly selectedBudgetId?: number;
     readonly timezone: string;
 }) {
@@ -81,6 +84,7 @@ export function AppNav({
                                 Preferences
                             </Link>
                         </Button>
+                        {feedbackEnabled ? <FeedbackDialog /> : null}
                         <ThemeToggle />
                         {webConfig.singleUser?.enabled ? null : (
                             <form action={logoutAction}>
@@ -95,6 +99,7 @@ export function AppNav({
                         )}
                     </nav>
                     <div className="flex items-center gap-1 sm:hidden">
+                        {feedbackEnabled ? <FeedbackDialog compact /> : null}
                         <ThemeToggle />
                         <Button
                             aria-label="Preferences"

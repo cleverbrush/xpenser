@@ -117,6 +117,46 @@ describe('web GTM config', () => {
     });
 });
 
+describe('web feedback config', () => {
+    afterEach(() => {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+    });
+
+    it('keeps feedback disabled when the webhook URL is absent', async () => {
+        vi.stubEnv('FEEDBACK_WEBHOOK_URL', '');
+        vi.resetModules();
+
+        const { webConfig } = await import('./config');
+
+        expect(webConfig.feedback.webhookUrl).toBeUndefined();
+    });
+
+    it.each([
+        'https://n8n.example.com/webhook/feedback',
+        'http://n8n:5678/webhook/feedback'
+    ])('accepts a configured feedback webhook URL: %s', async value => {
+        vi.stubEnv('FEEDBACK_WEBHOOK_URL', ` ${value} `);
+        vi.resetModules();
+
+        const { webConfig } = await import('./config');
+
+        expect(webConfig.feedback.webhookUrl).toBe(value);
+    });
+
+    it.each([
+        'not-a-url',
+        'ftp://example.com/feedback'
+    ])('rejects an invalid feedback webhook URL: %s', async value => {
+        vi.stubEnv('FEEDBACK_WEBHOOK_URL', value);
+        vi.resetModules();
+
+        await expect(import('./config')).rejects.toThrow(
+            'FEEDBACK_WEBHOOK_URL must be a valid HTTP or HTTPS URL.'
+        );
+    });
+});
+
 describe('web Google sign-in config', () => {
     afterEach(() => {
         vi.unstubAllEnvs();

@@ -5,10 +5,17 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const prEnvScript = readFileSync(resolve(repoRoot, 'pr-env.sh'), 'utf8');
+const prEnvironmentWorkflow = readFileSync(
+    resolve(repoRoot, '.github/workflows/pr-environments.yml'),
+    'utf8'
+);
 const shellDomain = '$' + '{DOMAIN}';
 const shellPassportProject = '$' + '{PASSPORT_PROJECT}';
 const shellPassportEnvironment = '$' + '{PASSPORT_ENVIRONMENT}';
 const shellPostgresDb = '$' + '{POSTGRES_DB}';
+const shellFeedbackWebhookUrl = '$' + '{FEEDBACK_WEBHOOK_URL:-}';
+const feedbackVariableExpression = '$' + '{{ vars.FEEDBACK_WEBHOOK_URL }}';
+const feedbackSecretExpression = '$' + '{{ secrets.FEEDBACK_WEBHOOK_URL }}';
 
 describe('PR environment script', () => {
     it('registers Passport against the public /api backend', () => {
@@ -38,6 +45,19 @@ describe('PR environment script', () => {
         );
         expect(prEnvScript).toContain('AUTH_GOOGLE_ID=');
         expect(prEnvScript).toContain('AUTH_GOOGLE_SECRET=');
+    });
+
+    it('passes the optional feedback webhook into PR deployments', () => {
+        expect(prEnvironmentWorkflow).toContain(
+            `FEEDBACK_WEBHOOK_URL: ${feedbackVariableExpression}`
+        );
+        expect(prEnvironmentWorkflow).not.toContain(
+            `FEEDBACK_WEBHOOK_URL: ${feedbackSecretExpression}`
+        );
+        expect(prEnvScript).toContain('read_secret_line FEEDBACK_WEBHOOK_URL');
+        expect(prEnvScript).toContain(
+            `FEEDBACK_WEBHOOK_URL=${shellFeedbackWebhookUrl}`
+        );
     });
 
     it('reinitializes when the PR database marker predates the Docker volume', () => {

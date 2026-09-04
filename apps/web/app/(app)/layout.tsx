@@ -3,6 +3,7 @@ import { AmountPrivacyProvider } from '@/components/amount-privacy';
 import { AppNav } from '@/components/app-nav';
 import { getApiClient, getSessionOrRedirect } from '@/lib/api';
 import { selectedBudgetForUser } from '@/lib/budgets';
+import { webConfig } from '@/lib/config';
 import { noIndexRobots } from '@/lib/public-site';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,7 @@ export default async function ProtectedLayout({
             <div className="min-h-dvh bg-background">
                 <AppNav
                     budgets={me.budgets}
+                    feedbackEnabled={Boolean(webConfig.feedback.webhookUrl)}
                     selectedBudgetId={selectedBudget?.id}
                     timezone={session.user.timezone}
                 />

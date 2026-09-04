@@ -30,6 +30,7 @@ export const webConfig = parseEnv(
                 .default('information')
         ),
         disableGtm: env('DISABLE_GTM', envBoolean().default(false)),
+        feedbackWebhookUrl: env('FEEDBACK_WEBHOOK_URL', string().optional()),
         googleSignInMode: env(
             'GOOGLE_SIGN_IN_MODE',
             string().oneOf(GoogleSignInModes).default('auto')
@@ -68,8 +69,28 @@ export const webConfig = parseEnv(
             );
         }
 
+        const feedbackWebhookUrl = base.feedbackWebhookUrl?.trim();
+        if (feedbackWebhookUrl) {
+            let protocol: string;
+            try {
+                protocol = new URL(feedbackWebhookUrl).protocol;
+            } catch {
+                throw new Error(
+                    'FEEDBACK_WEBHOOK_URL must be a valid HTTP or HTTPS URL.'
+                );
+            }
+            if (protocol !== 'http:' && protocol !== 'https:') {
+                throw new Error(
+                    'FEEDBACK_WEBHOOK_URL must be a valid HTTP or HTTPS URL.'
+                );
+            }
+        }
+
         return {
             disableGtm: base.disableGtm,
+            feedback: {
+                webhookUrl: feedbackWebhookUrl || undefined
+            },
             passport: applyHostedPassportDefaults(base.appUrl, base.passport),
             singleUser: {
                 enabled: singleUserEnabled,

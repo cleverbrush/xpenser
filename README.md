@@ -276,6 +276,9 @@ their provider credentials:
   enable `VENDOR_ENRICHMENT_ENABLED=1`.
 - Google sign-in: configure direct Google OAuth as described above, or leave
   it disabled and use email/password accounts.
+- In-app feedback: set `FEEDBACK_WEBHOOK_URL` to an HTTP or HTTPS n8n webhook.
+  The authenticated top-menu form stays hidden when this value is empty, which
+  keeps the integration optional for self-hosted deployments.
 
 ## Public API
 
