@@ -428,9 +428,11 @@ async function mapBudget(
             name: budget.name,
             defaultCurrency: budget.defaultCurrency,
             countryCode: budget.countryCode,
-            archivedAt: budget.archivedAt ?? undefined,
-            createdAt: budget.createdAt,
-            updatedAt: budget.updatedAt
+            archivedAt: budget.archivedAt
+                ? new Date(budget.archivedAt)
+                : undefined,
+            createdAt: new Date(budget.createdAt),
+            updatedAt: new Date(budget.updatedAt)
         },
         member,
         mainBudgetId,
@@ -494,6 +496,26 @@ async function mapBudgetMember(row: BudgetMemberRow): Promise<BudgetMember> {
 
 export function hashBudgetInvitationToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
+}
+
+export function budgetMembershipsForUser(db: AppDb, userId: number) {
+    return db.budgetMembers
+        .include(
+            member => member.budget,
+            budgetQuery => {
+                budgetQuery.select(budget => ({
+                    id: budget.id!,
+                    name: budget.name!,
+                    defaultCurrency: budget.defaultCurrency!,
+                    countryCode: budget.countryCode!,
+                    createdByUserId: budget.createdByUserId!,
+                    archivedAt: budget.archivedAt!,
+                    createdAt: budget.createdAt!,
+                    updatedAt: budget.updatedAt!
+                }));
+            }
+        )
+        .where(member => member.userId, userId);
 }
 
 export function createBudgetInvitationToken(): string {
@@ -626,9 +648,7 @@ export async function listBudgets(
     await ensureMainBudget(db, userId);
     const user = (await db.users.find(userId)) as UserDb | undefined;
     const rows = (
-        (await db.budgetMembers
-            .include(member => member.budget)
-            .where(member => member.userId, userId)) as Array<
+        (await budgetMembershipsForUser(db, userId)) as Array<
             BudgetMemberDb & { readonly budget: BudgetDb }
         >
     )
@@ -894,16 +914,14 @@ export async function listBudgetMembers(
         .include(
             member => member.user,
             userQuery => {
-                userQuery.apply(builder => {
-                    builder.select(
-                        'id',
-                        'email',
-                        'avatar_url',
-                        'avatar_image_mime_type',
-                        'avatar_image_file_name',
-                        'avatar_image_updated_at'
-                    );
-                });
+                userQuery.select(user => ({
+                    id: user.id!,
+                    email: user.email!,
+                    avatarUrl: user.avatarUrl!,
+                    avatarImageMimeType: user.avatarImageMimeType!,
+                    avatarImageFileName: user.avatarImageFileName!,
+                    avatarImageUpdatedAt: user.avatarImageUpdatedAt!
+                }));
             }
         )
         .where(member => member.budgetId, budgetId)) as Array<
