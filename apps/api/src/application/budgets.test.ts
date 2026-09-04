@@ -450,7 +450,46 @@ function makeDb(overrides: Partial<TestData> = {}) {
                 value: TValue
             ) => new TestQuery(data.budgets).where(selector, value)
         },
+        transactions: {
+            whereIn: () => {
+                const query = {
+                    orderBy: () => query,
+                    select: async () => []
+                };
+                return query;
+            }
+        },
         budgetMembers: {
+            include: (
+                selector: (relations: {
+                    readonly budget: 'budget';
+                    readonly user: 'user';
+                }) => 'budget' | 'user'
+            ) => {
+                const relation = selector({
+                    budget: 'budget',
+                    user: 'user'
+                });
+                const rows: object[] = [];
+                for (const item of data.members) {
+                    if (relation === 'budget') {
+                        const related = data.budgets.find(
+                            budget => budget.id === item.budgetId
+                        );
+                        if (related) {
+                            rows.push({ ...item, budget: related });
+                        }
+                        continue;
+                    }
+                    const related = data.users.find(
+                        user => user.id === item.userId
+                    );
+                    if (related) {
+                        rows.push({ ...item, user: related });
+                    }
+                }
+                return new TestQuery(rows);
+            },
             insert: async (values: Partial<BudgetMemberDb>) => {
                 const row = member(
                     values.budgetId ?? 0,

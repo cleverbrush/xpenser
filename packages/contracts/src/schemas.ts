@@ -1575,6 +1575,25 @@ const TransactionTagNamesBodySchema = array(TransactionTagNameSchema)
     .optional()
     .describe('Transaction tag names.');
 
+export const TransactionScanAttachmentSchema = object({
+    /** Scan session identifier. */
+    scanId: number().describe('Scan session identifier.'),
+    /** Scan item identifier linked to this transaction. */
+    scanItemId: number().describe(
+        'Scan item identifier linked to this transaction.'
+    ),
+    /** Original file name when available. */
+    fileName: string()
+        .nullable()
+        .describe('Original file name when available.'),
+    /** Stored image MIME type. */
+    mimeType: ImageMimeTypeSchema.describe('Stored image MIME type.'),
+    /** Original image size in bytes. */
+    sizeBytes: number().describe('Original image size in bytes.'),
+    /** Timestamp when the image was stored. */
+    createdAt: date().coerce().describe('Timestamp when the image was stored.')
+}).schemaName('TransactionScanAttachment');
+
 export const TransactionSchema = object({
     /** Unique transaction identifier. */
     id: number().describe('Unique transaction identifier.'),
@@ -1655,27 +1674,7 @@ export const TransactionSchema = object({
         'User that originally created this transaction.'
     ),
     /** Original scanner image metadata when this transaction came from a scan. */
-    scanAttachment: object({
-        /** Scan session identifier. */
-        scanId: number().describe('Scan session identifier.'),
-        /** Scan item identifier linked to this transaction. */
-        scanItemId: number().describe(
-            'Scan item identifier linked to this transaction.'
-        ),
-        /** Original file name when available. */
-        fileName: string()
-            .nullable()
-            .describe('Original file name when available.'),
-        /** Stored image MIME type. */
-        mimeType: ImageMimeTypeSchema.describe('Stored image MIME type.'),
-        /** Original image size in bytes. */
-        sizeBytes: number().describe('Original image size in bytes.'),
-        /** Timestamp when the image was stored. */
-        createdAt: date()
-            .coerce()
-            .describe('Timestamp when the image was stored.')
-    })
-        .optional()
+    scanAttachment: TransactionScanAttachmentSchema.optional()
         .nullable()
         .describe(
             'Original scanner image metadata when this transaction came from a scan.'

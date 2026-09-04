@@ -134,21 +134,21 @@ describe('transaction list database query', () => {
             50
         ).toSQL();
 
-        expect(compiled.sql).toContain('"tx"."budget_id" = ?');
-        expect(compiled.sql).toContain('"tx"."category_id" = ?');
-        expect(compiled.sql).toContain('"tx"."occurred_at" >= ?');
-        expect(compiled.sql).toContain('"tx"."occurred_at" <= ?');
-        expect(compiled.sql).toContain('"tx"."vendor_id" is null');
+        expect(compiled.sql).toContain('"transactions"."budget_id" = ?');
+        expect(compiled.sql).toContain('"transactions"."category_id" = ?');
+        expect(compiled.sql).toContain('"transactions"."occurred_at" >= ?');
+        expect(compiled.sql).toContain('"transactions"."occurred_at" <= ?');
+        expect(compiled.sql).toContain('"transactions"."vendor_id" is null');
         expect(compiled.sql).toContain("category.kind = 'offset'");
         expect(compiled.sql).toContain('"category"."parent_id" = ?');
         expect(
             compiled.sql.match(
-                /exists \(select 1 from "transaction_tag_links" as "selected_link"/g
+                /exists \(select "tag_id" from "transaction_tag_links" where "tag_id" =/g
             )
         ).toHaveLength(2);
         expect(compiled.sql).toContain('not exists');
         expect(compiled.sql).toContain(
-            'order by "tx"."occurred_at" asc, "tx"."id" asc limit ? offset ?'
+            'order by "transactions"."occurred_at" asc, "transactions"."id" asc limit ? offset ?'
         );
         expect(compiled.bindings).toContain(from);
         expect(compiled.bindings).toContain(to);
@@ -167,8 +167,8 @@ describe('transaction list database query', () => {
         expect(compiled.sql).toContain("parent.name || ' -> '");
         expect(compiled.sql).toContain('vendor.name ILIKE ?');
         expect(compiled.sql).toContain('vendor.domain ILIKE ?');
-        expect(compiled.sql).toContain('tx.note ILIKE ?');
-        expect(compiled.sql).toContain('search_tag.name ILIKE ?');
+        expect(compiled.sql).toContain('transactions.note ILIKE ?');
+        expect(compiled.sql).toContain('"name" ILIKE ?');
         expect(
             compiled.bindings.filter(binding => binding === '%50!%!_!!%')
         ).toHaveLength(6);

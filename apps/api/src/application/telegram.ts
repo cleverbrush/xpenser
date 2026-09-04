@@ -1,10 +1,13 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { mapper } from '@cleverbrush/mapper';
+import { boolean, date, object, string } from '@cleverbrush/schema';
 import type {
     LinkTelegramAccountResponse,
     TelegramConnectionStatus,
     TelegramTokenBody,
     TokenResponse
 } from '@xpenser/contracts';
+import { TelegramConnectionStatusSchema } from '@xpenser/contracts';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -48,20 +51,39 @@ export function verifyTelegramServiceSecret(
     );
 }
 
-function mapStatus(
+const TelegramConnectionStatusSourceSchema = object({
+    linked: boolean(),
+    telegramUsername: string().optional(),
+    telegramFirstName: string().optional(),
+    telegramLastName: string().optional(),
+    linkedAt: date().optional()
+});
+
+const mapTelegramConnectionStatus = mapper()
+    .configure(
+        TelegramConnectionStatusSourceSchema,
+        TelegramConnectionStatusSchema,
+        mapping => mapping
+    )
+    .getMapper(
+        TelegramConnectionStatusSourceSchema,
+        TelegramConnectionStatusSchema
+    );
+
+async function mapStatus(
     account: TelegramAccountDb | undefined
-): TelegramConnectionStatus {
+): Promise<TelegramConnectionStatus> {
     if (!account) {
-        return { linked: false };
+        return mapTelegramConnectionStatus({ linked: false });
     }
 
-    return {
+    return mapTelegramConnectionStatus({
         linked: true,
         telegramUsername: account.telegramUsername ?? undefined,
         telegramFirstName: account.telegramFirstName ?? undefined,
         telegramLastName: account.telegramLastName ?? undefined,
         linkedAt: account.linkedAt
-    };
+    });
 }
 
 function telegramAccountPayload(userId: number, telegramUser: TelegramUser) {

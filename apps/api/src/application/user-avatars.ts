@@ -1,10 +1,19 @@
+import { query } from '@cleverbrush/knex-schema';
+import { mapper } from '@cleverbrush/mapper';
+import { number, object, string } from '@cleverbrush/schema';
 import type {
     UserAvatarSummary,
     UserAvatarUploadBody,
     UserPreference
 } from '@xpenser/contracts';
-import { UserAvatarLimits } from '@xpenser/contracts';
-import type { AppDb, TransactionDb, UserDb } from '../db/schemas.js';
+import { UserAvatarLimits, UserAvatarSummarySchema } from '@xpenser/contracts';
+import {
+    type AppDb,
+    BudgetMemberDbSchema,
+    type TransactionDb,
+    type UserDb,
+    UserDbSchema
+} from '../db/schemas.js';
 import { getUserPreference } from './users.js';
 
 export class UserAvatarError extends Error {}
@@ -28,23 +37,42 @@ export type ContributorBucket = Map<number, Date>;
 
 const avatarPath = (userId: number) => `/app-api/users/${userId}/avatar`;
 
-function avatarUrl(row: UserAvatarRow): string | undefined {
-    if (row.avatarImageMimeType) {
-        return avatarPath(row.id);
-    }
-    return row.avatarUrl ?? undefined;
-}
+const UserAvatarSummarySourceSchema = object({
+    id: number(),
+    email: string(),
+    displayName: string().optional(),
+    avatarUrl: string().optional(),
+    avatarImageMimeType: string().optional()
+});
 
-export function mapUserAvatarSummary(
+const mapUserAvatar = mapper()
+    .configure(
+        UserAvatarSummarySourceSchema,
+        UserAvatarSummarySchema,
+        mapping =>
+            mapping
+                .for(target => target.userId)
+                .from(source => source.id)
+                .for(target => target.avatarUrl)
+                .compute(source =>
+                    source.avatarImageMimeType
+                        ? avatarPath(source.id)
+                        : source.avatarUrl
+                )
+    )
+    .getMapper(UserAvatarSummarySourceSchema, UserAvatarSummarySchema);
+
+export async function mapUserAvatarSummary(
     row: UserAvatarRow,
     displayName?: string
-): UserAvatarSummary {
-    return {
-        userId: row.id,
+): Promise<UserAvatarSummary> {
+    return mapUserAvatar({
+        id: row.id,
         email: row.email,
         displayName: displayName || undefined,
-        avatarUrl: avatarUrl(row)
-    };
+        avatarUrl: row.avatarUrl ?? undefined,
+        avatarImageMimeType: row.avatarImageMimeType ?? undefined
+    });
 }
 
 export async function loadUserAvatarSummaries(
@@ -59,20 +87,23 @@ export async function loadUserAvatarSummaries(
         return new Map();
     }
 
-    const rows = (await db.knex('users').whereIn('id', ids).select({
-        id: 'id',
-        email: 'email',
-        avatarUrl: 'avatar_url',
-        avatarImageMimeType: 'avatar_image_mime_type',
-        avatarImageFileName: 'avatar_image_file_name',
-        avatarImageUpdatedAt: 'avatar_image_updated_at'
-    })) as UserAvatarRow[];
+    const rows = (await query(db.knex, UserDbSchema)
+        .whereIn(user => user.id, ids)
+        .select(user => ({
+            id: user.id,
+            email: user.email,
+            avatarUrl: user.avatarUrl,
+            avatarImageMimeType: user.avatarImageMimeType,
+            avatarImageFileName: user.avatarImageFileName,
+            avatarImageUpdatedAt: user.avatarImageUpdatedAt
+        }))) as UserAvatarRow[];
+
+    const summaries = await Promise.all(
+        rows.map(row => mapUserAvatarSummary(row, displayNames.get(row.id)))
+    );
 
     return new Map(
-        rows.map(row => [
-            row.id,
-            mapUserAvatarSummary(row, displayNames.get(row.id))
-        ])
+        rows.map((row, index) => [row.id, summaries[index]!] as const)
     );
 }
 
@@ -198,16 +229,15 @@ async function canViewAvatar(
     if (requesterUserId === targetUserId) {
         return true;
     }
-    const row = await db
-        .knex('budget_members as requester')
-        .join(
-            'budget_members as target',
-            'target.budget_id',
-            'requester.budget_id'
-        )
-        .where('requester.user_id', requesterUserId)
-        .where('target.user_id', targetUserId)
-        .first('target.user_id');
+    const requesterBudgetIds = query(db.knex, BudgetMemberDbSchema)
+        .where(member => member.userId, requesterUserId)
+        .select(member => member.budgetId)
+        .toKnexQuery();
+    const row = await db.budgetMembers
+        .where(member => member.userId, targetUserId)
+        .whereIn(member => member.budgetId, requesterBudgetIds)
+        .select(member => member.userId)
+        .first();
     return Boolean(row);
 }
 

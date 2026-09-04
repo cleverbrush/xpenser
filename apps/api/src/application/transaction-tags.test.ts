@@ -12,8 +12,8 @@ const ormMocks = vi.hoisted(() => ({
     query: vi.fn()
 }));
 
-vi.mock('@cleverbrush/orm', async importOriginal => ({
-    ...(await importOriginal<typeof import('@cleverbrush/orm')>()),
+vi.mock('@cleverbrush/knex-schema', async importOriginal => ({
+    ...(await importOriginal<typeof import('@cleverbrush/knex-schema')>()),
     getTableName: vi.fn(() => 'transaction_tags'),
     query: ormMocks.query
 }));
