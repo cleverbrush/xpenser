@@ -36,9 +36,10 @@ test('creates, renames, archives, and restores a budget with correct list filter
     // Remove only the budget created by this test after verifying the full lifecycle.
     await page.goto(detailUrl);
     await page.getByRole('button', { name: 'Archive', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
     const deleted = page.waitForResponse(response => response.request().method() === 'POST' && response.url() === detailUrl);
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
-    await deleted;
+    await (await deleted).finished();
     await page.goto('/settings/budgets');
     await expect(page.getByRole('heading', { name: renamed, exact: true })).toHaveCount(0);
 });
