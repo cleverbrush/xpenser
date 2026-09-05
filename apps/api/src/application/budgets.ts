@@ -6,7 +6,8 @@ import {
     date,
     number,
     object,
-    string
+    string,
+    union
 } from '@cleverbrush/schema';
 import type {
     Budget,
@@ -34,7 +35,17 @@ import type {
     TransactionDb,
     UserDb
 } from '../db/schemas.js';
+import {
+    type BudgetListStatus,
+    budgetAdminCountQuery,
+    budgetMembershipsQuery,
+    budgetMembersQuery,
+    uniqueActiveBudgetNameQuery
+} from './budget-queries.js';
 import { sendEmail } from './email.js';
+
+export type { BudgetListStatus } from './budget-queries.js';
+
 import { mapUserAvatarSummary } from './user-avatars.js';
 
 export class BudgetAccessError extends Error {}
@@ -50,8 +61,6 @@ export type BudgetAccess = {
     readonly member: BudgetMemberDb;
     readonly permissions: BudgetPermissions;
 };
-
-export type BudgetListStatus = 'active' | 'archived' | 'all';
 
 const invitationTtlMs = 7 * 24 * 60 * 60 * 1000;
 const budgetInvitationMessage =
@@ -335,23 +344,12 @@ async function ensureUniqueActiveBudgetDisplayName(
     name: string,
     excludingBudgetId?: number
 ): Promise<void> {
-    const members = (await db.budgetMembers.where(
-        member => member.userId,
-        userId
-    )) as BudgetMemberDb[];
-    const matchingMembers = members.filter(
-        member =>
-            member.budgetId !== excludingBudgetId &&
-            member.displayName.localeCompare(name, undefined, {
-                sensitivity: 'accent'
-            }) === 0
-    );
-    const budgets = await Promise.all(
-        matchingMembers.map(member => db.budgets.find(member.budgetId))
-    );
-    const existing = budgets.some(
-        budget => budget && !(budget as BudgetDb).archivedAt
-    );
+    const existing = await uniqueActiveBudgetNameQuery(
+        db,
+        userId,
+        name,
+        excludingBudgetId
+    ).first();
     if (existing) {
         throw new BudgetMemberError(
             'You already have an active budget with this name.'
@@ -498,26 +496,6 @@ export function hashBudgetInvitationToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
 }
 
-export function budgetMembershipsForUser(db: AppDb, userId: number) {
-    return db.budgetMembers
-        .include(
-            member => member.budget,
-            budgetQuery => {
-                budgetQuery.select(budget => ({
-                    id: budget.id!,
-                    name: budget.name!,
-                    defaultCurrency: budget.defaultCurrency!,
-                    countryCode: budget.countryCode!,
-                    createdByUserId: budget.createdByUserId!,
-                    archivedAt: budget.archivedAt!,
-                    createdAt: budget.createdAt!,
-                    updatedAt: budget.updatedAt!
-                }));
-            }
-        )
-        .where(member => member.userId, userId);
-}
-
 export function createBudgetInvitationToken(): string {
     return randomBytes(32).toString('base64url');
 }
@@ -647,22 +625,12 @@ export async function listBudgets(
 ): Promise<Budget[]> {
     await ensureMainBudget(db, userId);
     const user = (await db.users.find(userId)) as UserDb | undefined;
-    const rows = (
-        (await budgetMembershipsForUser(db, userId)) as Array<
-            BudgetMemberDb & { readonly budget: BudgetDb }
-        >
-    )
-        .filter(
-            row =>
-                status === 'all' ||
-                (status === 'active') === !row.budget.archivedAt
-        )
-        .sort(
-            (left, right) =>
-                Number(right.budget.id === user?.mainBudgetId) -
-                    Number(left.budget.id === user?.mainBudgetId) ||
-                left.displayName.localeCompare(right.displayName)
-        );
+    const rows = await budgetMembershipsQuery(
+        db.knex,
+        userId,
+        status,
+        user?.mainBudgetId ?? 0
+    );
 
     const budgetIds = rows.map(row => row.budgetId);
     const [favoritesByBudget, recentTransactionsByBudget] = await Promise.all([
@@ -676,11 +644,20 @@ export async function listBudgets(
             const favorites = favoritesByBudget.get(budgetId) ?? [];
             const transactionCurrencies =
                 transactionCurrenciesByRecentPopularity(
-                    [row.budget.defaultCurrency, ...favorites],
+                    [row.defaultCurrency, ...favorites],
                     recentTransactionsByBudget.get(budgetId) ?? []
                 );
             return mapBudget(
-                row.budget,
+                {
+                    id: budgetId,
+                    name: row.name,
+                    defaultCurrency: row.defaultCurrency,
+                    countryCode: row.countryCode,
+                    createdByUserId: row.createdByUserId,
+                    archivedAt: row.archivedAt,
+                    createdAt: row.budgetCreatedAt,
+                    updatedAt: row.budgetUpdatedAt
+                },
                 row,
                 user?.mainBudgetId,
                 favorites,
@@ -910,37 +887,8 @@ export async function listBudgetMembers(
     const access = await resolveBudgetAccess(db, userId, budgetId, options);
     requireBudgetPermission(access, 'canManageMembers');
 
-    const rows = (await db.budgetMembers
-        .include(
-            member => member.user,
-            userQuery => {
-                userQuery.select(user => ({
-                    id: user.id!,
-                    email: user.email!,
-                    avatarUrl: user.avatarUrl!,
-                    avatarImageMimeType: user.avatarImageMimeType!,
-                    avatarImageFileName: user.avatarImageFileName!,
-                    avatarImageUpdatedAt: user.avatarImageUpdatedAt!
-                }));
-            }
-        )
-        .where(member => member.budgetId, budgetId)) as Array<
-        BudgetMemberDb & { readonly user: UserDb }
-    >;
-    rows.sort((left, right) => left.user.email.localeCompare(right.user.email));
-
-    return Promise.all(
-        rows.map(row =>
-            mapBudgetMember({
-                ...row,
-                email: row.user.email,
-                avatarUrl: row.user.avatarUrl,
-                avatarImageMimeType: row.user.avatarImageMimeType,
-                avatarImageFileName: row.user.avatarImageFileName,
-                avatarImageUpdatedAt: row.user.avatarImageUpdatedAt
-            })
-        )
-    );
+    const rows = await budgetMembersQuery(db.knex, budgetId);
+    return Promise.all(rows.map(mapBudgetMember));
 }
 
 function invitationAccessStatus(
@@ -1055,11 +1003,11 @@ export async function listBudgetAccess(
     ];
 }
 
+const CountRowSchema = object({ count: union(number()).or(string()) });
+
 async function adminCount(db: AppDb, budgetId: number): Promise<number> {
-    const members = (await db.budgetMembers
-        .where(member => member.budgetId, budgetId)
-        .where(member => member.role, 'admin')) as BudgetMemberDb[];
-    return members.length;
+    const row: unknown = await budgetAdminCountQuery(db, budgetId).first();
+    return Number(CountRowSchema.parse(row).count);
 }
 
 async function ensureCanChangeMember(

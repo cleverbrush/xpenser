@@ -1,12 +1,5 @@
 import { mapper } from '@cleverbrush/mapper';
-import {
-    any as anySchema,
-    array,
-    date,
-    number,
-    object,
-    string
-} from '@cleverbrush/schema';
+import { array, date, number, object, string } from '@cleverbrush/schema';
 import type {
     CreateVendorBody,
     UpdateVendorBody,
@@ -31,6 +24,13 @@ import type {
     UserDb,
     VendorDb
 } from '../db/schemas.js';
+import {
+    type BrandfetchResponse,
+    type BrandfetchSearchResult,
+    BrandfetchSearchResultSchema,
+    parseBrandfetchResponse,
+    parseBrandfetchSearchResult
+} from './brandfetch-schemas.js';
 import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
 import {
     categoryAvailableForTransactions,
@@ -63,39 +63,6 @@ type VendorStats = {
 type VendorSuggestion = {
     readonly categoryDisplayName: string;
     readonly categoryId: number;
-};
-
-type BrandfetchFormat = {
-    readonly src?: unknown;
-    readonly format?: unknown;
-};
-
-type BrandfetchLogo = {
-    readonly type?: unknown;
-    readonly formats?: unknown;
-};
-
-type BrandfetchColor = {
-    readonly hex?: unknown;
-    readonly type?: unknown;
-};
-
-type BrandfetchResponse = {
-    readonly id?: unknown;
-    readonly name?: unknown;
-    readonly domain?: unknown;
-    readonly description?: unknown;
-    readonly longDescription?: unknown;
-    readonly logos?: unknown;
-    readonly colors?: unknown;
-};
-
-type BrandfetchSearchResponse = {
-    readonly brandId?: unknown;
-    readonly claimed?: unknown;
-    readonly domain?: unknown;
-    readonly icon?: unknown;
-    readonly name?: unknown;
 };
 
 function normalizeVendorName(value: string): string {
@@ -148,22 +115,15 @@ function domainText(value: string | undefined): string | undefined {
     );
 }
 
-function chooseLogoUrl(logos: unknown): string | undefined {
-    if (!Array.isArray(logos)) {
-        return undefined;
-    }
-
-    const sorted = [...(logos as BrandfetchLogo[])].sort((left, right) => {
-        const rank = (value: unknown) =>
+function chooseLogoUrl(logos: BrandfetchResponse['logos']): string | undefined {
+    const sorted = [...(logos ?? [])].sort((left, right) => {
+        const rank = (value: string | undefined) =>
             value === 'icon' ? 0 : value === 'logo' ? 1 : 2;
         return rank(left.type) - rank(right.type);
     });
 
     for (const logo of sorted) {
-        if (!Array.isArray(logo.formats)) {
-            continue;
-        }
-        const formats = logo.formats as BrandfetchFormat[];
+        const formats = logo.formats ?? [];
         const svg =
             formats.find(format => format.format === 'svg') ?? formats[0];
         const src = httpsUrl(nonemptyString(svg?.src));
@@ -175,12 +135,10 @@ function chooseLogoUrl(logos: unknown): string | undefined {
     return undefined;
 }
 
-function choosePrimaryColor(colors: unknown): string | undefined {
-    if (!Array.isArray(colors)) {
-        return undefined;
-    }
-
-    const values = colors as BrandfetchColor[];
+function choosePrimaryColor(
+    colors: BrandfetchResponse['colors']
+): string | undefined {
+    const values = colors ?? [];
     const selected =
         values.find(color => color.type === 'accent') ??
         values.find(color => color.type === 'dark') ??
@@ -215,7 +173,8 @@ async function brandfetchTransaction(
         );
     }
 
-    return (await response.json()) as BrandfetchResponse;
+    const json: unknown = await response.json();
+    return parseBrandfetchResponse(json);
 }
 
 async function brandfetchFetch(config: Config, url: string, init: RequestInit) {
@@ -260,15 +219,11 @@ async function brandfetchBrandDetails(
         );
     }
 
-    return (await response.json()) as BrandfetchResponse;
+    const json: unknown = await response.json();
+    return parseBrandfetchResponse(json);
 }
 
-const BrandSearchMappingSourceSchema = object({
-    brandId: anySchema(),
-    claimed: anySchema(),
-    domain: anySchema(),
-    icon: anySchema(),
-    name: anySchema(),
+const BrandSearchMappingSourceSchema = BrandfetchSearchResultSchema.addProps({
     resolvedDomain: string()
 });
 
@@ -304,14 +259,12 @@ const mapBrandSearchCandidate = mapper()
             .for(target => target.primaryColor)
             .ignore()
             .for(target => target.claimed)
-            .compute(source =>
-                typeof source.claimed === 'boolean' ? source.claimed : undefined
-            )
+            .from(source => source.claimed)
     )
     .getMapper(BrandSearchMappingSourceSchema, VendorCandidateSchema);
 
 async function mapBrandSearchResult(
-    value: BrandfetchSearchResponse
+    value: BrandfetchSearchResult
 ): Promise<VendorCandidate | undefined> {
     const domain = domainText(nonemptyString(value.domain));
     if (!domain) {
@@ -353,15 +306,16 @@ export async function searchVendorCandidates(
             return [];
         }
 
-        const json = await response.json();
+        const json: unknown = await response.json();
         if (!Array.isArray(json)) {
             return [];
         }
 
         const candidates = await Promise.all(
-            json.map(value =>
-                mapBrandSearchResult(value as BrandfetchSearchResponse)
-            )
+            json.map((value: unknown) => {
+                const parsed = parseBrandfetchSearchResult(value);
+                return parsed ? mapBrandSearchResult(parsed) : undefined;
+            })
         );
         return candidates
             .filter((value): value is VendorCandidate => value !== undefined)

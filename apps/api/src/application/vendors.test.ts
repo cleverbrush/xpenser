@@ -253,6 +253,125 @@ describe('vendor helpers', () => {
         ]);
     });
 
+    it('keeps valid candidates when search results contain malformed entries and optional metadata', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => [
+                null,
+                false,
+                7,
+                [],
+                {},
+                { domain: 42 },
+                {
+                    domain: '  EXAMPLE.COM/path ',
+                    name: null,
+                    claimed: 'false',
+                    icon: 'http://unsafe.example/logo',
+                    brandId: 1
+                },
+                {
+                    domain: 'valid.example',
+                    name: ' Valid ',
+                    claimed: false,
+                    extra: 'ignored'
+                }
+            ]
+        } as Response);
+        const results = await searchVendorCandidates(config, {
+            query: 'example',
+            limit: 3
+        });
+        expect(results).toHaveLength(2);
+        expect(results[0]).toMatchObject({
+            name: 'example.com',
+            domain: 'example.com'
+        });
+        expect(results[0]?.brandfetchBrandId).toBeUndefined();
+        expect(results[0]?.claimed).toBeUndefined();
+        expect(results[0]?.logoUrl).toBeUndefined();
+        expect(results[1]).toMatchObject({ name: 'Valid', claimed: false });
+    });
+
+    it('bounds search fields and applies the limit after discarding invalid candidates', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => [
+                null,
+                {
+                    domain: 'example.com',
+                    name: 'a'.repeat(1000),
+                    brandId: 'b'.repeat(1000)
+                },
+                { domain: 'second.example' }
+            ]
+        } as Response);
+        const results = await searchVendorCandidates(config, {
+            query: 'example',
+            limit: 1
+        });
+        expect(results).toHaveLength(1);
+        expect(results[0]?.name.length).toBeLessThan(1000);
+        expect(results[0]?.brandfetchBrandId?.length).toBeLessThan(1000);
+    });
+
+    it('validates nested Brandfetch metadata without losing usable logos and colors', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                name: null,
+                domain: 'example.com',
+                description: 42,
+                longDescription: 'Valid description',
+                logos: [
+                    null,
+                    1,
+                    {
+                        type: 'icon',
+                        formats: [
+                            null,
+                            { src: 1 },
+                            {
+                                format: 'svg',
+                                src: 'https://cdn.example/logo.svg'
+                            }
+                        ]
+                    }
+                ],
+                colors: [null, { type: 'accent', hex: '#123abc' }],
+                extra: 'ignored'
+            })
+        } as Response);
+        await expect(
+            getVendorCandidateDetails(config, { domain: 'example.com' })
+        ).resolves.toMatchObject({
+            name: 'example.com',
+            domain: 'example.com',
+            description: 'Valid description',
+            logoUrl: 'https://cdn.example/logo.svg',
+            primaryColor: '#123abc'
+        });
+    });
+
+    it.each([
+        null,
+        [],
+        false,
+        'invalid'
+    ])('handles invalid Brandfetch response bodies (%j)', async value => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => value
+        } as Response);
+        await expect(
+            getVendorCandidateDetails(config, { domain: 'example.com' })
+        ).resolves.toBeUndefined();
+    });
+
     it('uses the user country when enriching a vendor', async () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
             ok: true,

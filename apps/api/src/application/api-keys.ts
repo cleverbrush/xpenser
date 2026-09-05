@@ -1,17 +1,13 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mapper } from '@cleverbrush/mapper';
+import { date, number, object, string } from '@cleverbrush/schema';
 import type {
     ApiKey,
     CreateApiKeyBody,
     CreateApiKeyResponse
 } from '@xpenser/contracts';
 import { ApiKeySchema } from '@xpenser/contracts';
-import {
-    type ApiKeyDb,
-    ApiKeyDbSchema,
-    type AppDb,
-    type UserDb
-} from '../db/schemas.js';
+import type { ApiKeyDb, AppDb, UserDb } from '../db/schemas.js';
 
 const keyPattern = /^xpk_([a-f0-9]{24})_([A-Za-z0-9_-]{43})$/;
 
@@ -30,15 +26,21 @@ export type ApiKeyPrincipal = {
 
 export class ApiKeyNotFoundError extends Error {}
 
+const ApiKeyMappingSourceSchema = object({
+    id: number(),
+    name: string(),
+    keyPrefix: string(),
+    createdAt: date(),
+    lastUsedAt: date().optional()
+});
 const mapApiKeyRow = mapper()
-    .configure(ApiKeyDbSchema, ApiKeySchema, mapping => mapping)
-    .getMapper(ApiKeyDbSchema, ApiKeySchema);
+    .configure(ApiKeyMappingSourceSchema, ApiKeySchema, mapping => mapping)
+    .getMapper(ApiKeyMappingSourceSchema, ApiKeySchema);
 
 function mapApiKey(row: ApiKeyDb): Promise<ApiKey> {
     return mapApiKeyRow({
         ...row,
-        lastUsedAt: row.lastUsedAt ?? undefined,
-        revokedAt: row.revokedAt ?? undefined
+        lastUsedAt: row.lastUsedAt ?? undefined
     });
 }
 

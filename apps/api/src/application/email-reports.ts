@@ -13,9 +13,6 @@ import type { Config } from '../config.js';
 import {
     type AppDb,
     type BudgetDb,
-    BudgetDbSchema,
-    type BudgetMemberDb,
-    BudgetMemberDbSchema,
     type CategoryDb,
     type EmailReportDeliveryDb,
     EmailReportDeliveryDbSchema,
@@ -24,6 +21,7 @@ import {
     UserDbSchema,
     type VendorDb
 } from '../db/schemas.js';
+import { reportBudgetsQuery } from './budget-queries.js';
 import { categoryDisplayName, categoryReportingType } from './categories.js';
 import { sendEmail as sendProviderEmail } from './email.js';
 import { generateStructuredJson } from './openai.js';
@@ -1086,24 +1084,7 @@ async function listReportBudgets(
     knex: Knex,
     userId: number
 ): Promise<Pick<BudgetDb, 'id' | 'name'>[]> {
-    const activeBudgets = schemaQuery(knex, BudgetDbSchema).whereNull(
-        budget => budget.archivedAt
-    );
-    const rows = await schemaQuery(knex, BudgetMemberDbSchema)
-        .where(member => member.userId, userId)
-        .orderBy(member => member.displayName, 'asc')
-        .joinOne({
-            as: 'budget',
-            localColumn: member => member.budgetId,
-            foreignColumn: budget => budget.id,
-            foreignSchema: BudgetDbSchema,
-            foreignQuery: activeBudgets,
-            required: true
-        });
-
-    return (rows as Array<BudgetMemberDb & { readonly budget: BudgetDb }>).map(
-        row => ({ id: row.budget.id, name: row.displayName })
-    );
+    return reportBudgetsQuery(knex, userId);
 }
 
 export async function sendDueEmailReports(
