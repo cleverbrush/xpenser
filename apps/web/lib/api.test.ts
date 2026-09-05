@@ -114,6 +114,12 @@ describe('web API client factory', () => {
             'transactions',
             'max'
         );
+
+        authenticatedOptions.invalidateCacheTag('user-profile');
+        expect(nextCacheMocks.revalidateTag).toHaveBeenLastCalledWith(
+            'user-profile',
+            { expire: 0 }
+        );
     });
 
     it('keeps anonymous clients independent from Next cache invalidation', async () => {

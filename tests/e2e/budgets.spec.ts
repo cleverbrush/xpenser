@@ -12,7 +12,7 @@ test('creates, renames, archives, and restores a budget with correct list filter
 
     await page.getByLabel('My budget name').fill(renamed);
     await page.getByRole('button', { name: 'Rename', exact: true }).click();
-    await expect(page.getByRole('heading', { name: renamed, exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: renamed, exact: true, level: 1 })).toBeVisible();
     await page.goto('/settings/budgets');
     await expect(page.getByRole('heading', { name: renamed, exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: originalName, exact: true })).toHaveCount(0);

@@ -95,7 +95,10 @@ async function createAuthenticatedApiClient(options: ApiClientOptions = {}) {
         onUnauthorized: () => {
             redirect(expiredSessionPath);
         },
-        invalidateCacheTag: tag => revalidateTag(tag, 'max'),
+        invalidateCacheTag: tag =>
+            // Mutations must expose the new budget/profile on the next render.
+            // Serving a stale profile after create/restore can produce a 404.
+            revalidateTag(tag, tag === 'user-profile' ? { expire: 0 } : 'max'),
         disableBatching: options.disableBatching,
         retryOnTimeout: options.retryOnTimeout,
         timeoutMs: options.timeoutMs
