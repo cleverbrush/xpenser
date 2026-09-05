@@ -17,19 +17,8 @@ async function loadBudgetAccessRows(
         return [];
     }
 
-    const [accessRows, members] = await Promise.all([
-        client.budgets.access({ params: { id: budget.id } }),
-        client.budgets.members({ params: { id: budget.id } })
-    ]);
-    const activeUserIds = new Set(
-        accessRows.flatMap(row => (row.status === 'active' ? [row.userId] : []))
-    );
-    return [
-        ...members
-            .filter(member => !activeUserIds.has(member.userId))
-            .map(member => ({ status: 'active' as const, ...member })),
-        ...accessRows
-    ];
+    // Access includes members and invitations and supports archived budgets.
+    return client.budgets.access({ params: { id: budget.id } });
 }
 
 export default async function BudgetDetailPage({
