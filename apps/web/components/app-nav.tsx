@@ -6,9 +6,9 @@ import {
     SettingsIcon,
     StoreIcon
 } from 'lucide-react';
-import Link from 'next/link';
 import { logoutAction } from '@/lib/actions';
 import { webConfig } from '@/lib/config';
+import { AppNavigationLink, AppNavigationPending } from './app-navigation-link';
 import { BudgetSelector } from './budget-selector';
 import { FeedbackDialog } from './feedback-dialog';
 import { MobileTabBar } from './mobile-tab-bar';
@@ -31,9 +31,12 @@ export function AppNav({
             <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
                 <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
                     <div className="flex min-w-0 items-center gap-3">
-                        <Link className="font-semibold" href="/dashboard">
+                        <AppNavigationLink
+                            className="font-semibold"
+                            href="/dashboard"
+                        >
                             xpenser
-                        </Link>
+                        </AppNavigationLink>
                         <BudgetSelector
                             budgets={budgets}
                             selectedBudgetId={selectedBudgetId}
@@ -42,47 +45,66 @@ export function AppNav({
                     <nav className="hidden items-center gap-2 text-sm sm:flex">
                         <Button asChild size="sm" variant="ghost">
                             <PeriodStateLink
+                                className="relative"
                                 href="/dashboard"
                                 timezone={timezone}
                             >
                                 Dashboard
+                                <AppNavigationPending />
                             </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
                             <PeriodStateLink
+                                className="relative"
                                 href="/vendors"
                                 timezone={timezone}
                             >
                                 <StoreIcon aria-hidden className="size-4" />
                                 Vendors
+                                <AppNavigationPending />
                             </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <Link href="/capture">
+                            <AppNavigationLink
+                                className="relative"
+                                href="/capture"
+                            >
                                 <CirclePlusIcon
                                     aria-hidden
                                     className="size-4"
                                 />
                                 Add
-                            </Link>
+                                <AppNavigationPending />
+                            </AppNavigationLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
                             <PeriodStateLink
+                                className="relative"
                                 href="/transactions"
                                 timezone={timezone}
                             >
                                 Transactions
+                                <AppNavigationPending />
                             </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <PeriodStateLink href="/stats" timezone={timezone}>
+                            <PeriodStateLink
+                                className="relative"
+                                href="/stats"
+                                timezone={timezone}
+                            >
                                 Reports
+                                <AppNavigationPending />
                             </PeriodStateLink>
                         </Button>
                         <Button asChild size="sm" variant="ghost">
-                            <Link href="/settings/preferences">
+                            <AppNavigationLink
+                                className="relative"
+                                href="/settings/preferences"
+                            >
                                 Preferences
-                            </Link>
+                                <AppNavigationPending />
+                            </AppNavigationLink>
                         </Button>
                         {feedbackEnabled ? <FeedbackDialog /> : null}
                         <ThemeToggle />
@@ -107,9 +129,13 @@ export function AppNav({
                             size="icon-sm"
                             variant="ghost"
                         >
-                            <Link href="/settings/preferences">
+                            <AppNavigationLink
+                                className="relative"
+                                href="/settings/preferences"
+                            >
                                 <SettingsIcon aria-hidden className="size-4" />
-                            </Link>
+                                <AppNavigationPending />
+                            </AppNavigationLink>
                         </Button>
                         {webConfig.singleUser?.enabled ? null : (
                             <form action={logoutAction}>

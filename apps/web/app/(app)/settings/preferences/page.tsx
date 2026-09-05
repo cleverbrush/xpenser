@@ -22,13 +22,13 @@ import {
     createTelegramLinkAction,
     disconnectTelegramAction
 } from '@/lib/actions';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentUser } from '@/lib/api';
 import { publicAppUrl } from '@/lib/public-url';
 
 export default async function PreferencesPage() {
     const client = await getApiClient();
     const [me, telegram, apiKeys, mcpConnections] = await Promise.all([
-        client.auth.me(),
+        getCurrentUser(),
         client.users.telegramStatus(),
         client.users.listApiKeys(),
         client.users.listMcpOAuthConnections()

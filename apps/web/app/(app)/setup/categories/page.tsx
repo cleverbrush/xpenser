@@ -7,11 +7,10 @@ import {
 } from '@xpenser/ui';
 import { redirect } from 'next/navigation';
 import { CategorySetupForm } from '@/components/forms/category-setup-form';
-import { getApiClient } from '@/lib/api';
+import { getCurrentUser } from '@/lib/api';
 
 export default async function CategorySetupPage() {
-    const client = await getApiClient();
-    const me = await client.auth.me();
+    const me = await getCurrentUser();
     if (me.hasCategories) {
         redirect('/dashboard');
     }

@@ -1,13 +1,12 @@
 import {
     boolean,
-    type DbContext,
     date,
-    defineEntity,
     type InferDatabaseRow,
     number,
     object,
     string
-} from '@cleverbrush/orm';
+} from '@cleverbrush/knex-schema';
+import { type DbContext, defineEntity } from '@cleverbrush/orm';
 
 export const UserDbSchema = object({
     id: number().primaryKey(),
@@ -178,7 +177,9 @@ export const BudgetMemberDbSchema = object({
         .hasColumnName('can_manage_members')
         .defaultTo(false),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
-    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now'),
+    budget: BudgetDbSchema.optional(),
+    user: UserDbSchema.optional()
 })
     .hasTableName('budget_members')
     .hasPrimaryKey(['budgetId', 'userId'] as const);
@@ -409,7 +410,8 @@ export const TransactionDbSchema = object({
     note: string().optional(),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
     updatedAt: date().hasColumnName('updated_at').defaultTo('now'),
-    category: CategoryDbSchema.optional()
+    category: CategoryDbSchema.optional(),
+    vendor: VendorDbSchema.optional()
 }).hasTableName('transactions');
 
 export const TransactionTagDbSchema = object({
@@ -439,7 +441,8 @@ export const TransactionTagLinkDbSchema = object({
         .hasColumnName('tag_id')
         .references('transaction_tags', 'id')
         .onDelete('CASCADE'),
-    createdAt: date().hasColumnName('created_at').defaultTo('now')
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    tag: TransactionTagDbSchema.optional()
 })
     .hasTableName('transaction_tag_links')
     .hasPrimaryKey(['transactionId', 'tagId'] as const);
@@ -539,6 +542,31 @@ export const ExchangeRateDbSchema = object({
     createdAt: date().hasColumnName('created_at').defaultTo('now')
 }).hasTableName('exchange_rates');
 
+export const EmailReportDeliveryDbSchema = object({
+    id: number().primaryKey(),
+    userId: number()
+        .hasColumnName('user_id')
+        .references('users', 'id')
+        .onDelete('CASCADE'),
+    budgetId: number()
+        .hasColumnName('budget_id')
+        .references('budgets', 'id')
+        .onDelete('CASCADE'),
+    deliveryKey: string().hasColumnName('delivery_key'),
+    reportType: string().hasColumnName('report_type'),
+    trigger: string(),
+    periodStart: date().hasColumnName('period_start'),
+    periodEnd: date().hasColumnName('period_end'),
+    recipientEmail: string().hasColumnName('recipient_email'),
+    status: string().defaultTo('pending'),
+    attempts: number().defaultTo(1),
+    lastError: string().optional().hasColumnName('last_error'),
+    providerMessageId: string().optional().hasColumnName('provider_message_id'),
+    sentAt: date().optional().hasColumnName('sent_at'),
+    createdAt: date().hasColumnName('created_at').defaultTo('now'),
+    updatedAt: date().hasColumnName('updated_at').defaultTo('now')
+}).hasTableName('email_report_deliveries');
+
 export const UserEntity = defineEntity(UserDbSchema);
 export const BudgetFavoriteCurrencyEntity = defineEntity(
     BudgetFavoriteCurrencyDbSchema
@@ -561,7 +589,17 @@ export const ExternalIdentityEntity = defineEntity(ExternalIdentityDbSchema);
 export const TelegramAccountEntity = defineEntity(TelegramAccountDbSchema);
 export const TelegramLinkTokenEntity = defineEntity(TelegramLinkTokenDbSchema);
 export const BudgetEntity = defineEntity(BudgetDbSchema);
-export const BudgetMemberEntity = defineEntity(BudgetMemberDbSchema);
+export const BudgetMemberEntity = defineEntity(BudgetMemberDbSchema)
+    .belongsTo(
+        t => t.budget,
+        l => l.budgetId,
+        r => r.id
+    )
+    .belongsTo(
+        t => t.user,
+        l => l.userId,
+        r => r.id
+    );
 export const BudgetInvitationEntity = defineEntity(BudgetInvitationDbSchema);
 export const ApiKeyEntity = defineEntity(ApiKeyDbSchema);
 export const McpOAuthClientEntity = defineEntity(McpOAuthClientDbSchema);
@@ -574,14 +612,24 @@ export const McpOAuthRefreshTokenEntity = defineEntity(
 );
 export const CategoryEntity = defineEntity(CategoryDbSchema);
 export const VendorEntity = defineEntity(VendorDbSchema);
-export const TransactionEntity = defineEntity(TransactionDbSchema).belongsTo(
-    t => t.category,
-    l => l.categoryId,
-    r => r.id
-);
+export const TransactionEntity = defineEntity(TransactionDbSchema)
+    .belongsTo(
+        t => t.category,
+        l => l.categoryId,
+        r => r.id
+    )
+    .belongsTo(
+        t => t.vendor,
+        l => l.vendorId,
+        r => r.id
+    );
 export const TransactionTagEntity = defineEntity(TransactionTagDbSchema);
 export const TransactionTagLinkEntity = defineEntity(
     TransactionTagLinkDbSchema
+).belongsTo(
+    t => t.tag,
+    l => l.tagId,
+    r => r.id
 );
 export const TransactionScanEntity = defineEntity(TransactionScanDbSchema);
 export const TransactionScanItemEntity = defineEntity(
@@ -591,6 +639,9 @@ export const TransactionScanImageEntity = defineEntity(
     TransactionScanImageDbSchema
 );
 export const ExchangeRateEntity = defineEntity(ExchangeRateDbSchema);
+export const EmailReportDeliveryEntity = defineEntity(
+    EmailReportDeliveryDbSchema
+);
 
 export const entityMap = {
     users: UserEntity,
@@ -614,7 +665,8 @@ export const entityMap = {
     transactionScans: TransactionScanEntity,
     transactionScanItems: TransactionScanItemEntity,
     transactionScanImages: TransactionScanImageEntity,
-    exchangeRates: ExchangeRateEntity
+    exchangeRates: ExchangeRateEntity,
+    emailReportDeliveries: EmailReportDeliveryEntity
 };
 
 export type AppEntityMap = typeof entityMap;
@@ -643,6 +695,7 @@ export type TransactionTagDb = DbRow<typeof TransactionTagDbSchema>;
 export type TransactionTagLinkDb = DbRow<typeof TransactionTagLinkDbSchema>;
 export type TransactionScanDb = DbRow<typeof TransactionScanDbSchema>;
 export type TransactionScanItemDb = DbRow<typeof TransactionScanItemDbSchema>;
+export type EmailReportDeliveryDb = DbRow<typeof EmailReportDeliveryDbSchema>;
 
 export type CategoryDb = Readonly<
     Omit<InferDatabaseRow<typeof CategoryDbSchema>, 'kind' | 'type'> & {

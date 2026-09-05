@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { AmountPrivacyProvider } from '@/components/amount-privacy';
 import { AppNav } from '@/components/app-nav';
-import { getApiClient, getSessionOrRedirect } from '@/lib/api';
+import { getCurrentUser, getSessionOrRedirect } from '@/lib/api';
 import { selectedBudgetForUser } from '@/lib/budgets';
 import { webConfig } from '@/lib/config';
 import { noIndexRobots } from '@/lib/public-site';
@@ -16,9 +16,10 @@ export default async function ProtectedLayout({
 }: {
     readonly children: React.ReactNode;
 }) {
-    const session = await getSessionOrRedirect();
-    const client = await getApiClient();
-    const me = await client.auth.me();
+    const [session, me] = await Promise.all([
+        getSessionOrRedirect(),
+        getCurrentUser()
+    ]);
     const selectedBudget = await selectedBudgetForUser(me);
     return (
         <AmountPrivacyProvider>

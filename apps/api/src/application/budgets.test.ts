@@ -13,14 +13,17 @@ import {
     BudgetAccessError,
     BudgetInvitationInvalidError,
     BudgetMemberError,
+    createBudget,
     defaultMemberBudgetPermissions,
     deleteBudget,
     hashBudgetInvitationToken,
     inviteBudgetMember,
     listBudgetAccess,
     listBudgets,
+    removeBudgetMember,
     resolveBudgetAccess,
-    updateBudget
+    updateBudget,
+    updateBudgetMember
 } from './budgets.js';
 
 const sendEmailMock = vi.hoisted(() => vi.fn());
@@ -98,6 +101,58 @@ type TestData = {
     nextBudgetId: number;
     nextInvitationId: number;
 };
+
+const queryData = new WeakMap<object, TestData>();
+function dataForQuery(source: object): TestData {
+    const data = queryData.get(source);
+    if (!data) throw new Error('Query fixture was not registered.');
+    return data;
+}
+
+// Query construction is covered against the real ORM in budget-memberships-query.test.ts.
+vi.mock('./budget-queries.js', () => ({
+    budgetMembershipsQuery: (
+        knex: object,
+        userId: number,
+        status: string,
+        mainBudgetId: number
+    ) => {
+        const query = new BudgetListQuery(dataForQuery(knex))
+            .where('member.user_id', userId)
+            .orderByRaw('', [mainBudgetId]);
+        if (status === 'active') query.whereNull('budget.archived_at');
+        if (status === 'archived') query.whereNotNull('budget.archived_at');
+        return query.select();
+    },
+    budgetMembersQuery: (knex: object, budgetId: number) =>
+        new BudgetListQuery(dataForQuery(knex))
+            .join('users as user')
+            .where('member.budget_id', budgetId)
+            .select(),
+    uniqueActiveBudgetNameQuery: (
+        db: object,
+        userId: number,
+        name: string,
+        excludingBudgetId?: number
+    ) => {
+        const query = new BudgetListQuery(dataForQuery(db))
+            .where('member.user_id', userId)
+            .whereNull('budget.archived_at')
+            .whereRaw('', [name]);
+        if (excludingBudgetId !== undefined)
+            query.whereNot('member.budget_id', excludingBudgetId);
+        return query;
+    },
+    budgetAdminCountQuery: (db: object, budgetId: number) => ({
+        first: async () => ({
+            count: String(
+                dataForQuery(db).members.filter(
+                    row => row.budgetId === budgetId && row.role === 'admin'
+                ).length
+            )
+        })
+    })
+}));
 
 class BudgetListQuery {
     private userId?: number;
@@ -450,7 +505,46 @@ function makeDb(overrides: Partial<TestData> = {}) {
                 value: TValue
             ) => new TestQuery(data.budgets).where(selector, value)
         },
+        transactions: {
+            whereIn: () => {
+                const query = {
+                    orderBy: () => query,
+                    select: async () => []
+                };
+                return query;
+            }
+        },
         budgetMembers: {
+            include: (
+                selector: (relations: {
+                    readonly budget: 'budget';
+                    readonly user: 'user';
+                }) => 'budget' | 'user'
+            ) => {
+                const relation = selector({
+                    budget: 'budget',
+                    user: 'user'
+                });
+                const rows: object[] = [];
+                for (const item of data.members) {
+                    if (relation === 'budget') {
+                        const related = data.budgets.find(
+                            budget => budget.id === item.budgetId
+                        );
+                        if (related) {
+                            rows.push({ ...item, budget: related });
+                        }
+                        continue;
+                    }
+                    const related = data.users.find(
+                        user => user.id === item.userId
+                    );
+                    if (related) {
+                        rows.push({ ...item, user: related });
+                    }
+                }
+                return new TestQuery(rows);
+            },
             insert: async (values: Partial<BudgetMemberDb>) => {
                 const row = member(
                     values.budgetId ?? 0,
@@ -574,6 +668,8 @@ function makeDb(overrides: Partial<TestData> = {}) {
             callback(db)
     });
 
+    queryData.set(db, data);
+    queryData.set(db.knex, data);
     return { data, db };
 }
 
@@ -583,6 +679,54 @@ afterEach(() => {
 });
 
 describe('budget lifecycle', () => {
+    it('rejects case-insensitive active names and permits archived names and self renames', async () => {
+        const { db } = makeDb();
+        await expect(
+            createBudget(db, 1, { name: 'tRaVeL', favoriteCurrencies: [] })
+        ).rejects.toThrow('You already have an active budget with this name.');
+        await expect(
+            updateBudget(db, 1, 2, { name: 'TRAVEL' })
+        ).resolves.toMatchObject({ name: 'TRAVEL' });
+        await expect(
+            createBudget(db, 1, { name: 'Old budget', favoriteCurrencies: [] })
+        ).resolves.toMatchObject({ name: 'Old budget' });
+    });
+
+    it('treats wildcard characters literally and scopes duplicate checks to the user', async () => {
+        const { db } = makeDb();
+        await expect(
+            createBudget(db, 1, { name: 'Travel_%', favoriteCurrencies: [] })
+        ).resolves.toMatchObject({ name: 'Travel_%' });
+        await expect(
+            createBudget(db, 2, { name: 'Travel', favoriteCurrencies: [] })
+        ).resolves.toMatchObject({ name: 'Travel' });
+    });
+
+    it('prevents removing or demoting the last admin, but permits changes with another admin', async () => {
+        const { db, data } = makeDb();
+        await expect(removeBudgetMember(db, 1, 2, 1)).rejects.toThrow(
+            'A budget must have at least one admin.'
+        );
+        await expect(
+            updateBudgetMember(db, 1, 2, 1, {
+                role: 'member',
+                permissions: defaultMemberBudgetPermissions
+            })
+        ).rejects.toThrow('A budget must have at least one admin.');
+        data.members.push(member(2, 2));
+        await expect(
+            updateBudgetMember(db, 1, 2, 2, {
+                role: 'member',
+                permissions: defaultMemberBudgetPermissions
+            })
+        ).resolves.toMatchObject({ role: 'member' });
+        Object.assign(
+            data.members.find(row => row.budgetId === 2 && row.userId === 2)!,
+            { role: 'admin' }
+        );
+        await expect(removeBudgetMember(db, 1, 2, 2)).resolves.toBeUndefined();
+    });
+
     it('lists active, archived, and all budgets separately', async () => {
         const { db } = makeDb();
 

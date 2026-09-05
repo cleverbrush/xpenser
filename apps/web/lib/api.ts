@@ -3,8 +3,9 @@ import {
     type XpenserClientOptions
 } from '@xpenser/client';
 import type { TokenResponse } from '@xpenser/contracts';
-import { revalidateTag } from 'next/cache';
+import { revalidateTag, unstable_cache } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 import { expiredSessionPath } from './auth-routes';
 import { getWebApiServiceSecret, webConfig } from './config';
 
@@ -45,7 +46,7 @@ function sessionFromTokenResponse(response: TokenResponse): CurrentWebSession {
     };
 }
 
-export async function getCurrentSession(): Promise<CurrentWebSession | null> {
+async function loadCurrentSession(): Promise<CurrentWebSession | null> {
     if (webConfig.singleUser?.enabled) {
         return sessionFromTokenResponse(
             await trustedApiClient().auth.singleUserSessionToken()
@@ -71,6 +72,8 @@ export async function getCurrentSession(): Promise<CurrentWebSession | null> {
     };
 }
 
+export const getCurrentSession = cache(loadCurrentSession);
+
 export async function getSessionOrRedirect() {
     const session = await getCurrentSession();
     if (!session?.apiToken) {
@@ -84,7 +87,7 @@ type ApiClientOptions = Pick<
     'disableBatching' | 'retryOnTimeout' | 'timeoutMs'
 >;
 
-export async function getApiClient(options: ApiClientOptions = {}) {
+async function createAuthenticatedApiClient(options: ApiClientOptions = {}) {
     const session = await getSessionOrRedirect();
     return createXpenserClient({
         baseUrl: webConfig.apiBaseUrl,
@@ -92,12 +95,44 @@ export async function getApiClient(options: ApiClientOptions = {}) {
         onUnauthorized: () => {
             redirect(expiredSessionPath);
         },
-        invalidateCacheTag: tag => revalidateTag(tag, 'max'),
+        invalidateCacheTag: tag =>
+            // Mutations must expose the new budget/profile on the next render.
+            // Serving a stale profile after create/restore can produce a 404.
+            revalidateTag(tag, tag === 'user-profile' ? { expire: 0 } : 'max'),
         disableBatching: options.disableBatching,
         retryOnTimeout: options.retryOnTimeout,
         timeoutMs: options.timeoutMs
     });
 }
+
+const getDefaultApiClient = cache(createAuthenticatedApiClient);
+
+export function getApiClient(options?: ApiClientOptions) {
+    return options
+        ? createAuthenticatedApiClient(options)
+        : getDefaultApiClient();
+}
+
+const loadCachedCurrentUser = unstable_cache(
+    async (apiBaseUrl: string, apiToken: string) => {
+        const client = createXpenserClient({
+            baseUrl: apiBaseUrl,
+            disableBatching: true,
+            getToken: () => apiToken,
+            onUnauthorized: () => {
+                redirect(expiredSessionPath);
+            }
+        });
+        return client.auth.me();
+    },
+    ['current-user'],
+    { revalidate: 30, tags: ['user-profile'] }
+);
+
+export const getCurrentUser = cache(async () => {
+    const session = await getSessionOrRedirect();
+    return loadCachedCurrentUser(webConfig.apiBaseUrl, session.apiToken);
+});
 
 export function getAnonymousApiClient() {
     return createXpenserClient({ baseUrl: webConfig.apiBaseUrl });

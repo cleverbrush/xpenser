@@ -19,6 +19,8 @@
         "@cleverbrush/di": "4.4.0",
         "@cleverbrush/env": "4.4.0",
         "@cleverbrush/log": "4.4.0",
+        "@cleverbrush/knex-schema": "4.4.0",
+        "@cleverbrush/mapper": "4.4.0",
         "@cleverbrush/orm": "4.4.0",
         "@cleverbrush/otel": "4.4.0",
         "@cleverbrush/schema": "4.4.0",

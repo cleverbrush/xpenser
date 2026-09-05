@@ -1,6 +1,6 @@
 import type { StatsTagReport, StatsWindowResponse } from '@xpenser/contracts';
 import { StatsExplorer } from '@/components/stats-explorer';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentUser } from '@/lib/api';
 import { selectedBudgetForUser, selectedBudgetQuery } from '@/lib/budgets';
 import {
     dateParam,
@@ -52,7 +52,7 @@ export default async function StatsPage({
     const params = await searchParams;
     const period = isDashboardPeriod(params.period) ? params.period : 'day';
     const client = await getApiClient();
-    const me = await client.auth.me();
+    const me = await getCurrentUser();
     const budgetQuery = await selectedBudgetQuery(me);
     const selectedBudget = await selectedBudgetForUser(me);
     const defaultCurrency =

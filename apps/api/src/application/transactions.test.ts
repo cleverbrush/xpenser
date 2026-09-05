@@ -1,3 +1,4 @@
+import knex from 'knex';
 import { describe, expect, it, vi } from 'vitest';
 import type {
     AppDb,
@@ -25,6 +26,8 @@ import {
     TransactionCategoryError,
     TransactionExportError,
     TransactionNotFoundError,
+    transactionListBaseQuery,
+    transactionListPageQuery,
     transactionSignedDefaultAmount
 } from './transactions.js';
 
@@ -103,6 +106,72 @@ describe('transaction sorting', () => {
         expect(
             rows.sort(compareTransactionsByOccurrenceAsc).map(row => row.id)
         ).toEqual([3, 1, 2, 4]);
+    });
+});
+
+describe('transaction list database query', () => {
+    const queryBuilder = knex({ client: 'pg' });
+
+    it('pushes list filters and stable pagination into PostgreSQL', () => {
+        const from = new Date('2026-05-01T00:00:00.000Z');
+        const to = new Date('2026-05-31T23:59:59.999Z');
+        const baseQuery = transactionListBaseQuery(queryBuilder, 9, {
+            budgetId: 9,
+            categoryId: 3,
+            direction: 'asc',
+            from,
+            parentCategoryId: 2,
+            tagIds: '5,7,5',
+            to,
+            type: 'income',
+            untagged: true,
+            vendorId: 'none'
+        });
+        const compiled = transactionListPageQuery(
+            baseQuery,
+            'asc',
+            25,
+            50
+        ).toSQL();
+
+        expect(compiled.sql).toContain('"transactions"."budget_id" = ?');
+        expect(compiled.sql).toContain('"transactions"."category_id" = ?');
+        expect(compiled.sql).toContain('"transactions"."occurred_at" >= ?');
+        expect(compiled.sql).toContain('"transactions"."occurred_at" <= ?');
+        expect(compiled.sql).toContain('"transactions"."vendor_id" is null');
+        expect(compiled.sql).toContain("category.kind = 'offset'");
+        expect(compiled.sql).toContain('"category"."parent_id" = ?');
+        expect(
+            compiled.sql.match(
+                /exists \(select "tag_id" from "transaction_tag_links" where "tag_id" =/g
+            )
+        ).toHaveLength(2);
+        expect(compiled.sql).toContain('not exists');
+        expect(compiled.sql).toContain(
+            'order by "transactions"."occurred_at" asc, "transactions"."id" asc limit ? offset ?'
+        );
+        expect(compiled.bindings).toContain(from);
+        expect(compiled.bindings).toContain(to);
+        expect(compiled.bindings).toContain('income');
+        expect(compiled.bindings.at(-2)).toBe(25);
+        expect(compiled.bindings.at(-1)).toBe(50);
+    });
+
+    it('escapes search wildcards and searches related labels', () => {
+        const compiled = transactionListBaseQuery(queryBuilder, 4, {
+            direction: 'desc',
+            search: '50%_!'
+        }).toSQL();
+
+        expect(compiled.sql).toContain('category.name ILIKE ?');
+        expect(compiled.sql).toContain("parent.name || ' -> '");
+        expect(compiled.sql).toContain('vendor.name ILIKE ?');
+        expect(compiled.sql).toContain('vendor.domain ILIKE ?');
+        expect(compiled.sql).toContain('transactions.note ILIKE ?');
+        expect(compiled.sql).toContain('"name" ILIKE ?');
+        expect(
+            compiled.bindings.filter(binding => binding === '%50!%!_!!%')
+        ).toHaveLength(6);
     });
 });
 

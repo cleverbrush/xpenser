@@ -4,8 +4,8 @@ import type { Config } from '../config.js';
 import {
     convertAmount,
     convertCurrencyForUser,
+    createCurrencyCatalogLoader,
     getExchangeRate,
-    listCurrencies,
     transactionDate
 } from './currencies.js';
 import { frankfurterCurrencyCatalog } from './frankfurter-currency-catalog.js';
@@ -184,7 +184,7 @@ describe('exchange rates', () => {
 });
 
 describe('currency listing', () => {
-    it('normalizes Frankfurter v2 array payloads', async () => {
+    it('returns bundled currencies immediately and refreshes from v2 array payloads', async () => {
         const fetchMock = vi.fn().mockResolvedValue(
             new Response(
                 JSON.stringify([
@@ -194,14 +194,21 @@ describe('currency listing', () => {
                 { status: 200 }
             )
         );
-        vi.stubGlobal('fetch', fetchMock);
+        const loadCurrencies = createCurrencyCatalogLoader({
+            fetch: fetchMock
+        });
 
-        const currencies = await listCurrencies(config);
+        await expect(loadCurrencies(config)).resolves.toEqual(
+            frankfurterCurrencyCatalog
+        );
 
-        expect(currencies).toEqual([
-            { code: 'AED', name: 'United Arab Emirates Dirham' },
-            { code: 'USD', name: 'United States Dollar' }
-        ]);
+        await vi.waitFor(async () => {
+            await expect(loadCurrencies(config)).resolves.toEqual([
+                { code: 'AED', name: 'United Arab Emirates Dirham' },
+                { code: 'USD', name: 'United States Dollar' }
+            ]);
+        });
+        expect(fetchMock).toHaveBeenCalledOnce();
     });
 
     it('supports object map payloads', async () => {
@@ -214,41 +221,51 @@ describe('currency listing', () => {
                 { status: 200 }
             )
         );
-        vi.stubGlobal('fetch', fetchMock);
+        const loadCurrencies = createCurrencyCatalogLoader({
+            fetch: fetchMock
+        });
 
-        const currencies = await listCurrencies(config);
-
-        expect(currencies).toEqual([
-            { code: 'AED', name: 'United Arab Emirates Dirham' },
-            { code: 'USD', name: 'United States Dollar' }
-        ]);
+        await loadCurrencies(config);
+        await vi.waitFor(async () => {
+            await expect(loadCurrencies(config)).resolves.toEqual([
+                { code: 'AED', name: 'United Arab Emirates Dirham' },
+                { code: 'USD', name: 'United States Dollar' }
+            ]);
+        });
     });
 
-    it('falls back to the bundled catalog on non-ok responses', async () => {
+    it('keeps bundled currencies and backs off after non-ok responses', async () => {
         const fetchMock = vi
             .fn()
             .mockResolvedValue(new Response('upstream error', { status: 502 }));
         const logger = { warn: vi.fn() } as Pick<Logger, 'warn'>;
-        vi.stubGlobal('fetch', fetchMock);
+        const loadCurrencies = createCurrencyCatalogLoader({
+            fetch: fetchMock,
+            retryDelayMs: 1_000
+        });
 
-        const currencies = await listCurrencies(config, logger);
+        const currencies = await loadCurrencies(config, logger);
 
         expect(currencies).toEqual(frankfurterCurrencyCatalog);
-        expect(logger.warn).toHaveBeenCalledOnce();
+        await vi.waitFor(() => expect(logger.warn).toHaveBeenCalledOnce());
+        await loadCurrencies(config, logger);
+        expect(fetchMock).toHaveBeenCalledOnce();
     });
 
-    it('falls back to the bundled catalog on thrown fetch errors', async () => {
+    it('keeps bundled currencies on thrown fetch errors', async () => {
         const fetchMock = vi.fn().mockRejectedValue(new Error('network error'));
         const logger = { warn: vi.fn() } as Pick<Logger, 'warn'>;
-        vi.stubGlobal('fetch', fetchMock);
+        const loadCurrencies = createCurrencyCatalogLoader({
+            fetch: fetchMock
+        });
 
-        const currencies = await listCurrencies(config, logger);
+        const currencies = await loadCurrencies(config, logger);
 
         expect(currencies).toEqual(frankfurterCurrencyCatalog);
-        expect(logger.warn).toHaveBeenCalledOnce();
+        await vi.waitFor(() => expect(logger.warn).toHaveBeenCalledOnce());
     });
 
-    it('falls back when the payload cannot be normalized', async () => {
+    it('keeps bundled currencies when the payload cannot be normalized', async () => {
         const fetchMock = vi
             .fn()
             .mockResolvedValue(
@@ -260,11 +277,105 @@ describe('currency listing', () => {
                 )
             );
         const logger = { warn: vi.fn() } as Pick<Logger, 'warn'>;
-        vi.stubGlobal('fetch', fetchMock);
+        const loadCurrencies = createCurrencyCatalogLoader({
+            fetch: fetchMock
+        });
 
-        const currencies = await listCurrencies(config, logger);
+        const currencies = await loadCurrencies(config, logger);
 
         expect(currencies).toEqual(frankfurterCurrencyCatalog);
-        expect(logger.warn).toHaveBeenCalledOnce();
+        await vi.waitFor(() => expect(logger.warn).toHaveBeenCalledOnce());
+    });
+
+    it('deduplicates concurrent background refreshes', async () => {
+        let resolveFetch: ((response: Response) => void) | undefined;
+        const fetchMock = vi.fn(
+            () =>
+                new Promise<Response>(resolve => {
+                    resolveFetch = resolve;
+                })
+        );
+        const loadCurrencies = createCurrencyCatalogLoader({
+            fetch: fetchMock
+        });
+
+        await Promise.all([
+            loadCurrencies(config),
+            loadCurrencies(config),
+            loadCurrencies(config)
+        ]);
+
+        expect(fetchMock).toHaveBeenCalledOnce();
+        resolveFetch?.(
+            new Response(JSON.stringify({ USD: 'United States Dollar' }), {
+                status: 200
+            })
+        );
+        await vi.waitFor(async () => {
+            await expect(loadCurrencies(config)).resolves.toEqual([
+                { code: 'USD', name: 'United States Dollar' }
+            ]);
+        });
+    });
+
+    it('refreshes again after the successful catalog expires', async () => {
+        let now = 0;
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ USD: 'US Dollar' }), {
+                    status: 200
+                })
+            )
+            .mockResolvedValueOnce(
+                new Response(JSON.stringify({ EUR: 'Euro' }), { status: 200 })
+            );
+        const loadCurrencies = createCurrencyCatalogLoader({
+            fetch: fetchMock,
+            now: () => now,
+            refreshIntervalMs: 1_000
+        });
+
+        await loadCurrencies(config);
+        await vi.waitFor(async () => {
+            await expect(loadCurrencies(config)).resolves.toEqual([
+                { code: 'USD', name: 'US Dollar' }
+            ]);
+        });
+        now = 999;
+        await loadCurrencies(config);
+        expect(fetchMock).toHaveBeenCalledOnce();
+
+        now = 1_000;
+        await expect(loadCurrencies(config)).resolves.toEqual([
+            { code: 'USD', name: 'US Dollar' }
+        ]);
+        await vi.waitFor(async () => {
+            await expect(loadCurrencies(config)).resolves.toEqual([
+                { code: 'EUR', name: 'Euro' }
+            ]);
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('times out a stalled refresh and keeps the bundled catalog', async () => {
+        const fetchMock = vi.fn(
+            (_input: string | URL | Request, init?: RequestInit) =>
+                new Promise<Response>((_resolve, reject) => {
+                    init?.signal?.addEventListener('abort', () => {
+                        reject(init.signal?.reason);
+                    });
+                })
+        );
+        const logger = { warn: vi.fn() } as Pick<Logger, 'warn'>;
+        const loadCurrencies = createCurrencyCatalogLoader({
+            fetch: fetchMock,
+            timeoutMs: 1
+        });
+
+        await expect(loadCurrencies(config, logger)).resolves.toEqual(
+            frankfurterCurrencyCatalog
+        );
+        await vi.waitFor(() => expect(logger.warn).toHaveBeenCalledOnce());
     });
 });

@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { CategoryTrendExplorer } from '@/components/category-trend-explorer';
-import { getApiClient } from '@/lib/api';
+import { getApiClient, getCurrentUser } from '@/lib/api';
 import { selectedBudgetQuery } from '@/lib/budgets';
 import {
     type CategoryTrendSearchParams,
@@ -51,7 +51,7 @@ export default async function CategoryTrendPage({
     }
 
     const client = await getApiClient();
-    const me = await client.auth.me();
+    const me = await getCurrentUser();
     const budgetQuery = await selectedBudgetQuery(me);
     const query = {
         ...categoryTrendQuery(rawSearchParams, me.timezone),

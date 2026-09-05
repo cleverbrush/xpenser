@@ -1,3 +1,4 @@
+import { getTableName, query as schemaQuery } from '@cleverbrush/knex-schema';
 import type { Logger } from '@cleverbrush/log';
 import type { StatsOverview } from '@xpenser/contracts';
 import {
@@ -9,14 +10,18 @@ import {
 } from '@xpenser/timezone';
 import type { Knex } from 'knex';
 import type { Config } from '../config.js';
-import type {
-    AppDb,
-    BudgetDb,
-    CategoryDb,
-    TransactionDb,
-    UserDb,
-    VendorDb
+import {
+    type AppDb,
+    type BudgetDb,
+    type CategoryDb,
+    type EmailReportDeliveryDb,
+    EmailReportDeliveryDbSchema,
+    type TransactionDb,
+    type UserDb,
+    UserDbSchema,
+    type VendorDb
 } from '../db/schemas.js';
+import { reportBudgetsQuery } from './budget-queries.js';
 import { categoryDisplayName, categoryReportingType } from './categories.js';
 import { sendEmail as sendProviderEmail } from './email.js';
 import { generateStructuredJson } from './openai.js';
@@ -894,55 +899,68 @@ async function claimDelivery(
     period: ReportPeriod
 ): Promise<number | undefined> {
     const deliveryKey = scheduledDeliveryKey(user.id, budget.id, type, period);
-    const result = await knex.raw<{ rows: { id: number }[] }>(
-        `
-        insert into email_report_deliveries (
-            user_id,
-            budget_id,
-            delivery_key,
-            report_type,
-            trigger,
-            period_start,
-            period_end,
-            recipient_email,
-            status,
-            attempts,
-            created_at,
-            updated_at
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1, now(), now())
-        on conflict (delivery_key) do update
-        set status = 'pending',
-            attempts = email_report_deliveries.attempts + 1,
-            last_error = null,
-            updated_at = now()
-        where email_report_deliveries.status = 'failed'
-          and email_report_deliveries.attempts < ?
-        returning id
-        `,
-        [
-            user.id,
-            budget.id,
-            deliveryKey,
-            type,
-            trigger,
-            period.from,
-            period.to,
-            user.email,
-            config.emailReports.maxAttempts
-        ]
-    );
+    const tableName = getTableName(EmailReportDeliveryDbSchema);
+    const result = await schemaQuery(knex, EmailReportDeliveryDbSchema)
+        .onConflict(delivery => delivery.deliveryKey)
+        .merge(
+            {
+                userId: user.id,
+                budgetId: budget.id,
+                deliveryKey,
+                reportType: type,
+                trigger,
+                periodStart: period.from,
+                periodEnd: period.to,
+                recipientEmail: user.email,
+                status: 'pending',
+                attempts: 1,
+                lastError: undefined,
+                providerMessageId: undefined,
+                sentAt: undefined
+            },
+            {
+                status: 'pending',
+                attempts: ({ column, raw }) =>
+                    raw('??.?? + 1', [
+                        tableName,
+                        column(delivery => delivery.attempts)
+                    ]),
+                lastError: ({
+                    raw
+                }: {
+                    readonly raw: (
+                        sql: string,
+                        bindings?: readonly unknown[]
+                    ) => Knex.Raw;
+                }) => raw('null'),
+                updatedAt: ({ knex }) => knex.fn.now()
+            },
+            {
+                where: (builder, { column }) => {
+                    builder
+                        .where(
+                            column(delivery => delivery.status),
+                            'failed'
+                        )
+                        .where(
+                            column(delivery => delivery.attempts),
+                            '<',
+                            config.emailReports.maxAttempts
+                        );
+                }
+            }
+        );
 
-    return result.rows[0]?.id;
+    return (result as EmailReportDeliveryDb | undefined)?.id;
 }
 
 async function markDeliverySkipped(
     knex: Knex,
     deliveryId: number
 ): Promise<void> {
-    await knex('email_report_deliveries').where({ id: deliveryId }).update({
-        status: 'skipped',
-        updated_at: new Date()
-    });
+    await schemaQuery(knex, EmailReportDeliveryDbSchema)
+        .where(delivery => delivery.id, deliveryId)
+        .update({ status: 'skipped', updatedAt: new Date() });
 }
 
 async function markDeliverySent(
@@ -950,12 +968,14 @@ async function markDeliverySent(
     deliveryId: number,
     providerMessageId: string | undefined
 ): Promise<void> {
-    await knex('email_report_deliveries').where({ id: deliveryId }).update({
-        provider_message_id: providerMessageId,
-        sent_at: new Date(),
-        status: 'sent',
-        updated_at: new Date()
-    });
+    await schemaQuery(knex, EmailReportDeliveryDbSchema)
+        .where(delivery => delivery.id, deliveryId)
+        .update({
+            providerMessageId,
+            sentAt: new Date(),
+            status: 'sent',
+            updatedAt: new Date()
+        });
 }
 
 async function markDeliveryFailed(
@@ -963,12 +983,12 @@ async function markDeliveryFailed(
     deliveryId: number,
     err: unknown
 ): Promise<void> {
-    await knex('email_report_deliveries')
-        .where({ id: deliveryId })
+    await schemaQuery(knex, EmailReportDeliveryDbSchema)
+        .where(delivery => delivery.id, deliveryId)
         .update({
-            last_error: err instanceof Error ? err.message : String(err),
+            lastError: err instanceof Error ? err.message : String(err),
             status: 'failed',
-            updated_at: new Date()
+            updatedAt: new Date()
         });
 }
 
@@ -1046,19 +1066,16 @@ async function sendEmailReport(
 }
 
 async function listReportUsers(knex: Knex): Promise<ReportUser[]> {
-    const rows = await knex('users')
-        .select(
-            'id',
-            'email',
-            'timezone',
-            'weekly_email_report_enabled as weeklyEmailReportEnabled',
-            'monthly_email_report_enabled as monthlyEmailReportEnabled'
-        )
-        .where(builder => {
-            builder
-                .where('weekly_email_report_enabled', true)
-                .orWhere('monthly_email_report_enabled', true);
-        });
+    const rows = await schemaQuery(knex, UserDbSchema)
+        .select(user => ({
+            id: user.id,
+            email: user.email,
+            timezone: user.timezone,
+            weeklyEmailReportEnabled: user.weeklyEmailReportEnabled,
+            monthlyEmailReportEnabled: user.monthlyEmailReportEnabled
+        }))
+        .where(user => user.weeklyEmailReportEnabled, true)
+        .orWhere(user => user.monthlyEmailReportEnabled, true);
 
     return rows as ReportUser[];
 }
@@ -1067,14 +1084,7 @@ async function listReportBudgets(
     knex: Knex,
     userId: number
 ): Promise<Pick<BudgetDb, 'id' | 'name'>[]> {
-    const rows = await knex('budgets')
-        .join('budget_members', 'budget_members.budget_id', 'budgets.id')
-        .select('budgets.id', 'budget_members.display_name as name')
-        .where('budget_members.user_id', userId)
-        .whereNull('budgets.archived_at')
-        .orderBy('budget_members.display_name', 'asc');
-
-    return rows as Pick<BudgetDb, 'id' | 'name'>[];
+    return reportBudgetsQuery(knex, userId);
 }
 
 export async function sendDueEmailReports(

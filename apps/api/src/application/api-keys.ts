@@ -1,9 +1,12 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { mapper } from '@cleverbrush/mapper';
+import { date, number, object, string } from '@cleverbrush/schema';
 import type {
     ApiKey,
     CreateApiKeyBody,
     CreateApiKeyResponse
 } from '@xpenser/contracts';
+import { ApiKeySchema } from '@xpenser/contracts';
 import type { ApiKeyDb, AppDb, UserDb } from '../db/schemas.js';
 
 const keyPattern = /^xpk_([a-f0-9]{24})_([A-Za-z0-9_-]{43})$/;
@@ -23,14 +26,22 @@ export type ApiKeyPrincipal = {
 
 export class ApiKeyNotFoundError extends Error {}
 
-function mapApiKey(row: ApiKeyDb): ApiKey {
-    return {
-        id: row.id,
-        name: row.name,
-        keyPrefix: row.keyPrefix,
-        createdAt: row.createdAt,
+const ApiKeyMappingSourceSchema = object({
+    id: number(),
+    name: string(),
+    keyPrefix: string(),
+    createdAt: date(),
+    lastUsedAt: date().optional()
+});
+const mapApiKeyRow = mapper()
+    .configure(ApiKeyMappingSourceSchema, ApiKeySchema, mapping => mapping)
+    .getMapper(ApiKeyMappingSourceSchema, ApiKeySchema);
+
+function mapApiKey(row: ApiKeyDb): Promise<ApiKey> {
+    return mapApiKeyRow({
+        ...row,
         lastUsedAt: row.lastUsedAt ?? undefined
-    };
+    });
 }
 
 export function generateApiKeyMaterial(): ApiKeyMaterial {
@@ -77,7 +88,7 @@ export async function listApiKeys(
     const rows = (await db.apiKeys
         .where(key => key.userId, userId)
         .orderBy(key => key.createdAt, 'desc')) as ApiKeyDb[];
-    return rows.filter(row => !row.revokedAt).map(mapApiKey);
+    return Promise.all(rows.filter(row => !row.revokedAt).map(mapApiKey));
 }
 
 export async function createApiKey(
@@ -98,7 +109,7 @@ export async function createApiKey(
 
     return {
         key: material.key,
-        apiKey: mapApiKey(created)
+        apiKey: await mapApiKey(created)
     };
 }
 

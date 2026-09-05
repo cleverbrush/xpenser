@@ -8,8 +8,8 @@ import {
     LayoutDashboardIcon,
     StoreIcon
 } from 'lucide-react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { AppNavigationLink, AppNavigationPending } from './app-navigation-link';
 import { isPeriodStatePath, PeriodStateLink } from './period-state-link';
 
 const items = [
@@ -59,10 +59,11 @@ export function MobileTabBar({ timezone }: { readonly timezone: string }) {
                             <span className="max-w-full truncate">
                                 {item.label}
                             </span>
+                            <AppNavigationPending />
                         </>
                     );
                     const className = cn(
-                        'flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium text-muted-foreground transition-colors',
+                        'relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-md px-1 text-[11px] font-medium text-muted-foreground transition-colors',
                         active && 'bg-muted text-foreground'
                     );
                     if (isPeriodStatePath(item.href)) {
@@ -79,14 +80,14 @@ export function MobileTabBar({ timezone }: { readonly timezone: string }) {
                         );
                     }
                     return (
-                        <Link
+                        <AppNavigationLink
                             aria-current={active ? 'page' : undefined}
                             className={className}
                             href={item.href}
                             key={item.href}
                         >
                             {content}
-                        </Link>
+                        </AppNavigationLink>
                     );
                 })}
             </div>
