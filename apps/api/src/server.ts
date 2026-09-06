@@ -24,7 +24,7 @@ import {
     oauthProtectedResourceMcpHandler,
     oauthTokenHandler
 } from './mcp/oauth-endpoints.js';
-import { xpenserAuthScheme } from './security/api-auth.js';
+import { xpenserAuthSchemes } from './security/api-auth.js';
 
 /**
  * CORS middleware for the public API surface.
@@ -82,8 +82,9 @@ export function buildServer(
         .use(requestLogMiddleware)
         .services(services => configureDI(services, config, logger, resources))
         .useAuthentication({
-            defaultScheme: 'xpenser',
-            schemes: [xpenserAuthScheme(config, resources.db)]
+            defaultScheme: 'jwt',
+            trySchemes: ['api-key', 'jwt'],
+            schemes: xpenserAuthSchemes(config, resources.db)
         })
         .useAuthorization()
         .withHealthcheck()
