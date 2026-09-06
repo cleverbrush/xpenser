@@ -11,7 +11,8 @@ COPY packages/client/package.json ./packages/client/package.json
 COPY packages/timezone/package.json ./packages/timezone/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
 
-RUN npm ci --ignore-scripts
+# npm may hoist every dependency; keep the optional workspace copy valid.
+RUN npm ci --ignore-scripts && mkdir -p apps/telegram-bot/node_modules
 
 COPY apps/telegram-bot ./apps/telegram-bot
 COPY packages ./packages
