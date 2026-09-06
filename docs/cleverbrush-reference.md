@@ -68,9 +68,17 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
   Telegram bot startup all refuse documented placeholder secrets in production.
 - Passwords use scrypt with per-password salts. API keys, Telegram link tokens,
   and email confirmation tokens are stored as hashes.
-- The API accepts either short-lived JWTs or durable user API keys through one
-  composite Cleverbrush auth scheme. MCP access additionally requires an API-key
-  principal.
+- The API uses Cleverbrush's ordered `trySchemes: ['api-key', 'jwt']` with
+  application-owned credential guards. A nonempty `X-API-Key` takes precedence
+  over bearer credentials; an invalid selected API key never falls through to a
+  JWT. API keys are also accepted as bearer tokens. Single-user restrictions and
+  principal claims apply to both schemes.
+- Native `trySchemes` support was already available in Framework 4.4.0. The
+  dependency upgrade to 4.4.3 independently brings published routing and
+  prototype-pollution fixes.
+- MCP keeps its separate API-key/OAuth authentication. MCP OAuth tokens are not
+  accepted by ordinary REST endpoints, and regular app JWTs do not grant MCP
+  access.
 - Knex spans are emitted for database visibility, but SQL text is redacted at
   the instrumentation boundary.
 - Telegram tracing records low-cardinality command/action names instead of raw

@@ -17,6 +17,25 @@ const shellFeedbackWebhookUrl = '$' + '{FEEDBACK_WEBHOOK_URL:-}';
 const feedbackVariableExpression = '$' + '{{ vars.FEEDBACK_WEBHOOK_URL }}';
 const feedbackSecretExpression = '$' + '{{ secrets.FEEDBACK_WEBHOOK_URL }}';
 
+describe('workspace runtime images', () => {
+    it.each([
+        'api',
+        'telegram-bot'
+    ])('%s supports both hoisted and workspace-local dependencies', app => {
+        const dockerfile = readFileSync(
+            resolve(repoRoot, `apps/${app}/Dockerfile`),
+            'utf8'
+        );
+        expect(dockerfile).toContain(
+            `RUN npm ci --ignore-scripts && mkdir -p apps/${app}/node_modules`
+        );
+        expect(dockerfile).toContain(
+            `COPY --from=builder /app/apps/${app}/node_modules ./apps/${app}/node_modules`
+        );
+        expect(dockerfile).toContain("import.meta.resolve('@cleverbrush/env')");
+    });
+});
+
 describe('PR environment script', () => {
     it('registers Passport against the public /api backend', () => {
         expect(prEnvScript).toContain(

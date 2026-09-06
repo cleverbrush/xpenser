@@ -58,6 +58,17 @@ class TestQuery<T extends object> implements PromiseLike<T[]> {
         return Promise.resolve(this.rows[0]);
     }
 
+    whereIn<TValue>(
+        selector: (row: T) => TValue,
+        values: readonly TValue[]
+    ): TestQuery<T> {
+        return new TestQuery(
+            this.source,
+            this.rows.filter(row => values.includes(selector(row))),
+            this.onDelete
+        );
+    }
+
     update(update: Partial<T>): Promise<T[]> {
         for (const row of this.rows) {
             Object.assign(row, update);
@@ -561,6 +572,18 @@ function makeDb(overrides: Partial<TestData> = {}) {
             ) => new TestQuery(data.members).where(selector, value)
         },
         budgetFavoriteCurrencies: {
+            whereIn: vi.fn(
+                (
+                    selector: (
+                        row: TestData['budgetFavoriteCurrencies'][number]
+                    ) => number,
+                    values: readonly number[]
+                ) =>
+                    new TestQuery(data.budgetFavoriteCurrencies).whereIn(
+                        selector,
+                        values
+                    )
+            ),
             where: <TValue>(
                 selector: (
                     row: TestData['budgetFavoriteCurrencies'][number]
@@ -742,6 +765,58 @@ describe('budget lifecycle', () => {
             { name: 'Old budget' },
             { name: 'Travel' }
         ]);
+    });
+
+    it('loads normalized favorite currencies for all listed budgets with one scoped query', async () => {
+        const { db } = makeDb({
+            budgetFavoriteCurrencies: [
+                { budgetId: 1, currency: ' usd ' },
+                { budgetId: 1, currency: 'eur' },
+                { budgetId: 2, currency: 'gbp' },
+                { budgetId: 3, currency: 'jpy' },
+                { budgetId: 999, currency: 'cad' }
+            ]
+        });
+
+        const result = await listBudgets(db, 1);
+
+        expect(
+            result.map(row => ({
+                id: row.id,
+                favorites: row.favoriteCurrencies
+            }))
+        ).toEqual([
+            { id: 1, favorites: ['EUR', 'USD'] },
+            { id: 2, favorites: ['GBP'] }
+        ]);
+        expect(
+            db.budgetFavoriteCurrencies.whereIn
+        ).toHaveBeenCalledExactlyOnceWith(expect.any(Function), [1, 2]);
+    });
+
+    it('retains budgets without favorite currencies', async () => {
+        const { db } = makeDb();
+        const result = await listBudgets(db, 1);
+        expect(result.map(row => row.favoriteCurrencies)).toEqual([[], []]);
+        expect(db.budgetFavoriteCurrencies.whereIn).toHaveBeenCalledTimes(1);
+    });
+
+    it('deduplicates budget IDs before loading favorites', async () => {
+        const { db, data } = makeDb();
+        // A duplicate query row must not duplicate the IN bindings or reads.
+        data.members.push(member(2, 1, 'admin', { displayName: 'Travel' }));
+        await listBudgets(db, 1);
+        expect(
+            db.budgetFavoriteCurrencies.whereIn
+        ).toHaveBeenCalledExactlyOnceWith(expect.any(Function), [1, 2]);
+    });
+
+    it('does not query favorites when the filtered budget list is empty', async () => {
+        const { db } = makeDb({
+            budgets: [budget(1, 'Main'), budget(2, 'Travel')]
+        });
+        await expect(listBudgets(db, 1, 'archived')).resolves.toEqual([]);
+        expect(db.budgetFavoriteCurrencies.whereIn).not.toHaveBeenCalled();
     });
 
     it('renames, archives, and restores non-main budgets', async () => {

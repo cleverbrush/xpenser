@@ -31,6 +31,13 @@ function headerApiKey(context: AuthenticationContext): string | undefined {
     return value || undefined;
 }
 
+function selectedApiKey(context: AuthenticationContext): string | undefined {
+    const explicitApiKey = headerApiKey(context);
+    if (explicitApiKey) return explicitApiKey;
+    const token = bearerToken(context);
+    return token && parseApiKey(token) ? token : undefined;
+}
+
 function apiKeyClaims(
     userId: number,
     role: string,
@@ -47,13 +54,13 @@ function apiKeyClaims(
 /**
  * Authenticates regular app JWTs and durable user API keys.
  *
- * Cleverbrush currently runs only the configured default auth scheme, so this
- * composite scheme keeps xpenser's two credential types behind one scheme.
+ * Register with trySchemes: ['api-key', 'jwt']. Credential selection remains
+ * application policy: a selected API key must never fall through to a JWT.
  */
-export function xpenserAuthScheme(
+export function xpenserAuthSchemes(
     config: Config,
     db: AppDb
-): AuthenticationScheme<XpenserPrincipal> {
+): AuthenticationScheme<XpenserPrincipal>[] {
     const jwt = jwtScheme<XpenserPrincipal>({
         secret: config.jwt.secret,
         mapClaims: claims => ({
@@ -102,17 +109,24 @@ export function xpenserAuthScheme(
         };
     }
 
-    return {
-        name: 'xpenser',
+    const apiKey: AuthenticationScheme<XpenserPrincipal> = {
+        name: 'api-key',
         async authenticate(context) {
-            const explicitApiKey = headerApiKey(context);
-            if (explicitApiKey) {
-                return authenticateKey(explicitApiKey);
-            }
+            const token = selectedApiKey(context);
+            return token
+                ? authenticateKey(token)
+                : { succeeded: false, failure: 'No API key provided' };
+        }
+    };
 
-            const token = bearerToken(context);
-            if (token && parseApiKey(token)) {
-                return authenticateKey(token);
+    const guardedJwt: AuthenticationScheme<XpenserPrincipal> = {
+        name: 'jwt',
+        async authenticate(context) {
+            if (selectedApiKey(context)) {
+                return {
+                    succeeded: false,
+                    failure: 'An API key credential was selected'
+                };
             }
 
             const result = await jwt.authenticate(context);
@@ -154,4 +168,5 @@ export function xpenserAuthScheme(
             };
         }
     };
+    return [apiKey, guardedJwt];
 }

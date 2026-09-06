@@ -11,6 +11,18 @@ import {
 } from './budget-queries.js';
 
 describe('budget membership database queries', () => {
+    it('binds multiple favorite-currency budget IDs through the ORM column selector', async () => {
+        const knex = knexFactory({ client: 'pg' });
+        const db = createDb(knex, entityMap);
+        const compiled = db.budgetFavoriteCurrencies
+            .whereIn(currency => currency.budgetId, [7, 9])
+            .toKnexQuery()
+            .toSQL();
+        expect(compiled.sql).toContain('"budget_id" in (?, ?)');
+        expect(compiled.bindings).toEqual([7, 9]);
+        await knex.destroy();
+    });
+
     it('filters active budgets and orders the final SQL result with aliased columns', async () => {
         const knex = knexFactory({ client: 'pg' });
         const compiled = budgetMembershipsQuery(knex, 7, 'active', 9)

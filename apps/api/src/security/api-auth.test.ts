@@ -6,7 +6,7 @@ import {
 } from '../application/api-keys.js';
 import type { Config } from '../config.js';
 import type { AppDb } from '../db/schemas.js';
-import { xpenserAuthScheme } from './api-auth.js';
+import { xpenserAuthSchemes } from './api-auth.js';
 
 const config = {
     jwt: {
@@ -29,6 +29,14 @@ function authContext(headers: Record<string, string>) {
     };
 }
 
+function authScheme(name: 'api-key' | 'jwt', config: Config, db: AppDb) {
+    const scheme = xpenserAuthSchemes(config, db).find(
+        item => item.name === name
+    );
+    if (!scheme) throw new Error(`Missing auth scheme: ${name}`);
+    return scheme;
+}
+
 describe('xpenser auth scheme', () => {
     it('authenticates regular app JWT bearer tokens', async () => {
         const token = signJwt(
@@ -39,7 +47,7 @@ describe('xpenser auth scheme', () => {
             },
             config.jwt.secret
         );
-        const scheme = xpenserAuthScheme(config, {} as AppDb);
+        const scheme = authScheme('jwt', config, {} as AppDb);
 
         const result = await scheme.authenticate(
             authContext({ authorization: `Bearer ${token}` })
@@ -76,7 +84,7 @@ describe('xpenser auth scheme', () => {
                 find: vi.fn(async () => ({ id: 42, role: 'user' }))
             }
         } as unknown as AppDb;
-        const scheme = xpenserAuthScheme(config, db);
+        const scheme = authScheme('api-key', config, db);
 
         const result = await scheme.authenticate(
             authContext({ 'x-api-key': material.key })
@@ -114,7 +122,7 @@ describe('xpenser auth scheme', () => {
                 find: vi.fn(async () => ({ id: 42, role: 'user' }))
             }
         } as unknown as AppDb;
-        const scheme = xpenserAuthScheme(config, db);
+        const scheme = authScheme('api-key', config, db);
 
         const result = await scheme.authenticate(
             authContext({ authorization: `Bearer ${material.key}` })
@@ -141,7 +149,7 @@ describe('xpenser auth scheme', () => {
                 }))
             }
         } as unknown as AppDb;
-        const scheme = xpenserAuthScheme(singleUserConfig, db);
+        const scheme = authScheme('jwt', singleUserConfig, db);
 
         const result = await scheme.authenticate(
             authContext({ authorization: `Bearer ${token}` })
@@ -172,7 +180,7 @@ describe('xpenser auth scheme', () => {
                 }))
             }
         } as unknown as AppDb;
-        const scheme = xpenserAuthScheme(singleUserConfig, db);
+        const scheme = authScheme('api-key', singleUserConfig, db);
 
         const result = await scheme.authenticate(
             authContext({ 'x-api-key': material.key })

@@ -32,8 +32,8 @@
         "clean": "rm -rf dist tsconfig.tsbuildinfo"
     },
     "dependencies": {
-        "@cleverbrush/schema": "4.4.0",
-        "@cleverbrush/server": "4.4.0"
+        "@cleverbrush/schema": "4.4.3",
+        "@cleverbrush/server": "4.4.3"
     },
     "devDependencies": {
         "tsup": "8.5.1",

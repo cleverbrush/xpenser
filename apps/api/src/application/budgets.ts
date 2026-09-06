@@ -155,21 +155,18 @@ async function loadBudgetFavoriteCurrencies(
         return new Map();
     }
 
-    const byBudget = new Map<number, readonly string[]>();
-    await Promise.all(
-        Array.from(new Set(budgetIds)).map(async budgetId => {
-            const rows = await db.budgetFavoriteCurrencies.where(
-                currency => currency.budgetId,
-                budgetId
-            );
-            byBudget.set(
-                budgetId,
-                rows
-                    .map(row => row.currency.trim().toUpperCase())
-                    .sort((left, right) => left.localeCompare(right))
-            );
-        })
+    const ids = [...new Set(budgetIds)];
+    const byBudget = new Map<number, string[]>(ids.map(id => [id, []]));
+    const rows = await db.budgetFavoriteCurrencies.whereIn(
+        currency => currency.budgetId,
+        ids
     );
+    for (const row of rows) {
+        byBudget.get(row.budgetId)!.push(row.currency.trim().toUpperCase());
+    }
+    for (const currencies of byBudget.values()) {
+        currencies.sort((left, right) => left.localeCompare(right));
+    }
     return byBudget;
 }
 
