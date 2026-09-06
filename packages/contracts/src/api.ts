@@ -152,6 +152,9 @@ const mcpConnections = endpoint
  * in `apps/api/src/api/endpoints.ts`, while consumers import this contract to
  * get request, response, route-parameter, cache-tag, and authorization metadata
  * without code generation.
+ *
+ * A GET tag names one response shape; select every query/path variant explicitly.
+ * Mutations clear each affected tag explicitly, including split response groups.
  */
 export const api = defineApi({
     auth: {
@@ -233,10 +236,17 @@ export const api = defineApi({
             .put('/api/users/me/preferences')
             .authorize(PrincipalSchema)
             .body(UpdateUserPreferenceBodySchema)
+            .clearsCacheTag('currency-conversion')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 200: UserPreferenceSchema,
                 400: ErrorResponseSchema,
@@ -245,7 +255,7 @@ export const api = defineApi({
         telegramStatus: endpoint
             .get('/api/users/me/telegram')
             .authorize(PrincipalSchema)
-            .cacheTag('user-profile')
+            .cacheTag('telegram-status')
             .responses({
                 200: TelegramConnectionStatusSchema,
                 401: ErrorResponseSchema
@@ -254,6 +264,7 @@ export const api = defineApi({
             .post('/api/users/me/telegram/link-token')
             .authorize(PrincipalSchema)
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .responses({
                 201: CreateTelegramLinkTokenResponseSchema,
                 400: ErrorResponseSchema,
@@ -263,6 +274,7 @@ export const api = defineApi({
             .delete('/api/users/me/telegram')
             .authorize(PrincipalSchema)
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .responses({
                 204: null,
                 401: ErrorResponseSchema
@@ -271,10 +283,14 @@ export const api = defineApi({
             .put(CurrentUserAvatar)
             .body(UserAvatarUploadBodySchema)
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('budgets')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('vendors')
+            .clearsCacheTag('vendor')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .responses({
                 200: UserPreferenceSchema,
                 400: ErrorResponseSchema,
@@ -283,10 +299,14 @@ export const api = defineApi({
         deleteAvatar: userAvatars
             .delete(CurrentUserAvatar)
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('budgets')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('vendors')
+            .clearsCacheTag('vendor')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .responses({
                 200: UserPreferenceSchema,
                 401: ErrorResponseSchema
@@ -336,13 +356,16 @@ export const api = defineApi({
         list: budgets
             .get()
             .query(ListBudgetsQuerySchema)
-            .cacheTag('budgets')
+            .cacheTag('budgets', request => ({
+                status: request.query.status
+            }))
             .responses({ 200: array(BudgetSchema) }),
         create: budgets
             .post()
             .body(CreateBudgetBodySchema)
             .clearsCacheTag('budgets')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .responses({
                 201: BudgetSchema,
                 400: ErrorResponseSchema,
@@ -352,10 +375,16 @@ export const api = defineApi({
         update: budgets
             .patch(ById)
             .body(UpdateBudgetBodySchema)
+            .clearsCacheTag('currency-conversion')
             .clearsCacheTag('budgets')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 200: BudgetSchema,
                 400: ErrorResponseSchema,
@@ -366,8 +395,13 @@ export const api = defineApi({
             .delete(ById)
             .clearsCacheTag('budgets')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 204: null,
                 400: ErrorResponseSchema,
@@ -420,6 +454,7 @@ export const api = defineApi({
             .body(AcceptBudgetInvitationBodySchema)
             .clearsCacheTag('budgets')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .responses({
                 200: BudgetSchema,
                 400: ErrorResponseSchema,
@@ -490,7 +525,11 @@ export const api = defineApi({
         list: categories
             .get()
             .query(CategoryListQuerySchema)
-            .cacheTag('categories')
+            .cacheTag('categories', request => ({
+                activeOnly: request.query.activeOnly,
+                budgetId: request.query.budgetId,
+                sort: request.query.sort
+            }))
             .responses({
                 200: array(CategorySchema),
                 403: ErrorResponseSchema,
@@ -501,7 +540,11 @@ export const api = defineApi({
             .body(CreateCategoryBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 201: CategorySchema,
                 400: ErrorResponseSchema,
@@ -513,7 +556,11 @@ export const api = defineApi({
             .body(UpdateCategoryBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 200: CategorySchema,
                 400: ErrorResponseSchema,
@@ -524,7 +571,11 @@ export const api = defineApi({
             .delete(ById)
             .clearsCacheTag('categories')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 204: null,
                 400: ErrorResponseSchema,
@@ -536,9 +587,15 @@ export const api = defineApi({
             .body(MoveAndDeleteCategoryBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 204: null,
                 400: ErrorResponseSchema,
@@ -561,21 +618,29 @@ export const api = defineApi({
         list: vendors
             .get()
             .query(VendorListQuerySchema)
-            .cacheTag('vendors')
+            .cacheTag('vendors', request => ({
+                budgetId: request.query.budgetId,
+                limit: request.query.limit,
+                search: request.query.search
+            }))
             .responses({
                 200: array(VendorSchema),
                 403: ErrorResponseSchema,
                 404: ErrorResponseSchema
             }),
-        get: vendors.get(ById).cacheTag('vendors').responses({
-            200: VendorSchema,
-            403: ErrorResponseSchema,
-            404: ErrorResponseSchema
-        }),
+        get: vendors
+            .get(ById)
+            .cacheTag('vendor', request => ({ id: request.params.id }))
+            .responses({
+                200: VendorSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
+            }),
         create: vendors
             .post()
             .body(CreateVendorBodySchema)
             .clearsCacheTag('vendors')
+            .clearsCacheTag('vendor')
             .responses({
                 201: VendorSchema,
                 400: ErrorResponseSchema,
@@ -586,7 +651,9 @@ export const api = defineApi({
             .patch(ById)
             .body(UpdateVendorBodySchema)
             .clearsCacheTag('vendors')
+            .clearsCacheTag('vendor')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .responses({
                 200: VendorSchema,
                 400: ErrorResponseSchema,
@@ -596,7 +663,9 @@ export const api = defineApi({
         enrich: vendors
             .post(VendorEnrich)
             .clearsCacheTag('vendors')
+            .clearsCacheTag('vendor')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .responses({
                 200: VendorSchema,
                 403: ErrorResponseSchema,
@@ -607,7 +676,21 @@ export const api = defineApi({
         list: transactions
             .get()
             .query(TransactionListQuerySchema)
-            .cacheTag('transactions')
+            .cacheTag('transactions', request => ({
+                budgetId: request.query.budgetId,
+                categoryId: request.query.categoryId,
+                direction: request.query.direction,
+                from: request.query.from,
+                limit: request.query.limit,
+                page: request.query.page,
+                parentCategoryId: request.query.parentCategoryId,
+                search: request.query.search,
+                tagIds: request.query.tagIds,
+                to: request.query.to,
+                type: request.query.type,
+                untagged: request.query.untagged,
+                vendorId: request.query.vendorId
+            }))
             .responses({
                 200: TransactionListResponseSchema,
                 403: ErrorResponseSchema,
@@ -616,7 +699,20 @@ export const api = defineApi({
         exportCsv: transactions
             .get(TransactionExportCsv)
             .query(TransactionExportQuerySchema)
-            .cacheTag('transactions')
+            .cacheTag('transaction-export', request => ({
+                budgetId: request.query.budgetId,
+                categoryId: request.query.categoryId,
+                currencies: request.query.currencies,
+                direction: request.query.direction,
+                from: request.query.from,
+                parentCategoryId: request.query.parentCategoryId,
+                search: request.query.search,
+                tagIds: request.query.tagIds,
+                to: request.query.to,
+                type: request.query.type,
+                untagged: request.query.untagged,
+                vendorId: request.query.vendorId
+            }))
             .producesFile('text/csv', 'Transaction CSV export')
             .responses({
                 400: ErrorResponseSchema,
@@ -628,11 +724,18 @@ export const api = defineApi({
             .body(CreateTransactionBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('vendors')
+            .clearsCacheTag('vendor')
             .clearsCacheTag('transaction-tags')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 201: TransactionSchema,
                 400: ErrorResponseSchema,
@@ -644,11 +747,18 @@ export const api = defineApi({
             .body(UpdateTransactionBodySchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('vendors')
+            .clearsCacheTag('vendor')
             .clearsCacheTag('transaction-tags')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 200: TransactionSchema,
                 400: ErrorResponseSchema,
@@ -659,11 +769,18 @@ export const api = defineApi({
             .delete(ById)
             .clearsCacheTag('categories')
             .clearsCacheTag('vendors')
+            .clearsCacheTag('vendor')
             .clearsCacheTag('transaction-tags')
             .clearsCacheTag('transactions')
+            .clearsCacheTag('transaction-export')
             .clearsCacheTag('user-profile')
+            .clearsCacheTag('telegram-status')
             .clearsCacheTag('dashboard')
+            .clearsCacheTag('dashboard-window')
             .clearsCacheTag('stats')
+            .clearsCacheTag('stats-window')
+            .clearsCacheTag('stats-tags')
+            .clearsCacheTag('stats-category-trend')
             .responses({
                 204: null,
                 403: ErrorResponseSchema,
@@ -679,7 +796,11 @@ export const api = defineApi({
         list: transactionTags
             .get()
             .query(TransactionTagListQuerySchema)
-            .cacheTag('transaction-tags')
+            .cacheTag('transaction-tags', request => ({
+                budgetId: request.query.budgetId,
+                limit: request.query.limit,
+                search: request.query.search
+            }))
             .responses({
                 200: array(TransactionTagSchema),
                 403: ErrorResponseSchema,
@@ -747,7 +868,7 @@ export const api = defineApi({
             .get('/api/dashboard/window')
             .authorize(PrincipalSchema)
             .query(DashboardWindowQuerySchema)
-            .cacheTag('dashboard', request => ({
+            .cacheTag('dashboard-window', request => ({
                 after: request.query.after,
                 before: request.query.before,
                 budgetId: request.query.budgetId,
@@ -785,7 +906,7 @@ export const api = defineApi({
             .get('/api/stats/window')
             .authorize(PrincipalSchema)
             .query(PeriodWindowQuerySchema)
-            .cacheTag('stats', request => ({
+            .cacheTag('stats-window', request => ({
                 after: request.query.after,
                 before: request.query.before,
                 budgetId: request.query.budgetId,
@@ -800,7 +921,7 @@ export const api = defineApi({
         tags: stats
             .get(StatsTags)
             .query(StatsTagReportQuerySchema)
-            .cacheTag('stats', request => ({
+            .cacheTag('stats-tags', request => ({
                 budgetId: request.query.budgetId,
                 date: request.query.date,
                 period: request.query.period,
@@ -814,7 +935,7 @@ export const api = defineApi({
         categoryTrend: stats
             .get(StatsCategoryTrend)
             .query(CategoryTrendQuerySchema)
-            .cacheTag('stats', request => ({
+            .cacheTag('stats-category-trend', request => ({
                 budgetId: request.query.budgetId,
                 categoryId: request.params.id,
                 from: request.query.from,
