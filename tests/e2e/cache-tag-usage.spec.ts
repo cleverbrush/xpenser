@@ -90,17 +90,19 @@ test('vendor searches, detail reads, and edits keep the correct profile', async 
 
 test('transaction filters and CSV export use the currently selected records', async ({ page, cacheFixture }, testInfo) => {
     const [first, second] = cacheFixture.notes;
+    const [firstVendor, secondVendor] = cacheFixture.vendors;
     await page.goto(`/transactions?search=${encodeURIComponent(first)}`);
-    await expect(page.getByRole('row').filter({ hasText: first })).toBeVisible();
-    await expect(page.getByRole('row').filter({ hasText: second })).toHaveCount(0);
+    // Notes are searchable/exported but are not displayed in the table.
+    await expect(page.getByRole('row').filter({ hasText: firstVendor.name })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: secondVendor.name })).toHaveCount(0);
     if (!(await page.getByLabel('Search', { exact: true }).isVisible())) {
         await page.getByRole('button', { name: /^Filters/ }).click();
     }
     await page.getByLabel('Search', { exact: true }).fill(second);
     await page.getByLabel('Search', { exact: true }).press('Enter');
     await page.waitForURL(url => url.searchParams.get('search') === second);
-    await expect(page.getByRole('row').filter({ hasText: second })).toBeVisible();
-    await expect(page.getByRole('row').filter({ hasText: first })).toHaveCount(0);
+    await expect(page.getByRole('row').filter({ hasText: secondVendor.name })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: firstVendor.name })).toHaveCount(0);
     await page.getByRole('button', { name: 'View settings', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Export CSV', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Export CSV' });
