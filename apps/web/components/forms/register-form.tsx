@@ -159,8 +159,8 @@ export function RegisterForm({
                 </div>
                 <SchemaField
                     fieldProps={{
-                        onValueChange: (value, field) => {
-                            field.onChange(value);
+                        onValueChange: (value: string) => {
+                            defaultCurrency.onChange(value);
                             favoriteCurrencies.setValue(
                                 (favoriteCurrencies.value ?? []).filter(
                                     currency => currency !== value

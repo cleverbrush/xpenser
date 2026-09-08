@@ -113,9 +113,9 @@ export function CategoryForm({
                 <SchemaField
                     fieldProps={{
                         disabled: structuralDisabled,
-                        onValueChange: (value, field) => {
+                        onValueChange: (value: string) => {
                             if (value === 'expense' || value === 'income') {
-                                field.onChange(value);
+                                type.onChange(value);
                                 form.setValue({
                                     parentId: null,
                                     kind: 'normal'
@@ -138,10 +138,10 @@ export function CategoryForm({
                             fieldProps={{
                                 ariaLabel: 'Parent category',
                                 disabled: structuralDisabled,
-                                onValueChange: (value, field) => {
+                                onValueChange: (value: string) => {
                                     const nextParentId =
                                         value === 'none' ? null : Number(value);
-                                    field.onChange(nextParentId);
+                                    parentId.onChange(nextParentId);
                                     if (nextParentId === null) {
                                         form.setValue({ kind: 'normal' });
                                     }
@@ -175,11 +175,11 @@ export function CategoryForm({
                                 disabled:
                                     structuralDisabled ||
                                     selectedParentId === null,
-                                onCheckedChange: (checked, field) => {
+                                onCheckedChange: (checked: boolean) => {
                                     const nextKind = checked
                                         ? 'offset'
                                         : 'normal';
-                                    field.onChange(nextKind);
+                                    kind.onChange(nextKind);
                                 }
                             }}
                             forProperty={field => field.kind}

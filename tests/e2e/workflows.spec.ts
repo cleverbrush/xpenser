@@ -140,6 +140,23 @@ test.describe('authenticated app workflows', () => {
         ).toBeVisible(
             { timeout: 15_000 }
         );
+
+        await page
+            .getByRole('button', { name: 'Leave feedback' })
+            .filter({ visible: true })
+            .click();
+        await expect(dialog).toBeVisible();
+        await expect(dialog.getByRole('combobox', { name: 'Type' })).toHaveText(
+            'Feedback'
+        );
+        await expect(
+            dialog.getByLabel('What would you like to share?')
+        ).toHaveValue('');
+        await expect(
+            dialog.getByRole('button', { name: 'Send feedback' })
+        ).toBeEnabled();
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
     });
 
     test('signs out to the public index page', async ({ page }) => {

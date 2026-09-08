@@ -33,9 +33,11 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
 - `packages/client` wraps `@cleverbrush/client` with the app middleware stack:
   OTel context propagation, retry, timeout, dedupe, in-memory tag caching,
   optional external tag invalidation, and root-path batching.
-- `packages/ui/src/forms/react-form-provider.tsx` registers xpenser UI renderers
-  for `@cleverbrush/react-form`, so app forms bind fields with property
-  selectors instead of string paths.
+- `packages/ui/src/forms/react-form-provider.tsx` exports `XpenserFormSystem`,
+  a typed renderer registry for `@cleverbrush/react-form`.
+  `apps/web/components/forms/schema-fields.tsx` composes it with the web-only
+  currency multiselect. App forms bind fields with property selectors instead
+  of string paths, and renderer-specific props are checked at each call site.
 - `apps/api/src/db/schemas.ts` defines typed ORM entities with
   `@cleverbrush/orm`; `apps/api/src/di/setup.ts` exposes the instrumented Knex
   pool and ORM context through Cleverbrush DI.
@@ -61,6 +63,45 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
   request/response lifecycle, such as MCP transports.
 - Keep credential-bearing integrations behind server-side modules. Browser code
   should call Server Actions or route handlers rather than the API directly.
+
+## Form Ownership
+
+- Use `useSchemaForm(schema)` with the shared `SchemaField` for rendered inputs,
+  and `form.useField(field => field.property)` for headless bindings. A field's
+  schema determines its accepted value and available renderer variants.
+- Let `form.handleSubmit()` own validation, duplicate-submit suppression,
+  `submitting`, and `error`. Return `{ ok: false, error }` for expected action
+  failures and put success effects in `onSuccess`. Preserve Next.js redirect
+  exceptions in `onError`; they are navigation, not form failures.
+- Use `form.reset(values)` when opening a dialog or replacing its initial data.
+  This synchronizes mounted controls and invalidates obsolete submission
+  callbacks without remount keys. Schema defaults apply during validation;
+  explicitly supply values that should be visible before submission.
+- Keep application-only state outside the controller: editable amount/date
+  buffers, transaction filters, suggestion queries, confirmation screens, and
+  undo state. Do not mirror canonical schema values in React state.
+- When different field kinds share a renderer variant (for example string and
+  number selects), explicitly type custom callback parameters and update the
+  corresponding headless binding. This avoids ambiguous callback inference
+  while preserving schema-checked values.
+
+## Cache Ownership
+
+- Keep endpoint-specific cache namespaces in the shared contract. A vendor list
+  and vendor detail have different response shapes and therefore use `vendors`
+  and `vendor`; a write invalidates every affected namespace.
+- Let Framework encode parameterized cache keys. The beta distinguishes Date
+  values down to milliseconds and avoids separator collisions. Do not build a
+  second encoder in Xpenser.
+- `createXpenserClient()` creates its own in-memory cache middleware. Preserve
+  the existing client/auth lifetimes and TTLs; do not share a private-data client
+  across users or change its identity while keeping cached responses.
+- Framework's external cache bridge handles its versioned parameterized tags.
+  Next.js cache tags owned directly by Xpenser still use their existing literal
+  names. Keep these invalidation paths distinct.
+- Failed writes must preserve valid cache entries. A successful write must also
+  stop an older in-flight read from repopulating an invalidated entry; keep both
+  regressions in the client tests.
 
 ## Security Baseline
 

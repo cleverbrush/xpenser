@@ -484,8 +484,8 @@ function QuickCategoryForm({
                             type
                         ).toLowerCase()}.`,
                         disabled: pending,
-                        onCheckedChange: (checked, field) => {
-                            field.onChange(checked ? 'offset' : 'normal');
+                        onCheckedChange: (checked: boolean) => {
+                            kind.onChange(checked ? 'offset' : 'normal');
                         }
                     }}
                     forProperty={field => field.kind}
