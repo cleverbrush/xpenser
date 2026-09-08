@@ -1,6 +1,6 @@
 'use client';
 
-import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
+import { useSchemaForm } from '@cleverbrush/react-form';
 import {
     type Currency,
     FieldLimits,
@@ -12,11 +12,11 @@ import {
     FieldDescription,
     FieldError,
     FieldGroup,
-    FieldLabel,
-    type SelectRendererFieldProps
+    FieldLabel
 } from '@xpenser/ui';
 import Link from 'next/link';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { SchemaField } from '@/components/forms/schema-fields';
 import { registerAction } from '@/lib/actions';
 import { countryLabel, supportedCountries } from '@/lib/countries';
 import { sortCurrenciesForDisplay } from '@/lib/currency-display';
@@ -24,7 +24,6 @@ import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
 import { CurrencyOption } from './currency-option';
 import { isNextRedirectError, valuesToFormData } from './form-utils';
 import { ResendEmailConfirmationForm } from './resend-email-confirmation-form';
-import type { CurrencyMultiSelectRendererFieldProps } from './schema-fields';
 
 export function RegisterForm({
     currencies
@@ -35,14 +34,9 @@ export function RegisterForm({
     const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
         null
     );
-    const [error, setError] = useState<string | null>(null);
-    const [pending, setPending] = useState(false);
-    const [formVersion, setFormVersion] = useState(0);
-    const [selectedDefaultCurrency, setSelectedDefaultCurrency] = useState('');
-    const [selectedCountryCode, setSelectedCountryCode] = useState('US');
-    const [selectedTimezone, setSelectedTimezone] = useState('UTC');
-    const [selectedFavoriteCurrencies, setSelectedFavoriteCurrencies] =
-        useState<string[]>([]);
+    const { submitting: pending, error } = form;
+    const defaultCurrency = form.useField(field => field.defaultCurrency);
+    const favoriteCurrencies = form.useField(field => field.favoriteCurrencies);
     const sortedCurrencies = useMemo(
         () => sortCurrenciesForDisplay(currencies),
         [currencies]
@@ -69,56 +63,40 @@ export function RegisterForm({
             countryCode: 'US',
             timezone: 'UTC'
         });
-        setSelectedDefaultCurrency(initialDefaultCurrency);
-        setSelectedCountryCode('US');
-        setSelectedTimezone('UTC');
-        setSelectedFavoriteCurrencies([]);
-        setFormVersion(version => version + 1);
     }, [form, initialDefaultCurrency]);
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-
-        const selectedDefault =
-            selectedDefaultCurrency || initialDefaultCurrency || '';
-        const favoriteCurrencies = selectedFavoriteCurrencies.filter(
-            currency => currency !== selectedDefault
-        );
-        form.setValue({
-            defaultCurrency: selectedDefault,
-            favoriteCurrencies,
-            countryCode: selectedCountryCode,
-            timezone: selectedTimezone
-        });
-        const result = await form.submit();
-        if (!result.valid || !result.object) {
-            return;
-        }
-
-        setPending(true);
-        setError(null);
-        try {
+    const handleSubmit = form.handleSubmit(
+        async values => {
             const response = await registerAction(
-                valuesToFormData({ ...result.object, favoriteCurrencies })
+                valuesToFormData({
+                    ...values,
+                    favoriteCurrencies: values.favoriteCurrencies?.filter(
+                        currency => currency !== values.defaultCurrency
+                    )
+                })
             );
-            if (response && 'error' in response && response.error) {
-                setError(response.error);
-            } else if (
-                response &&
-                'verificationRequired' in response &&
-                response.verificationRequired
-            ) {
-                setConfirmationEmail(response.email);
+            if (response && 'error' in response && response.error)
+                return { ok: false, error: response.error };
+            return {
+                ok: true,
+                data:
+                    response &&
+                    'verificationRequired' in response &&
+                    response.verificationRequired
+                        ? response.email
+                        : undefined
+            };
+        },
+        {
+            onSuccess: email => {
+                if (email) setConfirmationEmail(email);
+            },
+            onError: caught => {
+                if (isNextRedirectError(caught)) throw caught;
+                return 'Could not create the account. Try a different email.';
             }
-        } catch (caught) {
-            if (isNextRedirectError(caught)) {
-                throw caught;
-            }
-            setError('Could not create the account. Try a different email.');
-        } finally {
-            setPending(false);
         }
-    }
+    );
 
     if (confirmationEmail) {
         return (
@@ -143,7 +121,7 @@ export function RegisterForm({
 
     return (
         <form noValidate onSubmit={handleSubmit}>
-            <FieldGroup key={formVersion}>
+            <FieldGroup>
                 <SchemaField
                     fieldProps={{
                         autoComplete: 'email',
@@ -180,89 +158,54 @@ export function RegisterForm({
                     />
                 </div>
                 <SchemaField
-                    fieldProps={
-                        {
-                            onValueChange: (value, field) => {
-                                const nextFavoriteCurrencies =
-                                    selectedFavoriteCurrencies.filter(
-                                        currency => currency !== value
-                                    );
-
-                                field.onChange(value);
-                                setSelectedDefaultCurrency(value);
-                                setSelectedFavoriteCurrencies(
-                                    nextFavoriteCurrencies
-                                );
-                                form.setValue({
-                                    favoriteCurrencies: nextFavoriteCurrencies
-                                });
-                            },
-                            options: sortedCurrencies.map(currency => ({
-                                label: <CurrencyOption currency={currency} />,
-                                value: currency.code
-                            })),
-                            placeholder: 'Currency',
-                            value:
-                                selectedDefaultCurrency ||
-                                initialDefaultCurrency
-                        } satisfies SelectRendererFieldProps
-                    }
+                    fieldProps={{
+                        onValueChange: (value, field) => {
+                            field.onChange(value);
+                            favoriteCurrencies.setValue(
+                                (favoriteCurrencies.value ?? []).filter(
+                                    currency => currency !== value
+                                )
+                            );
+                        },
+                        options: sortedCurrencies.map(currency => ({
+                            label: <CurrencyOption currency={currency} />,
+                            value: currency.code
+                        })),
+                        placeholder: 'Currency'
+                    }}
                     forProperty={field => field.defaultCurrency}
                     form={form}
                     label="Default currency"
                     variant="select"
                 />
                 <SchemaField
-                    fieldProps={
-                        {
-                            onValueChange: (value, field) => {
-                                field.onChange(value);
-                                setSelectedCountryCode(value);
-                            },
-                            options: countries.map(country => ({
-                                label: countryLabel(country.code),
-                                value: country.code
-                            })),
-                            value: selectedCountryCode
-                        } satisfies SelectRendererFieldProps
-                    }
+                    fieldProps={{
+                        options: countries.map(country => ({
+                            label: countryLabel(country.code),
+                            value: country.code
+                        }))
+                    }}
                     forProperty={field => field.countryCode}
                     form={form}
                     label="Country"
                     variant="select"
                 />
                 <SchemaField
-                    fieldProps={
-                        {
-                            currencies: sortedCurrencies,
-                            excludedCurrency:
-                                selectedDefaultCurrency ||
-                                initialDefaultCurrency,
-                            onChange: (values, field) => {
-                                field.onChange(values);
-                                setSelectedFavoriteCurrencies(values);
-                            },
-                            selectedCurrencies: selectedFavoriteCurrencies
-                        } satisfies CurrencyMultiSelectRendererFieldProps
-                    }
+                    fieldProps={{
+                        currencies: sortedCurrencies,
+                        excludedCurrency: defaultCurrency.value
+                    }}
                     forProperty={field => field.favoriteCurrencies}
                     form={form}
                     variant="currency-multi-select"
                 />
                 <SchemaField
-                    fieldProps={
-                        {
-                            onValueChange: (value, field) => {
-                                field.onChange(value);
-                                setSelectedTimezone(value);
-                            },
-                            options: timeZones.map(timeZone => ({
-                                label: timeZoneLabel(timeZone),
-                                value: timeZone
-                            })),
-                            value: selectedTimezone
-                        } satisfies SelectRendererFieldProps
-                    }
+                    fieldProps={{
+                        options: timeZones.map(timeZone => ({
+                            label: timeZoneLabel(timeZone),
+                            value: timeZone
+                        }))
+                    }}
                     forProperty={field => field.timezone}
                     form={form}
                     label="Time zone"

@@ -1,22 +1,21 @@
 'use client';
 
-import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
+import { useSchemaForm } from '@cleverbrush/react-form';
 import {
     UpdateUserPreferenceBodySchema,
     type UserPreference
 } from '@xpenser/contracts';
 import {
     Button,
-    type CheckboxRendererFieldProps,
     Field,
     FieldDescription,
     FieldError,
     FieldGroup,
     FieldLabel,
-    Input,
-    type SelectRendererFieldProps
+    Input
 } from '@xpenser/ui';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { SchemaField } from '@/components/forms/schema-fields';
 import { updatePreferencesAction } from '@/lib/actions';
 import { countryLabel, supportedCountries } from '@/lib/countries';
 import { supportedTimeZones, timeZoneLabel } from '@/lib/timezones';
@@ -24,21 +23,7 @@ import { isNextRedirectError, valuesToFormData } from './form-utils';
 
 export function PreferencesForm({ me }: { readonly me: UserPreference }) {
     const form = useSchemaForm(UpdateUserPreferenceBodySchema);
-    const [selectedCountryCode, setSelectedCountryCode] = useState(
-        me.countryCode
-    );
-    const [selectedTimezone, setSelectedTimezone] = useState(me.timezone);
-    const [
-        selectedWeeklyEmailReportEnabled,
-        setSelectedWeeklyEmailReportEnabled
-    ] = useState(me.weeklyEmailReportEnabled);
-    const [
-        selectedMonthlyEmailReportEnabled,
-        setSelectedMonthlyEmailReportEnabled
-    ] = useState(me.monthlyEmailReportEnabled);
-    const [formVersion, setFormVersion] = useState(0);
-    const [error, setError] = useState<string | null>(null);
-    const [pending, setPending] = useState(false);
+    const { submitting: pending, error } = form;
     const timeZones = useMemo(() => supportedTimeZones(), []);
     const countries = useMemo(() => supportedCountries(), []);
 
@@ -49,11 +34,6 @@ export function PreferencesForm({ me }: { readonly me: UserPreference }) {
             weeklyEmailReportEnabled: me.weeklyEmailReportEnabled,
             monthlyEmailReportEnabled: me.monthlyEmailReportEnabled
         });
-        setSelectedCountryCode(me.countryCode);
-        setSelectedTimezone(me.timezone);
-        setSelectedWeeklyEmailReportEnabled(me.weeklyEmailReportEnabled);
-        setSelectedMonthlyEmailReportEnabled(me.monthlyEmailReportEnabled);
-        setFormVersion(version => version + 1);
     }, [
         form,
         me.countryCode,
@@ -62,81 +42,51 @@ export function PreferencesForm({ me }: { readonly me: UserPreference }) {
         me.weeklyEmailReportEnabled
     ]);
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-
-        form.setValue({
-            countryCode: selectedCountryCode,
-            timezone: selectedTimezone,
-            weeklyEmailReportEnabled: selectedWeeklyEmailReportEnabled,
-            monthlyEmailReportEnabled: selectedMonthlyEmailReportEnabled
-        });
-        const result = await form.submit();
-        if (!result.valid || !result.object) {
-            return;
-        }
-
-        setPending(true);
-        setError(null);
-        try {
-            await updatePreferencesAction(valuesToFormData(result.object));
-        } catch (caught) {
-            if (isNextRedirectError(caught)) {
-                throw caught;
+    const handleSubmit = form.handleSubmit(
+        async values => {
+            await updatePreferencesAction(valuesToFormData(values));
+        },
+        {
+            onError: caught => {
+                if (isNextRedirectError(caught)) throw caught;
+                return 'Could not save preferences.';
             }
-            setError('Could not save preferences.');
-        } finally {
-            setPending(false);
         }
-    }
+    );
 
     return (
         <form noValidate onSubmit={handleSubmit}>
-            <FieldGroup key={formVersion}>
+            <FieldGroup>
                 <Field>
                     <FieldLabel htmlFor="email">Email</FieldLabel>
                     <Input id="email" readOnly value={me.email} />
                 </Field>
                 <SchemaField
-                    fieldProps={
-                        {
-                            onValueChange: (value, field) => {
-                                field.onChange(value);
-                                setSelectedCountryCode(value);
-                            },
-                            options: countries.map(country => ({
-                                label: countryLabel(country.code),
-                                value: country.code
-                            })),
-                            value: selectedCountryCode
-                        } satisfies SelectRendererFieldProps
-                    }
+                    fieldProps={{
+                        options: countries.map(country => ({
+                            label: countryLabel(country.code),
+                            value: country.code
+                        }))
+                    }}
                     forProperty={field => field.countryCode}
                     form={form}
                     label="Country"
                     variant="select"
                 />
                 <SchemaField
-                    fieldProps={
-                        {
-                            onValueChange: (value, field) => {
-                                field.onChange(value);
-                                setSelectedTimezone(value);
-                            },
-                            options: timeZones.map(timeZone => ({
-                                label: timeZoneLabel(timeZone),
-                                value: timeZone
-                            })),
-                            value: selectedTimezone
-                        } satisfies SelectRendererFieldProps
-                    }
+                    fieldProps={{
+                        options: timeZones.map(timeZone => ({
+                            label: timeZoneLabel(timeZone),
+                            value: timeZone
+                        }))
+                    }}
                     forProperty={field => field.timezone}
                     form={form}
                     label="Time zone"
                     variant="select"
                 />
                 <Field>
-                    <div className="space-y-1">
+                    <div className="flex flex-col gap-1">
                         <FieldLabel>Email reports</FieldLabel>
                         <FieldDescription>
                             Receive spending and income analytics by email.
@@ -144,19 +94,10 @@ export function PreferencesForm({ me }: { readonly me: UserPreference }) {
                     </div>
                     <div className="grid gap-3 rounded-md border border-input p-3">
                         <SchemaField
-                            fieldProps={
-                                {
-                                    checked: selectedWeeklyEmailReportEnabled,
-                                    description:
-                                        'Sent Monday morning for the previous week.',
-                                    onCheckedChange: (checked, field) => {
-                                        field.onChange(checked);
-                                        setSelectedWeeklyEmailReportEnabled(
-                                            checked
-                                        );
-                                    }
-                                } satisfies CheckboxRendererFieldProps
-                            }
+                            fieldProps={{
+                                description:
+                                    'Sent Monday morning for the previous week.'
+                            }}
                             forProperty={field =>
                                 field.weeklyEmailReportEnabled
                             }
@@ -165,19 +106,10 @@ export function PreferencesForm({ me }: { readonly me: UserPreference }) {
                             variant="checkbox"
                         />
                         <SchemaField
-                            fieldProps={
-                                {
-                                    checked: selectedMonthlyEmailReportEnabled,
-                                    description:
-                                        'Sent on the first morning of each month.',
-                                    onCheckedChange: (checked, field) => {
-                                        field.onChange(checked);
-                                        setSelectedMonthlyEmailReportEnabled(
-                                            checked
-                                        );
-                                    }
-                                } satisfies CheckboxRendererFieldProps
-                            }
+                            fieldProps={{
+                                description:
+                                    'Sent on the first morning of each month.'
+                            }}
                             forProperty={field =>
                                 field.monthlyEmailReportEnabled
                             }

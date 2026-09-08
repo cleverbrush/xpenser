@@ -26,7 +26,7 @@ import {
 } from '@xpenser/ui';
 import { PencilIcon, RefreshCwIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
     getVendorCandidateDetailsAction,
     searchVendorCandidatesAction,
@@ -162,13 +162,6 @@ function candidateProfileValues(
     };
 }
 
-function shouldShowFieldError(
-    field: UseFieldResult<string>,
-    submitted: boolean
-): boolean {
-    return Boolean(field.error) && (submitted || field.touched);
-}
-
 function VendorTextField({
     field,
     id,
@@ -176,8 +169,7 @@ function VendorTextField({
     maxLength,
     name,
     placeholder,
-    required,
-    submitted
+    required
 }: {
     readonly field: UseFieldResult<string>;
     readonly id: string;
@@ -186,9 +178,8 @@ function VendorTextField({
     readonly name: string;
     readonly placeholder?: string;
     readonly required?: boolean;
-    readonly submitted: boolean;
 }) {
-    const invalid = shouldShowFieldError(field, submitted);
+    const invalid = Boolean(field.error) && field.touched;
     const errorId = `${id}-error`;
 
     return (
@@ -220,17 +211,15 @@ function VendorTextareaField({
     id,
     label,
     maxLength,
-    name,
-    submitted
+    name
 }: {
     readonly field: UseFieldResult<string>;
     readonly id: string;
     readonly label: string;
     readonly maxLength?: number;
     readonly name: string;
-    readonly submitted: boolean;
 }) {
-    const invalid = shouldShowFieldError(field, submitted);
+    const invalid = Boolean(field.error) && field.touched;
     const errorId = `${id}-error`;
 
     return (
@@ -346,12 +335,12 @@ function VendorProfileDialogForm({
     const logoUrl = form.useField(field => field.logoUrl);
     const primaryColor = form.useField(field => field.primaryColor);
     const description = form.useField(field => field.description);
-    const [pending, setPending] = useState(false);
+    const pending = form.submitting;
     const [suggestionPending, setSuggestionPending] = useState(false);
     const [searchPending, setSearchPending] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [suggestionError, setSuggestionError] = useState<string | null>(null);
+    const error = suggestionError ?? form.error;
     const [searchError, setSearchError] = useState<string | null>(null);
-    const [submitted, setSubmitted] = useState(false);
     const [search, setSearch] = useState('');
     const [candidates, setCandidates] = useState<readonly VendorCandidate[]>(
         []
@@ -419,7 +408,7 @@ function VendorProfileDialogForm({
         }) => {
             const currentValues = form.getValue();
             setSuggestionPending(true);
-            setError(null);
+            setSuggestionError(null);
             try {
                 const details = await getVendorCandidateDetailsAction({
                     brandfetchBrandId: candidate.brandfetchBrandId,
@@ -443,7 +432,7 @@ function VendorProfileDialogForm({
                 setSearch('');
                 setCandidates([]);
             } catch {
-                setError('Could not load suggested vendor details.');
+                setSuggestionError('Could not load suggested vendor details.');
             } finally {
                 setSuggestionPending(false);
             }
@@ -491,34 +480,23 @@ function VendorProfileDialogForm({
         setField(field, suggestedValue);
     }
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        setError(null);
-        setSubmitted(true);
-        const result = await form.submit();
-        if (!result.valid || !result.object) {
-            return;
-        }
-
-        const formData = valuesToFormData(result.object);
-        formData.set('id', String(vendor.id));
-        setPending(true);
-        try {
+    const handleSubmit = form.handleSubmit(
+        async values => {
+            setSuggestionError(null);
+            const formData = valuesToFormData(values);
+            formData.set('id', String(vendor.id));
             const response = await updateVendorAction(formData);
-            if (response.error) {
-                setError(response.error);
-                return;
+            if (response.error) return { ok: false, error: response.error };
+            return { ok: true };
+        },
+        {
+            onSuccess: onSaved,
+            onError: caught => {
+                if (isNextRedirectError(caught)) throw caught;
+                return errorMessage(caught, 'Could not save vendor.');
             }
-            onSaved();
-        } catch (caught) {
-            if (isNextRedirectError(caught)) {
-                throw caught;
-            }
-            setError(errorMessage(caught, 'Could not save vendor.'));
-        } finally {
-            setPending(false);
         }
-    }
+    );
 
     return (
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
@@ -539,7 +517,6 @@ function VendorProfileDialogForm({
                         maxLength={FieldLimits.vendorName}
                         name="name"
                         required
-                        submitted={submitted}
                     />
                     <VendorTextField
                         field={domain}
@@ -548,7 +525,6 @@ function VendorProfileDialogForm({
                         maxLength={FieldLimits.vendorDomain}
                         name="domain"
                         placeholder="walmart.com"
-                        submitted={submitted}
                     />
                     <VendorTextField
                         field={logoUrl}
@@ -557,7 +533,6 @@ function VendorProfileDialogForm({
                         maxLength={FieldLimits.vendorLogoUrl}
                         name="logoUrl"
                         placeholder="https://example.com/logo.svg"
-                        submitted={submitted}
                     />
                     <VendorTextField
                         field={primaryColor}
@@ -566,7 +541,6 @@ function VendorProfileDialogForm({
                         maxLength={FieldLimits.vendorPrimaryColor}
                         name="primaryColor"
                         placeholder="#2563eb"
-                        submitted={submitted}
                     />
                     <VendorTextareaField
                         field={description}
@@ -574,7 +548,6 @@ function VendorProfileDialogForm({
                         label="Description"
                         maxLength={FieldLimits.vendorDescription}
                         name="description"
-                        submitted={submitted}
                     />
                 </div>
 
@@ -726,13 +699,20 @@ export function VendorProfileActions({ vendor }: { readonly vendor: Vendor }) {
                 <RefreshCwIcon aria-hidden className="size-4" />
                 Refresh details
             </Button>
-            <Dialog onOpenChange={setOpen} open={open}>
+            <Dialog
+                onOpenChange={nextOpen => {
+                    setOpen(nextOpen);
+                    if (!nextOpen) form.reset();
+                }}
+                open={open}
+            >
                 {open ? (
                     <VendorProfileDialogForm
                         form={form}
                         mode={mode}
                         onSaved={() => {
                             router.refresh();
+                            form.reset();
                             setOpen(false);
                         }}
                         vendor={vendor}

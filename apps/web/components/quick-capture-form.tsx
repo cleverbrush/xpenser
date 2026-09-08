@@ -1,6 +1,6 @@
 'use client';
 
-import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
+import { useSchemaForm } from '@cleverbrush/react-form';
 import {
     type Category,
     CreateTransactionBodySchema,
@@ -33,7 +33,8 @@ import {
 import { CheckCircle2Icon, RotateCcwIcon, SaveIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { SchemaField } from '@/components/forms/schema-fields';
 import {
     createCaptureTransactionAction,
     deleteTransactionAction
@@ -45,7 +46,7 @@ import {
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { hiddenAmountLabel, useAmountPrivacy } from './amount-privacy';
-import { valuesToFormData } from './forms/form-utils';
+import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
 
@@ -143,23 +144,28 @@ export function QuickCaptureForm({
         [transactionCategories]
     );
     const [type, setType] = useState<TransactionType>(startingType);
-    const [categoryId, setCategoryId] = useState<number | undefined>(() =>
-        firstCategoryId(transactionCategories, startingType)
-    );
-    const [vendorId, setVendorId] = useState<number | null>(null);
+    const categoryField = form.useField(field => field.categoryId);
+    const vendorField = form.useField(field => field.vendorId);
+    const currencyField = form.useField(field => field.currency);
+    const tags = form.useField(field => field.tags);
+    const occurredAtField = form.useField(field => field.occurredAt);
+    const categoryId = categoryField.value;
+    const vendorId = vendorField.value ?? null;
+    const currency =
+        currencyField.value ?? firstCurrency(currencyOptions, defaultCurrency);
+    const selectedTags = tags.value ?? [];
     const [amount, setAmount] = useState('');
-    const [currency, setCurrency] = useState(() =>
-        firstCurrency(currencyOptions, defaultCurrency)
-    );
-    const [selectedTags, setSelectedTags] = useState<readonly string[]>([]);
     const [occurredAtText, setOccurredAtText] = useState(() =>
         dateToLocalDateTimeInput(new Date(), timezone)
     );
     const [visibleCategoryCount, setVisibleCategoryCount] =
         useState(CATEGORY_BATCH_SIZE);
-    const [pending, setPending] = useState(false);
+    const pending = form.submitting;
     const [undoPending, setUndoPending] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [inputOrUndoError, setInputOrUndoError] = useState<string | null>(
+        null
+    );
+    const error = inputOrUndoError ?? form.error;
     const [lastSaved, setLastSaved] = useState<Transaction | null>(null);
     const typedCategories = useMemo(
         () =>
@@ -174,6 +180,13 @@ export function QuickCaptureForm({
     const visibleCategories = typedCategories.slice(0, visibleCategoryCount);
     const hasMoreCategories = visibleCategoryCount < typedCategories.length;
 
+    // Keep the fallback selection in the controller when available categories change.
+    useEffect(() => {
+        if (form.getValue().categoryId !== activeCategoryId)
+            form.setValue({ categoryId: activeCategoryId });
+        if (form.getValue().currency !== currency) form.setValue({ currency });
+    }, [form, activeCategoryId, currency]);
+
     function handleTypeChange(nextType: TransactionType) {
         setType(nextType);
         setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
@@ -183,11 +196,13 @@ export function QuickCaptureForm({
         if (current && categoryEffectiveType(current) === nextType) {
             return;
         }
-        setCategoryId(firstCategoryId(transactionCategories, nextType));
+        form.setValue({
+            categoryId: firstCategoryId(transactionCategories, nextType)
+        });
     }
 
     function handleVendorChange(vendor: Vendor | undefined) {
-        setVendorId(vendor?.id ?? null);
+        vendorField.setValue(vendor?.id ?? null);
 
         if (!vendor?.suggestedCategoryId) {
             return;
@@ -201,16 +216,13 @@ export function QuickCaptureForm({
         }
 
         setType(categoryEffectiveType(suggested));
-        setCategoryId(suggested.id);
+        categoryField.setValue(suggested.id);
         setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
-        form.setValue({ categoryId: suggested.id });
     }
 
     function resetAfterSave() {
         const nextOccurredAt = new Date();
         setAmount('');
-        setVendorId(null);
-        setSelectedTags([]);
         setOccurredAtText(dateToLocalDateTimeInput(nextOccurredAt, timezone));
         form.reset({
             amount: undefined,
@@ -225,23 +237,27 @@ export function QuickCaptureForm({
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (form.submitting) return;
+        setInputOrUndoError(null);
         const amountValue = parseCaptureAmount(amount);
         const occurredAt = localDateTimeInputToDate(occurredAtText, timezone);
 
         if (amountValue === undefined) {
-            setError('Enter a positive amount with up to two decimals.');
+            setInputOrUndoError(
+                'Enter a positive amount with up to two decimals.'
+            );
             return;
         }
         if (activeCategoryId === undefined) {
-            setError('Choose a category.');
+            setInputOrUndoError('Choose a category.');
             return;
         }
         if (!currency) {
-            setError('Choose a currency.');
+            setInputOrUndoError('Choose a currency.');
             return;
         }
         if (!occurredAt) {
-            setError('Choose a valid date and time.');
+            setInputOrUndoError('Choose a valid date and time.');
             return;
         }
 
@@ -253,30 +269,26 @@ export function QuickCaptureForm({
             occurredAt,
             tags: [...selectedTags]
         });
-
-        const result = await form.submit();
-        if (!result.valid || !result.object) {
-            return;
-        }
-
-        const formData = valuesToFormData({
-            ...result.object,
-            tags: selectedTags
-        });
-
-        setPending(true);
-        setError(null);
-        try {
-            const transaction = await createCaptureTransactionAction(formData);
-            setLastSaved(transaction);
-            resetAfterSave();
-            router.refresh();
-        } catch {
-            setError('Could not save the transaction.');
-        } finally {
-            setPending(false);
-        }
+        await submitTransaction();
     }
+
+    const submitTransaction = form.handleSubmit(
+        async values => ({
+            ok: true,
+            data: await createCaptureTransactionAction(valuesToFormData(values))
+        }),
+        {
+            onSuccess: transaction => {
+                if (transaction) setLastSaved(transaction);
+                resetAfterSave();
+                router.refresh();
+            },
+            onError: caught => {
+                if (isNextRedirectError(caught)) throw caught;
+                return 'Could not save the transaction.';
+            }
+        }
+    );
 
     async function handleUndo() {
         if (!lastSaved) {
@@ -286,13 +298,13 @@ export function QuickCaptureForm({
         const formData = new FormData();
         formData.set('id', String(lastSaved.id));
         setUndoPending(true);
-        setError(null);
+        setInputOrUndoError(null);
         try {
             await deleteTransactionAction(formData);
             setLastSaved(null);
             router.refresh();
         } catch {
-            setError('Could not undo the saved transaction.');
+            setInputOrUndoError('Could not undo the saved transaction.');
         } finally {
             setUndoPending(false);
         }
@@ -343,16 +355,21 @@ export function QuickCaptureForm({
                                         inputMode="decimal"
                                         min="0.01"
                                         name="amount"
-                                        onChange={event =>
-                                            setAmount(event.target.value)
-                                        }
+                                        onChange={event => {
+                                            setAmount(event.target.value);
+                                            form.setValue({
+                                                amount: parseCaptureAmount(
+                                                    event.target.value
+                                                )
+                                            });
+                                        }}
                                         placeholder="0.00"
                                         step="0.01"
                                         type="text"
                                         value={amount}
                                     />
                                     <Select
-                                        onValueChange={setCurrency}
+                                        onValueChange={currencyField.onChange}
                                         value={currency}
                                     >
                                         <SelectTrigger
@@ -386,7 +403,7 @@ export function QuickCaptureForm({
                             <TransactionTagPicker
                                 tags={transactionTags}
                                 selectedTags={selectedTags}
-                                onChange={setSelectedTags}
+                                onChange={values => tags.onChange([...values])}
                             />
 
                             <Field>
@@ -427,7 +444,9 @@ export function QuickCaptureForm({
                                             className="max-w-[9.5rem] justify-start overflow-hidden"
                                             key={category.id}
                                             onClick={() =>
-                                                setCategoryId(category.id)
+                                                categoryField.setValue(
+                                                    category.id
+                                                )
                                             }
                                             size="sm"
                                             type="button"
@@ -469,9 +488,15 @@ export function QuickCaptureForm({
                                 <Input
                                     id="capture-occurred-at"
                                     name="occurredAt"
-                                    onChange={event =>
-                                        setOccurredAtText(event.target.value)
-                                    }
+                                    onChange={event => {
+                                        setOccurredAtText(event.target.value);
+                                        occurredAtField.onChange(
+                                            localDateTimeInputToDate(
+                                                event.target.value,
+                                                timezone
+                                            ) ?? new Date(Number.NaN)
+                                        );
+                                    }}
                                     type="datetime-local"
                                     value={occurredAtText}
                                 />

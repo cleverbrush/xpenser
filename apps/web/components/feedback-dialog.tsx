@@ -1,6 +1,6 @@
 'use client';
 
-import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
+import { useSchemaForm } from '@cleverbrush/react-form';
 import {
     Button,
     Dialog,
@@ -14,17 +14,16 @@ import {
     FieldDescription,
     FieldError,
     FieldGroup,
-    type SelectRendererFieldProps,
     toast
 } from '@xpenser/ui';
 import { MessageSquareTextIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { type FormEvent, useState } from 'react';
+import { useState } from 'react';
+import { SchemaField } from '@/components/forms/schema-fields';
 import { submitFeedbackAction } from '@/lib/feedback-action';
 import {
     FeedbackFormSchema,
-    FeedbackTextMaxLength,
-    type FeedbackType
+    FeedbackTextMaxLength
 } from '@/lib/feedback-schema';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 
@@ -35,58 +34,43 @@ export function FeedbackDialog({
 }) {
     const form = useSchemaForm(FeedbackFormSchema);
     const pathname = usePathname();
-    const [error, setError] = useState<string | null>(null);
     const [open, setOpen] = useState(false);
-    const [pending, setPending] = useState(false);
-    const [type, setType] = useState<FeedbackType>('feedback');
+    const { submitting: pending, error } = form;
 
     function resetForm() {
         form.reset({ text: '', type: 'feedback' });
-        setType('feedback');
     }
 
     function handleOpenChange(nextOpen: boolean) {
         setOpen(nextOpen);
-        if (!nextOpen) {
-            setError(null);
-            resetForm();
-        }
+        resetForm();
     }
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        setError(null);
-
-        form.setValue({ type });
-        const result = await form.submit();
-        if (!result.valid || !result.object) {
-            return;
-        }
-
-        const formData = valuesToFormData(result.object);
-        formData.set('path', pathname);
-
-        setPending(true);
-        try {
-            const actionResult = await submitFeedbackAction(formData);
-            if ('error' in actionResult) {
-                setError(
-                    actionResult.error ??
+    const handleSubmit = form.handleSubmit(
+        async values => {
+            const formData = valuesToFormData(values);
+            formData.set('path', pathname);
+            const result = await submitFeedbackAction(formData);
+            if ('error' in result)
+                return {
+                    ok: false,
+                    error:
+                        result.error ??
                         'Could not send feedback. Please try again.'
-                );
-                return;
+                };
+            return { ok: true };
+        },
+        {
+            onSuccess: () => {
+                handleOpenChange(false);
+                toast.success('Thanks — your feedback was sent.');
+            },
+            onError: caught => {
+                if (isNextRedirectError(caught)) throw caught;
+                return 'Could not send feedback. Please try again.';
             }
-            handleOpenChange(false);
-            toast.success('Thanks — your feedback was sent.');
-        } catch (caught) {
-            if (isNextRedirectError(caught)) {
-                throw caught;
-            }
-            setError('Could not send feedback. Please try again.');
-        } finally {
-            setPending(false);
         }
-    }
+    );
 
     return (
         <Dialog onOpenChange={handleOpenChange} open={open}>
@@ -98,7 +82,10 @@ export function FeedbackDialog({
                     type="button"
                     variant="ghost"
                 >
-                    <MessageSquareTextIcon aria-hidden className="size-4" />
+                    <MessageSquareTextIcon
+                        aria-hidden
+                        data-icon="inline-start"
+                    />
                     {compact ? null : (
                         <span className="hidden xl:inline">Leave feedback</span>
                     )}
@@ -114,28 +101,20 @@ export function FeedbackDialog({
                 <form noValidate onSubmit={handleSubmit}>
                     <FieldGroup>
                         <SchemaField
-                            fieldProps={
-                                {
-                                    disabled: pending,
-                                    onValueChange: (value, field) => {
-                                        const nextType = value as FeedbackType;
-                                        setType(nextType);
-                                        field.onChange(nextType);
+                            fieldProps={{
+                                disabled: pending,
+                                options: [
+                                    {
+                                        label: 'Feedback',
+                                        value: 'feedback'
                                     },
-                                    options: [
-                                        {
-                                            label: 'Feedback',
-                                            value: 'feedback'
-                                        },
-                                        {
-                                            label: 'Feature request',
-                                            value: 'feature_request'
-                                        },
-                                        { label: 'Bug', value: 'bug' }
-                                    ],
-                                    value: type
-                                } satisfies SelectRendererFieldProps
-                            }
+                                    {
+                                        label: 'Feature request',
+                                        value: 'feature_request'
+                                    },
+                                    { label: 'Bug', value: 'bug' }
+                                ]
+                            }}
                             forProperty={field => field.type}
                             form={form}
                             label="Type"

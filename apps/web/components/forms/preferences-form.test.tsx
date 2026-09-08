@@ -59,6 +59,36 @@ describe('PreferencesForm', () => {
         updatePreferencesAction.mockReset();
     });
 
+    it('updates mounted fields on reset without replacing their DOM nodes', async () => {
+        const { rerender } = render(
+            <XpenserWebFormProvider>
+                <PreferencesForm me={me} />
+            </XpenserWebFormProvider>
+        );
+        const weekly = screen.getByRole<HTMLInputElement>('checkbox', {
+            name: /weekly report/i
+        });
+        const country = screen.getByRole('combobox', { name: 'Country' });
+        expect(weekly.checked).toBe(true);
+        rerender(
+            <XpenserWebFormProvider>
+                <PreferencesForm
+                    me={{
+                        ...me,
+                        countryCode: 'GB',
+                        weeklyEmailReportEnabled: false
+                    }}
+                />
+            </XpenserWebFormProvider>
+        );
+        await waitFor(() => expect(weekly.checked).toBe(false));
+        expect(screen.getByRole('checkbox', { name: /weekly report/i })).toBe(
+            weekly
+        );
+        expect(screen.getByRole('combobox', { name: 'Country' })).toBe(country);
+        expect(country.textContent).toContain('United Kingdom');
+    });
+
     it('submits email report preferences', async () => {
         updatePreferencesAction.mockResolvedValue(undefined);
 

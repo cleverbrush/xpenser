@@ -1,68 +1,36 @@
 'use client';
 
-import {
-    type FieldRenderer,
-    type FieldRenderProps,
-    FormSystemProvider
-} from '@cleverbrush/react-form';
+import { createFormSystem, defineFieldRenderer } from '@cleverbrush/react-form';
 import type { Currency } from '@xpenser/contracts';
-import { XpenserFormProvider } from '@xpenser/ui';
-import type * as React from 'react';
+import { XpenserFormSystem } from '@xpenser/ui';
 import { CurrencyMultiSelect } from './currency-multi-select';
 
 export type CurrencyMultiSelectRendererFieldProps = {
-    readonly currencies?: readonly Currency[];
+    readonly currencies: readonly Currency[];
     readonly excludedCurrency?: string;
-    readonly onChange?: (values: string[], field: FieldRenderProps) => void;
-    readonly selectedCurrencies?: readonly string[];
 };
 
-const currencyMultiSelectRenderer: FieldRenderer = (
-    field: FieldRenderProps
-) => {
-    const {
-        currencies = [],
-        excludedCurrency,
-        onChange,
-        selectedCurrencies
-    } = (field.fieldProps ?? {}) as CurrencyMultiSelectRendererFieldProps;
-    const selected =
-        selectedCurrencies ??
-        (Array.isArray(field.value) ? field.value.map(String) : []);
+const currencyMultiSelectRenderer = defineFieldRenderer<
+    string[],
+    CurrencyMultiSelectRendererFieldProps
+>(field => (
+    <CurrencyMultiSelect
+        currencies={field.fieldProps?.currencies ?? []}
+        error={field.error}
+        excludedCurrency={field.fieldProps?.excludedCurrency}
+        onBlur={field.onBlur}
+        onChange={field.onChange}
+        selectedCurrencies={field.value ?? []}
+        touched={field.touched}
+    />
+));
 
-    return (
-        <CurrencyMultiSelect
-            currencies={currencies}
-            error={field.error}
-            excludedCurrency={excludedCurrency}
-            onBlur={field.onBlur}
-            onChange={values => {
-                if (onChange) {
-                    onChange(values, field);
-                    return;
-                }
-                field.onChange(values);
-            }}
-            selectedCurrencies={selected}
-            touched={field.touched}
-        />
-    );
-};
+const webFormSystem = createFormSystem({
+    renderers: {
+        ...XpenserFormSystem.renderers,
+        'array:currency-multi-select': currencyMultiSelectRenderer
+    }
+});
 
-const webRenderers = {
-    'array:currency-multi-select': currencyMultiSelectRenderer
-};
-
-export function XpenserWebFormProvider({
-    children
-}: {
-    readonly children: React.ReactNode;
-}) {
-    return (
-        <XpenserFormProvider>
-            <FormSystemProvider renderers={webRenderers}>
-                {children}
-            </FormSystemProvider>
-        </XpenserFormProvider>
-    );
-}
+export const SchemaField = webFormSystem.Field;
+export const XpenserWebFormProvider = webFormSystem.Provider;

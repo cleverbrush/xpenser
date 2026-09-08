@@ -1,9 +1,9 @@
 'use client';
 
 import {
-    type FieldRenderer,
-    type FieldRenderProps,
-    FormSystemProvider
+    createFormSystem,
+    defineFieldRenderer,
+    type FieldRenderProps
 } from '@cleverbrush/react-form';
 import type * as React from 'react';
 import { Field, FieldError, FieldLabel } from '../components/field.js';
@@ -18,133 +18,132 @@ import {
 } from '../components/select.js';
 import { Textarea } from '../components/textarea.js';
 
+type Binding<T> = Pick<
+    FieldRenderProps<T>,
+    'value' | 'initialValue' | 'onChange' | 'setValue'
+>;
+type InputProps = Omit<
+    React.InputHTMLAttributes<HTMLInputElement>,
+    'value' | 'defaultValue' | 'onChange' | 'onBlur'
+>;
+type TextareaProps = Omit<
+    React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+    'value' | 'defaultValue' | 'onChange' | 'onBlur'
+>;
+
 export type SelectRendererOption = {
-    /** Human-readable option label rendered inside the select menu. */
     readonly label: React.ReactNode;
-    /** Form value passed back to `@cleverbrush/react-form` on selection. */
     readonly value: string;
 };
 
-/**
- * Extra props understood by the xpenser select renderer.
- *
- * These props are passed through `Field`'s `fieldProps` escape hatch while the
- * field binding itself remains type-safe through Cleverbrush property
- * selectors.
- */
-export type SelectRendererFieldProps = {
+/** Optional presentation and value conversion for schema-bound selects. */
+export type SelectRendererFieldProps<T = string> = {
     readonly ariaLabel?: string;
     readonly disabled?: boolean;
-    readonly onValueChange?: (value: string, field: FieldRenderProps) => void;
+    readonly onValueChange?: (value: string, field: Binding<T>) => void;
     readonly options?: readonly SelectRendererOption[];
     readonly placeholder?: string;
     readonly value?: string;
 };
 
-export type CheckboxRendererFieldProps = {
+export type CheckboxRendererFieldProps<T = boolean> = {
     readonly checked?: boolean;
     readonly description?: React.ReactNode;
     readonly disabled?: boolean;
     readonly id?: string;
-    readonly onCheckedChange?: (
-        checked: boolean,
-        field: FieldRenderProps
-    ) => void;
+    readonly onCheckedChange?: (checked: boolean, field: Binding<T>) => void;
 };
 
-/** Props accepted by the date/time renderer variant. */
-export type DateTimeRendererFieldProps =
-    React.InputHTMLAttributes<HTMLInputElement> & {
-        readonly onValueChange?: (
-            value: string,
-            field: FieldRenderProps
-        ) => void;
-        readonly value?: string;
-    };
+/** The text buffer lets an application apply its own timezone conversion. */
+export type DateTimeRendererFieldProps = InputProps & {
+    readonly onValueChange?: (value: string, field: Binding<Date>) => void;
+    readonly value?: string;
+};
 
-function inputFieldProps(
-    fieldProps: FieldRenderProps['fieldProps']
-): React.InputHTMLAttributes<HTMLInputElement> {
-    return {
-        ...(fieldProps ?? {})
-    } as React.InputHTMLAttributes<HTMLInputElement>;
+function formatDateTimeLocalValue(value: Date | undefined) {
+    if (!value || !Number.isFinite(value.getTime())) return '';
+    const offset = value.getTimezoneOffset() * 60_000;
+    return new Date(value.getTime() - offset).toISOString().slice(0, 16);
 }
 
-function textareaFieldProps(
-    fieldProps: FieldRenderProps['fieldProps']
-): React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-    return {
-        ...(fieldProps ?? {})
-    } as React.TextareaHTMLAttributes<HTMLTextAreaElement>;
-}
-
-function formatDateTimeLocalValue(value: unknown) {
-    if (value instanceof Date) {
-        const offset = value.getTimezoneOffset() * 60_000;
-        return new Date(value.getTime() - offset).toISOString().slice(0, 16);
-    }
-    return String(value ?? '');
-}
-
-const textRenderer: FieldRenderer = ({
-    value,
-    onChange,
-    onBlur,
-    error,
-    touched,
-    label,
-    name,
-    fieldProps
-}: FieldRenderProps) => {
-    const invalid = touched && Boolean(error);
-
+function renderInput<T, P extends InputProps>(
+    field: FieldRenderProps<T, P>,
+    value: string,
+    onChange: (value: string) => void,
+    inputProps: InputProps = field.fieldProps ?? {}
+) {
+    const invalid = field.touched && Boolean(field.error);
     return (
-        <Field data-invalid={invalid ? true : undefined}>
-            {label ? <FieldLabel htmlFor={name}>{label}</FieldLabel> : null}
+        <Field
+            data-disabled={inputProps.disabled || undefined}
+            data-invalid={invalid || undefined}
+        >
+            {field.label ? (
+                <FieldLabel htmlFor={field.name}>{field.label}</FieldLabel>
+            ) : null}
             <Input
-                {...fieldProps}
+                {...inputProps}
                 aria-invalid={invalid}
-                id={name}
-                name={name}
-                onBlur={onBlur}
+                id={field.name}
+                name={field.name}
+                onBlur={field.onBlur}
                 onChange={event => onChange(event.target.value)}
-                value={String(value ?? '')}
+                value={value}
             />
-            {touched && error ? <FieldError>{error}</FieldError> : null}
+            {field.touched && field.error ? (
+                <FieldError>{field.error}</FieldError>
+            ) : null}
         </Field>
     );
-};
+}
 
-const textareaRenderer: FieldRenderer = ({
-    value,
-    onChange,
-    onBlur,
-    error,
-    touched,
-    label,
-    name,
-    fieldProps
-}: FieldRenderProps) => {
-    const invalid = touched && Boolean(error);
+const textRenderer = defineFieldRenderer<string, InputProps>(field =>
+    renderInput(field, field.value ?? '', field.onChange)
+);
+const emailRenderer = defineFieldRenderer<string, InputProps>(field =>
+    renderInput(field, field.value ?? '', field.onChange, {
+        ...field.fieldProps,
+        type: 'email'
+    })
+);
+const passwordRenderer = defineFieldRenderer<string, InputProps>(field =>
+    renderInput(field, field.value ?? '', field.onChange, {
+        ...field.fieldProps,
+        type: 'password'
+    })
+);
+const textareaRenderer = defineFieldRenderer<string | null, TextareaProps>(
+    field => {
+        const invalid = field.touched && Boolean(field.error);
+        return (
+            <Field
+                data-disabled={field.fieldProps?.disabled || undefined}
+                data-invalid={invalid || undefined}
+            >
+                {field.label ? (
+                    <FieldLabel htmlFor={field.name}>{field.label}</FieldLabel>
+                ) : null}
+                <Textarea
+                    {...field.fieldProps}
+                    aria-invalid={invalid}
+                    id={field.name}
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    onChange={event => field.onChange(event.target.value)}
+                    value={field.value ?? ''}
+                />
+                {field.touched && field.error ? (
+                    <FieldError>{field.error}</FieldError>
+                ) : null}
+            </Field>
+        );
+    }
+);
 
-    return (
-        <Field data-invalid={invalid ? true : undefined}>
-            {label ? <FieldLabel htmlFor={name}>{label}</FieldLabel> : null}
-            <Textarea
-                {...textareaFieldProps(fieldProps)}
-                aria-invalid={invalid}
-                id={name}
-                name={name}
-                onBlur={onBlur}
-                onChange={event => onChange(event.target.value)}
-                value={String(value ?? '')}
-            />
-            {touched && error ? <FieldError>{error}</FieldError> : null}
-        </Field>
-    );
-};
-
-const selectRenderer: FieldRenderer = (props: FieldRenderProps) => {
+function renderSelect<T>(
+    field: FieldRenderProps<T, SelectRendererFieldProps<T>>,
+    decode: (value: string) => T
+) {
     const {
         ariaLabel,
         disabled = false,
@@ -152,32 +151,36 @@ const selectRenderer: FieldRenderer = (props: FieldRenderProps) => {
         options = [],
         placeholder,
         value
-    } = (props.fieldProps ?? {}) as SelectRendererFieldProps;
-    const invalid = props.touched && Boolean(props.error);
-    const selectedValue = value ?? String(props.value ?? '');
-
+    } = field.fieldProps ?? {};
+    const invalid = field.touched && Boolean(field.error);
     return (
-        <Field data-invalid={invalid ? true : undefined}>
-            {props.label ? <FieldLabel>{props.label}</FieldLabel> : null}
+        <Field
+            data-disabled={disabled || undefined}
+            data-invalid={invalid || undefined}
+        >
+            {field.label ? (
+                <FieldLabel htmlFor={field.name}>{field.label}</FieldLabel>
+            ) : null}
             <Select
                 disabled={disabled}
                 onOpenChange={open => {
-                    if (!open) {
-                        props.onBlur();
-                    }
+                    if (!open) field.onBlur();
                 }}
                 onValueChange={nextValue => {
-                    if (onValueChange) {
-                        onValueChange(nextValue, props);
-                        return;
-                    }
-                    props.onChange(nextValue);
+                    // Radix's hidden native select can emit an empty change
+                    // while reset values and options synchronize. Empty items
+                    // are forbidden; clearing is controlled by the form (or an
+                    // explicit option such as "none"), not this notification.
+                    if (nextValue === '') return;
+                    if (onValueChange) onValueChange(nextValue, field);
+                    else field.onChange(decode(nextValue));
                 }}
-                value={selectedValue}
+                value={value ?? String(field.value ?? '')}
             >
                 <SelectTrigger
                     aria-invalid={invalid}
-                    aria-label={ariaLabel ?? props.label}
+                    aria-label={ariaLabel ?? field.label}
+                    id={field.name}
                 >
                     <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
@@ -191,56 +194,59 @@ const selectRenderer: FieldRenderer = (props: FieldRenderProps) => {
                     </SelectGroup>
                 </SelectContent>
             </Select>
-            {props.touched && props.error ? (
-                <FieldError>{props.error}</FieldError>
+            {field.touched && field.error ? (
+                <FieldError>{field.error}</FieldError>
             ) : null}
         </Field>
     );
-};
+}
 
-const numberSelectRenderer: FieldRenderer = (props: FieldRenderProps) => {
-    return selectRenderer({
-        ...props,
-        onChange: value =>
-            props.onChange(value === '' ? undefined : Number(value))
-    });
-};
+const selectRenderer = defineFieldRenderer<string, SelectRendererFieldProps>(
+    field => renderSelect(field, value => value)
+);
+const numberSelectRenderer = defineFieldRenderer<
+    number | null | undefined,
+    SelectRendererFieldProps<number | null | undefined>
+>(field =>
+    renderSelect(field, value => (value === '' ? undefined : Number(value)))
+);
 
-const checkboxRenderer: FieldRenderer = (props: FieldRenderProps) => {
+function renderCheckbox<T>(
+    field: FieldRenderProps<T, CheckboxRendererFieldProps<T>>,
+    decode: (checked: boolean) => T
+) {
     const {
         checked,
         description,
         disabled = false,
-        id,
+        id = field.name,
         onCheckedChange
-    } = (props.fieldProps ?? {}) as CheckboxRendererFieldProps;
-    const invalid = props.touched && Boolean(props.error);
-    const selectedChecked = checked ?? Boolean(props.value);
-
+    } = field.fieldProps ?? {};
+    const invalid = field.touched && Boolean(field.error);
     return (
-        <Field data-invalid={invalid ? true : undefined}>
+        <Field
+            data-disabled={disabled || undefined}
+            data-invalid={invalid || undefined}
+        >
             <label className="flex items-start gap-3 text-sm" htmlFor={id}>
                 <Input
                     aria-invalid={invalid}
-                    checked={selectedChecked}
+                    checked={checked ?? Boolean(field.value)}
                     className="mt-0.5 size-4"
                     disabled={disabled}
                     id={id}
-                    name={props.name}
-                    onBlur={props.onBlur}
+                    name={field.name}
+                    onBlur={field.onBlur}
                     onChange={event => {
-                        const nextChecked = event.target.checked;
-                        if (onCheckedChange) {
-                            onCheckedChange(nextChecked, props);
-                            return;
-                        }
-                        props.onChange(nextChecked);
+                        if (onCheckedChange)
+                            onCheckedChange(event.target.checked, field);
+                        else field.onChange(decode(event.target.checked));
                     }}
                     type="checkbox"
                 />
                 <span>
-                    {props.label ? (
-                        <span className="block font-medium">{props.label}</span>
+                    {field.label ? (
+                        <span className="block font-medium">{field.label}</span>
                     ) : null}
                     {description ? (
                         <span className="text-muted-foreground">
@@ -249,58 +255,57 @@ const checkboxRenderer: FieldRenderer = (props: FieldRenderProps) => {
                     ) : null}
                 </span>
             </label>
-            {props.touched && props.error ? (
-                <FieldError>{props.error}</FieldError>
+            {field.touched && field.error ? (
+                <FieldError>{field.error}</FieldError>
             ) : null}
         </Field>
     );
-};
+}
+const checkboxRenderer = defineFieldRenderer<
+    boolean,
+    CheckboxRendererFieldProps
+>(field => renderCheckbox(field, checked => checked));
+// String checkboxes must supply an explicit mapping (for example normal/offset).
+type StringCheckboxProps = CheckboxRendererFieldProps<string> &
+    Required<
+        Pick<CheckboxRendererFieldProps<string>, 'checked' | 'onCheckedChange'>
+    >;
+const stringCheckboxRenderer = defineFieldRenderer<string, StringCheckboxProps>(
+    field => renderCheckbox(field, String)
+);
+const numberRenderer = defineFieldRenderer<
+    number | null | undefined,
+    InputProps
+>(field =>
+    renderInput(
+        field,
+        String(field.value ?? ''),
+        value => field.onChange(value === '' ? undefined : Number(value)),
+        { ...field.fieldProps, type: 'number' }
+    )
+);
+const dateTimeRenderer = defineFieldRenderer<Date, DateTimeRendererFieldProps>(
+    field => {
+        const { onValueChange, value, ...inputProps } = field.fieldProps ?? {};
+        return renderInput(
+            field,
+            value ?? formatDateTimeLocalValue(field.value),
+            nextValue => {
+                if (onValueChange) onValueChange(nextValue, field);
+                else field.onChange(new Date(nextValue));
+            },
+            { ...inputProps, type: 'datetime-local' }
+        );
+    }
+);
 
-const numberRenderer: FieldRenderer = (props: FieldRenderProps) => {
-    return textRenderer({
-        ...props,
-        fieldProps: { ...props.fieldProps, type: 'number' },
-        onChange: value =>
-            props.onChange(value === '' ? undefined : Number(value))
-    });
-};
-
-const dateTimeRenderer: FieldRenderer = (props: FieldRenderProps) => {
-    const { onValueChange, value, ...fieldProps } = inputFieldProps(
-        props.fieldProps
-    ) as DateTimeRendererFieldProps;
-
-    return textRenderer({
-        ...props,
-        fieldProps: { ...fieldProps, type: 'datetime-local' },
-        onChange: nextValue => {
-            if (onValueChange) {
-                onValueChange(String(nextValue), props);
-                return;
-            }
-            props.onChange(nextValue);
-        },
-        value:
-            typeof value === 'string'
-                ? value
-                : formatDateTimeLocalValue(props.value)
-    });
-};
-
+/** A closed, typed registry. Compose app-specific renderers from .renderers. */
 const renderers = {
     string: textRenderer,
-    'string:email': (props: FieldRenderProps) =>
-        textRenderer({
-            ...props,
-            fieldProps: { ...props.fieldProps, type: 'email' }
-        }),
-    'string:password': (props: FieldRenderProps) =>
-        textRenderer({
-            ...props,
-            fieldProps: { ...props.fieldProps, type: 'password' }
-        }),
+    'string:email': emailRenderer,
+    'string:password': passwordRenderer,
     'string:textarea': textareaRenderer,
-    'string:checkbox': checkboxRenderer,
+    'string:checkbox': stringCheckboxRenderer,
     'string:select': selectRenderer,
     number: numberRenderer,
     'number:select': numberSelectRenderer,
@@ -309,21 +314,9 @@ const renderers = {
     'date:datetime-local': dateTimeRenderer
 };
 
-/**
- * Registers xpenser UI renderers for `@cleverbrush/react-form`.
- *
- * App forms can use `<Field forProperty={field => field.name} />` and rely on
- * this provider to pick the matching input, select, checkbox, textarea, or
- * datetime renderer from the Cleverbrush schema descriptor.
- */
-export function XpenserFormProvider({
-    children
-}: {
-    readonly children: React.ReactNode;
-}) {
-    return (
-        <FormSystemProvider renderers={renderers}>
-            {children}
-        </FormSystemProvider>
-    );
-}
+export const XpenserFormSystem: ReturnType<
+    typeof createFormSystem<typeof renderers>
+> = createFormSystem({ renderers });
+
+/** Also registers the adapters for legacy Field consumers. */
+export const XpenserFormProvider = XpenserFormSystem.Provider;
