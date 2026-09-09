@@ -1,6 +1,6 @@
 'use client';
 
-import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
+import { useSchemaForm } from '@cleverbrush/react-form';
 import type {
     Category,
     Currency,
@@ -15,7 +15,6 @@ import {
 } from '@xpenser/timezone';
 import {
     Button,
-    type DateTimeRendererFieldProps,
     Dialog,
     DialogContent,
     DialogDescription,
@@ -31,19 +30,18 @@ import {
     SelectContent,
     SelectGroup,
     SelectItem,
-    type SelectRendererFieldProps,
     SelectTrigger,
     SelectValue
 } from '@xpenser/ui';
 import { useRouter } from 'next/navigation';
 import {
-    type FormEvent,
     type ReactNode,
     useCallback,
     useEffect,
     useMemo,
     useState
 } from 'react';
+import { SchemaField } from '@/components/forms/schema-fields';
 import {
     categoryEffectiveType,
     transactionCategoryOptions
@@ -100,19 +98,15 @@ export function TransactionDialog({
     const form = useSchemaForm(CreateTransactionBodySchema);
     const router = useRouter();
     const [open, setOpen] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [pending, setPending] = useState(false);
-    const [formVersion, setFormVersion] = useState(0);
+    const { submitting: pending, error } = form;
     const [selectedType, setSelectedType] =
         useState<TransactionType>('expense');
-    const [selectedCategoryId, setSelectedCategoryId] = useState<
-        number | undefined
-    >();
-    const [selectedVendorId, setSelectedVendorId] = useState<
-        number | null | undefined
-    >();
-    const [selectedCurrency, setSelectedCurrency] = useState(defaultCurrency);
-    const [selectedTags, setSelectedTags] = useState<readonly string[]>([]);
+    const categoryId = form.useField(field => field.categoryId);
+    const vendorId = form.useField(field => field.vendorId);
+    const tags = form.useField(field => field.tags);
+    const selectedCategoryId = categoryId.value;
+    const selectedVendorId = vendorId.value;
+    const selectedTags = tags.value ?? [];
     const [occurredAtText, setOccurredAtText] = useState('');
     const initialCategoryId = initialValues?.categoryId;
     const initialValueType = initialValues?.type;
@@ -213,10 +207,6 @@ export function TransactionDialog({
             : new Date();
 
         setSelectedType(initialType);
-        setSelectedCategoryId(initialValues?.categoryId);
-        setSelectedVendorId(initialValues?.vendorId ?? undefined);
-        setSelectedCurrency(initialCurrency);
-        setSelectedTags(initialValues?.tags.map(tag => tag.name) ?? []);
         setOccurredAtText(
             dateToLocalDateTimeInput(initialOccurredAt, timezone)
         );
@@ -229,7 +219,6 @@ export function TransactionDialog({
             note: initialValues?.note ?? undefined,
             tags: initialValues?.tags.map(tag => tag.name) ?? []
         });
-        setFormVersion(version => version + 1);
     }, [form, initialCurrency, initialType, initialValues, timezone]);
 
     useEffect(() => {
@@ -240,7 +229,7 @@ export function TransactionDialog({
 
     function handleOpenChange(nextOpen: boolean) {
         setOpen(nextOpen);
-        setError(null);
+        if (!nextOpen) resetForm();
     }
 
     function handleTypeChange(value: TransactionType) {
@@ -260,17 +249,13 @@ export function TransactionDialog({
             category => categoryEffectiveType(category) === value
         );
         if (nextCategory) {
-            setSelectedCategoryId(nextCategory.id);
             form.setValue({ categoryId: nextCategory.id });
             return;
         }
-
-        setSelectedCategoryId(undefined);
         form.setValue({ categoryId: undefined });
     }
 
     function handleVendorChange(vendor: Vendor | undefined) {
-        setSelectedVendorId(vendor?.id ?? null);
         form.setValue({ vendorId: vendor?.id ?? null });
 
         if (!vendor?.suggestedCategoryId) {
@@ -286,50 +271,30 @@ export function TransactionDialog({
 
         const suggestedType = categoryEffectiveType(suggested);
         setSelectedType(suggestedType);
-        setSelectedCategoryId(suggested.id);
         form.setValue({ categoryId: suggested.id });
     }
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-
-        form.setValue({
-            categoryId: activeCategoryId,
-            vendorId: selectedVendorId ?? null,
-            currency: selectedCurrency,
-            tags: [...selectedTags]
-        });
-
-        const result = await form.submit();
-        if (!result.valid || !result.object) {
-            return;
-        }
-
-        const formData = valuesToFormData({
-            ...result.object,
-            tags: selectedTags
-        });
-        if (transactionId !== undefined) {
-            formData.append('id', String(transactionId));
-            formData.append('tagsTouched', 'true');
-        }
-
-        setPending(true);
-        setError(null);
-        try {
-            await action(formData);
-            resetForm();
-            setOpen(false);
-            router.refresh();
-        } catch (caught) {
-            if (isNextRedirectError(caught)) {
-                throw caught;
+    const handleSubmit = form.handleSubmit(
+        async values => {
+            const formData = valuesToFormData(values);
+            if (transactionId !== undefined) {
+                formData.append('id', String(transactionId));
+                formData.append('tagsTouched', 'true');
             }
-            setError(errorMessage);
-        } finally {
-            setPending(false);
+            await action(formData);
+        },
+        {
+            onSuccess: () => {
+                resetForm();
+                setOpen(false);
+                router.refresh();
+            },
+            onError: caught => {
+                if (isNextRedirectError(caught)) throw caught;
+                return errorMessage;
+            }
         }
-    }
+    );
 
     return (
         <Dialog onOpenChange={handleOpenChange} open={open}>
@@ -340,13 +305,17 @@ export function TransactionDialog({
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
                 <form noValidate onSubmit={handleSubmit}>
-                    <FieldGroup key={formVersion}>
+                    <FieldGroup>
                         <Field>
                             <FieldLabel>Type</FieldLabel>
                             <Select
-                                onValueChange={value =>
-                                    handleTypeChange(value as TransactionType)
-                                }
+                                onValueChange={value => {
+                                    if (
+                                        value === 'expense' ||
+                                        value === 'income'
+                                    )
+                                        handleTypeChange(value);
+                                }}
                                 value={selectedType}
                             >
                                 <SelectTrigger aria-label="Transaction type">
@@ -365,27 +334,18 @@ export function TransactionDialog({
                             </Select>
                         </Field>
                         <SchemaField
-                            fieldProps={
-                                {
-                                    ariaLabel: 'Transaction category',
-                                    onValueChange: (value, field) => {
-                                        const nextCategoryId = Number(value);
-                                        field.onChange(nextCategoryId);
-                                        setSelectedCategoryId(nextCategoryId);
-                                    },
-                                    options: filteredCategories.map(
-                                        category => ({
-                                            label: category.displayName,
-                                            value: String(category.id)
-                                        })
-                                    ),
-                                    placeholder: 'Select category',
-                                    value:
-                                        activeCategoryId === undefined
-                                            ? ''
-                                            : String(activeCategoryId)
-                                } satisfies SelectRendererFieldProps
-                            }
+                            fieldProps={{
+                                ariaLabel: 'Transaction category',
+                                options: filteredCategories.map(category => ({
+                                    label: category.displayName,
+                                    value: String(category.id)
+                                })),
+                                placeholder: 'Select category',
+                                value:
+                                    activeCategoryId === undefined
+                                        ? ''
+                                        : String(activeCategoryId)
+                            }}
                             forProperty={field => field.categoryId}
                             form={form}
                             label="Category"
@@ -399,7 +359,7 @@ export function TransactionDialog({
                         <TransactionTagPicker
                             tags={transactionTags}
                             selectedTags={selectedTags}
-                            onChange={setSelectedTags}
+                            onChange={values => tags.onChange([...values])}
                         />
                         <div className="grid gap-4 sm:grid-cols-2">
                             <SchemaField
@@ -410,22 +370,13 @@ export function TransactionDialog({
                                 name="amount"
                             />
                             <SchemaField
-                                fieldProps={
-                                    {
-                                        ariaLabel: 'Transaction currency',
-                                        onValueChange: (value, field) => {
-                                            field.onChange(value);
-                                            setSelectedCurrency(value);
-                                        },
-                                        options: currencyOptions.map(
-                                            currency => ({
-                                                label: currency.code,
-                                                value: currency.code
-                                            })
-                                        ),
-                                        value: selectedCurrency
-                                    } satisfies SelectRendererFieldProps
-                                }
+                                fieldProps={{
+                                    ariaLabel: 'Transaction currency',
+                                    options: currencyOptions.map(currency => ({
+                                        label: currency.code,
+                                        value: currency.code
+                                    }))
+                                }}
                                 forProperty={field => field.currency}
                                 form={form}
                                 label="Currency"
@@ -433,20 +384,18 @@ export function TransactionDialog({
                             />
                         </div>
                         <SchemaField
-                            fieldProps={
-                                {
-                                    onValueChange: (value, field) => {
-                                        setOccurredAtText(value);
-                                        field.onChange(
-                                            localDateTimeInputToDate(
-                                                value,
-                                                timezone
-                                            ) ?? new Date(Number.NaN)
-                                        );
-                                    },
-                                    value: occurredAtText
-                                } satisfies DateTimeRendererFieldProps
-                            }
+                            fieldProps={{
+                                onValueChange: (value, field) => {
+                                    setOccurredAtText(value);
+                                    field.onChange(
+                                        localDateTimeInputToDate(
+                                            value,
+                                            timezone
+                                        ) ?? new Date(Number.NaN)
+                                    );
+                                },
+                                value: occurredAtText
+                            }}
                             forProperty={field => field.occurredAt}
                             form={form}
                             label="Date and time"

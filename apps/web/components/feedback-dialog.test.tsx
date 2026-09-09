@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+    act,
+    fireEvent,
+    render,
+    screen,
+    waitFor
+} from '@testing-library/react';
 import { toast, XpenserFormProvider } from '@xpenser/ui';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FeedbackDialog } from './feedback-dialog';
@@ -107,6 +113,73 @@ describe('FeedbackDialog', () => {
         expect(
             screen.getByRole('dialog', { name: 'Leave feedback' })
         ).toBeTruthy();
+        expect(toastSuccess).not.toHaveBeenCalled();
+    });
+
+    it('ignores duplicate submits and obsolete success after closing and reopening', async () => {
+        let complete!: (result: { success: true }) => void;
+        const request = new Promise<{ success: true }>(resolve => {
+            complete = resolve;
+        });
+        submitFeedbackAction.mockReturnValue(request);
+        renderFeedbackDialog();
+        fireEvent.click(screen.getByRole('button', { name: 'Leave feedback' }));
+        fireEvent.change(
+            screen.getByLabelText('What would you like to share?'),
+            {
+                target: { value: 'A pending request.' }
+            }
+        );
+        const form = screen
+            .getByRole('button', { name: 'Send feedback' })
+            .closest('form');
+        if (!form) throw new Error('Feedback form was not rendered');
+        fireEvent.submit(form);
+        fireEvent.submit(form);
+        await waitFor(() =>
+            expect(submitFeedbackAction).toHaveBeenCalledOnce()
+        );
+        fireEvent.keyDown(document, { key: 'Escape' });
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        fireEvent.click(screen.getByRole('button', { name: 'Leave feedback' }));
+        await act(async () => {
+            complete({ success: true });
+            await request;
+        });
+        await waitFor(() =>
+            expect(
+                screen
+                    .getByRole('button', { name: 'Send feedback' })
+                    .hasAttribute('disabled')
+            ).toBe(false)
+        );
+        expect(
+            screen.getByRole('dialog', { name: 'Leave feedback' })
+        ).toBeTruthy();
+        expect(
+            screen.getByLabelText<HTMLTextAreaElement>(
+                'What would you like to share?'
+            ).value
+        ).toBe('');
+        expect(toastSuccess).not.toHaveBeenCalled();
+        expect(submitFeedbackAction).toHaveBeenCalledOnce();
+    });
+
+    it('reports a thrown transport error and retains entered feedback for retry', async () => {
+        submitFeedbackAction.mockRejectedValue(
+            new Error('Network unavailable')
+        );
+        renderFeedbackDialog();
+        fireEvent.click(screen.getByRole('button', { name: 'Leave feedback' }));
+        const text = screen.getByLabelText<HTMLTextAreaElement>(
+            'What would you like to share?'
+        );
+        fireEvent.change(text, { target: { value: 'Keep this draft.' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Send feedback' }));
+        expect((await screen.findByRole('alert')).textContent).toBe(
+            'Could not send feedback. Please try again.'
+        );
+        expect(text.value).toBe('Keep this draft.');
         expect(toastSuccess).not.toHaveBeenCalled();
     });
 

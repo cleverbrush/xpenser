@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createXpenserClient, type XpenserClient } from './index';
 
 const dates = [
-    new Date('2026-01-01T12:00:00Z'),
-    new Date('2026-01-02T12:00:00Z')
+    new Date('2026-01-01T12:00:00.001Z'),
+    new Date('2026-01-01T12:00:00.002Z')
 ] as const;
 type ReadCase = {
     name: string;
@@ -197,7 +197,7 @@ const queryReads: ReadCase[] = [
 function harness(
     options: {
         disableBatching?: boolean;
-        respond?: (url: URL, init: RequestInit) => Response;
+        respond?: (url: URL, init: RequestInit) => Response | Promise<Response>;
     } = {}
 ) {
     let revision = 0;
@@ -216,7 +216,7 @@ function harness(
             return Response.json({
                 responses: await Promise.all(
                     requests.map(async request => {
-                        const response = respond(
+                        const response = await respond(
                             new URL(request.url, url),
                             request
                         );
@@ -503,6 +503,95 @@ describe('real Xpenser client cache behavior', () => {
         clock.mockReturnValue(1_000_000 + ttl);
         await read(client);
         expect(transport).toHaveBeenCalledTimes(2);
+    });
+
+    it('preserves separators in filter values instead of colliding with another property', async () => {
+        const { client, transport } = harness();
+        const firstQuery = {
+            limit: 25,
+            search: 'coffee|query.limit:50|query.search:tea'
+        };
+        const secondQuery = {
+            limit: 50,
+            search: 'coffee|query.limit:25|query.search:tea'
+        };
+        const first = await client.vendors.list({ query: firstQuery });
+        const second = await client.vendors.list({ query: secondQuery });
+        expect(first).not.toEqual(second);
+        expect(await client.vendors.list({ query: firstQuery })).toEqual(first);
+        expect(await client.vendors.list({ query: secondQuery })).toEqual(
+            second
+        );
+        expect(transport).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps cached reads and external tags intact after a rejected mutation', async () => {
+        const { client, transport, invalidated } = harness({
+            respond: (_url, init) =>
+                init.method === 'GET'
+                    ? Response.json({ revision: 0 })
+                    : Response.json(
+                          { error: 'Invalid update' },
+                          { status: 400 }
+                      )
+        });
+        const read = () => client.vendors.get({ params: { id: 1 } });
+        const original = await read();
+        await expect(
+            client.transactions.update({
+                params: { id: 1 },
+                body: { note: 'invalid' }
+            })
+        ).rejects.toBeDefined();
+        expect(await read()).toEqual(original);
+        expect(transport).toHaveBeenCalledTimes(2);
+        expect(invalidated).not.toHaveBeenCalled();
+    });
+
+    it('does not repopulate the cache with a read that started before invalidation', async () => {
+        let releaseRead!: (response: Response) => void;
+        let markReadStarted!: () => void;
+        const started = new Promise<void>(resolve => {
+            markReadStarted = resolve;
+        });
+        const oldResponse = new Promise<Response>(resolve => {
+            releaseRead = resolve;
+        });
+        let readCount = 0;
+        const { client } = harness({
+            respond: (_url, init) => {
+                if (init.method !== 'GET')
+                    return Response.json({ revision: 1 });
+                if (++readCount === 1) {
+                    markReadStarted();
+                    return oldResponse;
+                }
+                return Response.json({ revision: 1 });
+            }
+        });
+        const read = () => client.vendors.get({ params: { id: 1 } });
+        const staleRead = read();
+        await started;
+        await client.transactions.update({
+            params: { id: 1 },
+            body: { note: 'new' }
+        });
+        releaseRead(Response.json({ revision: 0 }));
+        expect(await staleRead).toEqual({ revision: 0 });
+        expect(await read()).toEqual({ revision: 1 });
+        expect(await read()).toEqual({ revision: 1 });
+        expect(readCount).toBe(2);
+    });
+
+    it('publishes versioned computed keys alongside the unchanged literal tags', async () => {
+        const { client, invalidated } = harness();
+        await client.users.disconnectTelegram();
+        const tags = invalidated.mock.calls.map(([tag]) => tag);
+        expect(tags).toContain('user-profile');
+        expect(tags).toContain('telegram-status');
+        expect(
+            tags.some(tag => typeof tag === 'string' && tag.startsWith('ct2:'))
+        ).toBe(true);
     });
 
     it('does not share private responses between client instances', async () => {

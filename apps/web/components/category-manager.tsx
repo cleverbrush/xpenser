@@ -1,11 +1,10 @@
 'use client';
 
-import { Field as SchemaField, useSchemaForm } from '@cleverbrush/react-form';
+import { useSchemaForm } from '@cleverbrush/react-form';
 import { type Category, CreateCategoryBodySchema } from '@xpenser/contracts';
 import {
     Badge,
     Button,
-    type CheckboxRendererFieldProps,
     cn,
     Dialog,
     DialogClose,
@@ -36,7 +35,8 @@ import {
     XIcon
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { SchemaField } from '@/components/forms/schema-fields';
 import {
     createCategoryAction,
     deleteCategoryAction,
@@ -416,10 +416,8 @@ function QuickCategoryForm({
 }) {
     const form = useSchemaForm(CreateCategoryBodySchema);
     const router = useRouter();
-    const [reverseDirection, setReverseDirection] = useState(false);
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [formVersion, setFormVersion] = useState(0);
+    const { submitting: pending, error } = form;
+    const kind = form.useField(field => field.kind);
     const isChild = Boolean(parent);
     const typeLabel = categoryTypeLabel(type).toLowerCase();
 
@@ -429,45 +427,28 @@ function QuickCategoryForm({
             parentId: parent?.id ?? null,
             kind: 'normal'
         });
-        setReverseDirection(false);
-        setFormVersion(version => version + 1);
     }, [form, parent?.id, type]);
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-
-        form.setValue({
-            type,
-            parentId: parent?.id ?? null,
-            kind: isChild && reverseDirection ? 'offset' : 'normal'
-        });
-        const result = await form.submit();
-        if (!result.valid || !result.object) {
-            return;
-        }
-
-        setPending(true);
-        setError(null);
-        try {
-            await createCategoryAction(valuesToFormData(result.object));
-            form.reset({
-                type,
-                parentId: parent?.id ?? null,
-                kind: 'normal'
-            });
-            setReverseDirection(false);
-            setFormVersion(version => version + 1);
-            onCancel();
-            router.refresh();
-        } catch (caught) {
-            if (isNextRedirectError(caught)) {
-                throw caught;
+    const handleSubmit = form.handleSubmit(
+        async values => {
+            await createCategoryAction(valuesToFormData(values));
+        },
+        {
+            onSuccess: () => {
+                form.reset({
+                    type,
+                    parentId: parent?.id ?? null,
+                    kind: 'normal'
+                });
+                onCancel();
+                router.refresh();
+            },
+            onError: caught => {
+                if (isNextRedirectError(caught)) throw caught;
+                return 'Could not create the category.';
             }
-            setError('Could not create the category.');
-        } finally {
-            setPending(false);
         }
-    }
+    );
 
     return (
         <form
@@ -478,7 +459,6 @@ function QuickCategoryForm({
                     : 'grid-cols-1 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]'
             )}
             data-testid={isChild ? 'subcategory-form' : `${type}-category-form`}
-            key={formVersion}
             noValidate
             onSubmit={handleSubmit}
         >
@@ -498,19 +478,16 @@ function QuickCategoryForm({
             />
             {parent ? (
                 <SchemaField
-                    fieldProps={
-                        {
-                            checked: reverseDirection,
-                            description: `Report as ${offsetKindLabel(
-                                type
-                            ).toLowerCase()}.`,
-                            disabled: pending,
-                            onCheckedChange: (checked, field) => {
-                                field.onChange(checked ? 'offset' : 'normal');
-                                setReverseDirection(checked);
-                            }
-                        } satisfies CheckboxRendererFieldProps
-                    }
+                    fieldProps={{
+                        checked: kind.value === 'offset',
+                        description: `Report as ${offsetKindLabel(
+                            type
+                        ).toLowerCase()}.`,
+                        disabled: pending,
+                        onCheckedChange: (checked: boolean) => {
+                            kind.onChange(checked ? 'offset' : 'normal');
+                        }
+                    }}
                     forProperty={field => field.kind}
                     form={form}
                     label="Reverse direction"
