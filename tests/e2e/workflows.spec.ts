@@ -118,7 +118,7 @@ async function swipeReportAreaFromBlankSpace(
 }
 
 test.describe('authenticated app workflows', () => {
-    test('submits feedback from the top navigation', async ({ page }) => {
+    test('submits feedback from the top navigation', async ({ page }, testInfo) => {
         await page.goto('/dashboard');
         await page
             .getByRole('button', { name: 'Leave feedback' })
@@ -140,6 +140,10 @@ test.describe('authenticated app workflows', () => {
         ).toBeVisible(
             { timeout: 15_000 }
         );
+        await testInfo.attach('feedback-success-confirmation', {
+            body: await page.screenshot(),
+            contentType: 'image/png'
+        });
 
         await page
             .getByRole('button', { name: 'Leave feedback' })
@@ -155,6 +159,10 @@ test.describe('authenticated app workflows', () => {
         await expect(
             dialog.getByRole('button', { name: 'Send feedback' })
         ).toBeEnabled();
+        await testInfo.attach('feedback-reset-after-success', {
+            body: await dialog.screenshot(),
+            contentType: 'image/png'
+        });
         await page.keyboard.press('Escape');
         await expect(dialog).toBeHidden();
     });
