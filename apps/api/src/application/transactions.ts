@@ -1,4 +1,3 @@
-import { getTableName, query as schemaQuery } from '@cleverbrush/knex-schema';
 import { mapper } from '@cleverbrush/mapper';
 import {
     array,
@@ -29,6 +28,7 @@ import type {
     TransactionTag
 } from '@xpenser/contracts';
 import {
+    CategoryTypeSchema,
     TransactionCreatorSchema,
     TransactionScanAttachmentSchema,
     TransactionSchema,
@@ -57,15 +57,12 @@ import {
 } from '@xpenser/timezone';
 import type { Knex } from 'knex';
 import type { Config } from '../config.js';
-import {
-    type AppDb,
-    type CategoryDb,
-    type TransactionDb,
-    TransactionDbSchema,
-    TransactionTagDbSchema,
-    TransactionTagLinkDbSchema,
-    type UserDb,
-    type VendorDb
+import type {
+    AppDb,
+    CategoryDb,
+    TransactionDb,
+    UserDb,
+    VendorDb
 } from '../db/schemas.js';
 import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
 import {
@@ -80,6 +77,18 @@ import {
     transactionDate
 } from './currencies.js';
 import {
+    scanAttachmentsQuery,
+    type TransactionFilterQuery,
+    type TransactionListRow,
+    transactionListBaseQuery,
+    transactionListCountQuery,
+    transactionListPageQuery,
+    transactionScanImageQuery,
+    transactionTagCountsQuery,
+    transactionTagIds,
+    transactionTagsQuery
+} from './transaction-queries.js';
+import {
     mapTransactionTag,
     pruneUnusedTransactionTags,
     replaceTransactionTags
@@ -93,6 +102,11 @@ import {
 } from './user-avatars.js';
 import { getVendor, VendorNotFoundError } from './vendors.js';
 
+export {
+    transactionListBaseQuery,
+    transactionListPageQuery
+} from './transaction-queries.js';
+
 export class TransactionNotFoundError extends Error {}
 export class TransactionCategoryError extends Error {}
 export class TransactionExportError extends Error {}
@@ -105,34 +119,15 @@ type DashboardVendor = DashboardSummary['topVendors'][number];
 type DashboardCategoryVendor =
     DashboardSummary['categoryVendorBreakdown'][number];
 type TransactionScanAttachment = NonNullable<Transaction['scanAttachment']>;
-type TransactionScanAttachmentRow = {
-    readonly budgetId: number;
-    readonly createdAt: Date;
-    readonly fileName: string | null;
-    readonly mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
-    readonly scanId: number;
-    readonly scanItemId: number;
-    readonly sizeBytes: number | string;
-    readonly transactionId: number;
-};
-
-type TransactionScanImageRow = TransactionScanAttachmentRow & {
-    readonly imageBase64: string;
-};
-
-type TransactionTagRow = {
-    readonly budgetId: number;
-    readonly createdAt: Date;
-    readonly id: number;
-    readonly name: string;
-    readonly transactionId: number;
-    readonly updatedAt: Date;
-};
-
-type TransactionTagCountRow = {
-    readonly tagId: number;
-    readonly transactionCount: number | string;
-};
+type TransactionScanAttachmentRow = Pick<
+    Awaited<ReturnType<typeof transactionScanImageQuery>>[number],
+    | 'scanId'
+    | 'scanItemId'
+    | 'fileName'
+    | 'mimeType'
+    | 'sizeBytes'
+    | 'createdAt'
+>;
 
 type TransactionCreator = Transaction['createdBy'];
 
@@ -157,21 +152,6 @@ type StatsRange = {
     readonly to: Date;
 };
 
-type TransactionFilterQuery = Pick<
-    TransactionListQuery,
-    | 'budgetId'
-    | 'categoryId'
-    | 'direction'
-    | 'from'
-    | 'parentCategoryId'
-    | 'search'
-    | 'tagIds'
-    | 'to'
-    | 'type'
-    | 'untagged'
-    | 'vendorId'
->;
-
 type FilteredTransactionRows = {
     readonly budgetId: number;
     readonly categoriesById: ReadonlyMap<number, CategoryDb>;
@@ -179,20 +159,6 @@ type FilteredTransactionRows = {
     readonly tagsByTransaction: ReadonlyMap<number, readonly TransactionTag[]>;
     readonly tagsLoadedForAllRows: boolean;
     readonly vendorsById: ReadonlyMap<number, VendorDb>;
-};
-
-type TransactionListRow = TransactionDb & {
-    readonly categoryKind: 'normal' | 'offset';
-    readonly categoryName: string;
-    readonly categoryParentId: number | null;
-    readonly categoryParentName: string | null;
-    readonly categoryType: 'expense' | 'income';
-    readonly vendorLogoUrl: string | null;
-    readonly vendorName: string | null;
-};
-
-type TransactionCountRow = {
-    readonly total: number | string;
 };
 
 type CategoryTrendBucket = CategoryTrendResponse['trend'][number];
@@ -528,7 +494,7 @@ const mapTransactionDto = mapper()
     .getMapper(TransactionMappingSourceSchema, TransactionSchema);
 
 function mapTransactionSource(
-    row: TransactionDb,
+    row: Omit<TransactionDb, 'type' | 'category'>,
     fields: Pick<
         InferType<typeof TransactionMappingSourceSchema>,
         | 'categoryId'
@@ -613,8 +579,11 @@ async function mapListedTransaction(
     creatorsById: ReadonlyMap<number, TransactionCreator>
 ): Promise<Transaction> {
     const type = categoryReportingType(
-        { kind: row.categoryKind, type: row.categoryType },
-        row.type
+        {
+            kind: row.categoryKind === 'offset' ? 'offset' : 'normal',
+            type: CategoryTypeSchema.parse(row.categoryType)
+        },
+        CategoryTypeSchema.parse(row.type)
     );
 
     return mapTransactionDto(
@@ -644,189 +613,6 @@ async function mapListedTransaction(
     );
 }
 
-function transactionTagIds(value: string | undefined): number[] {
-    if (!value) {
-        return [];
-    }
-
-    return [
-        ...new Set(
-            value
-                .split(',')
-                .map(item => Number(item))
-                .filter(item => Number.isInteger(item) && item > 0)
-        )
-    ];
-}
-
-function transactionSearchPattern(value: string): string {
-    return `%${value.replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_')}%`;
-}
-
-export function transactionListBaseQuery(
-    knex: Knex,
-    budgetId: number,
-    query: TransactionFilterQuery
-): Knex.QueryBuilder {
-    const builder = schemaQuery(knex, TransactionDbSchema)
-        .apply(queryBuilder => {
-            queryBuilder
-                .join(
-                    'categories as category',
-                    'category.id',
-                    'transactions.category_id'
-                )
-                .leftJoin(
-                    'categories as parent',
-                    'parent.id',
-                    'category.parent_id'
-                )
-                .leftJoin(
-                    'vendors as vendor',
-                    'vendor.id',
-                    'transactions.vendor_id'
-                );
-        })
-        .toKnexQuery()
-        .where('transactions.budget_id', budgetId);
-
-    if (query.categoryId) {
-        builder.where('transactions.category_id', query.categoryId);
-    }
-    if (query.from) {
-        builder.where('transactions.occurred_at', '>=', query.from);
-    }
-    if (query.to) {
-        builder.where('transactions.occurred_at', '<=', query.to);
-    }
-    if (query.vendorId === 'none') {
-        builder.whereNull('transactions.vendor_id');
-    } else if (query.vendorId) {
-        builder.where('transactions.vendor_id', query.vendorId);
-    }
-    if (query.type) {
-        builder.whereRaw(
-            `CASE
-                WHEN category.kind = 'offset'
-                    THEN CASE category.type
-                        WHEN 'expense' THEN 'income'
-                        ELSE 'expense'
-                    END
-                ELSE category.type
-            END = ?`,
-            [query.type]
-        );
-    }
-    if (query.parentCategoryId) {
-        builder.where(parentBuilder => {
-            parentBuilder
-                .where('transactions.category_id', query.parentCategoryId)
-                .orWhere('category.parent_id', query.parentCategoryId);
-        });
-    }
-
-    const tagIds = transactionTagIds(query.tagIds);
-    for (const tagId of tagIds) {
-        builder.whereExists(
-            schemaQuery(knex, TransactionTagLinkDbSchema)
-                .select(link => link.tagId)
-                .where(link => link.tagId, tagId)
-                .whereRaw('??.?? = ??.??', [
-                    getTableName(TransactionTagLinkDbSchema),
-                    'transaction_id',
-                    getTableName(TransactionDbSchema),
-                    'id'
-                ])
-                .toKnexQuery()
-        );
-    }
-    if (query.untagged === true) {
-        builder.whereNotExists(
-            schemaQuery(knex, TransactionTagLinkDbSchema)
-                .select(link => link.tagId)
-                .whereRaw('??.?? = ??.??', [
-                    getTableName(TransactionTagLinkDbSchema),
-                    'transaction_id',
-                    getTableName(TransactionDbSchema),
-                    'id'
-                ])
-                .toKnexQuery()
-        );
-    }
-
-    const search = query.search?.trim();
-    if (search) {
-        const pattern = transactionSearchPattern(search);
-        const searchTagIds = schemaQuery(knex, TransactionTagDbSchema)
-            .where(tag => tag.budgetId, budgetId)
-            .whereRaw("?? ILIKE ? ESCAPE '!'", ['name', pattern])
-            .select(tag => tag.id)
-            .toKnexQuery();
-        const tagSearch = schemaQuery(knex, TransactionTagLinkDbSchema)
-            .select(link => link.tagId)
-            .whereIn(link => link.tagId, searchTagIds)
-            .whereRaw('??.?? = ??.??', [
-                getTableName(TransactionTagLinkDbSchema),
-                'transaction_id',
-                getTableName(TransactionDbSchema),
-                'id'
-            ])
-            .toKnexQuery();
-        builder.where(searchBuilder => {
-            searchBuilder
-                .whereRaw("category.name ILIKE ? ESCAPE '!'", [pattern])
-                .orWhereRaw(
-                    "COALESCE(parent.name || ' -> ' || category.name, category.name) ILIKE ? ESCAPE '!'",
-                    [pattern]
-                )
-                .orWhereRaw("vendor.name ILIKE ? ESCAPE '!'", [pattern])
-                .orWhereRaw("vendor.domain ILIKE ? ESCAPE '!'", [pattern])
-                .orWhereRaw("transactions.note ILIKE ? ESCAPE '!'", [pattern])
-                .orWhereExists(tagSearch);
-        });
-    }
-
-    return builder;
-}
-
-export function transactionListPageQuery(
-    builder: Knex.QueryBuilder,
-    direction: 'asc' | 'desc',
-    limit: number,
-    offset: number
-) {
-    return builder
-        .select({
-            id: 'transactions.id',
-            budgetId: 'transactions.budget_id',
-            userId: 'transactions.user_id',
-            categoryId: 'transactions.category_id',
-            vendorId: 'transactions.vendor_id',
-            type: 'transactions.type',
-            amount: 'transactions.amount',
-            currency: 'transactions.currency',
-            defaultCurrencyAmount: 'transactions.default_currency_amount',
-            defaultCurrency: 'transactions.default_currency',
-            exchangeRate: 'transactions.exchange_rate',
-            exchangeRateDate: 'transactions.exchange_rate_date',
-            occurredAt: 'transactions.occurred_at',
-            note: 'transactions.note',
-            createdAt: 'transactions.created_at',
-            updatedAt: 'transactions.updated_at',
-            categoryName: 'category.name',
-            categoryType: 'category.type',
-            categoryKind: 'category.kind',
-            categoryParentId: 'category.parent_id',
-            categoryParentName: 'parent.name',
-            vendorName: 'vendor.name',
-            vendorLogoUrl: 'vendor.logo_url'
-        })
-        .orderBy('transactions.occurred_at', direction)
-        .orderBy('transactions.id', direction)
-        .limit(limit)
-        .offset(offset);
-}
-
 async function transactionTagCounts(
     knex: Knex,
     tagIds: readonly number[]
@@ -836,19 +622,8 @@ async function transactionTagCounts(
         return new Map();
     }
 
-    // Keep this aggregate in Knex: SchemaQueryBuilder's aggregate result is
-    // not aliasable, while callers need both the grouped key and count.
-    const rows = (await knex('transaction_tag_links')
-        .whereIn('tag_id', uniqueIds)
-        .groupBy('tag_id')
-        .select({ tagId: 'tag_id' })
-        .count({
-            transactionCount: 'transaction_id'
-        })) as TransactionTagCountRow[];
-
-    return new Map(
-        rows.map(row => [Number(row.tagId), Number(row.transactionCount)])
-    );
+    const rows = await transactionTagCountsQuery(knex, uniqueIds);
+    return new Map(rows.map(row => [row.tagId, row.transactionCount]));
 }
 
 async function transactionTagsByTransaction(
@@ -861,21 +636,7 @@ async function transactionTagsByTransaction(
         return new Map();
     }
 
-    // A flat joined projection is cheaper than joinOne's JSON object for this
-    // hot enrichment path, so keep the join as the documented escape hatch.
-    const rows = (await knex('transaction_tag_links as link')
-        .join('transaction_tags as tag', 'tag.id', 'link.tag_id')
-        .where('tag.budget_id', budgetId)
-        .whereIn('link.transaction_id', uniqueIds)
-        .orderBy('tag.name', 'asc')
-        .select({
-            transactionId: 'link.transaction_id',
-            budgetId: 'tag.budget_id',
-            id: 'tag.id',
-            name: 'tag.name',
-            createdAt: 'tag.created_at',
-            updatedAt: 'tag.updated_at'
-        })) as TransactionTagRow[];
+    const rows = await transactionTagsQuery(knex, budgetId, uniqueIds);
     const counts = await transactionTagCounts(
         knex,
         rows.map(row => row.id)
@@ -884,7 +645,7 @@ async function transactionTagsByTransaction(
         rows.map(row =>
             mapTransactionTag({
                 ...row,
-                transactionCount: counts.get(Number(row.id)) ?? 0
+                transactionCount: counts.get(row.id) ?? 0
             })
         )
     );
@@ -955,29 +716,7 @@ async function scanAttachmentsByTransaction(
         return new Map();
     }
 
-    // Keep a flat projection here to avoid loading the stored base64 image
-    // through joinOne while enriching transaction list rows.
-    const rows = (await knex('transaction_scan_items as item')
-        .join(
-            'transaction_scan_images as image',
-            'image.scan_id',
-            'item.scan_id'
-        )
-        .where('item.budget_id', budgetId)
-        .where('image.budget_id', budgetId)
-        .where('item.decision', 'confirmed')
-        .whereIn('item.transaction_id', uniqueIds)
-        .orderBy('item.decided_at', 'desc')
-        .select({
-            transactionId: 'item.transaction_id',
-            budgetId: 'item.budget_id',
-            scanId: 'item.scan_id',
-            scanItemId: 'item.id',
-            fileName: 'image.file_name',
-            mimeType: 'image.mime_type',
-            sizeBytes: 'image.size_bytes',
-            createdAt: 'image.created_at'
-        })) as TransactionScanAttachmentRow[];
+    const rows = await scanAttachmentsQuery(knex, budgetId, uniqueIds);
 
     const mapped = await Promise.all(
         rows.map(async row => ({
@@ -987,7 +726,7 @@ async function scanAttachmentsByTransaction(
     );
     const attachments = new Map<number, TransactionScanAttachment>();
     for (const { row, attachment } of mapped) {
-        if (!attachments.has(row.transactionId)) {
+        if (row.transactionId !== null && !attachments.has(row.transactionId)) {
             attachments.set(row.transactionId, attachment);
         }
     }
@@ -1097,11 +836,6 @@ async function filteredTransactionRows(
         loadCategoriesById(db, access.budget.id),
         loadVendorsById(db, access.budget.id)
     ]);
-    const sortedRows = [...rows].sort(
-        direction === 'asc'
-            ? compareTransactionsByOccurrenceAsc
-            : compareTransactionsByOccurrenceDesc
-    ) as TransactionDb[];
 
     const search = query.search?.trim().toLowerCase();
     const tagIds = transactionTagIds(query.tagIds);
@@ -1114,10 +848,10 @@ async function filteredTransactionRows(
         ? await transactionTagsByTransaction(
               knex ?? db.knex,
               access.budget.id,
-              sortedRows.map(transaction => transaction.id)
+              rows.map(transaction => transaction.id)
           )
         : new Map<number, readonly TransactionTag[]>();
-    const filtered = sortedRows
+    const filtered = (rows as TransactionDb[])
         .filter(transaction => {
             if (query.vendorId === 'none') {
                 return transaction.vendorId == null;
@@ -1224,11 +958,15 @@ export async function listTransactions(
     const database = knex ?? db.knex;
     const offset = (page - 1) * limit;
     const direction = query.direction ?? 'desc';
-    const baseQuery = transactionListBaseQuery(database, budgetId, query);
-    const [countRows, pageRows] = (await Promise.all([
-        baseQuery.clone().count({ total: 'transactions.id' }),
-        transactionListPageQuery(baseQuery.clone(), direction, limit, offset)
-    ])) as [TransactionCountRow[], TransactionListRow[]];
+    const [count, pageRows] = await Promise.all([
+        transactionListCountQuery(database, budgetId, query).first(),
+        transactionListPageQuery(
+            transactionListBaseQuery(database, budgetId, query),
+            direction,
+            limit,
+            offset
+        )
+    ]);
     const transactionIds = pageRows.map(transaction => transaction.id);
     const [scanAttachments, pageTagsByTransaction, creatorsById] =
         await Promise.all([
@@ -1248,7 +986,7 @@ export async function listTransactions(
                 )
             )
         ),
-        total: Number(countRows[0]?.total ?? 0),
+        total: count?.total ?? 0,
         page,
         limit
     };
@@ -1645,28 +1383,7 @@ export async function getTransactionScanImage(
     userId: number,
     transactionId: number
 ): Promise<TransactionScanImageResponse> {
-    // This endpoint intentionally uses a flat Knex projection because the
-    // base64 payload should not be wrapped in a joinOne JSON object.
-    const row = (await knex('transaction_scan_items as item')
-        .join(
-            'transaction_scan_images as image',
-            'image.scan_id',
-            'item.scan_id'
-        )
-        .where('item.transaction_id', transactionId)
-        .where('item.decision', 'confirmed')
-        .orderBy('item.decided_at', 'desc')
-        .select({
-            scanId: 'item.scan_id',
-            scanItemId: 'item.id',
-            budgetId: 'item.budget_id',
-            fileName: 'image.file_name',
-            mimeType: 'image.mime_type',
-            sizeBytes: 'image.size_bytes',
-            createdAt: 'image.created_at',
-            imageBase64: 'image.image_base64'
-        })
-        .first()) as TransactionScanImageRow | undefined;
+    const row = await transactionScanImageQuery(knex, transactionId).first();
 
     if (!row) {
         throw new TransactionNotFoundError('Scanned image was not found.');
@@ -1674,7 +1391,7 @@ export async function getTransactionScanImage(
     await resolveBudgetAccess(db, userId, Number(row.budgetId));
 
     return {
-        ...(await scanAttachmentFromRow({ ...row, transactionId })),
+        ...(await scanAttachmentFromRow(row)),
         imageBase64: row.imageBase64
     };
 }

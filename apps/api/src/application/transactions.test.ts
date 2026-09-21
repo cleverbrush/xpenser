@@ -1,11 +1,12 @@
 import knex from 'knex';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
     AppDb,
     CategoryDb,
     TransactionDb,
     VendorDb
 } from '../db/schemas.js';
+import * as transactionQueries from './transaction-queries.js';
 import {
     categoryTrendMaxBuckets,
     compareTransactionsByOccurrenceAsc,
@@ -30,6 +31,52 @@ import {
     transactionListPageQuery,
     transactionSignedDefaultAmount
 } from './transactions.js';
+
+afterEach(() => vi.restoreAllMocks());
+
+// SQL construction and driver decoding are covered by the real-query suites.
+function mockTypedTagQueries(
+    tags: readonly {
+        id: number;
+        name: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }[],
+    links: readonly { transactionId: number; tagId: number }[]
+) {
+    vi.spyOn(transactionQueries, 'transactionTagsQuery').mockImplementation(
+        (_knex, budgetId, ids) =>
+            Promise.resolve(
+                links
+                    .filter(link => ids.includes(link.transactionId))
+                    .flatMap(link => {
+                        const tag = tags.find(tag => tag.id === link.tagId);
+                        return tag
+                            ? [
+                                  {
+                                      ...tag,
+                                      budgetId,
+                                      transactionId: link.transactionId
+                                  }
+                              ]
+                            : [];
+                    })
+            ) as never
+    );
+    vi.spyOn(
+        transactionQueries,
+        'transactionTagCountsQuery'
+    ).mockImplementation(
+        (_knex, ids) =>
+            Promise.resolve(
+                ids.map(tagId => ({
+                    tagId,
+                    transactionCount: links.filter(link => link.tagId === tagId)
+                        .length
+                }))
+            ) as never
+    );
+}
 
 function budgetAccessTables() {
     const timestamp = new Date('2026-06-01T12:00:00.000Z');
@@ -127,12 +174,9 @@ describe('transaction list database query', () => {
             untagged: true,
             vendorId: 'none'
         });
-        const compiled = transactionListPageQuery(
-            baseQuery,
-            'asc',
-            25,
-            50
-        ).toSQL();
+        const compiled = transactionListPageQuery(baseQuery, 'asc', 25, 50)
+            .toKnexQuery()
+            .toSQL();
 
         expect(compiled.sql).toContain('"transactions"."budget_id" = ?');
         expect(compiled.sql).toContain('"transactions"."category_id" = ?');
@@ -161,7 +205,10 @@ describe('transaction list database query', () => {
         const compiled = transactionListBaseQuery(queryBuilder, 4, {
             direction: 'desc',
             search: '50%_!'
-        }).toSQL();
+        })
+            .select(t => ({ id: t.transactions.id }))
+            .toKnexQuery()
+            .toSQL();
 
         expect(compiled.sql).toContain('category.name ILIKE ?');
         expect(compiled.sql).toContain("parent.name || ' -> '");
@@ -974,6 +1021,7 @@ describe('transaction category signs', () => {
 });
 
 describe('transaction scan images', () => {
+    afterEach(() => vi.restoreAllMocks());
     function scanImageBudgetDb(): AppDb {
         return budgetAccessTables() as unknown as AppDb;
     }
@@ -990,17 +1038,13 @@ describe('transaction scan images', () => {
             createdAt: scanTimestamp,
             imageBase64: Buffer.from('image').toString('base64')
         };
-        const query = {
-            join: vi.fn(() => query),
-            where: vi.fn(() => query),
-            orderBy: vi.fn(() => query),
-            select: vi.fn(() => query),
-            first: vi.fn(async () => row)
-        };
-        const knex = vi.fn(() => query);
+        const query = vi
+            .spyOn(transactionQueries, 'transactionScanImageQuery')
+            .mockReturnValue({ first: vi.fn(async () => row) } as never);
+        const database = {} as never;
 
         await expect(
-            getTransactionScanImage(scanImageBudgetDb(), knex as never, 1, 42)
+            getTransactionScanImage(scanImageBudgetDb(), database, 1, 42)
         ).resolves.toEqual({
             scanId: 10,
             scanItemId: 20,
@@ -1010,27 +1054,17 @@ describe('transaction scan images', () => {
             createdAt: scanTimestamp,
             imageBase64: Buffer.from('image').toString('base64')
         });
-        expect(knex).toHaveBeenCalledWith('transaction_scan_items as item');
-        expect(query.where).toHaveBeenCalledWith('item.transaction_id', 42);
-        expect(query.where).toHaveBeenCalledWith('item.decision', 'confirmed');
+        expect(query).toHaveBeenCalledWith(database, 42);
     });
 
     it('throws when a transaction has no stored scan image', async () => {
-        const query = {
-            join: vi.fn(() => query),
-            where: vi.fn(() => query),
-            orderBy: vi.fn(() => query),
-            select: vi.fn(() => query),
-            first: vi.fn(async () => undefined)
-        };
+        vi.spyOn(
+            transactionQueries,
+            'transactionScanImageQuery'
+        ).mockReturnValue({ first: vi.fn(async () => undefined) } as never);
 
         await expect(
-            getTransactionScanImage(
-                scanImageBudgetDb(),
-                vi.fn(() => query) as never,
-                1,
-                42
-            )
+            getTransactionScanImage(scanImageBudgetDb(), {} as never, 1, 42)
         ).rejects.toBeInstanceOf(TransactionNotFoundError);
     });
 });
@@ -1159,88 +1193,22 @@ describe('transaction CSV export', () => {
     }
 
     function exportKnex() {
+        mockTypedTagQueries(tags, tagLinks);
+        vi.spyOn(transactionQueries, 'scanAttachmentsQuery').mockReturnValue(
+            Promise.resolve([
+                {
+                    transactionId: transaction.id,
+                    budgetId: 1,
+                    scanId: 50,
+                    scanItemId: 60,
+                    fileName: 'receipt.png',
+                    mimeType: 'image/png',
+                    sizeBytes: 2048,
+                    createdAt: timestamp
+                }
+            ]) as never
+        );
         return vi.fn((table: string) => {
-            if (table === 'transaction_tag_links as link') {
-                const query = {
-                    transactionIds: [] as number[],
-                    join: () => query,
-                    where: () => query,
-                    whereIn: (_field: string, ids: readonly number[]) => {
-                        query.transactionIds = [...ids];
-                        return query;
-                    },
-                    orderBy: () => query,
-                    select: () =>
-                        Promise.resolve(
-                            tagLinks
-                                .filter(link =>
-                                    query.transactionIds.includes(
-                                        link.transactionId
-                                    )
-                                )
-                                .flatMap(link => {
-                                    const tag = tags.find(
-                                        candidate => candidate.id === link.tagId
-                                    );
-                                    return tag
-                                        ? [
-                                              {
-                                                  transactionId:
-                                                      link.transactionId,
-                                                  id: tag.id,
-                                                  name: tag.name,
-                                                  createdAt: tag.createdAt,
-                                                  updatedAt: tag.updatedAt
-                                              }
-                                          ]
-                                        : [];
-                                })
-                        )
-                };
-                return query;
-            }
-            if (table === 'transaction_tag_links') {
-                const query = {
-                    tagIds: [] as number[],
-                    whereIn: (_field: string, ids: readonly number[]) => {
-                        query.tagIds = [...ids];
-                        return query;
-                    },
-                    groupBy: () => query,
-                    select: () => query,
-                    count: () =>
-                        Promise.resolve(
-                            query.tagIds.map(tagId => ({
-                                tagId,
-                                transactionCount: tagLinks.filter(
-                                    link => link.tagId === tagId
-                                ).length
-                            }))
-                        )
-                };
-                return query;
-            }
-            if (table === 'transaction_scan_items as item') {
-                const query = {
-                    join: () => query,
-                    where: () => query,
-                    whereIn: () => query,
-                    orderBy: () => query,
-                    select: () =>
-                        Promise.resolve([
-                            {
-                                transactionId: transaction.id,
-                                scanId: 50,
-                                scanItemId: 60,
-                                fileName: 'receipt.png',
-                                mimeType: 'image/png',
-                                sizeBytes: '2048',
-                                createdAt: timestamp
-                            }
-                        ])
-                };
-                return query;
-            }
             if (table === 'users') {
                 const query = {
                     ids: [] as number[],
@@ -1800,6 +1768,7 @@ describe('stats tag reports', () => {
     }
 
     function testTagReportDb(): AppDb {
+        mockTypedTagQueries(tags, tagLinks);
         const transactions = [
             transaction(1, 1, '10', 1),
             transaction(2, 2, '20', 2),
@@ -1807,66 +1776,6 @@ describe('stats tag reports', () => {
             transaction(4, 3, '100', 1)
         ];
         const knex = vi.fn((table: string) => {
-            if (table === 'transaction_tag_links as link') {
-                const query = {
-                    transactionIds: [] as number[],
-                    join: () => query,
-                    where: () => query,
-                    whereIn: (_field: string, ids: readonly number[]) => {
-                        query.transactionIds = [...ids];
-                        return query;
-                    },
-                    orderBy: () => query,
-                    select: () =>
-                        Promise.resolve(
-                            tagLinks
-                                .filter(link =>
-                                    query.transactionIds.includes(
-                                        link.transactionId
-                                    )
-                                )
-                                .flatMap(link => {
-                                    const tag = tags.find(
-                                        candidate => candidate.id === link.tagId
-                                    );
-                                    return tag
-                                        ? [
-                                              {
-                                                  transactionId:
-                                                      link.transactionId,
-                                                  id: tag.id,
-                                                  name: tag.name,
-                                                  createdAt: tag.createdAt,
-                                                  updatedAt: tag.updatedAt
-                                              }
-                                          ]
-                                        : [];
-                                })
-                        )
-                };
-                return query;
-            }
-            if (table === 'transaction_tag_links') {
-                const query = {
-                    tagIds: [] as number[],
-                    whereIn: (_field: string, ids: readonly number[]) => {
-                        query.tagIds = [...ids];
-                        return query;
-                    },
-                    groupBy: () => query,
-                    select: () => query,
-                    count: () =>
-                        Promise.resolve(
-                            query.tagIds.map(tagId => ({
-                                tagId,
-                                transactionCount: tagLinks.filter(
-                                    link => link.tagId === tagId
-                                ).length
-                            }))
-                        )
-                };
-                return query;
-            }
             if (table === 'transaction_tags') {
                 const query = {
                     tagId: 0,
