@@ -1,9 +1,4 @@
-import {
-    getTableName,
-    object,
-    query,
-    resolveColumnRef
-} from '@cleverbrush/knex-schema';
+import { alias, eq, query, resolveColumnRef } from '@cleverbrush/knex-schema';
 import type { Knex } from 'knex';
 import {
     type AppDb,
@@ -14,82 +9,9 @@ import {
 
 export type BudgetListStatus = 'active' | 'archived' | 'all';
 
-type ColumnMetadata = { getExtension(key: string): unknown };
-type QualifiableColumn = ColumnMetadata & {
-    withExtension(key: string, value: unknown): unknown;
-};
-
-function qualifiedProperties<T extends Record<string, QualifiableColumn>>(
-    properties: T,
-    table: string
-): T {
-    // Qualification changes SQL metadata only; each property's value type stays intact.
-    return Object.fromEntries(
-        Object.entries(properties).map(([key, schema]) => [
-            key,
-            schema.withExtension(
-                'columnName',
-                `${table}.${schema.getExtension('columnName') ?? key}`
-            )
-        ])
-    ) as T;
-}
-
-const memberTable = getTableName(BudgetMemberDbSchema);
-const budgetTable = getTableName(BudgetDbSchema);
-const userTable = getTableName(UserDbSchema);
-const member = qualifiedProperties(
-    BudgetMemberDbSchema.omit(['budget', 'user']).introspect().properties,
-    memberTable
-);
-const budget = qualifiedProperties(
-    BudgetDbSchema.introspect().properties,
-    budgetTable
-);
-const user = qualifiedProperties(
-    UserDbSchema.pick([
-        'id',
-        'email',
-        'avatarUrl',
-        'avatarImageMimeType',
-        'avatarImageFileName',
-        'avatarImageUpdatedAt'
-    ]).introspect().properties,
-    userTable
-);
-
-const BudgetMembershipRowSchema = object({
-    ...member,
-    name: budget.name,
-    defaultCurrency: budget.defaultCurrency,
-    countryCode: budget.countryCode,
-    createdByUserId: budget.createdByUserId,
-    archivedAt: budget.archivedAt,
-    budgetCreatedAt: budget.createdAt,
-    budgetUpdatedAt: budget.updatedAt
-}).hasTableName(memberTable);
-
-const BudgetMemberRowSchema = object({
-    ...member,
-    email: user.email,
-    avatarUrl: user.avatarUrl,
-    avatarImageMimeType: user.avatarImageMimeType,
-    avatarImageFileName: user.avatarImageFileName,
-    avatarImageUpdatedAt: user.avatarImageUpdatedAt
-}).hasTableName(memberTable);
-
-function columnName(schema: ColumnMetadata): string {
-    return String(schema.getExtension('columnName'));
-}
-
-function projection(properties: Record<string, ColumnMetadata>) {
-    return Object.fromEntries(
-        Object.entries(properties).map(([key, schema]) => [
-            key,
-            String(schema.getExtension('columnName') ?? key)
-        ])
-    );
-}
+const member = alias(BudgetMemberDbSchema, 'member');
+const budget = alias(BudgetDbSchema, 'budget');
+const user = alias(UserDbSchema, 'user');
 
 export function budgetMembershipsQuery(
     knex: Knex,
@@ -97,44 +19,66 @@ export function budgetMembershipsQuery(
     status: BudgetListStatus = 'active',
     mainBudgetId = 0
 ) {
-    // Flat schema-backed joins keep ORDER BY on the final SELECT. Eager-loading
-    // puts it inside a CTE, whose ordering does not constrain the outer join.
-    const builder = query(knex, BudgetMembershipRowSchema)
-        .apply(sql =>
-            sql
-                .join(
-                    budgetTable,
-                    columnName(budget.id),
-                    columnName(member.budgetId)
-                )
-                .select(
-                    projection(
-                        BudgetMembershipRowSchema.introspect().properties
-                    )
-                )
-        )
-        .where(row => row.userId, userId);
-    if (status === 'active') builder.whereNull(row => row.archivedAt);
-    if (status === 'archived') builder.whereNotNull(row => row.archivedAt);
+    const builder = query(knex, member)
+        .join(budget, t => eq(t.member.budgetId, t.budget.id))
+        .where(t => t.member.userId, userId);
+    if (status === 'active') builder.whereNull(t => t.budget.archivedAt);
+    if (status === 'archived') builder.whereNotNull(t => t.budget.archivedAt);
     return builder
         .orderByRaw('case when ?? = ? then 0 else 1 end', [
-            columnName(member.budgetId),
+            'member.budget_id',
             mainBudgetId
         ])
-        .orderBy(row => row.displayName, 'asc');
+        .orderBy(t => t.member.displayName, 'asc')
+        .select(t => ({
+            budgetId: t.member.budgetId,
+            userId: t.member.userId,
+            displayName: t.member.displayName,
+            role: t.member.role,
+            canCreateTransactions: t.member.canCreateTransactions,
+            canUpdateTransactions: t.member.canUpdateTransactions,
+            canDeleteTransactions: t.member.canDeleteTransactions,
+            canManageCategories: t.member.canManageCategories,
+            canManageVendors: t.member.canManageVendors,
+            canManageTags: t.member.canManageTags,
+            canManageMembers: t.member.canManageMembers,
+            createdAt: t.member.createdAt,
+            updatedAt: t.member.updatedAt,
+            name: t.budget.name,
+            defaultCurrency: t.budget.defaultCurrency,
+            countryCode: t.budget.countryCode,
+            createdByUserId: t.budget.createdByUserId,
+            archivedAt: t.budget.archivedAt,
+            budgetCreatedAt: t.budget.createdAt,
+            budgetUpdatedAt: t.budget.updatedAt
+        }));
 }
 
 export function budgetMembersQuery(knex: Knex, budgetId: number) {
-    return query(knex, BudgetMemberRowSchema)
-        .apply(sql =>
-            sql
-                .join(userTable, columnName(user.id), columnName(member.userId))
-                .select(
-                    projection(BudgetMemberRowSchema.introspect().properties)
-                )
-        )
-        .where(row => row.budgetId, budgetId)
-        .orderBy(row => row.email, 'asc');
+    return query(knex, member)
+        .join(user, t => eq(t.member.userId, t.user.id))
+        .where(t => t.member.budgetId, budgetId)
+        .orderBy(t => t.user.email, 'asc')
+        .select(t => ({
+            budgetId: t.member.budgetId,
+            userId: t.member.userId,
+            displayName: t.member.displayName,
+            role: t.member.role,
+            canCreateTransactions: t.member.canCreateTransactions,
+            canUpdateTransactions: t.member.canUpdateTransactions,
+            canDeleteTransactions: t.member.canDeleteTransactions,
+            canManageCategories: t.member.canManageCategories,
+            canManageVendors: t.member.canManageVendors,
+            canManageTags: t.member.canManageTags,
+            canManageMembers: t.member.canManageMembers,
+            createdAt: t.member.createdAt,
+            updatedAt: t.member.updatedAt,
+            email: t.user.email,
+            avatarUrl: t.user.avatarUrl,
+            avatarImageMimeType: t.user.avatarImageMimeType,
+            avatarImageFileName: t.user.avatarImageFileName,
+            avatarImageUpdatedAt: t.user.avatarImageUpdatedAt
+        }));
 }
 
 export function uniqueActiveBudgetNameQuery(
@@ -167,7 +111,7 @@ export function budgetAdminCountQuery(db: AppDb, budgetId: number) {
     return db.budgetMembers
         .where(row => row.budgetId, budgetId)
         .where(row => row.role, 'admin')
-        .count();
+        .countValue();
 }
 
 export function reportBudgetsQuery(knex: Knex, userId: number) {

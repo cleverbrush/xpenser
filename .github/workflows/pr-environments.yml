@@ -30,6 +30,20 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.action != 'closed'
     runs-on: ubuntu-latest
+    services:
+      query-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: xpenser_queries
+          POSTGRES_USER: xpenser_test
+          POSTGRES_PASSWORD: xpenser_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U xpenser_test -d xpenser_queries"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout
@@ -55,6 +69,11 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: PostgreSQL query integration
+        run: npm run test:queries:integration
+        env:
+          QUERY_TEST_DATABASE_URL: postgres://xpenser_test:xpenser_test@127.0.0.1:5432/xpenser_queries
 
   deploy:
     name: Deploy PR environment

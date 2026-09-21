@@ -37,6 +37,7 @@
         "lint:fix": "biome check --write .",
         "build": "turbo run build",
         "test": "vitest --run",
+        "test:queries:integration": "tsc --noEmit -p apps/api/tsconfig.queries.json && vitest run --config vitest.queries.config.ts",
         "test:coverage": "vitest --run --coverage",
         "test:e2e": "playwright test",
         "typecheck": "turbo run typecheck",
