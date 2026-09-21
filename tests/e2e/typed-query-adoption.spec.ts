@@ -11,13 +11,19 @@ test('typed reads preserve transaction paging, tag counts and budget filtering',
     const headers = { authorization: `Bearer ${token}` };
     const ids: number[] = [];
     try {
-        for (const suffix of ['visible', 'other']) {
-            const created = await request.post('/api/api/budgets', {
-                headers, data: { name: uniqueName(`E2E typed ${suffix}`), defaultCurrency: 'USD' }
-            });
-            expect(created.status()).toBe(201);
-            ids.push((await created.json()).id);
-        }
+        // Use the UI mutation for the visible budget so Next's cached profile
+        // is invalidated, just as it is when a user creates a budget.
+        await page.goto('/settings/budgets');
+        await page.getByLabel('Name', { exact: true }).fill(uniqueName('E2E typed visible'));
+        await page.getByRole('button', { name: 'Create', exact: true }).click();
+        await page.waitForURL(/\/settings\/budgets\/\d+$/);
+        ids.push(Number(new URL(page.url()).pathname.split('/').at(-1)));
+        expect(Number.isSafeInteger(ids[0])).toBe(true);
+        const otherBudget = await request.post('/api/api/budgets', {
+            headers, data: { name: uniqueName('E2E typed other'), defaultCurrency: 'USD' }
+        });
+        expect(otherBudget.status()).toBe(201);
+        ids.push((await otherBudget.json()).id);
         const budgetId = ids[0]!;
         const category = await request.post('/api/api/categories', {
             headers, data: { budgetId, name: uniqueName('Typed meals'), type: 'expense' }
@@ -74,8 +80,11 @@ test('typed reads preserve transaction paging, tag counts and budget filtering',
         if (!baseURL) throw new Error('Missing preview URL');
         await context.addCookies([{ name: 'xpenser_selected_budget', value: String(budgetId), url: baseURL }]);
         await page.goto('/transactions?direction=asc');
+        await expect(page.getByRole('combobox', { name: 'Active budget' })).toHaveValue(String(budgetId));
         await expect(page.getByRole('heading', { level: 1, name: 'Transactions', exact: true })).toBeVisible();
-        await expect(page.getByText(tagName, { exact: true }).first()).toBeVisible();
+        const taggedRows = page.getByRole('row').filter({ hasText: tagName });
+        await expect(taggedRows).toHaveCount(2);
+        await expect(taggedRows.first()).toBeVisible();
         await testInfo.attach('typed-query-transactions.png', { body: await page.screenshot(), contentType: 'image/png' });
     } finally {
         for (const id of ids) {
