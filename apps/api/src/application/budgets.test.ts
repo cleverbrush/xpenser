@@ -154,15 +154,10 @@ vi.mock('./budget-queries.js', () => ({
             query.whereNot('member.budget_id', excludingBudgetId);
         return query;
     },
-    budgetAdminCountQuery: (db: object, budgetId: number) => ({
-        first: async () => ({
-            count: String(
-                dataForQuery(db).members.filter(
-                    row => row.budgetId === budgetId && row.role === 'admin'
-                ).length
-            )
-        })
-    })
+    budgetAdminCountQuery: async (db: object, budgetId: number) =>
+        dataForQuery(db).members.filter(
+            row => row.budgetId === budgetId && row.role === 'admin'
+        ).length
 }));
 
 class BudgetListQuery {

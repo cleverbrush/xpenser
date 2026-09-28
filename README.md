@@ -372,6 +372,27 @@ Cleverbrush ORM entities.
 The e2e suite requires `PLAYWRIGHT_BASE_URL` when run outside the GitHub PR
 environment.
 
+Typed-query integration tests require a dedicated PostgreSQL database named
+`xpenser_queries` (never point them at application data):
+
+```sh
+docker run --name xpenser-query-tests -d -p 127.0.0.1:55437:5432 \
+  -e POSTGRES_DB=xpenser_queries -e POSTGRES_USER=xpenser_test \
+  -e POSTGRES_PASSWORD=xpenser_test postgres:16-alpine
+# Wait until PostgreSQL is ready before running the suite.
+docker exec xpenser-query-tests pg_isready -U xpenser_test -d xpenser_queries
+QUERY_TEST_DATABASE_URL=postgres://xpenser_test:xpenser_test@127.0.0.1:55437/xpenser_queries \
+  npm run test:queries:integration
+docker stop xpenser-query-tests
+```
+
+The suite type-checks its fixtures, runs application migrations in a random
+schema, and drops only that schema afterward. It covers joined projections,
+aggregate decoding, authorization, numbered paging, filters, scan summaries,
+eager ordering, and bounded enrichment query counts. It also compares query
+plans on synthetic data; timings are diagnostic, not production benchmarks.
+The same suite runs in the PR's **Lint and test** check.
+
 ## Contributing
 
 Contributions are welcome. Good first areas include documentation, self-hosting

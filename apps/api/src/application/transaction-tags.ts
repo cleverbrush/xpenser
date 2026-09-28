@@ -1,6 +1,12 @@
-import { getTableName, query as schemaQuery } from '@cleverbrush/knex-schema';
+import {
+    aggregate,
+    alias,
+    eq,
+    getTableName,
+    query as schemaQuery
+} from '@cleverbrush/knex-schema';
 import { mapper } from '@cleverbrush/mapper';
-import { date, number, object, string, union } from '@cleverbrush/schema';
+import { date, number, object, string } from '@cleverbrush/schema';
 import type {
     TransactionTag,
     TransactionTagListQuery
@@ -21,14 +27,9 @@ import { resolveBudgetAccess } from './budgets.js';
 
 export class TransactionTagError extends Error {}
 
-export type TransactionTagMappingRow = {
-    readonly budgetId: number;
-    readonly id: number;
-    readonly name: string;
-    readonly transactionCount: number | string;
-    readonly createdAt: Date;
-    readonly updatedAt: Date;
-};
+export type TransactionTagMappingRow = Awaited<
+    ReturnType<typeof transactionTagListQuery>
+>[number];
 
 export type TransactionTagAssignment = {
     readonly name: string;
@@ -82,7 +83,7 @@ const TransactionTagMappingSourceSchema = object({
     id: number(),
     budgetId: number(),
     name: string(),
-    transactionCount: union(number()).or(string()),
+    transactionCount: number(),
     createdAt: date(),
     updatedAt: date()
 });
@@ -97,8 +98,6 @@ const mapTransactionTagRow = mapper()
                 .compute(source => Number(source.id))
                 .for(target => target.budgetId)
                 .compute(source => Number(source.budgetId))
-                .for(target => target.transactionCount)
-                .compute(source => Number(source.transactionCount))
     )
     .getMapper(TransactionTagMappingSourceSchema, TransactionTagSchema);
 
@@ -113,39 +112,41 @@ export function transactionTagListQuery(
     budgetId: number,
     search: string | undefined,
     limit: number
-): Knex.QueryBuilder {
-    const tagTable = getTableName(TransactionTagDbSchema);
-    const linkTable = getTableName(TransactionTagLinkDbSchema);
-    const tagIdColumn = 'id';
-    const linkTagIdColumn = 'tag_id';
-    const linkTransactionIdColumn = 'transaction_id';
-    const builder = schemaQuery(knex, TransactionTagDbSchema).where(
-        tag => tag.budgetId,
-        budgetId
-    );
-    if (search) {
-        builder.whereILike(tag => tag.name, `%${search}%`);
-    }
-    return builder
-        .orderBy(tag => tag.name, 'asc')
+) {
+    const page = schemaQuery(knex, TransactionTagDbSchema)
+        .where(t => t.budgetId, budgetId)
+        .orderBy(t => t.name, 'asc')
         .limit(limit)
-        .select(tag => ({
-            budgetId: tag.budgetId,
-            id: tag.id,
-            name: tag.name,
-            createdAt: tag.createdAt,
-            updatedAt: tag.updatedAt
-        }))
-        .selectRaw(`(select count(??) from ?? where ??.?? = ??.??) as ??`, [
-            linkTransactionIdColumn,
-            linkTable,
-            linkTable,
-            linkTagIdColumn,
-            tagTable,
-            tagIdColumn,
-            'transactionCount'
-        ])
-        .toKnexQuery();
+        .select(t => t.id);
+    if (search) page.where(t => t.name, 'ilike', `%${search}%`);
+    return (
+        schemaQuery(knex, alias(TransactionTagDbSchema, 'tag'))
+            .leftJoin(alias(TransactionTagLinkDbSchema, 'link'), t =>
+                eq(t.tag.id, t.link.tagId)
+            )
+            // Limit tag IDs before aggregation so unrequested tags need no counts.
+            // Aliased whereIn currently accepts values only, not subqueries.
+            .apply(builder => builder.whereIn('tag.id', page.toKnexQuery()))
+            .groupBy(
+                t => t.tag.id,
+                t => t.tag.budgetId,
+                t => t.tag.name,
+                t => t.tag.createdAt,
+                t => t.tag.updatedAt
+            )
+            .orderBy(t => t.tag.name, 'asc')
+            .select(t => {
+                const transactionCount = aggregate.count(t.link.transactionId);
+                return {
+                    budgetId: t.tag.budgetId,
+                    id: t.tag.id,
+                    name: t.tag.name,
+                    createdAt: t.tag.createdAt,
+                    updatedAt: t.tag.updatedAt,
+                    transactionCount
+                };
+            })
+    );
 }
 
 export async function listTransactionTags(
@@ -163,7 +164,7 @@ export async function listTransactionTags(
         limit
     );
 
-    const rows = (await builder) as TransactionTagMappingRow[];
+    const rows = await builder;
     return Promise.all(rows.map(mapTransactionTag));
 }
 

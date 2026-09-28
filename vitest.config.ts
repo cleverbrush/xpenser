@@ -43,6 +43,7 @@ export default defineConfig({
             'packages/**/*.test.tsx',
             'scripts/**/*.test.mjs'
         ],
+        exclude: ['apps/api/integration/**', '**/node_modules/**'],
         coverage: {
             provider: 'v8'
         }

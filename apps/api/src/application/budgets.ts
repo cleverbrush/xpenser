@@ -6,8 +6,7 @@ import {
     date,
     number,
     object,
-    string,
-    union
+    string
 } from '@cleverbrush/schema';
 import type {
     Budget,
@@ -1000,11 +999,8 @@ export async function listBudgetAccess(
     ];
 }
 
-const CountRowSchema = object({ count: union(number()).or(string()) });
-
 async function adminCount(db: AppDb, budgetId: number): Promise<number> {
-    const row: unknown = await budgetAdminCountQuery(db, budgetId).first();
-    return Number(CountRowSchema.parse(row).count);
+    return budgetAdminCountQuery(db, budgetId);
 }
 
 async function ensureCanChangeMember(
