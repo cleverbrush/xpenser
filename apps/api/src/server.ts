@@ -1,14 +1,9 @@
 import type { Logger } from '@cleverbrush/log';
 import { useLogging } from '@cleverbrush/log';
 import { tracingMiddleware } from '@cleverbrush/otel';
-import {
-    createServer,
-    type Middleware,
-    mapHandlers
-} from '@cleverbrush/server';
+import { createServer, type Middleware } from '@cleverbrush/server';
 import { createOpenApiEndpoint } from '@cleverbrush/server-openapi';
-import { endpoints } from './api/endpoints.js';
-import { handlers } from './api/handlers/index.js';
+import { apiImplementation } from './api/implementation.js';
 import type { Config } from './config.js';
 import { configureDI, type DbResources } from './di/setup.js';
 import { McpEndpoint, mcpHandler } from './mcp/endpoint.js';
@@ -141,7 +136,7 @@ export function buildServer(
     );
     server.handle(OAuthTokenEndpoint, oauthTokenHandler);
     server.handle(McpEndpoint, mcpHandler);
-    server.handleAll(mapHandlers(endpoints, handlers));
+    server.handleAll(apiImplementation.complete());
 
     return server;
 }

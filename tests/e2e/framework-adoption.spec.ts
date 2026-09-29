@@ -38,6 +38,33 @@ async function login(request: APIRequestContext) {
     return { authorization: `Bearer ${body.token}` };
 }
 
+test('modular registrations preserve mapped errors and public scan status', async ({ request }) => {
+    const headers = await login(request);
+    const missing = await request.get(`${apiBase}/vendors/2147483647`, { headers });
+    expect(missing.status()).toBe(404);
+    expect(await missing.json()).toEqual({ message: 'Vendor was not found.' });
+
+    const anonymous = await request.get(`${apiBase}/vendors`);
+    expect(anonymous.status()).toBe(401);
+    expect(anonymous.headers()['www-authenticate']).toBe('Bearer');
+
+    const invalidLogin = await request.post(`${apiBase}/auth/login`, {
+        data: { email: testUser.email, password: 'wrong-modular-adoption-password' }
+    });
+    expect(invalidLogin.status()).toBe(401);
+    expect(await invalidLogin.json()).toHaveProperty('message');
+
+    // Progress polling stays public; the short-lived job token is the guard.
+    const status = await request.get(`${apiBase}/transaction-scans/jobs/status`, {
+        params: { jobId: 'missing-adoption-job', token: 'invalid-adoption-token' }
+    });
+    expect(status.status()).toBe(200);
+    expect(await status.json()).toMatchObject({
+        jobId: 'missing-adoption-job', stage: 'failed', scan: null,
+        error: 'Scan job was not found.'
+    });
+});
+
 test('native authentication preserves API-key transports, precedence, and revocation', async ({
     request
 }) => {
