@@ -4,7 +4,6 @@ import {
     date,
     enumOf,
     type InferType,
-    nul,
     number,
     object,
     string,
@@ -1985,9 +1984,10 @@ export const TransactionScanDraftSchema = object({
             'Existing category identifier selected by the scanner, when available.'
         ),
     /** Scanner suggestion for a category that does not exist yet. */
-    suggestedCategory: union(TransactionScanSuggestedCategorySchema)
-        .or(nul())
-        .describe('Scanner suggestion for a category that does not exist yet.'),
+    suggestedCategory:
+        TransactionScanSuggestedCategorySchema.nullable().describe(
+            'Scanner suggestion for a category that does not exist yet.'
+        ),
     /** Currency used for the scanned amount, when visible. */
     currency: CurrencyCodeSchema.nullable().describe(
         'Currency used for the scanned amount, when visible.'
@@ -2125,9 +2125,9 @@ export const TransactionScanProgressEventSchema = object({
     /** Approximate scan progress from 0 to 100. */
     progress: number().describe('Approximate scan progress from 0 to 100.'),
     /** Final scan result when the job completed successfully. */
-    scan: union(TransactionScanResponseSchema)
-        .or(nul())
-        .describe('Final scan result when the job completed successfully.'),
+    scan: TransactionScanResponseSchema.nullable().describe(
+        'Final scan result when the job completed successfully.'
+    ),
     /** Safe user-facing failure message when the job failed. */
     error: string()
         .nullable()
@@ -2176,16 +2176,13 @@ export const TransactionScanDecisionBodySchema = object({
         .optional()
         .describe('Vendor created inline for this draft, when applicable.'),
     /** Final user-corrected values, when confirmed. */
-    correctedTransaction: union(TransactionScanCorrectedTransactionSchema)
-        .or(nul())
+    correctedTransaction: TransactionScanCorrectedTransactionSchema.nullable()
         .optional()
         .describe('Final user-corrected values, when confirmed.'),
     /** Original scan image, stored once for confirmed transactions. */
-    attachment: union(TransactionScanAttachmentBodySchema)
-        .optional()
-        .describe(
-            'Original scan image, stored once for confirmed transactions.'
-        )
+    attachment: TransactionScanAttachmentBodySchema.optional().describe(
+        'Original scan image, stored once for confirmed transactions.'
+    )
 }).schemaName('TransactionScanDecisionBody');
 
 export const TransactionScanImageResponseSchema = object({
@@ -2745,9 +2742,9 @@ export const StatsTagReportSchema = object({
         'Tag totals for the selected period.'
     ),
     /** Selected tag detail, when requested and present. */
-    selectedTag: union(StatsTagDetailSchema)
-        .or(nul())
-        .describe('Selected tag detail, when requested and present.')
+    selectedTag: StatsTagDetailSchema.nullable().describe(
+        'Selected tag detail, when requested and present.'
+    )
 }).schemaName('StatsTagReport');
 
 export const DashboardComparisonSchema = object({

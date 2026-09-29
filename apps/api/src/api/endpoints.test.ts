@@ -1,3 +1,4 @@
+import { toJsonSchema } from '@cleverbrush/schema-json';
 import { generateOpenApiSpec } from '@cleverbrush/server-openapi';
 import { api } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
@@ -64,6 +65,7 @@ type TestOpenApiDocument = {
     };
     readonly components?: {
         readonly securitySchemes?: Record<string, unknown>;
+        readonly schemas?: Record<string, unknown>;
     };
     readonly paths: Record<
         string,
@@ -206,6 +208,108 @@ describe('api endpoint map', () => {
             ]);
         } finally {
             await runningServer.close();
+        }
+    });
+
+    it('reuses canonical components with local nullability and descriptions', () => {
+        const server = buildServer(testServerConfig(), testLogger(), {
+            knex: {},
+            db: {}
+        } as never);
+        const spec = generateOpenApiSpec({
+            server,
+            info: { title: 'xpenser API', version: 'test' }
+        }) as TestOpenApiDocument;
+        const schemas = spec.components?.schemas;
+        expect(schemas).toBeDefined();
+        const usages = [
+            [
+                'TransactionScanDraft',
+                'suggestedCategory',
+                'TransactionScanSuggestedCategory',
+                true,
+                true,
+                'Scanner suggestion for a category that does not exist yet.'
+            ],
+            [
+                'TransactionScanProgressEvent',
+                'scan',
+                'TransactionScanResponse',
+                true,
+                true,
+                'Final scan result when the job completed successfully.'
+            ],
+            [
+                'TransactionScanDecisionBody',
+                'correctedTransaction',
+                'TransactionScanCorrectedTransaction',
+                false,
+                true,
+                'Final user-corrected values, when confirmed.'
+            ],
+            [
+                'TransactionScanDecisionBody',
+                'attachment',
+                'TransactionScanAttachmentBody',
+                false,
+                false,
+                'Original scan image, stored once for confirmed transactions.'
+            ],
+            [
+                'StatsTagReport',
+                'selectedTag',
+                'StatsTagDetail',
+                true,
+                true,
+                'Selected tag detail, when requested and present.'
+            ]
+        ] as const;
+        for (const [
+            parent,
+            field,
+            target,
+            required,
+            nullable,
+            description
+        ] of usages) {
+            const component = schemas?.[parent] as {
+                properties: Record<string, unknown>;
+                required: string[];
+            };
+            const reference = {
+                allOf: [{ $ref: `#/components/schemas/${target}` }]
+            };
+            expect(component.properties[field]).toEqual({
+                ...(nullable
+                    ? { anyOf: [reference, { type: 'null' }] }
+                    : reference),
+                description
+            });
+            expect(component.required.includes(field)).toBe(required);
+            expect(schemas?.[target]).toMatchObject({ type: 'object' });
+            expect(
+                Object.keys(schemas ?? {}).filter(name =>
+                    name.startsWith(target)
+                )
+            ).toEqual([target]);
+        }
+        // Check every emitted reference, not only the five adopted use sites.
+        for (const match of JSON.stringify(spec).matchAll(
+            /"\$ref":"#\/components\/schemas\/([^" ]+)"/g
+        )) {
+            const name = match[1]?.replaceAll('~1', '/').replaceAll('~0', '~');
+            expect(schemas).toHaveProperty(name ?? '');
+        }
+    });
+
+    it('keeps contract JSON schemas self-contained without a component registry', () => {
+        const bodies = collectEndpointEntries(endpoints)
+            .map(({ endpoint }) => endpoint.introspect().bodySchema)
+            .filter(Boolean);
+        expect(bodies.length).toBeGreaterThan(0);
+        for (const body of bodies) {
+            const schema = toJsonSchema(body);
+            expect(JSON.stringify(schema)).not.toContain('"$ref"');
         }
     });
 

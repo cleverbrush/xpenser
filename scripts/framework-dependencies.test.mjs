@@ -11,4 +11,18 @@ describe('Framework package identity', () => {
             .map(([, pkg]) => pkg.version);
         expect(new Set(versions)).toEqual(new Set([lock.packages['apps/api'].dependencies['@cleverbrush/schema']]));
     });
+
+    it('pins every workspace Framework dependency to the same release', () => {
+        const lock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'));
+        const expected = lock.packages['apps/api'].dependencies['@cleverbrush/schema'];
+        for (const [path] of Object.entries(lock.packages)) {
+            if (!/^(apps|packages)\/[^/]+$/.test(path)) continue;
+            const manifest = JSON.parse(readFileSync(new URL(`../${path}/package.json`, import.meta.url), 'utf8'));
+            for (const group of ['dependencies', 'devDependencies', 'peerDependencies']) {
+                for (const [name, version] of Object.entries(manifest[group] ?? {})) {
+                    if (name.startsWith('@cleverbrush/')) expect(version, `${path}: ${name}`).toBe(expected);
+                }
+            }
+        }
+    });
 });
