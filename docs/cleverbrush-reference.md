@@ -49,10 +49,20 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
 - Reuse exported schema constants when a type appears in more than one endpoint.
   Use `.schemaName()` for object-level components that should become OpenAPI
   `$ref`s.
-- Do not clone a named schema with `.describe()`, `.optional()`, `.nullable()`,
-  or `.default()` and then reuse it elsewhere. The OpenAPI registry requires a
-  single object reference per schema name. Leaf fragments are intentionally left
-  unnamed when they need per-property descriptions.
+- Ordinary use-site modifiers such as `.describe()`, `.optional()`, and
+  `.nullable()` preserve a named schema's canonical reference. Use them directly
+  instead of wrapping an object in a union solely to keep its OpenAPI name.
+  Each use retains its own description, requiredness, and nullability.
+- Structural changes, validation rules, preprocessors, defaults, fallbacks, and
+  extensions detach the inherited component name. Name distinct derivatives
+  explicitly after their changes, as with `UpdateTransactionBodySchema`.
+  Independently defined schemas must still have distinct component names.
+- At external-data boundaries, use optional-aware `.catch(undefined)` for
+  malformed optional scalars. Optional schemas accept null at runtime, so add
+  a preprocessor when the application needs null normalized to undefined.
+  `apps/api/src/application/brandfetch-schemas.ts` demonstrates this alongside
+  explicit field selection and filtering of malformed array entries; fallback
+  schemas do not replace the provider-specific boundary policy.
 - Keep the public contract tree, API endpoint metadata tree, and handler tree in
   the same shape. The endpoint-map tests enforce this.
 - Put `tracingMiddleware()` before other API middleware so logs and database

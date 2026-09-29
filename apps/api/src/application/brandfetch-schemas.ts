@@ -6,11 +6,20 @@ import {
     string
 } from '@cleverbrush/schema';
 
-const optionalTextSchema = string().optional();
+// Optional schemas accept null at runtime; normalize it before validation so
+// absent and malformed provider metadata consistently becomes undefined.
+const optionalTextSchema = string()
+    .optional()
+    .addPreprocessor(value => (value == null ? undefined : value))
+    .catch(undefined);
+const optionalBooleanSchema = boolean()
+    .optional()
+    .addPreprocessor(value => (value == null ? undefined : value))
+    .catch(undefined);
 
 export const BrandfetchSearchResultSchema = object({
     brandId: optionalTextSchema,
-    claimed: boolean().optional(),
+    claimed: optionalBooleanSchema,
     domain: optionalTextSchema,
     icon: optionalTextSchema,
     name: optionalTextSchema
@@ -44,14 +53,6 @@ export type BrandfetchSearchResult = InferType<
     typeof BrandfetchSearchResultSchema
 >;
 
-const TextSchema = string();
-const BooleanSchema = boolean();
-
-function optionalText(value: unknown): string | undefined {
-    const parsed = TextSchema.safeParse(value);
-    return parsed.valid ? parsed.object : undefined;
-}
-
 function isObject(value: unknown): value is Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -71,34 +72,33 @@ export function parseBrandfetchSearchResult(
     value: unknown
 ): BrandfetchSearchResult | undefined {
     if (!isObject(value)) return undefined;
-    const claimed = BooleanSchema.safeParse(value.claimed);
     return BrandfetchSearchResultSchema.parse({
-        brandId: optionalText(value.brandId),
-        claimed: claimed.valid ? claimed.object : undefined,
-        domain: optionalText(value.domain),
-        icon: optionalText(value.icon),
-        name: optionalText(value.name)
+        brandId: value.brandId,
+        claimed: value.claimed,
+        domain: value.domain,
+        icon: value.icon,
+        name: value.name
     });
 }
 
 export function parseBrandfetchResponse(value: unknown): BrandfetchResponse {
     if (!isObject(value)) throw new Error('Invalid Brandfetch response.');
     return BrandfetchResponseSchema.parse({
-        id: optionalText(value.id),
-        name: optionalText(value.name),
-        domain: optionalText(value.domain),
-        description: optionalText(value.description),
-        longDescription: optionalText(value.longDescription),
+        id: value.id,
+        name: value.name,
+        domain: value.domain,
+        description: value.description,
+        longDescription: value.longDescription,
         logos: objectArray(value.logos, logo => ({
-            type: optionalText(logo.type),
+            type: logo.type,
             formats: objectArray(logo.formats, format => ({
-                src: optionalText(format.src),
-                format: optionalText(format.format)
+                src: format.src,
+                format: format.format
             }))
         })),
         colors: objectArray(value.colors, color => ({
-            hex: optionalText(color.hex),
-            type: optionalText(color.type)
+            hex: color.hex,
+            type: color.type
         }))
     });
 }
