@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { uniqueName } from './helpers';
 
 // API-key success reveals a credential; never persist a trace of this test.
-test.use({ trace: 'off' });
+test.use({ trace: 'off', video: 'off', screenshot: 'off' });
 
 test('real API validation survives a Server Action and supports correction and retry', async ({ page }) => {
     await page.goto('/settings/preferences');
