@@ -1,6 +1,8 @@
 'use client';
 
+import { useSchemaForm } from '@cleverbrush/react-form';
 import {
+    CreateVendorBodySchema,
     FieldLimits,
     type Vendor,
     type VendorCandidate
@@ -19,6 +21,8 @@ import {
     createVendorAction,
     searchVendorCandidatesAction
 } from '@/lib/actions';
+import { valuesToFormData } from './forms/form-utils';
+import { submissionError } from './forms/submission-error';
 import { VendorLogo, vendorDisplayName } from './vendor-display';
 
 function vendorMatches(vendor: Vendor, query: string): boolean {
@@ -56,21 +60,28 @@ function vendorExactMatch(vendor: Vendor, query: string): boolean {
 export function VendorPicker({
     vendors,
     onChange,
-    selectedVendorId
+    selectedVendorId,
+    error: externalError,
+    touched
 }: {
     readonly vendors: readonly Vendor[];
     readonly onChange: (vendor: Vendor | undefined) => void;
     readonly selectedVendorId?: number | null;
+    readonly error?: string;
+    readonly touched?: boolean;
 }) {
     const [items, setItems] = useState<readonly Vendor[]>(vendors);
-    const [query, setQuery] = useState('');
+    const form = useSchemaForm(CreateVendorBodySchema);
+    const name = form.useField(t => t.name);
+    const query = name.value ?? '';
+    const setQuery = name.onChange;
     const [open, setOpen] = useState(false);
-    const [pending, setPending] = useState(false);
+    const pending = form.submitting;
     const [candidateSearchPending, setCandidateSearchPending] = useState(false);
     const [candidateSuggestions, setCandidateSuggestions] = useState<
         readonly VendorCandidate[]
     >([]);
-    const [error, setError] = useState<string | null>(null);
+    const error = form.error ?? (touched ? externalError : undefined);
     const [candidateSearchError, setCandidateSearchError] = useState<
         string | null
     >(null);
@@ -148,26 +159,37 @@ export function VendorPicker({
         query.trim() !== '' &&
         !items.some(vendor => vendorExactMatch(vendor, normalizedQuery));
 
-    async function saveVendor(formData: FormData) {
-        setPending(true);
-        setError(null);
-        try {
-            const vendor = await createVendorAction(formData);
-            setItems(current => {
-                const withoutDuplicate = current.filter(
-                    item => item.id !== vendor.id
-                );
-                return [vendor, ...withoutDuplicate];
-            });
-            setQuery('');
-            setOpen(false);
-            setCandidateSuggestions([]);
-            onChange(vendor);
-        } catch {
-            setError('Could not save vendor.');
-        } finally {
-            setPending(false);
+    const submitVendor = form.handleSubmit(
+        values => createVendorAction(valuesToFormData(values)),
+        {
+            onSuccess: vendor => {
+                if (!vendor) return;
+                setItems(current => [
+                    vendor,
+                    ...current.filter(item => item.id !== vendor.id)
+                ]);
+                form.reset();
+                setOpen(false);
+                setCandidateSuggestions([]);
+                onChange(vendor);
+            },
+            onError: submissionError('Could not save vendor.')
         }
+    );
+
+    async function saveVendor(data: FormData) {
+        const read = (key: string) => {
+            const value = data.get(key);
+            return typeof value === 'string' ? value : undefined;
+        };
+        form.setValue({
+            name: read('name'),
+            resolvedName: read('resolvedName'),
+            domain: read('domain'),
+            brandfetchBrandId: read('brandfetchBrandId'),
+            logoUrl: read('logoUrl')
+        });
+        await submitVendor();
     }
 
     async function createVendor() {
@@ -245,8 +267,13 @@ export function VendorPicker({
                     <Input
                         autoComplete="off"
                         id="vendor-search"
+                        aria-invalid={name.touched && Boolean(name.error)}
+                        aria-describedby={
+                            name.error ? 'vendor-search-error' : undefined
+                        }
                         maxLength={FieldLimits.vendorSearch}
                         onBlur={() => {
+                            name.onBlur();
                             setTimeout(() => setOpen(false), 100);
                         }}
                         onChange={event => {
@@ -359,6 +386,9 @@ export function VendorPicker({
                     ) : null}
                 </div>
             )}
+            {name.touched && name.error ? (
+                <FieldError id="vendor-search-error">{name.error}</FieldError>
+            ) : null}
             {error ? <FieldError role="alert">{error}</FieldError> : null}
         </Field>
     );

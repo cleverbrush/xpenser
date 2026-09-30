@@ -90,7 +90,10 @@ describe('PreferencesForm', () => {
     });
 
     it('submits email report preferences', async () => {
-        updatePreferencesAction.mockResolvedValue(undefined);
+        updatePreferencesAction.mockResolvedValue({
+            ok: true,
+            data: undefined
+        });
 
         render(
             <XpenserWebFormProvider>

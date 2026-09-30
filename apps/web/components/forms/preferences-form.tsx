@@ -44,7 +44,7 @@ export function PreferencesForm({ me }: { readonly me: UserPreference }) {
 
     const handleSubmit = form.handleSubmit(
         async values => {
-            await updatePreferencesAction(valuesToFormData(values));
+            return updatePreferencesAction(valuesToFormData(values));
         },
         {
             onError: caught => {

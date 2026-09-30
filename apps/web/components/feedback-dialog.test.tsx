@@ -43,7 +43,7 @@ describe('FeedbackDialog', () => {
     });
 
     it('submits the selected type, text, and current path', async () => {
-        submitFeedbackAction.mockResolvedValue({ success: true });
+        submitFeedbackAction.mockResolvedValue({ ok: true, data: undefined });
         renderFeedbackDialog();
 
         fireEvent.click(screen.getByRole('button', { name: 'Leave feedback' }));
@@ -94,6 +94,7 @@ describe('FeedbackDialog', () => {
 
     it('keeps the dialog open and shows server errors inline', async () => {
         submitFeedbackAction.mockResolvedValue({
+            ok: false,
             error: 'Could not send feedback. Please try again.'
         });
         renderFeedbackDialog(true);

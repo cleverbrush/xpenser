@@ -1,4 +1,7 @@
 import { createClient } from '@cleverbrush/client';
+
+export { decodeValidationIssues } from '@cleverbrush/client';
+
 import { batching } from '@cleverbrush/client/batching';
 import { cacheTags, externalCacheTags } from '@cleverbrush/client/cache';
 import { dedupe } from '@cleverbrush/client/dedupe';

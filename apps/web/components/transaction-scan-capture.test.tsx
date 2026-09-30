@@ -6,7 +6,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Category, Currency } from '@xpenser/contracts';
 import { XpenserFormProvider } from '@xpenser/ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TransactionCaptureWorkspace } from './transaction-scan-capture';
+import {
+    ScanWizard,
+    TransactionCaptureWorkspace
+} from './transaction-scan-capture';
 
 const refresh = vi.fn();
 const createCaptureTransactionAction = vi.fn();
@@ -66,6 +69,110 @@ function renderWorkspace() {
 }
 
 describe('TransactionCaptureWorkspace scan upload', () => {
+    it('preserves rejected scan edits and retries confirmation without creating twice', async () => {
+        const draft = {
+            id: 1,
+            amount: 12,
+            categoryId: 7,
+            currency: 'USD',
+            occurredAt: timestamp,
+            vendorId: null,
+            suggestedVendorName: null,
+            suggestedCategory: null,
+            transactionType: 'expense' as const,
+            note: 'Receipt note',
+            evidence: 'Receipt',
+            confidence: {
+                amount: 'high' as const,
+                category: 'high' as const,
+                currency: 'high' as const,
+                date: 'high' as const,
+                overall: 'high' as const,
+                vendor: 'high' as const
+            },
+            possibleDuplicateTransactionIds: []
+        };
+        createCaptureTransactionAction
+            .mockResolvedValueOnce({
+                ok: false,
+                error: 'Check note',
+                issues: [{ pointer: '/note', detail: 'Note rejected' }]
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                data: {
+                    id: 9,
+                    amount: 12,
+                    currency: 'USD',
+                    occurredAt: timestamp,
+                    categoryName: 'Groceries',
+                    type: 'expense'
+                }
+            });
+        recordTransactionScanDecisionAction
+            .mockResolvedValueOnce({
+                ok: false,
+                error: 'Confirmation unavailable'
+            })
+            .mockResolvedValueOnce({ ok: true, data: undefined });
+        render(
+            <XpenserFormProvider>
+                <ScanWizard
+                    attachment={{
+                        fileName: 'receipt.png',
+                        mimeType: 'image/png',
+                        uploadId: 'test-upload'
+                    }}
+                    categories={[category()]}
+                    currencies={currencies}
+                    defaultCurrency="USD"
+                    timezone="UTC"
+                    transactionTags={[]}
+                    transactionCurrencies={['USD']}
+                    vendors={[]}
+                    setCategories={vi.fn()}
+                    setVendors={vi.fn()}
+                    onReset={vi.fn()}
+                    scan={{
+                        scanId: 1,
+                        documentKind: 'receipt',
+                        warnings: [],
+                        drafts: [
+                            draft,
+                            { ...draft, id: 2, note: 'Second item' }
+                        ]
+                    }}
+                />
+            </XpenserFormProvider>
+        );
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Confirm and save' })
+        );
+        await screen.findByText('Note rejected');
+        expect(recordTransactionScanDecisionAction).not.toHaveBeenCalled();
+        fireEvent.change(screen.getByLabelText('Note'), {
+            target: { value: 'Corrected note' }
+        });
+        expect(screen.queryByText('Note rejected')).toBeNull();
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Confirm and save' })
+        );
+        await screen.findByRole('button', { name: 'Retry finishing save' });
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Retry finishing save' })
+        );
+        await waitFor(() =>
+            expect(
+                (screen.getByLabelText('Note') as HTMLTextAreaElement).value
+            ).toBe('Second item')
+        );
+        expect(createCaptureTransactionAction).toHaveBeenCalledTimes(2);
+        expect(recordTransactionScanDecisionAction).toHaveBeenCalledTimes(2);
+        expect(
+            recordTransactionScanDecisionAction.mock.calls[1]![0].body
+                .transactionId
+        ).toBe(9);
+    });
     beforeEach(() => {
         Object.defineProperty(URL, 'createObjectURL', {
             configurable: true,

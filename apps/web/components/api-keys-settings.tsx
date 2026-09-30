@@ -1,7 +1,9 @@
 'use client';
 
+import { useSchemaForm } from '@cleverbrush/react-form';
 import {
     type ApiKey,
+    CreateApiKeyBodySchema,
     type CreateApiKeyResponse,
     FieldLimits,
     type McpOAuthConnection
@@ -22,13 +24,15 @@ import {
     PlugZapIcon,
     Trash2Icon
 } from 'lucide-react';
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     createApiKeyAction,
     revokeApiKeyAction,
     revokeMcpOAuthConnectionAction
 } from '@/lib/actions';
 import { formatDateTime } from '@/lib/format';
+import { valuesToFormData } from './forms/form-utils';
+import { submissionError } from './forms/submission-error';
 
 type ApiKeysSettingsProps = {
     readonly apiKeys: readonly ApiKey[];
@@ -93,9 +97,12 @@ export function ApiKeysSettings({
     const [connections, setConnections] =
         useState<readonly McpOAuthConnection[]>(mcpConnections);
     const [created, setCreated] = useState<CreateApiKeyResponse | null>(null);
-    const [name, setName] = useState('');
+    const form = useSchemaForm(CreateApiKeyBodySchema);
+    const nameField = form.useField(t => t.name);
+    const name = nameField.value ?? '';
+    const setName = nameField.onChange;
     const [error, setError] = useState<string | null>(null);
-    const [pendingCreate, setPendingCreate] = useState(false);
+    const pendingCreate = form.submitting;
     const [pendingRevokeId, setPendingRevokeId] = useState<number | null>(null);
     const [pendingConnectionRevokeId, setPendingConnectionRevokeId] = useState<
         number | null
@@ -155,28 +162,22 @@ export function ApiKeysSettings({
         [currentMcpUrl]
     );
 
-    async function handleCreate(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (!name.trim()) {
-            setError('API key name is required.');
-            return;
+    const handleCreate = form.handleSubmit(
+        async values => {
+            setError(null);
+            setCopied(false);
+            return createApiKeyAction(valuesToFormData(values));
+        },
+        {
+            onSuccess: result => {
+                if (!result) return;
+                setCreated(result);
+                setKeys(current => [result.apiKey, ...current]);
+                form.reset({ name: '' });
+            },
+            onError: submissionError('Could not create API key.')
         }
-
-        const formData = new FormData(event.currentTarget);
-        setPendingCreate(true);
-        setError(null);
-        setCopied(false);
-        try {
-            const result = await createApiKeyAction(formData);
-            setCreated(result);
-            setKeys(current => [result.apiKey, ...current]);
-            setName('');
-        } catch {
-            setError('Could not create API key.');
-        } finally {
-            setPendingCreate(false);
-        }
-    }
+    );
 
     async function handleCopy() {
         if (!created) {
@@ -360,6 +361,16 @@ export function ApiKeysSettings({
                         <div className="flex flex-col gap-2 sm:flex-row">
                             <Input
                                 id="api-key-name"
+                                aria-invalid={
+                                    nameField.touched &&
+                                    Boolean(nameField.error)
+                                }
+                                aria-describedby={
+                                    nameField.error
+                                        ? 'api-key-name-error'
+                                        : undefined
+                                }
+                                onBlur={nameField.onBlur}
                                 maxLength={FieldLimits.apiKeyName}
                                 name="name"
                                 onChange={event => setName(event.target.value)}
@@ -376,8 +387,15 @@ export function ApiKeysSettings({
                             </Button>
                         </div>
                     </Field>
-                    {error ? (
-                        <FieldError role="alert">{error}</FieldError>
+                    {nameField.touched && nameField.error ? (
+                        <FieldError id="api-key-name-error">
+                            {nameField.error}
+                        </FieldError>
+                    ) : null}
+                    {(error ?? form.error) ? (
+                        <FieldError role="alert">
+                            {error ?? form.error}
+                        </FieldError>
                     ) : null}
                 </FieldGroup>
             </form>

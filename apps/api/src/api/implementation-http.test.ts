@@ -1,4 +1,5 @@
 import { signJwt } from '@cleverbrush/auth';
+import { createXpenserClient, decodeValidationIssues } from '@xpenser/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     BudgetAccessError,
@@ -46,6 +47,32 @@ function testLogger() {
 }
 
 describe('registered implementation over HTTP', () => {
+    it.each([
+        true,
+        false
+    ])('decodes real HTTP validation errors (disableBatching=%s)', async disableBatching => {
+        await withServer(async url => {
+            const client = createXpenserClient({
+                baseUrl: url,
+                headers: auth,
+                disableBatching
+            });
+            const failure = await client.categories
+                .create({ body: { name: '', type: 'expense' } })
+                .catch(error => error);
+            expect(failure.status).toBe(400);
+            const issues = decodeValidationIssues(failure, { source: 'body' });
+            expect(issues).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        pointer: '/name',
+                        detail: expect.any(String)
+                    })
+                ])
+            );
+            expect(JSON.parse(JSON.stringify(issues))).toEqual(issues);
+        });
+    });
     it.each([
         [new vendors.VendorNameError('Bad name'), 400, true],
         [new vendors.VendorMetadataError('Bad metadata'), 400, true],

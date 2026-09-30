@@ -46,6 +46,7 @@ import {
     categoryEffectiveType,
     transactionCategoryOptions
 } from '@/lib/category-display';
+import type { FormActionResult } from '@/lib/form-result';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
@@ -78,7 +79,7 @@ export function TransactionDialog({
     trigger,
     timezone
 }: {
-    readonly action: (formData: FormData) => Promise<void>;
+    readonly action: (formData: FormData) => Promise<FormActionResult>;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -281,7 +282,7 @@ export function TransactionDialog({
                 formData.append('id', String(transactionId));
                 formData.append('tagsTouched', 'true');
             }
-            await action(formData);
+            return action(formData);
         },
         {
             onSuccess: () => {
@@ -352,11 +353,15 @@ export function TransactionDialog({
                             variant="select"
                         />
                         <VendorPicker
+                            error={vendorId.error}
+                            touched={vendorId.touched}
                             vendors={vendors}
                             onChange={handleVendorChange}
                             selectedVendorId={selectedVendorId}
                         />
                         <TransactionTagPicker
+                            error={tags.error}
+                            touched={tags.touched}
                             tags={transactionTags}
                             selectedTags={selectedTags}
                             onChange={values => tags.onChange([...values])}

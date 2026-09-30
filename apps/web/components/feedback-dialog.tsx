@@ -50,15 +50,7 @@ export function FeedbackDialog({
         async values => {
             const formData = valuesToFormData(values);
             formData.set('path', pathname);
-            const result = await submitFeedbackAction(formData);
-            if ('error' in result)
-                return {
-                    ok: false,
-                    error:
-                        result.error ??
-                        'Could not send feedback. Please try again.'
-                };
-            return { ok: true };
+            return submitFeedbackAction(formData);
         },
         {
             onSuccess: () => {

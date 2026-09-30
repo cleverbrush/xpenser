@@ -3,6 +3,8 @@ import {
     type FeedbackFormValues,
     type FeedbackType
 } from './feedback-schema';
+import { schemaIssues } from './form-errors';
+import type { FormIssue } from './form-result';
 
 export {
     FeedbackTextMaxLength,
@@ -37,7 +39,14 @@ export type FeedbackDeliveryResult =
           readonly status?: number;
       };
 
-export class FeedbackInputError extends Error {}
+export class FeedbackInputError extends Error {
+    constructor(
+        message: string,
+        readonly issues: readonly FormIssue[] = []
+    ) {
+        super(message);
+    }
+}
 
 function normalizedFormString(value: FormDataEntryValue | null): string {
     return typeof value === 'string' ? value.replace(/\r\n?/g, '\n') : '';
@@ -67,7 +76,7 @@ export function feedbackInputFromFormData(formData: FormData): FeedbackInput {
             result.getErrorsFor(field => field.type).errors[0] ??
             result.getErrorsFor(field => field.text).errors[0] ??
             'Check your feedback and try again.';
-        throw new FeedbackInputError(message);
+        throw new FeedbackInputError(message, schemaIssues(result));
     }
 
     return {

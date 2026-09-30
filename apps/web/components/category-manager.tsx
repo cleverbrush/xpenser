@@ -1,7 +1,11 @@
 'use client';
 
 import { useSchemaForm } from '@cleverbrush/react-form';
-import { type Category, CreateCategoryBodySchema } from '@xpenser/contracts';
+import {
+    type Category,
+    CreateCategoryBodySchema,
+    MoveAndDeleteCategoryBodySchema
+} from '@xpenser/contracts';
 import {
     Badge,
     Button,
@@ -54,6 +58,7 @@ import {
 import { directionBadgeClassName } from '@/lib/format';
 import { CategoryForm } from './forms/category-form';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
+import { submissionError } from './forms/submission-error';
 
 type CategoryType = Category['type'];
 
@@ -203,7 +208,31 @@ function DeleteCategoryButton({
     readonly disabled: boolean;
 }) {
     const [open, setOpen] = useState(false);
-    const [replacementCategoryId, setReplacementCategoryId] = useState('');
+    const replacementForm = useSchemaForm(MoveAndDeleteCategoryBodySchema);
+    const replacement = replacementForm.useField(t => t.replacementCategoryId);
+    const replacementCategoryId =
+        replacement.value === undefined ? '' : String(replacement.value);
+    const setReplacementCategoryId = (value: string) =>
+        replacementForm.setValue({
+            replacementCategoryId: value ? Number(value) : undefined
+        });
+    const router = useRouter();
+    const moveAndDelete = replacementForm.handleSubmit(
+        values =>
+            moveAndDeleteCategoryAction(
+                valuesToFormData({ ...values, id: category.id })
+            ),
+        {
+            onSuccess: () => {
+                setOpen(false);
+                replacementForm.reset();
+                router.refresh();
+            },
+            onError: submissionError(
+                'Could not move transactions and delete the category.'
+            )
+        }
+    );
     const effectiveType = categoryEffectiveType(category);
     const replacementCategories = categoryReplacementCandidates(
         category,
@@ -217,7 +246,7 @@ function DeleteCategoryButton({
     function handleOpenChange(nextOpen: boolean) {
         setOpen(nextOpen);
         if (!nextOpen) {
-            setReplacementCategoryId('');
+            replacementForm.reset();
         }
     }
 
@@ -246,10 +275,9 @@ function DeleteCategoryButton({
                 </DialogHeader>
                 <form
                     action={
-                        requiresReplacement
-                            ? moveAndDeleteCategoryAction
-                            : deleteCategoryAction
+                        requiresReplacement ? undefined : deleteCategoryAction
                     }
+                    onSubmit={requiresReplacement ? moveAndDelete : undefined}
                     className="flex flex-col gap-4"
                 >
                     <input name="id" type="hidden" value={category.id} />
@@ -265,7 +293,18 @@ function DeleteCategoryButton({
                                 onValueChange={setReplacementCategoryId}
                                 value={replacementCategoryId}
                             >
-                                <SelectTrigger aria-label="Replacement category">
+                                <SelectTrigger
+                                    aria-label="Replacement category"
+                                    aria-invalid={
+                                        replacement.touched &&
+                                        Boolean(replacement.error)
+                                    }
+                                    aria-describedby={
+                                        replacement.error
+                                            ? 'replacement-error'
+                                            : undefined
+                                    }
+                                >
                                     <SelectValue placeholder="Select replacement category" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -294,6 +333,16 @@ function DeleteCategoryButton({
                             ) : null}
                         </Field>
                     ) : null}
+                    {replacement.touched && replacement.error ? (
+                        <FieldError id="replacement-error">
+                            {replacement.error}
+                        </FieldError>
+                    ) : null}
+                    {replacementForm.error ? (
+                        <FieldError role="alert">
+                            {replacementForm.error}
+                        </FieldError>
+                    ) : null}
                     <DialogFooter>
                         <DialogClose asChild>
                             <Button type="button" variant="outline">
@@ -302,7 +351,8 @@ function DeleteCategoryButton({
                         </DialogClose>
                         <Button
                             disabled={
-                                requiresReplacement && !selectedReplacement
+                                replacementForm.submitting ||
+                                (requiresReplacement && !selectedReplacement)
                             }
                             type="submit"
                             variant="destructive"
@@ -431,7 +481,7 @@ function QuickCategoryForm({
 
     const handleSubmit = form.handleSubmit(
         async values => {
-            await createCategoryAction(valuesToFormData(values));
+            return createCategoryAction(valuesToFormData(values));
         },
         {
             onSuccess: () => {

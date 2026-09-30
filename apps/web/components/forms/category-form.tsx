@@ -72,14 +72,14 @@ export function CategoryForm({
         async values => {
             const formData = valuesToFormData(values);
             if (first) {
-                await createFirstCategoryAction(formData);
+                return createFirstCategoryAction(formData);
             } else if (initialCategory) {
                 formData.set('id', String(initialCategory.id));
-                await updateCategoryAction(formData);
+                const result = await updateCategoryAction(formData);
+                return result.ok ? { ok: true, data: undefined } : result;
             } else {
-                return { ok: true, data: await createCategoryAction(formData) };
+                return createCategoryAction(formData);
             }
-            return { ok: true };
         },
         {
             onSuccess: category => {
