@@ -6,6 +6,7 @@ import {
     type FieldRenderProps
 } from '@cleverbrush/react-form';
 import type * as React from 'react';
+import { useId } from 'react';
 import { Field, FieldError, FieldLabel } from '../components/field.js';
 import { Input } from '../components/input.js';
 import {
@@ -17,6 +18,26 @@ import {
     SelectValue
 } from '../components/select.js';
 import { Textarea } from '../components/textarea.js';
+
+/** Give unnamed schema fields stable IDs for labels and server-error descriptions. */
+function AccessibleField<T, P>({
+    field,
+    render
+}: {
+    field: FieldRenderProps<T, P>;
+    render: (field: FieldRenderProps<T, P>) => React.ReactNode;
+}) {
+    const generatedId = useId();
+    return render({ ...field, name: field.name ?? generatedId });
+}
+
+function accessibleRenderer<T, P>(
+    render: (field: FieldRenderProps<T, P>) => React.ReactNode
+) {
+    return defineFieldRenderer<T, P>(field => (
+        <AccessibleField field={field} render={render} />
+    ));
+}
 
 type Binding<T> = Pick<
     FieldRenderProps<T>,
@@ -102,22 +123,22 @@ function renderInput<T, P extends InputProps>(
     );
 }
 
-const textRenderer = defineFieldRenderer<string, InputProps>(field =>
+const textRenderer = accessibleRenderer<string, InputProps>(field =>
     renderInput(field, field.value ?? '', field.onChange)
 );
-const emailRenderer = defineFieldRenderer<string, InputProps>(field =>
+const emailRenderer = accessibleRenderer<string, InputProps>(field =>
     renderInput(field, field.value ?? '', field.onChange, {
         ...field.fieldProps,
         type: 'email'
     })
 );
-const passwordRenderer = defineFieldRenderer<string, InputProps>(field =>
+const passwordRenderer = accessibleRenderer<string, InputProps>(field =>
     renderInput(field, field.value ?? '', field.onChange, {
         ...field.fieldProps,
         type: 'password'
     })
 );
-const textareaRenderer = defineFieldRenderer<string | null, TextareaProps>(
+const textareaRenderer = accessibleRenderer<string | null, TextareaProps>(
     field => {
         const invalid = field.touched && Boolean(field.error);
         return (
@@ -216,10 +237,10 @@ function renderSelect<T>(
     );
 }
 
-const selectRenderer = defineFieldRenderer<string, SelectRendererFieldProps>(
+const selectRenderer = accessibleRenderer<string, SelectRendererFieldProps>(
     field => renderSelect(field, value => value)
 );
-const numberSelectRenderer = defineFieldRenderer<
+const numberSelectRenderer = accessibleRenderer<
     number | null | undefined,
     SelectRendererFieldProps<number | null | undefined>
 >(field =>
@@ -281,7 +302,7 @@ function renderCheckbox<T>(
         </Field>
     );
 }
-const checkboxRenderer = defineFieldRenderer<
+const checkboxRenderer = accessibleRenderer<
     boolean,
     CheckboxRendererFieldProps
 >(field => renderCheckbox(field, checked => checked));
@@ -290,10 +311,10 @@ type StringCheckboxProps = CheckboxRendererFieldProps<string> &
     Required<
         Pick<CheckboxRendererFieldProps<string>, 'checked' | 'onCheckedChange'>
     >;
-const stringCheckboxRenderer = defineFieldRenderer<string, StringCheckboxProps>(
+const stringCheckboxRenderer = accessibleRenderer<string, StringCheckboxProps>(
     field => renderCheckbox(field, String)
 );
-const numberRenderer = defineFieldRenderer<
+const numberRenderer = accessibleRenderer<
     number | null | undefined,
     InputProps
 >(field =>
@@ -304,7 +325,7 @@ const numberRenderer = defineFieldRenderer<
         { ...field.fieldProps, type: 'number' }
     )
 );
-const dateTimeRenderer = defineFieldRenderer<Date, DateTimeRendererFieldProps>(
+const dateTimeRenderer = accessibleRenderer<Date, DateTimeRendererFieldProps>(
     field => {
         const { onValueChange, value, ...inputProps } = field.fieldProps ?? {};
         return renderInput(
