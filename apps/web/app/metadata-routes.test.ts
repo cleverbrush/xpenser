@@ -33,7 +33,7 @@ describe('metadata routes', () => {
     it('serves only public sitemap URLs', async () => {
         const urls = (await sitemap()).map(entry => entry.url);
 
-        expect(urls).toHaveLength(82);
+        expect(urls).toHaveLength(83);
         expect(urls).toEqual(
             expect.arrayContaining([
                 'https://xpenser.cleverbrush.com/',

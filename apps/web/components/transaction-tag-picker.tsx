@@ -31,17 +31,22 @@ export function TransactionTagPicker({
     tags,
     selectedTags,
     onChange,
+    error: externalError,
+    touched,
     label = 'Tags'
 }: {
     readonly tags: readonly TransactionTag[];
     readonly selectedTags: readonly string[];
     readonly onChange: (tags: readonly string[]) => void;
     readonly label?: string;
+    readonly error?: string;
+    readonly touched?: boolean;
 }) {
     const inputId = useId();
     const [query, setQuery] = useState('');
     const [open, setOpen] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [inputError, setError] = useState<string | null>(null);
+    const error = inputError ?? (touched ? externalError : undefined);
     const selectedKeys = useMemo(
         () => new Set(selectedTags.map(tagKey)),
         [selectedTags]
@@ -111,7 +116,7 @@ export function TransactionTagPicker({
     }
 
     return (
-        <Field>
+        <Field data-invalid={Boolean(error)}>
             <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
             {selectedTags.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
@@ -138,6 +143,8 @@ export function TransactionTagPicker({
                 <Input
                     autoComplete="off"
                     id={inputId}
+                    aria-invalid={Boolean(error)}
+                    aria-describedby={error ? inputId + '-error' : undefined}
                     maxLength={FieldLimits.transactionTagName}
                     onBlur={() => {
                         setTimeout(() => setOpen(false), 100);
@@ -185,7 +192,11 @@ export function TransactionTagPicker({
                     </div>
                 ) : null}
             </div>
-            {error ? <FieldError role="alert">{error}</FieldError> : null}
+            {error ? (
+                <FieldError id={inputId + '-error'} role="alert">
+                    {error}
+                </FieldError>
+            ) : null}
         </Field>
     );
 }

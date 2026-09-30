@@ -144,6 +144,7 @@ export function QuickCaptureForm({
         [transactionCategories]
     );
     const [type, setType] = useState<TransactionType>(startingType);
+    const amountField = form.useField(field => field.amount);
     const categoryField = form.useField(field => field.categoryId);
     const vendorField = form.useField(field => field.vendorId);
     const currencyField = form.useField(field => field.currency);
@@ -273,10 +274,8 @@ export function QuickCaptureForm({
     }
 
     const submitTransaction = form.handleSubmit(
-        async values => ({
-            ok: true,
-            data: await createCaptureTransactionAction(valuesToFormData(values))
-        }),
+        async values =>
+            createCaptureTransactionAction(valuesToFormData(values)),
         {
             onSuccess: transaction => {
                 if (transaction) setLastSaved(transaction);
@@ -352,6 +351,16 @@ export function QuickCaptureForm({
                                         autoComplete="off"
                                         className="h-14 text-2xl font-semibold"
                                         id="capture-amount"
+                                        aria-invalid={
+                                            amountField.touched &&
+                                            Boolean(amountField.error)
+                                        }
+                                        aria-describedby={
+                                            amountField.error
+                                                ? 'capture-amount-error'
+                                                : undefined
+                                        }
+                                        onBlur={amountField.onBlur}
                                         inputMode="decimal"
                                         min="0.01"
                                         name="amount"
@@ -368,6 +377,12 @@ export function QuickCaptureForm({
                                         type="text"
                                         value={amount}
                                     />
+                                    {amountField.touched &&
+                                    amountField.error ? (
+                                        <FieldError id="capture-amount-error">
+                                            {amountField.error}
+                                        </FieldError>
+                                    ) : null}
                                     <Select
                                         onValueChange={currencyField.onChange}
                                         value={currency}
@@ -395,12 +410,16 @@ export function QuickCaptureForm({
                             </Field>
 
                             <VendorPicker
+                                error={vendorField.error}
+                                touched={vendorField.touched}
                                 vendors={vendors}
                                 onChange={handleVendorChange}
                                 selectedVendorId={vendorId}
                             />
 
                             <TransactionTagPicker
+                                error={tags.error}
+                                touched={tags.touched}
                                 tags={transactionTags}
                                 selectedTags={selectedTags}
                                 onChange={values => tags.onChange([...values])}
@@ -487,6 +506,16 @@ export function QuickCaptureForm({
                                 </FieldLabel>
                                 <Input
                                     id="capture-occurred-at"
+                                    aria-invalid={
+                                        occurredAtField.touched &&
+                                        Boolean(occurredAtField.error)
+                                    }
+                                    aria-describedby={
+                                        occurredAtField.error
+                                            ? 'capture-occurred-at-error'
+                                            : undefined
+                                    }
+                                    onBlur={occurredAtField.onBlur}
                                     name="occurredAt"
                                     onChange={event => {
                                         setOccurredAtText(event.target.value);
@@ -500,8 +529,20 @@ export function QuickCaptureForm({
                                     type="datetime-local"
                                     value={occurredAtText}
                                 />
+                                {occurredAtField.touched &&
+                                occurredAtField.error ? (
+                                    <FieldError id="capture-occurred-at-error">
+                                        {occurredAtField.error}
+                                    </FieldError>
+                                ) : null}
                             </Field>
 
+                            {categoryField.touched && categoryField.error ? (
+                                <FieldError>{categoryField.error}</FieldError>
+                            ) : null}
+                            {currencyField.touched && currencyField.error ? (
+                                <FieldError>{currencyField.error}</FieldError>
+                            ) : null}
                             <SchemaField
                                 fieldProps={{
                                     autoComplete: 'off',

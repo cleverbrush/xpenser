@@ -84,6 +84,9 @@ function renderInput<T, P extends InputProps>(
             <Input
                 {...inputProps}
                 aria-invalid={invalid}
+                aria-describedby={
+                    invalid ? String(field.name) + '-error' : undefined
+                }
                 id={field.name}
                 name={field.name}
                 onBlur={field.onBlur}
@@ -91,7 +94,9 @@ function renderInput<T, P extends InputProps>(
                 value={value}
             />
             {field.touched && field.error ? (
-                <FieldError>{field.error}</FieldError>
+                <FieldError id={String(field.name) + '-error'}>
+                    {field.error}
+                </FieldError>
             ) : null}
         </Field>
     );
@@ -126,6 +131,9 @@ const textareaRenderer = defineFieldRenderer<string | null, TextareaProps>(
                 <Textarea
                     {...field.fieldProps}
                     aria-invalid={invalid}
+                    aria-describedby={
+                        invalid ? String(field.name) + '-error' : undefined
+                    }
                     id={field.name}
                     name={field.name}
                     onBlur={field.onBlur}
@@ -133,7 +141,9 @@ const textareaRenderer = defineFieldRenderer<string | null, TextareaProps>(
                     value={field.value ?? ''}
                 />
                 {field.touched && field.error ? (
-                    <FieldError>{field.error}</FieldError>
+                    <FieldError id={String(field.name) + '-error'}>
+                        {field.error}
+                    </FieldError>
                 ) : null}
             </Field>
         );
@@ -179,6 +189,9 @@ function renderSelect<T>(
             >
                 <SelectTrigger
                     aria-invalid={invalid}
+                    aria-describedby={
+                        invalid ? String(field.name) + '-error' : undefined
+                    }
                     aria-label={ariaLabel ?? field.label}
                     id={field.name}
                 >
@@ -195,7 +208,9 @@ function renderSelect<T>(
                 </SelectContent>
             </Select>
             {field.touched && field.error ? (
-                <FieldError>{field.error}</FieldError>
+                <FieldError id={String(field.name) + '-error'}>
+                    {field.error}
+                </FieldError>
             ) : null}
         </Field>
     );
@@ -231,6 +246,9 @@ function renderCheckbox<T>(
             <label className="flex items-start gap-3 text-sm" htmlFor={id}>
                 <Input
                     aria-invalid={invalid}
+                    aria-describedby={
+                        invalid ? String(field.name) + '-error' : undefined
+                    }
                     checked={checked ?? Boolean(field.value)}
                     className="mt-0.5 size-4"
                     disabled={disabled}
@@ -256,7 +274,9 @@ function renderCheckbox<T>(
                 </span>
             </label>
             {field.touched && field.error ? (
-                <FieldError>{field.error}</FieldError>
+                <FieldError id={String(field.name) + '-error'}>
+                    {field.error}
+                </FieldError>
             ) : null}
         </Field>
     );

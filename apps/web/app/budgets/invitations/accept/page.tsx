@@ -4,11 +4,10 @@ import {
     CardContent,
     CardDescription,
     CardHeader,
-    CardTitle,
-    Input
+    CardTitle
 } from '@xpenser/ui';
 import Link from 'next/link';
-import { acceptBudgetInvitationAction } from '@/lib/actions';
+import { AcceptBudgetInvitationForm } from '@/components/forms/budget-forms';
 
 type AcceptInvitationSearchParams = {
     readonly token?: string | readonly string[];
@@ -38,30 +37,12 @@ export default async function AcceptBudgetInvitationPage({
                 </CardHeader>
                 <CardContent>
                     {token ? (
-                        <form
-                            action={acceptBudgetInvitationAction}
-                            className="flex flex-col gap-3"
-                        >
-                            <input name="token" type="hidden" value={token} />
-                            <label
-                                className="grid gap-1 text-sm"
-                                htmlFor="budget-name"
-                            >
-                                <span className="font-medium">Budget name</span>
-                                <Input
-                                    autoComplete="off"
-                                    id="budget-name"
-                                    maxLength={120}
-                                    name="name"
-                                    placeholder="Shared household"
-                                    required
-                                />
-                            </label>
-                            <Button type="submit">Join budget</Button>
-                            <Button asChild type="button" variant="outline">
+                        <div className="flex flex-col gap-3">
+                            <AcceptBudgetInvitationForm token={token} />
+                            <Button asChild variant="outline">
                                 <Link href="/dashboard">Not now</Link>
                             </Button>
-                        </form>
+                        </div>
                     ) : (
                         <div className="flex flex-col gap-3">
                             <p className="text-sm text-muted-foreground">

@@ -11,32 +11,22 @@ import {
     CardContent,
     CardDescription,
     CardHeader,
-    CardTitle,
-    Input
+    CardTitle
 } from '@xpenser/ui';
 import { SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
-import { BudgetCurrencyFields } from '@/components/budget-currency-fields';
 import {
     archiveBudgetAction,
-    createBudgetAction,
     deleteBudgetAction,
-    inviteBudgetMemberAction,
     removeBudgetMemberAction,
-    restoreBudgetAction,
-    updateBudgetAction,
-    updateBudgetMemberAction
+    restoreBudgetAction
 } from '@/lib/actions';
-
-const permissionOptions = [
-    ['canCreateTransactions', 'Add transactions', true],
-    ['canUpdateTransactions', 'Edit transactions', false],
-    ['canDeleteTransactions', 'Delete transactions', false],
-    ['canManageCategories', 'Manage categories', false],
-    ['canManageVendors', 'Manage vendors', false],
-    ['canManageTags', 'Manage tags', false],
-    ['canManageMembers', 'Manage members', false]
-] as const;
+import { permissionOptions } from '@/lib/budget-permissions';
+import {
+    BudgetCreateForm,
+    BudgetEditForm,
+    BudgetMemberForm
+} from './forms/budget-forms';
 
 function roleLabel(role: Budget['role']) {
     return role === 'admin' ? 'Admin' : 'Member';
@@ -117,31 +107,10 @@ export function BudgetSettings({
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                <form
-                    action={createBudgetAction}
-                    className="grid gap-3 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_9rem_minmax(0,1fr)_auto] sm:items-end"
-                >
-                    <label
-                        className="grid gap-1 text-sm"
-                        htmlFor="new-budget-name"
-                    >
-                        <span className="font-medium">Name</span>
-                        <Input
-                            id="new-budget-name"
-                            maxLength={120}
-                            name="name"
-                            placeholder="Shared household"
-                            required
-                        />
-                    </label>
-                    <BudgetCurrencyFields
-                        currencies={currencies}
-                        defaultCurrency={defaultCurrency}
-                        idPrefix="new-budget"
-                        selectedCurrencies={[]}
-                    />
-                    <Button type="submit">Create</Button>
-                </form>
+                <BudgetCreateForm
+                    currencies={currencies}
+                    defaultCurrency={defaultCurrency}
+                />
 
                 <div className="space-y-3">
                     {budgets.map(budget => (
@@ -164,52 +133,6 @@ export function BudgetSettings({
                 ) : null}
             </CardContent>
         </Card>
-    );
-}
-
-function BudgetNameForm({ budget }: { readonly budget: Budget }) {
-    return (
-        <form
-            action={updateBudgetAction}
-            className="grid gap-3 rounded-md border p-3 sm:grid-cols-[1fr_auto] sm:items-end"
-        >
-            <input name="budgetId" type="hidden" value={budget.id} />
-            <label className="grid gap-1 text-sm" htmlFor="budget-name">
-                <span className="font-medium">My budget name</span>
-                <Input
-                    defaultValue={budget.name}
-                    id="budget-name"
-                    maxLength={120}
-                    name="name"
-                    required
-                />
-            </label>
-            <Button type="submit">Rename</Button>
-        </form>
-    );
-}
-
-function BudgetCurrencyForm({
-    budget,
-    currencies
-}: {
-    readonly budget: Budget;
-    readonly currencies: readonly Currency[];
-}) {
-    return (
-        <form
-            action={updateBudgetAction}
-            className="grid gap-3 rounded-md border p-3 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:items-end"
-        >
-            <input name="budgetId" type="hidden" value={budget.id} />
-            <BudgetCurrencyFields
-                currencies={currencies}
-                defaultCurrency={budget.defaultCurrency}
-                idPrefix={`budget-${budget.id}`}
-                selectedCurrencies={budget.favoriteCurrencies}
-            />
-            <Button type="submit">Save currencies</Button>
-        </form>
     );
 }
 
@@ -257,30 +180,6 @@ function LifecycleActions({ budget }: { readonly budget: Budget }) {
     );
 }
 
-function PermissionCheckboxes({
-    member
-}: {
-    readonly member?: Pick<BudgetMember, 'permissions'>;
-}) {
-    return (
-        <div className="grid gap-2 sm:grid-cols-2">
-            {permissionOptions.map(([key, label, defaultChecked]) => (
-                <label className="flex items-center gap-2 text-sm" key={key}>
-                    <input
-                        defaultChecked={
-                            member?.permissions[key] ?? defaultChecked
-                        }
-                        name={key}
-                        type="checkbox"
-                        value="true"
-                    />
-                    <span>{label}</span>
-                </label>
-            ))}
-        </div>
-    );
-}
-
 function ActiveAccessRow({
     budgetId,
     currentUserId,
@@ -301,26 +200,7 @@ function ActiveAccessRow({
                 </div>
                 <Badge variant="outline">Active</Badge>
             </div>
-            <form
-                action={updateBudgetMemberAction}
-                className="grid gap-3 sm:grid-cols-[9rem_1fr_auto] sm:items-start"
-            >
-                <input name="budgetId" type="hidden" value={budgetId} />
-                <input name="userId" type="hidden" value={row.userId} />
-                <label className="grid gap-1 text-sm">
-                    <span className="font-medium">Role</span>
-                    <select
-                        className="h-10 rounded-md border bg-background px-3 text-sm"
-                        defaultValue={row.role}
-                        name="role"
-                    >
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </label>
-                <PermissionCheckboxes member={row} />
-                <Button type="submit">Update</Button>
-            </form>
+            <BudgetMemberForm budgetId={budgetId} member={row} />
             {row.userId === currentUserId ? null : (
                 <form action={removeBudgetMemberAction}>
                     <input name="budgetId" type="hidden" value={budgetId} />
@@ -387,42 +267,6 @@ function AccessList({
     );
 }
 
-function InviteForm({ budget }: { readonly budget: Budget }) {
-    return (
-        <form
-            action={inviteBudgetMemberAction}
-            className="grid gap-3 rounded-md border p-3"
-        >
-            <input name="budgetId" type="hidden" value={budget.id} />
-            <div className="grid gap-3 sm:grid-cols-[1fr_9rem_auto] sm:items-end">
-                <label className="grid gap-1 text-sm" htmlFor="invite-email">
-                    <span className="font-medium">Invite email</span>
-                    <Input
-                        id="invite-email"
-                        name="email"
-                        placeholder="teammate@example.com"
-                        required
-                        type="email"
-                    />
-                </label>
-                <label className="grid gap-1 text-sm">
-                    <span className="font-medium">Role</span>
-                    <select
-                        className="h-10 rounded-md border bg-background px-3 text-sm"
-                        defaultValue="member"
-                        name="role"
-                    >
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </label>
-                <Button type="submit">Invite</Button>
-            </div>
-            <PermissionCheckboxes />
-        </form>
-    );
-}
-
 export function BudgetDetailSettings({
     accessRows,
     budget,
@@ -452,7 +296,7 @@ export function BudgetDetailSettings({
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <BudgetNameForm budget={budget} />
+                    <BudgetEditForm budget={budget} />
                 </CardContent>
             </Card>
 
@@ -466,7 +310,7 @@ export function BudgetDetailSettings({
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <BudgetCurrencyForm
+                        <BudgetEditForm
                             budget={budget}
                             currencies={currencies}
                         />
@@ -488,7 +332,9 @@ export function BudgetDetailSettings({
                             budgetId={budget.id}
                             currentUserId={currentUserId}
                         />
-                        {editable ? <InviteForm budget={budget} /> : null}
+                        {editable ? (
+                            <BudgetMemberForm budgetId={budget.id} />
+                        ) : null}
                     </CardContent>
                 </Card>
             ) : null}

@@ -145,7 +145,10 @@ describe('QuickCaptureForm', () => {
     });
 
     it('saves a transaction with fast defaults and allows undo', async () => {
-        createCaptureTransactionAction.mockResolvedValue(savedTransaction());
+        createCaptureTransactionAction.mockResolvedValue({
+            ok: true,
+            data: savedTransaction()
+        });
         deleteTransactionAction.mockResolvedValue(undefined);
 
         renderQuickCaptureForm();
@@ -200,7 +203,10 @@ describe('QuickCaptureForm', () => {
     });
 
     it('clears the selected vendor after saving a transaction', async () => {
-        createCaptureTransactionAction.mockResolvedValue(savedTransaction());
+        createCaptureTransactionAction.mockResolvedValue({
+            ok: true,
+            data: savedTransaction()
+        });
         const walmart = vendor();
 
         renderQuickCaptureForm({
@@ -304,7 +310,10 @@ describe('QuickCaptureForm', () => {
     });
 
     it('accepts comma decimal input without browser number coercion', async () => {
-        createCaptureTransactionAction.mockResolvedValue(savedTransaction());
+        createCaptureTransactionAction.mockResolvedValue({
+            ok: true,
+            data: savedTransaction()
+        });
 
         renderQuickCaptureForm({ transactionCurrencies: ['USD'] });
 

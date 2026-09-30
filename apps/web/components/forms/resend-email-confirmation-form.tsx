@@ -1,68 +1,59 @@
 'use client';
 
-import { FieldLimits } from '@xpenser/contracts';
-import {
-    Button,
-    Field,
-    FieldError,
-    FieldLabel,
-    Input,
-    toast
-} from '@xpenser/ui';
-import { type FormEvent, useId, useState } from 'react';
+import { useSchemaForm } from '@cleverbrush/react-form';
+import { ResendEmailConfirmationBodySchema } from '@xpenser/contracts';
+import { Button, FieldError, FieldGroup, toast } from '@xpenser/ui';
+import { useEffect } from 'react';
 import { resendEmailConfirmationAction } from '@/lib/actions';
 import { valuesToFormData } from './form-utils';
+import { SchemaField } from './schema-fields';
+import { submissionError } from './submission-error';
 
 export function ResendEmailConfirmationForm({
     initialEmail = ''
 }: {
     readonly initialEmail?: string;
 }) {
-    const emailId = useId();
-    const [email, setEmail] = useState(initialEmail);
-    const [error, setError] = useState<string | null>(null);
-    const [pending, setPending] = useState(false);
-
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        setPending(true);
-        setError(null);
-
-        try {
-            const response = await resendEmailConfirmationAction(
-                valuesToFormData({ email })
-            );
-            if (response && 'error' in response && response.error) {
-                setError(response.error);
-            } else if (response && 'message' in response && response.message) {
-                toast.success(response.message);
-            }
-        } catch {
-            setError('Could not send a confirmation link.');
-        } finally {
-            setPending(false);
-        }
-    }
-
+    const form = useSchemaForm(ResendEmailConfirmationBodySchema);
+    useEffect(() => {
+        form.reset({ email: initialEmail });
+    }, [form, initialEmail]);
     return (
-        <form noValidate onSubmit={handleSubmit}>
-            <Field>
-                <FieldLabel htmlFor={emailId}>Email</FieldLabel>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                        autoComplete="email"
-                        id={emailId}
-                        maxLength={FieldLimits.email}
-                        onChange={event => setEmail(event.target.value)}
-                        type="email"
-                        value={email}
-                    />
-                    <Button disabled={pending} type="submit" variant="outline">
-                        {pending ? 'Sending...' : 'Send link'}
-                    </Button>
-                </div>
-                {error ? <FieldError role="alert">{error}</FieldError> : null}
-            </Field>
+        <form
+            noValidate
+            onSubmit={form.handleSubmit(
+                values =>
+                    resendEmailConfirmationAction(valuesToFormData(values)),
+                {
+                    onSuccess: data => {
+                        if (data) toast.success(data.message);
+                    },
+                    onError: submissionError(
+                        'Could not send a confirmation link.'
+                    )
+                }
+            )}
+        >
+            <FieldGroup>
+                <SchemaField
+                    form={form}
+                    forProperty={t => t.email}
+                    label="Email"
+                    name="resend-email"
+                    variant="email"
+                    fieldProps={{ autoComplete: 'email' }}
+                />
+                {form.error ? (
+                    <FieldError role="alert">{form.error}</FieldError>
+                ) : null}
+                <Button
+                    disabled={form.submitting}
+                    type="submit"
+                    variant="outline"
+                >
+                    {form.submitting ? 'Sending...' : 'Send link'}
+                </Button>
+            </FieldGroup>
         </form>
     );
 }

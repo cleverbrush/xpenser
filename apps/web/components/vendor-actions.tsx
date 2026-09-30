@@ -485,9 +485,7 @@ function VendorProfileDialogForm({
             setSuggestionError(null);
             const formData = valuesToFormData(values);
             formData.set('id', String(vendor.id));
-            const response = await updateVendorAction(formData);
-            if (response.error) return { ok: false, error: response.error };
-            return { ok: true };
+            return updateVendorAction(formData);
         },
         {
             onSuccess: onSaved,

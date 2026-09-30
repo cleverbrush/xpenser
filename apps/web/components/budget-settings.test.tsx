@@ -176,3 +176,5 @@ describe('BudgetSettings', () => {
         expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy();
     });
 });
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));

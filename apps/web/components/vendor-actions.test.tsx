@@ -52,6 +52,30 @@ function vendor(overrides: Partial<Vendor> = {}): Vendor {
 }
 
 describe('VendorProfileActions', () => {
+    it('keeps rejected edits open, clears issues on edit, and closes after retry', async () => {
+        updateVendorAction
+            .mockResolvedValueOnce({
+                ok: false,
+                error: 'Check your input.',
+                issues: [
+                    { pointer: '/name', detail: 'Name rejected by server' }
+                ]
+            })
+            .mockResolvedValueOnce({ ok: true, data: vendor() });
+        render(<VendorProfileActions vendor={vendor()} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+        const input = screen.getByLabelText('Display name');
+        fireEvent.change(input, { target: { value: 'New name' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
+        await screen.findByText('Name rejected by server');
+        expect((input as HTMLInputElement).value).toBe('New name');
+        expect(refresh).not.toHaveBeenCalled();
+        fireEvent.change(input, { target: { value: 'Corrected name' } });
+        expect(screen.queryByText('Name rejected by server')).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+        expect(refresh).toHaveBeenCalledOnce();
+    });
     afterEach(() => {
         getVendorCandidateDetailsAction.mockReset();
         searchVendorCandidatesAction.mockReset();
@@ -77,7 +101,8 @@ describe('VendorProfileActions', () => {
             primaryColor: '#0071ce'
         });
         updateVendorAction.mockResolvedValue({
-            vendor: vendor({ name: 'Walmart' })
+            ok: true,
+            data: vendor({ name: 'Walmart' })
         });
 
         render(<VendorProfileActions vendor={vendor()} />);
@@ -202,6 +227,7 @@ describe('VendorProfileActions', () => {
 
     it('shows API validation messages and keeps the dialog open', async () => {
         updateVendorAction.mockResolvedValue({
+            ok: false,
             error: 'A vendor with this name already exists.'
         });
 

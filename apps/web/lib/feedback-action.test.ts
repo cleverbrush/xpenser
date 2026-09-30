@@ -67,7 +67,8 @@ describe('submitFeedbackAction', () => {
         vi.stubGlobal('fetch', fetcher);
 
         await expect(submitFeedbackAction(feedbackForm())).resolves.toEqual({
-            success: true
+            ok: true,
+            data: undefined
         });
 
         expect(mocks.getSessionOrRedirect).toHaveBeenCalledOnce();
@@ -87,6 +88,7 @@ describe('submitFeedbackAction', () => {
         vi.stubGlobal('fetch', fetcher);
 
         await expect(submitFeedbackAction(feedbackForm())).resolves.toEqual({
+            ok: false,
             error: 'Feedback is not available.'
         });
         expect(fetcher).not.toHaveBeenCalled();
@@ -96,7 +98,14 @@ describe('submitFeedbackAction', () => {
         await expect(
             submitFeedbackAction(feedbackForm('   '))
         ).resolves.toEqual({
-            error: 'Enter your feedback before sending.'
+            ok: false,
+            error: 'Enter your feedback before sending.',
+            issues: [
+                {
+                    pointer: '/text',
+                    detail: 'Enter your feedback before sending.'
+                }
+            ]
         });
 
         const fetcher = vi
@@ -106,6 +115,7 @@ describe('submitFeedbackAction', () => {
             );
         vi.stubGlobal('fetch', fetcher);
         await expect(submitFeedbackAction(feedbackForm())).resolves.toEqual({
+            ok: false,
             error: 'Could not send feedback. Please try again.'
         });
         expect(mocks.warn).toHaveBeenCalledWith(

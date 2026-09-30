@@ -96,7 +96,7 @@ describe('UserAvatarSettings', () => {
     });
 
     it('uploads an avatar and refreshes the current page', async () => {
-        updateUserAvatarAction.mockResolvedValue({ success: true });
+        updateUserAvatarAction.mockResolvedValue({ ok: true, data: undefined });
         render(<UserAvatarSettings me={me()} />);
 
         fireEvent.change(screen.getByLabelText('Avatar image'), {
@@ -117,6 +117,7 @@ describe('UserAvatarSettings', () => {
 
     it('shows server action errors inline', async () => {
         updateUserAvatarAction.mockResolvedValue({
+            ok: false,
             error: 'Could not upload avatar.'
         });
         render(<UserAvatarSettings me={me()} />);

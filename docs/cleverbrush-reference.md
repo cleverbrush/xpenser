@@ -89,6 +89,54 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
 
 ## Form Ownership
 
+Xpenser uses Framework `0.0.0-beta-20260930081248` for end-to-end field
+validation. Feature actions live in `apps/web/lib/actions/<feature>.ts`;
+`actions.ts` is only a compatibility facade. Read `form-errors.ts` for
+the server boundary and `form-result.ts` for the serializable result types.
+
+- Decode API 400/422 problem details with `decodeValidationIssues(error,
+  { source: 'body' })` **before** Next.js serializes the action result.
+  Return `{ ok: false, error, issues }` directly to `handleSubmit`. Do not
+  reconstruct field names from messages or catch failures as success.
+- API body pointers become form-relative JSON Pointers. Keep root, unbound,
+  and non-body failures in the summary. Map only explicit UI differences:
+  tag/currency array elements to the compound control, upload properties to
+  the file control, and category setup errors to their row index.
+- Preserve expected domain messages, but rethrow unexpected failures and
+  navigation exceptions. Neither cache invalidation nor success effects run
+  after a rejected write.
+- The controller clears server issues when their fields change and discards
+  stale submissions after reset. A server rejection must preserve entered
+  values and leave the form open.
+- Multi-write flows track acknowledged writes: category setup retries only
+  unsaved rows; scan review retries its confirmation without recreating the
+  acknowledged transaction. This is not backend idempotency: an ambiguous
+  network failure before acknowledgement still needs separate safeguards.
+
+For example, the feature action owns its successful cache invalidation:
+
+```ts
+// lib/actions/categories.ts
+export async function createCategoryAction(data: FormData) {
+    return runFormAction(async () => {
+        const client = await getApiClient();
+        const category = await client.categories.create({ body: categoryBody(data) });
+        revalidatePath('/settings/categories');
+        return category;
+    }, 'Could not save category.');
+}
+
+// components/forms/category-form.tsx
+const submit = form.handleSubmit(
+    values => createCategoryAction(valuesToFormData(values)),
+    { onSuccess: category => onSaved(category), onError: submissionError('Could not save category.') }
+);
+```
+
+The same contract schema binds the browser fields; no per-form API-error
+parser is necessary. See the real actions and components for budget selection,
+permissions, and additional invalidation paths.
+
 - Use `useSchemaForm(schema)` with the shared `SchemaField` for rendered inputs,
   and `form.useField(field => field.property)` for headless bindings. A field's
   schema determines its accepted value and available renderer variants.
@@ -160,6 +208,9 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
   tracing order.
 - Form provider tests that prove Cleverbrush schema fields resolve to the
   expected xpenser UI controls.
+- Form result/action tests in `apps/web/lib/form-*.test.ts`, custom-form
+  rejection/retry tests, direct/batched HTTP validation tests, and
+  `tests/e2e/form-validation.spec.ts` exercise the full validation boundary.
 - E2E workflow tests for authenticated app behavior and preview validation.
 
 ## Adding New Features

@@ -1,5 +1,7 @@
 'use client';
 
+import { useSchemaForm } from '@cleverbrush/react-form';
+import { any, object } from '@cleverbrush/schema';
 import type { UserPreference } from '@xpenser/contracts';
 import { UserAvatarLimits } from '@xpenser/contracts';
 import {
@@ -14,9 +16,10 @@ import {
     toast
 } from '@xpenser/ui';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useState } from 'react';
+import { useRef } from 'react';
 import { deleteUserAvatarAction, updateUserAvatarAction } from '@/lib/actions';
-import { isNextRedirectError } from './forms/form-utils';
+import { mapFormIssues } from '@/lib/form-result';
+import { submissionError } from './forms/submission-error';
 import { UserAvatar } from './user-avatar';
 
 const allowedAvatarTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -36,52 +39,46 @@ function avatarValidationError(file: File | null): string | undefined {
     return undefined;
 }
 
+const AvatarFormSchema = object({
+    avatar: any()
+        .hasType<File | undefined>()
+        .addValidator(file => {
+            const error = avatarValidationError(file ?? null);
+            return error
+                ? { valid: false, errors: [{ message: error }] }
+                : { valid: true };
+        })
+});
+
 export function UserAvatarSettings({ me }: { readonly me: UserPreference }) {
     const router = useRouter();
-    const [error, setError] = useState<string | null>(null);
-    const [pending, setPending] = useState(false);
-
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-
-        const form = event.currentTarget;
-        const input = form.elements.namedItem('avatar');
-        const file =
-            input instanceof HTMLInputElement
-                ? (input.files?.[0] ?? null)
-                : null;
-        if (!file) {
-            setError('Choose an avatar image.');
-            return;
+    const form = useSchemaForm(AvatarFormSchema);
+    const avatar = form.useField(t => t.avatar);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const error = form.error;
+    const pending = form.submitting;
+    const handleSubmit = form.handleSubmit(
+        async values => {
+            const data = new FormData();
+            if (values.avatar) data.append('avatar', values.avatar);
+            return mapFormIssues(await updateUserAvatarAction(data), pointer =>
+                ['/mimeType', '/imageBase64', '/fileName'].includes(pointer)
+                    ? '/avatar'
+                    : pointer
+            );
+        },
+        {
+            onSuccess: () => {
+                form.reset();
+                if (inputRef.current) inputRef.current.value = '';
+                toast.success('Avatar uploaded.');
+                router.refresh();
+            },
+            onError: submissionError(
+                'Could not upload avatar. Choose another image.'
+            )
         }
-        const validationError = avatarValidationError(file);
-        if (validationError) {
-            setError(validationError);
-            return;
-        }
-
-        setPending(true);
-        setError(null);
-        try {
-            const formData = new FormData();
-            formData.append('avatar', file);
-            const response = await updateUserAvatarAction(formData);
-            if (response && 'error' in response && response.error) {
-                setError(response.error);
-                return;
-            }
-            form.reset();
-            toast.success('Avatar uploaded.');
-            router.refresh();
-        } catch (caught) {
-            if (isNextRedirectError(caught)) {
-                throw caught;
-            }
-            setError('Could not upload avatar. Choose another image.');
-        } finally {
-            setPending(false);
-        }
-    }
+    );
 
     return (
         <Card>
@@ -122,6 +119,18 @@ export function UserAvatarSettings({ me }: { readonly me: UserPreference }) {
                             <Input
                                 accept="image/png,image/jpeg,image/webp"
                                 aria-label="Avatar image"
+                                ref={inputRef}
+                                aria-invalid={
+                                    avatar.touched && Boolean(avatar.error)
+                                }
+                                aria-describedby={
+                                    avatar.error ? 'avatar-error' : undefined
+                                }
+                                onBlur={avatar.onBlur}
+                                onChange={event => {
+                                    avatar.onChange(event.target.files?.[0]);
+                                    form.setIssues([]);
+                                }}
                                 name="avatar"
                                 required
                                 type="file"
@@ -130,6 +139,11 @@ export function UserAvatarSettings({ me }: { readonly me: UserPreference }) {
                                 {pending ? 'Uploading...' : 'Upload'}
                             </Button>
                         </form>
+                        {avatar.touched && avatar.error ? (
+                            <FieldError id="avatar-error" role="alert">
+                                {avatar.error}
+                            </FieldError>
+                        ) : null}
                         {error ? (
                             <FieldError role="alert">{error}</FieldError>
                         ) : null}

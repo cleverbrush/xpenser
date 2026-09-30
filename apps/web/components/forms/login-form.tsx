@@ -24,13 +24,13 @@ export function LoginForm({
             const response = await loginAction(
                 valuesToFormData({ ...values, redirectTo })
             );
-            if (response && 'error' in response && response.error) {
+            if (!response.ok) {
                 setUnverifiedEmail(
                     'unverifiedEmail' in response
                         ? (response.unverifiedEmail ?? null)
                         : null
                 );
-                return { ok: false, error: response.error };
+                return response;
             }
             return { ok: true };
         },

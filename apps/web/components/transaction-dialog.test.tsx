@@ -23,7 +23,10 @@ vi.mock('@/lib/actions', () => ({
 
 describe('TransactionDialog', () => {
     it('submits edited transaction values as form data', async () => {
-        const action = vi.fn(async (_formData: FormData) => {});
+        const action = vi.fn(async (_formData: FormData) => ({
+            ok: true as const,
+            data: undefined
+        }));
 
         render(
             <XpenserFormProvider>

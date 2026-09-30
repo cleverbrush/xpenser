@@ -75,16 +75,12 @@ export function RegisterForm({
                     )
                 })
             );
-            if (response && 'error' in response && response.error)
-                return { ok: false, error: response.error };
+            if (!response.ok) return response;
             return {
                 ok: true,
-                data:
-                    response &&
-                    'verificationRequired' in response &&
-                    response.verificationRequired
-                        ? response.email
-                        : undefined
+                data: response.data.verificationRequired
+                    ? response.data.email
+                    : undefined
             };
         },
         {

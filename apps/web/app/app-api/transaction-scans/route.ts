@@ -1,9 +1,10 @@
-import { createXpenserClient } from '@xpenser/client';
+import { createXpenserClient, decodeValidationIssues } from '@xpenser/client';
 import type { TransactionScanJobResponse } from '@xpenser/contracts';
 import { NextResponse } from 'next/server';
 import { getCurrentSession } from '@/lib/api';
 import { selectedBudgetIdFromCookie } from '@/lib/budgets';
 import { webConfig } from '@/lib/config';
+import type { FormIssue } from '@/lib/form-result';
 import {
     assembleScanUploadChunks,
     cleanupStaleScanUploads,
@@ -21,7 +22,11 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 type ScanRouteResponse =
-    | { readonly error: string; readonly job?: undefined }
+    | {
+          readonly error: string;
+          readonly issues?: readonly FormIssue[];
+          readonly job?: undefined;
+      }
     | { readonly error?: undefined; readonly uploaded: true }
     | {
           readonly attachment: StoredScanAttachment;
@@ -61,8 +66,15 @@ function apiErrorMessage(err: unknown): string | undefined {
         : undefined;
 }
 
-function errorResponse(message: string, status: number) {
-    return NextResponse.json<ScanRouteResponse>({ error: message }, { status });
+function errorResponse(
+    message: string,
+    status: number,
+    issues?: readonly FormIssue[]
+) {
+    return NextResponse.json<ScanRouteResponse>(
+        { error: message, ...(issues ? { issues } : {}) },
+        { status }
+    );
 }
 
 function scanChunkBody(value: unknown): ScanChunkBody | undefined {
@@ -206,6 +218,22 @@ export async function POST(request: Request) {
         return NextResponse.json<ScanRouteResponse>({ attachment, job });
     } catch (err) {
         const status = apiErrorStatus(err);
+        const issues = decodeValidationIssues(err, { source: 'body' });
+        if (issues)
+            return errorResponse(
+                'Check the selected image and try again.',
+                status ?? 400,
+                issues.map(issue => ({
+                    ...issue,
+                    pointer: [
+                        '/imageBase64',
+                        '/mimeType',
+                        '/fileName'
+                    ].includes(issue.pointer)
+                        ? '/image'
+                        : issue.pointer
+                }))
+            );
         if (status === 400) {
             return errorResponse(
                 apiErrorMessage(err) ??

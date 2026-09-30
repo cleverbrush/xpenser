@@ -1,7 +1,11 @@
 'use client';
 
+import { useSchemaForm } from '@cleverbrush/react-form';
+import { any, object } from '@cleverbrush/schema';
 import {
     type Category,
+    CreateTransactionBodySchema,
+    CreateVendorBodySchema,
     type Currency,
     FieldLimits,
     type Transaction,
@@ -70,10 +74,13 @@ import {
     categoryTypeLabel,
     transactionCategoryOptions
 } from '@/lib/category-display';
+import type { FormIssue } from '@/lib/form-result';
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { hiddenAmountLabel, useAmountPrivacy } from './amount-privacy';
 import { CategoryForm } from './forms/category-form';
+import { valuesToFormData } from './forms/form-utils';
+import { submissionError } from './forms/submission-error';
 import { QuickCaptureForm } from './quick-capture-form';
 import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
@@ -124,7 +131,11 @@ type ScanFileDetails = {
 };
 
 type ScanResultResponse =
-    | { readonly error: string; readonly scan?: undefined }
+    | {
+          readonly error: string;
+          readonly issues?: readonly FormIssue[];
+          readonly scan?: undefined;
+      }
     | {
           readonly attachment: ScanAttachment;
           readonly error?: undefined;
@@ -132,7 +143,11 @@ type ScanResultResponse =
       };
 
 type ScanUploadRouteResponse =
-    | { readonly error: string; readonly job?: undefined }
+    | {
+          readonly error: string;
+          readonly issues?: readonly FormIssue[];
+          readonly job?: undefined;
+      }
     | { readonly error?: undefined; readonly uploaded: true }
     | {
           readonly attachment: ScanAttachment;
@@ -309,6 +324,8 @@ async function uploadAndScanImageFile(
 
         if (!response.ok) {
             return {
+                issues:
+                    result && 'issues' in result ? result.issues : undefined,
                 error:
                     result?.error ??
                     (response.status === 413
@@ -440,6 +457,10 @@ function nextPendingIndex(
     return beforeCurrent >= 0 ? beforeCurrent : undefined;
 }
 
+const ScanUploadFormSchema = object({
+    image: any().hasType<File | undefined>()
+});
+
 function ScanUpload({
     onScanned
 }: {
@@ -452,8 +473,10 @@ function ScanUpload({
     const [fileDetails, setFileDetails] = useState<ScanFileDetails | null>(
         null
     );
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const form = useSchemaForm(ScanUploadFormSchema);
+    const image = form.useField(t => t.image);
+    const pending = form.submitting;
+    const error = form.error;
     const [progress, setProgress] = useState<ScanProgressUpdate | null>(null);
     const [analysisTick, setAnalysisTick] = useState(0);
 
@@ -484,7 +507,8 @@ function ScanUpload({
             name: file.name,
             size: file.size
         });
-        setError(null);
+        form.setValue({ image: file });
+        form.setIssues([]);
         setProgress(null);
         void readImageDimensions(file).then(dimensions => {
             if (!dimensions) {
@@ -502,42 +526,60 @@ function ScanUpload({
         });
 
         if (!allowedScanImageTypes.includes(file.type)) {
-            setError('Upload a PNG, JPEG, or WebP image.');
+            form.setIssues([
+                {
+                    pointer: '/image',
+                    detail: 'Upload a PNG, JPEG, or WebP image.'
+                }
+            ]);
             if (inputRef.current) {
                 inputRef.current.value = '';
             }
             return;
         }
         if (file.size > maxImageBytes) {
-            setError('Image must be 10 MB or smaller.');
+            form.setIssues([
+                { pointer: '/image', detail: 'Image must be 10 MB or smaller.' }
+            ]);
             if (inputRef.current) {
                 inputRef.current.value = '';
             }
             return;
         }
 
-        setPending(true);
-        try {
-            const result = await uploadAndScanImageFile(file, setNextProgress);
-            if (result.error) {
-                setError(result.error);
-                return;
-            }
-            if (!('attachment' in result)) {
-                setError('Could not scan the image. Try again.');
-                return;
-            }
-            onScanned(result.scan, result.attachment);
-            setProgress(null);
-        } catch {
-            setError('Could not scan the image. Try again.');
-        } finally {
-            setPending(false);
-            if (inputRef.current) {
-                inputRef.current.value = '';
-            }
-        }
+        await submitImage();
+        if (inputRef.current) inputRef.current.value = '';
     }
+
+    const submitImage = form.handleSubmit(
+        async values => {
+            if (!values.image) return { ok: false, error: 'Choose an image.' };
+            const result = await uploadAndScanImageFile(
+                values.image,
+                setNextProgress
+            );
+            if (result.error)
+                return {
+                    ok: false,
+                    error: result.error,
+                    issues: result.issues
+                };
+            if (!('attachment' in result))
+                return {
+                    ok: false,
+                    error: 'Could not scan the image. Try again.'
+                };
+            return { ok: true, data: result };
+        },
+        {
+            onSuccess: result => {
+                if (!result) return;
+                onScanned(result.scan, result.attachment);
+                setProgress(null);
+            },
+            onError: submissionError('Could not scan the image. Try again.')
+        }
+    );
 
     function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
         const selected = event.target.files?.[0];
@@ -585,6 +627,10 @@ function ScanUpload({
                             className="sr-only"
                             disabled={pending}
                             id="scan-image"
+                            aria-invalid={image.touched && Boolean(image.error)}
+                            aria-describedby={
+                                image.error ? 'scan-image-error' : undefined
+                            }
                             onChange={handleFileChange}
                             ref={inputRef}
                             type="file"
@@ -598,6 +644,11 @@ function ScanUpload({
                                 : 'Choose image'}
                         </span>
                     </FieldLabel>
+                    {image.touched && image.error ? (
+                        <FieldError id="scan-image-error">
+                            {image.error}
+                        </FieldError>
+                    ) : null}
                     {fileDetails ? (
                         <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
                             <p className="truncate text-foreground">
@@ -648,22 +699,21 @@ function SuggestedVendor({
     readonly name: string;
     readonly onCreated: (vendor: Vendor) => void;
 }) {
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    async function handleCreate() {
-        const formData = new FormData();
-        formData.set('name', name);
-
-        setPending(true);
-        setError(null);
-        try {
-            onCreated(await createVendorAction(formData));
-        } catch {
-            setError('Could not create vendor.');
-        } finally {
-            setPending(false);
+    const form = useSchemaForm(CreateVendorBodySchema);
+    const pending = form.submitting;
+    const error = form.error;
+    const submit = form.handleSubmit(
+        values => createVendorAction(valuesToFormData(values)),
+        {
+            onSuccess: vendor => {
+                if (vendor) onCreated(vendor);
+            },
+            onError: submissionError('Could not create vendor.')
         }
+    );
+    async function handleCreate() {
+        form.setValue({ name });
+        await submit();
     }
 
     return (
@@ -755,7 +805,7 @@ function SuggestedCategory({
     );
 }
 
-function ScanWizard({
+export function ScanWizard({
     attachment,
     categories,
     currencies,
@@ -783,6 +833,16 @@ function ScanWizard({
     readonly vendors: readonly Vendor[];
 }) {
     const router = useRouter();
+    const form = useSchemaForm(CreateTransactionBodySchema);
+    const amountField = form.useField(t => t.amount);
+    const categoryField = form.useField(t => t.categoryId);
+    const currencyField = form.useField(t => t.currency);
+    const dateField = form.useField(t => t.occurredAt);
+    const noteField = form.useField(t => t.note);
+    const vendorField = form.useField(t => t.vendorId);
+    const tagsField = form.useField(t => t.tags);
+    const acknowledged = useRef(new Map<number, Transaction>());
+
     const { hideAmounts } = useAmountPrivacy();
     const transactionCategories = useMemo(
         () => transactionCategoryOptions(categories),
@@ -800,8 +860,10 @@ function ScanWizard({
     const [currentIndex, setCurrentIndex] = useState(0);
     const [decisions, setDecisions] = useState<Record<number, Decision>>({});
     const [lastSaved, setLastSaved] = useState<Transaction | null>(null);
-    const [pending, setPending] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [decisionPending, setPending] = useState(false);
+    const pending = decisionPending || form.submitting;
+    const [decisionError, setError] = useState<string | null>(null);
+    const error = decisionError ?? form.error;
 
     const draft = scan.drafts[currentIndex];
     const values = useMemo(
@@ -817,30 +879,54 @@ function ScanWizard({
         [defaultCurrency, draft, timezone, transactionCategories]
     );
     const [amount, setAmount] = useState(values?.amount ?? '');
-    const [categoryId, setCategoryId] = useState<number | undefined>(
-        values?.categoryId
-    );
-    const [currency, setCurrency] = useState(
-        values?.currency ?? defaultCurrency
-    );
+    const categoryId = categoryField.value;
+    const setCategoryId = (value: number | undefined) =>
+        form.setValue({ categoryId: value });
+    const currency = currencyField.value ?? defaultCurrency;
+    const setCurrency = currencyField.onChange;
     const [occurredAtText, setOccurredAtText] = useState(
         values?.occurredAtText ?? dateToLocalDateTimeInput(new Date(), timezone)
     );
-    const [note, setNote] = useState(values?.note ?? '');
-    const [selectedTags, setSelectedTags] = useState<readonly string[]>([]);
+    const note = noteField.value ?? '';
+    const setNote = noteField.onChange;
+    const selectedTags = tagsField.value ?? [];
+    const setSelectedTags = (tags: readonly string[]) =>
+        tagsField.onChange([...tags]);
     const [selectedType, setSelectedType] = useState<TransactionType>(
         values?.type ?? 'expense'
     );
-    const [vendorId, setVendorId] = useState<number | null | undefined>(
-        values?.vendorId
-    );
+    const vendorId = vendorField.value;
+    const setVendorId = (value: number | null | undefined) =>
+        vendorField.onChange(value);
     const [createdCategoryId, setCreatedCategoryId] = useState<number | null>(
         null
     );
     const [createdVendorId, setCreatedVendorId] = useState<number | null>(null);
     const [attachmentSubmitted, setAttachmentSubmitted] = useState(false);
 
+    const initial = useRef(values);
+    useEffect(() => {
+        const first = initial.current;
+        if (first)
+            form.reset({
+                amount: parseAmount(first.amount),
+                categoryId: first.categoryId,
+                currency: first.currency,
+                occurredAt: localDateTimeInputToDate(
+                    first.occurredAtText,
+                    timezone
+                ),
+                note: first.note,
+                vendorId: first.vendorId,
+                tags: []
+            });
+    }, [form, timezone]);
+    const savedTransaction = draft
+        ? acknowledged.current.get(draft.id)
+        : undefined;
+
     function loadDraft(nextIndex: number) {
+        if (draft && acknowledged.current.has(draft.id)) return;
         const nextDraft = scan.drafts[nextIndex];
         if (!nextDraft) {
             return;
@@ -850,6 +936,15 @@ function ScanWizard({
             defaultCurrency,
             draft: nextDraft,
             timezone
+        });
+        form.reset({
+            amount: parseAmount(next.amount),
+            categoryId: next.categoryId,
+            currency: next.currency,
+            occurredAt: localDateTimeInputToDate(next.occurredAtText, timezone),
+            note: next.note,
+            vendorId: next.vendorId,
+            tags: []
         });
         setCurrentIndex(nextIndex);
         setAmount(next.amount);
@@ -935,11 +1030,15 @@ function ScanWizard({
         setPending(true);
         setError(null);
         try {
-            await recordTransactionScanDecisionAction({
+            const result = await recordTransactionScanDecisionAction({
                 scanId: scan.scanId,
                 itemId: draft.id,
                 body: { decision: 'discarded' }
             });
+            if (!result.ok) {
+                setError(result.error);
+                return;
+            }
             const nextDecisions = {
                 ...decisions,
                 [draft.id]: 'discarded' as const
@@ -953,52 +1052,21 @@ function ScanWizard({
         }
     }
 
-    async function handleConfirm(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        if (!draft) {
-            return;
-        }
-
-        const amountValue = parseAmount(amount);
-        const occurredAt = localDateTimeInputToDate(occurredAtText, timezone);
-        if (amountValue === undefined) {
-            setError('Enter a positive amount with up to two decimals.');
-            return;
-        }
-        if (!categoryId) {
-            setError('Choose a category.');
-            return;
-        }
-        if (!currency) {
-            setError('Choose a currency.');
-            return;
-        }
-        if (!occurredAt) {
-            setError('Choose a valid date and time.');
-            return;
-        }
-
-        const formData = new FormData();
-        formData.set('amount', String(amountValue));
-        formData.set('categoryId', String(categoryId));
-        formData.set('currency', currency);
-        formData.set('occurredAt', occurredAt.toISOString());
-        if (vendorId) {
-            formData.set('vendorId', String(vendorId));
-        }
-        if (note.trim()) {
-            formData.set('note', note.trim());
-        }
-        for (const tag of selectedTags) {
-            formData.append('tags', tag);
-        }
-
-        setPending(true);
-        setError(null);
-        try {
-            const transaction = await createCaptureTransactionAction(formData);
+    const submitTransaction = form.handleSubmit(
+        async submitted => {
+            if (!draft)
+                return { ok: false, error: 'Choose a scanned transaction.' };
+            let transaction = acknowledged.current.get(draft.id);
+            if (!transaction) {
+                const result = await createCaptureTransactionAction(
+                    valuesToFormData(submitted)
+                );
+                if (!result.ok) return result;
+                transaction = result.data;
+                acknowledged.current.set(draft.id, transaction);
+            }
             const shouldSubmitAttachment = !attachmentSubmitted;
-            await recordTransactionScanDecisionAction({
+            const decision = await recordTransactionScanDecisionAction({
                 scanId: scan.scanId,
                 itemId: draft.id,
                 body: {
@@ -1007,33 +1075,58 @@ function ScanWizard({
                     createdCategoryId,
                     createdVendorId,
                     correctedTransaction: {
-                        amount: amountValue,
-                        categoryId,
-                        currency,
-                        occurredAt,
-                        vendorId: vendorId ?? null,
-                        note: note.trim() || null,
-                        tags: [...selectedTags]
+                        amount: submitted.amount,
+                        categoryId: submitted.categoryId,
+                        currency: submitted.currency,
+                        occurredAt: submitted.occurredAt,
+                        vendorId: submitted.vendorId ?? null,
+                        note: submitted.note?.trim() || null,
+                        tags: [...(submitted.tags ?? [])]
                     },
                     attachment: shouldSubmitAttachment ? attachment : undefined
                 }
             });
-            if (shouldSubmitAttachment) {
-                setAttachmentSubmitted(true);
-            }
-            const nextDecisions = {
-                ...decisions,
-                [draft.id]: 'confirmed' as const
-            };
-            setDecisions(nextDecisions);
-            setLastSaved(transaction);
-            router.refresh();
-            moveAfterDecision(nextDecisions);
-        } catch {
-            setError('Could not save this scanned transaction.');
-        } finally {
-            setPending(false);
+            // These are confirmation metadata errors, not editable transaction fields:
+            // the transaction has already been saved and must not be written twice.
+            if (!decision.ok)
+                return {
+                    ...decision,
+                    issues: decision.issues?.map(issue => ({
+                        ...issue,
+                        pointer: ''
+                    }))
+                };
+            if (shouldSubmitAttachment) setAttachmentSubmitted(true);
+            acknowledged.current.delete(draft.id);
+            return { ok: true, data: transaction };
+        },
+        {
+            onSuccess: transaction => {
+                if (!draft || !transaction) return;
+                const nextDecisions = {
+                    ...decisions,
+                    [draft.id]: 'confirmed' as const
+                };
+                setDecisions(nextDecisions);
+                setLastSaved(transaction);
+                router.refresh();
+                moveAfterDecision(nextDecisions);
+            },
+            onError: submissionError(
+                'Could not finish saving this scanned transaction. Retry to finish the existing save.'
+            )
         }
+    );
+
+    async function handleConfirm(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (pending) return;
+        setError(null);
+        form.setValue({
+            amount: parseAmount(amount),
+            occurredAt: localDateTimeInputToDate(occurredAtText, timezone)
+        });
+        await submitTransaction();
     }
 
     if (scan.drafts.length === 0) {
@@ -1163,181 +1256,295 @@ function ScanWizard({
                     onSubmit={handleConfirm}
                 >
                     <FieldGroup className="gap-3 sm:gap-4">
-                        <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
-                            <p className="font-medium text-foreground">
-                                Visible evidence
-                            </p>
-                            <p>
-                                {draft.evidence ||
-                                    'No supporting text was returned.'}
-                            </p>
-                            <p className="mt-1 text-xs">
-                                Confidence:{' '}
-                                {confidenceLabel(draft.confidence.overall)}
-                            </p>
-                        </div>
-
-                        {draft.possibleDuplicateTransactionIds.length > 0 ? (
-                            <div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-                                <AlertCircleIcon
-                                    aria-hidden
-                                    className="mt-0.5 size-4 shrink-0"
-                                />
-                                <span>
-                                    Possible duplicate of transaction{' '}
-                                    {draft.possibleDuplicateTransactionIds.join(
-                                        ', '
-                                    )}
-                                    .
-                                </span>
+                        <fieldset
+                            disabled={pending || Boolean(savedTransaction)}
+                            className="contents"
+                        >
+                            <div className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                                <p className="font-medium text-foreground">
+                                    Visible evidence
+                                </p>
+                                <p>
+                                    {draft.evidence ||
+                                        'No supporting text was returned.'}
+                                </p>
+                                <p className="mt-1 text-xs">
+                                    Confidence:{' '}
+                                    {confidenceLabel(draft.confidence.overall)}
+                                </p>
                             </div>
-                        ) : null}
 
-                        <Field>
-                            <FieldLabel>Type</FieldLabel>
-                            <div className="grid grid-cols-2 gap-2">
-                                {(['expense', 'income'] as const).map(type => (
-                                    <Button
-                                        aria-pressed={selectedType === type}
-                                        key={type}
-                                        onClick={() => handleTypeChange(type)}
-                                        type="button"
-                                        variant={
-                                            selectedType === type
-                                                ? 'default'
-                                                : 'outline'
-                                        }
-                                    >
-                                        {categoryTypeLabel(type)}
-                                    </Button>
-                                ))}
-                            </div>
-                        </Field>
+                            {draft.possibleDuplicateTransactionIds.length >
+                            0 ? (
+                                <div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                                    <AlertCircleIcon
+                                        aria-hidden
+                                        className="mt-0.5 size-4 shrink-0"
+                                    />
+                                    <span>
+                                        Possible duplicate of transaction{' '}
+                                        {draft.possibleDuplicateTransactionIds.join(
+                                            ', '
+                                        )}
+                                        .
+                                    </span>
+                                </div>
+                            ) : null}
 
-                        <Field>
-                            <FieldLabel>Category</FieldLabel>
-                            <Select
-                                onValueChange={value =>
-                                    setCategoryId(Number(value))
-                                }
-                                value={categoryId ? String(categoryId) : ''}
-                            >
-                                <SelectTrigger aria-label="Scanned transaction category">
-                                    <SelectValue placeholder="Select category" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        {filteredCategories.map(category => (
-                                            <SelectItem
-                                                key={category.id}
-                                                value={String(category.id)}
+                            <Field>
+                                <FieldLabel>Type</FieldLabel>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {(['expense', 'income'] as const).map(
+                                        type => (
+                                            <Button
+                                                aria-pressed={
+                                                    selectedType === type
+                                                }
+                                                key={type}
+                                                onClick={() =>
+                                                    handleTypeChange(type)
+                                                }
+                                                type="button"
+                                                variant={
+                                                    selectedType === type
+                                                        ? 'default'
+                                                        : 'outline'
+                                                }
                                             >
-                                                {category.displayName}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                        </Field>
+                                                {categoryTypeLabel(type)}
+                                            </Button>
+                                        )
+                                    )}
+                                </div>
+                            </Field>
 
-                        {!categoryId ? (
-                            <SuggestedCategory
-                                categories={categories}
-                                draft={draft}
-                                onCreated={handleCategoryCreated}
-                            />
-                        ) : null}
-
-                        <VendorPicker
-                            vendors={vendors}
-                            onChange={handleVendorChange}
-                            selectedVendorId={vendorId}
-                        />
-
-                        {!vendorId && draft.suggestedVendorName ? (
-                            <SuggestedVendor
-                                name={draft.suggestedVendorName}
-                                onCreated={handleVendorCreated}
-                            />
-                        ) : null}
-
-                        <TransactionTagPicker
-                            tags={transactionTags}
-                            selectedTags={selectedTags}
-                            onChange={setSelectedTags}
-                        />
-
-                        <Field className="gap-2">
-                            <FieldLabel htmlFor="scan-amount">
-                                Amount
-                            </FieldLabel>
-                            <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-2">
-                                <Input
-                                    autoComplete="off"
-                                    className="h-14 text-2xl font-semibold"
-                                    id="scan-amount"
-                                    inputMode="decimal"
-                                    min="0.01"
-                                    onChange={event =>
-                                        setAmount(event.target.value)
-                                    }
-                                    placeholder="0.00"
-                                    step="0.01"
-                                    type="text"
-                                    value={amount}
-                                />
+                            <Field>
+                                <FieldLabel>Category</FieldLabel>
                                 <Select
-                                    onValueChange={setCurrency}
-                                    value={currency}
+                                    onValueChange={value =>
+                                        setCategoryId(Number(value))
+                                    }
+                                    value={categoryId ? String(categoryId) : ''}
                                 >
                                     <SelectTrigger
-                                        aria-label="Currency"
-                                        className="h-14 w-[5.25rem] px-2 text-base font-semibold [&>svg]:size-4"
+                                        aria-label="Scanned transaction category"
+                                        aria-invalid={
+                                            categoryField.touched &&
+                                            Boolean(categoryField.error)
+                                        }
+                                        aria-describedby={
+                                            categoryField.error
+                                                ? 'scan-category-error'
+                                                : undefined
+                                        }
                                     >
-                                        <SelectValue />
+                                        <SelectValue placeholder="Select category" />
                                     </SelectTrigger>
-                                    <SelectContent className="min-w-[5.25rem]">
+                                    <SelectContent>
                                         <SelectGroup>
-                                            {currencyOptions.map(option => (
-                                                <SelectItem
-                                                    key={option.code}
-                                                    value={option.code}
-                                                >
-                                                    {option.code}
-                                                </SelectItem>
-                                            ))}
+                                            {filteredCategories.map(
+                                                category => (
+                                                    <SelectItem
+                                                        key={category.id}
+                                                        value={String(
+                                                            category.id
+                                                        )}
+                                                    >
+                                                        {category.displayName}
+                                                    </SelectItem>
+                                                )
+                                            )}
                                         </SelectGroup>
                                     </SelectContent>
                                 </Select>
-                            </div>
-                        </Field>
+                                {categoryField.touched &&
+                                categoryField.error ? (
+                                    <FieldError id="scan-category-error">
+                                        {categoryField.error}
+                                    </FieldError>
+                                ) : null}
+                            </Field>
 
-                        <Field>
-                            <FieldLabel htmlFor="scan-occurred-at">
-                                Date and time
-                            </FieldLabel>
-                            <Input
-                                id="scan-occurred-at"
-                                onChange={event =>
-                                    setOccurredAtText(event.target.value)
-                                }
-                                type="datetime-local"
-                                value={occurredAtText}
+                            {!categoryId ? (
+                                <SuggestedCategory
+                                    categories={categories}
+                                    draft={draft}
+                                    onCreated={handleCategoryCreated}
+                                />
+                            ) : null}
+
+                            <VendorPicker
+                                error={vendorField.error}
+                                touched={vendorField.touched}
+                                vendors={vendors}
+                                onChange={handleVendorChange}
+                                selectedVendorId={vendorId}
                             />
-                        </Field>
 
-                        <Field>
-                            <FieldLabel htmlFor="scan-note">Note</FieldLabel>
-                            <Textarea
-                                autoComplete="off"
-                                id="scan-note"
-                                maxLength={FieldLimits.transactionNote}
-                                onChange={event => setNote(event.target.value)}
-                                rows={5}
-                                value={note}
+                            {!vendorId && draft.suggestedVendorName ? (
+                                <SuggestedVendor
+                                    name={draft.suggestedVendorName}
+                                    onCreated={handleVendorCreated}
+                                />
+                            ) : null}
+
+                            <TransactionTagPicker
+                                error={tagsField.error}
+                                touched={tagsField.touched}
+                                tags={transactionTags}
+                                selectedTags={selectedTags}
+                                onChange={setSelectedTags}
                             />
-                        </Field>
 
+                            <Field className="gap-2">
+                                <FieldLabel htmlFor="scan-amount">
+                                    Amount
+                                </FieldLabel>
+                                <div className="grid grid-cols-[minmax(0,1fr)_5.25rem] gap-2">
+                                    <Input
+                                        autoComplete="off"
+                                        className="h-14 text-2xl font-semibold"
+                                        id="scan-amount"
+                                        aria-invalid={
+                                            amountField.touched &&
+                                            Boolean(amountField.error)
+                                        }
+                                        aria-describedby={
+                                            amountField.error
+                                                ? 'scan-amount-error'
+                                                : undefined
+                                        }
+                                        onBlur={amountField.onBlur}
+                                        inputMode="decimal"
+                                        min="0.01"
+                                        onChange={event => {
+                                            setAmount(event.target.value);
+                                            form.setValue({
+                                                amount: parseAmount(
+                                                    event.target.value
+                                                )
+                                            });
+                                        }}
+                                        placeholder="0.00"
+                                        step="0.01"
+                                        type="text"
+                                        value={amount}
+                                    />
+                                    {amountField.touched &&
+                                    amountField.error ? (
+                                        <FieldError id="scan-amount-error">
+                                            {amountField.error}
+                                        </FieldError>
+                                    ) : null}
+                                    <Select
+                                        onValueChange={setCurrency}
+                                        value={currency}
+                                    >
+                                        <SelectTrigger
+                                            aria-label="Currency"
+                                            className="h-14 w-[5.25rem] px-2 text-base font-semibold [&>svg]:size-4"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="min-w-[5.25rem]">
+                                            <SelectGroup>
+                                                {currencyOptions.map(option => (
+                                                    <SelectItem
+                                                        key={option.code}
+                                                        value={option.code}
+                                                    >
+                                                        {option.code}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </Field>
+
+                            <Field>
+                                <FieldLabel htmlFor="scan-occurred-at">
+                                    Date and time
+                                </FieldLabel>
+                                <Input
+                                    id="scan-occurred-at"
+                                    aria-invalid={
+                                        dateField.touched &&
+                                        Boolean(dateField.error)
+                                    }
+                                    aria-describedby={
+                                        dateField.error
+                                            ? 'scan-occurred-at-error'
+                                            : undefined
+                                    }
+                                    onBlur={dateField.onBlur}
+                                    onChange={event => {
+                                        setOccurredAtText(event.target.value);
+                                        form.setValue({
+                                            occurredAt:
+                                                localDateTimeInputToDate(
+                                                    event.target.value,
+                                                    timezone
+                                                )
+                                        });
+                                    }}
+                                    type="datetime-local"
+                                    value={occurredAtText}
+                                />
+                                {dateField.touched && dateField.error ? (
+                                    <FieldError id="scan-occurred-at-error">
+                                        {dateField.error}
+                                    </FieldError>
+                                ) : null}
+                            </Field>
+
+                            <Field>
+                                <FieldLabel htmlFor="scan-note">
+                                    Note
+                                </FieldLabel>
+                                <Textarea
+                                    autoComplete="off"
+                                    id="scan-note"
+                                    aria-invalid={
+                                        noteField.touched &&
+                                        Boolean(noteField.error)
+                                    }
+                                    aria-describedby={
+                                        noteField.error
+                                            ? 'scan-note-error'
+                                            : undefined
+                                    }
+                                    onBlur={noteField.onBlur}
+                                    maxLength={FieldLimits.transactionNote}
+                                    onChange={event =>
+                                        setNote(event.target.value)
+                                    }
+                                    rows={5}
+                                    value={note}
+                                />
+                                {noteField.touched && noteField.error ? (
+                                    <FieldError id="scan-note-error">
+                                        {noteField.error}
+                                    </FieldError>
+                                ) : null}
+                            </Field>
+
+                            {currencyField.touched && currencyField.error ? (
+                                <FieldError>{currencyField.error}</FieldError>
+                            ) : null}
+                            {vendorField.touched && vendorField.error ? (
+                                <FieldError>{vendorField.error}</FieldError>
+                            ) : null}
+                            {tagsField.touched && tagsField.error ? (
+                                <FieldError>{tagsField.error}</FieldError>
+                            ) : null}
+                        </fieldset>
+                        {savedTransaction ? (
+                            <p role="status">
+                                Transaction created. Retry to finish recording
+                                the scan; it will not be created again.
+                            </p>
+                        ) : null}
                         {lastSaved ? (
                             <div className="rounded-md border px-3 py-2 text-sm">
                                 <p className="font-medium">Saved</p>
@@ -1357,7 +1564,7 @@ function ScanWizard({
 
                         <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-30 grid grid-cols-[auto_minmax(0,1fr)] gap-2 border-t bg-background/95 px-3 py-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
                             <Button
-                                disabled={pending}
+                                disabled={pending || Boolean(savedTransaction)}
                                 onClick={handleDiscard}
                                 type="button"
                                 variant="outline"
@@ -1370,7 +1577,11 @@ function ScanWizard({
                                     aria-hidden
                                     className="size-4"
                                 />
-                                {pending ? 'Saving...' : 'Confirm and save'}
+                                {pending
+                                    ? 'Saving...'
+                                    : savedTransaction
+                                      ? 'Retry finishing save'
+                                      : 'Confirm and save'}
                             </Button>
                         </div>
                     </FieldGroup>

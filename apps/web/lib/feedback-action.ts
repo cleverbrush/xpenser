@@ -16,7 +16,7 @@ export async function submitFeedbackAction(formData: FormData) {
     const session = await getSessionOrRedirect();
     const webhookUrl = webConfig.feedback.webhookUrl;
     if (!webhookUrl) {
-        return { error: 'Feedback is not available.' } as const;
+        return { ok: false, error: 'Feedback is not available.' } as const;
     }
 
     let input;
@@ -24,7 +24,11 @@ export async function submitFeedbackAction(formData: FormData) {
         input = feedbackInputFromFormData(formData);
     } catch (error) {
         if (error instanceof FeedbackInputError) {
-            return { error: error.message } as const;
+            return {
+                ok: false,
+                error: error.message,
+                issues: error.issues
+            } as const;
         }
         throw error;
     }
@@ -46,12 +50,12 @@ export async function submitFeedbackAction(formData: FormData) {
             FailureReason: result.reason,
             HttpStatus: result.status
         });
-        return { error: deliveryError } as const;
+        return { ok: false, error: deliveryError } as const;
     }
 
     feedbackLogger.info('Feedback webhook delivered', {
         FeedbackType: input.type,
         HttpStatus: result.status
     });
-    return { success: true } as const;
+    return { ok: true, data: undefined } as const;
 }

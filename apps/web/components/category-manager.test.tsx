@@ -79,7 +79,7 @@ describe('CategoryManager', () => {
     });
 
     it('creates a parent expense category from the inline form', async () => {
-        createCategoryAction.mockResolvedValue(undefined);
+        createCategoryAction.mockResolvedValue({ ok: true, data: undefined });
         renderManager([]);
 
         expect(screen.queryByTestId('expense-category-form')).toBeNull();
@@ -104,7 +104,7 @@ describe('CategoryManager', () => {
     });
 
     it('creates an offset child category under its parent', async () => {
-        createCategoryAction.mockResolvedValue(undefined);
+        createCategoryAction.mockResolvedValue({ ok: true, data: undefined });
         renderManager([
             category(1, 'Car', {
                 displayName: 'Car',
@@ -348,7 +348,7 @@ describe('CategoryManager', () => {
     });
 
     it('validates parent category names before creating', async () => {
-        createCategoryAction.mockResolvedValue(undefined);
+        createCategoryAction.mockResolvedValue({ ok: true, data: undefined });
         renderManager([]);
 
         fireEvent.click(screen.getByRole('button', { name: 'Add expense' }));

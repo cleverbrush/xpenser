@@ -23,7 +23,10 @@ describe('ResendEmailConfirmationForm', () => {
 
     it('shows the server success message in a toast', async () => {
         resendEmailConfirmationAction.mockResolvedValue({
-            message: 'Check your inbox for a new confirmation link.'
+            ok: true,
+            data: {
+                message: 'Check your inbox for a new confirmation link.'
+            }
         });
         render(
             <ResendEmailConfirmationForm initialEmail="owner@example.com" />
@@ -45,6 +48,7 @@ describe('ResendEmailConfirmationForm', () => {
 
     it('keeps server errors inline without showing a success toast', async () => {
         resendEmailConfirmationAction.mockResolvedValue({
+            ok: false,
             error: 'Could not send a confirmation link.'
         });
         render(

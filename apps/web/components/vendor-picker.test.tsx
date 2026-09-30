@@ -46,7 +46,7 @@ describe('VendorPicker', () => {
             domain: 'bufet.ua',
             logoUrl: 'https://cdn.brandfetch.io/bufet/icon.svg'
         });
-        createVendorAction.mockResolvedValue(selected);
+        createVendorAction.mockResolvedValue({ ok: true, data: selected });
         searchVendorCandidatesAction.mockResolvedValue([
             {
                 brandfetchBrandId: 'id_bufet',
