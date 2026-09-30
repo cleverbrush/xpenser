@@ -149,7 +149,7 @@ const mcpConnections = endpoint
  *
  * This is the single contract shared by the API server and typed clients. The
  * server enriches these endpoint builders with DI, summaries, and operation IDs
- * in `apps/api/src/api/endpoints.ts`, while consumers import this contract to
+ * in each `apps/api/src/api/features/<feature>/scope.ts`, while consumers import this contract to
  * get request, response, route-parameter, cache-tag, and authorization metadata
  * without code generation.
  *

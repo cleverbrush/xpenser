@@ -10,8 +10,9 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
 
 1. Start with `packages/contracts/src/api.ts` and
    `packages/contracts/src/schemas.ts` to see the public API shape.
-2. Compare that contract with `apps/api/src/api/endpoints.ts` and
-   `apps/api/src/api/handlers` to see how metadata and handlers line up.
+2. Compare that contract with `apps/api/src/api/features` to see server-only
+   scopes, separately typed handlers, and operation-specific error policies.
+   `apps/api/src/api/implementation.ts` composes all feature modules.
 3. Read `packages/client/src/index.ts` for the client middleware stack.
 4. Read `packages/ui/src/forms/react-form-provider.tsx` for schema-backed form
    bindings.
@@ -24,9 +25,11 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
   `@cleverbrush/server/contract`. These schemas are the source of truth for
   TypeScript types, request validation, OpenAPI output, form bindings, and typed
   clients.
-- `apps/api/src/api/endpoints.ts` enriches the shared contract with
-  server-only metadata: DI tokens, summaries, descriptions, tags, and operation
-  IDs. `apps/api/src/api/handlers` contains the matching handler tree.
+- `apps/api/src/api/features/<feature>/scope.ts` enriches a contract group with
+  server-only DI tokens and OpenAPI metadata. `handlers/<operation>.ts` imports
+  that scope as a type only. `index.ts` binds the handlers and compatible error
+  policies. `implementation.ts` composes the modules; `.complete()` checks that
+  every contract operation is implemented exactly once.
 - `apps/api/src/server.ts` builds the Cleverbrush server with tracing first,
   CORS, structured request logging, DI, authentication, authorization,
   healthchecks, batching, OpenAPI, MCP, and all contract handlers.
@@ -63,12 +66,22 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
   `apps/api/src/application/brandfetch-schemas.ts` demonstrates this alongside
   explicit field selection and filtering of malformed array entries; fallback
   schemas do not replace the provider-specific boundary policy.
-- Keep the public contract tree, API endpoint metadata tree, and handler tree in
-  the same shape. The endpoint-map tests enforce this.
+- Use `implement(api).group(...)` to configure each feature, and `.withHandlers()`
+  to bind it. Do not maintain parallel endpoint and handler trees. Keep shared DI
+  defaults limited to dependencies used by every operation; use `operations`
+  overrides otherwise. Authorization and cache behavior belong in the contract.
+- Keep scopes independent of handlers, and use type-only scope imports inside
+  handlers to avoid runtime import cycles. Root composition stays a short list
+  of modules, not a chain containing business logic.
 - Put `tracingMiddleware()` before other API middleware so logs and database
   spans correlate with the request span.
-- Use `ActionResult` helpers in handlers for expected API statuses; reserve
-  thrown errors for unexpected failures or framework `HttpError` cases.
+- Translate expected application exceptions with feature-local `errorMap()`
+  policies attached in the registration descriptor. Every translated status and
+  body must already exist in the contract. Share narrow policies (for example
+  budget access), not a catch-all policy. Unknown errors propagate unchanged.
+- Keep direct conditional `ActionResult` responses and success/file/raw results
+  in handlers. Logging and authorization checks remain where their context is
+  available; do not move them into generic exception policies.
 - Use `ActionResult.raw()` for integrations that must own the native Node
   request/response lifecycle, such as MCP transports.
 - Keep credential-bearing integrations behind server-side modules. Browser code
@@ -139,7 +152,9 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
 
 - Contract authorization tests in `packages/contracts/src/api.test.ts`.
 - Endpoint drift and OpenAPI generation tests in
-  `apps/api/src/api/endpoints.test.ts`.
+  `apps/api/src/api/implementation.test.ts`.
+- Error-policy mapping, bound-handler HTTP behavior, and separate-file type
+  inference tests under `apps/api/src/api`.
 - Config guard tests for API, web, and Telegram bot production secrets.
 - Client middleware tests for batching, retry, timeout, dedupe, cache tags, and
   tracing order.
@@ -151,9 +166,11 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
 
 1. Add or update the schema in `packages/contracts/src/schemas.ts`.
 2. Add the endpoint to `packages/contracts/src/api.ts` with auth and cache tags.
-3. Enrich the endpoint in `apps/api/src/api/endpoints.ts` with DI and OpenAPI
-   metadata.
-4. Add the matching handler in `apps/api/src/api/handlers`.
+3. Configure DI and OpenAPI metadata in the feature `scope.ts`.
+4. Add `handlers/<operation>.ts` with `Handler<typeof scope.endpoints.operation>`
+   (or `SubscriptionHandler`), then bind it in the feature `index.ts`. Reuse or
+   extend a narrow `errors.ts` policy only for declared response cases. Add new
+   feature modules to `implementation.ts`; typechecking enforces full coverage.
 5. Use `createXpenserClient()` from server-side web code or external clients.
 6. Add focused tests for schema validation, handler behavior, contract metadata,
    and any changed UI flow.
