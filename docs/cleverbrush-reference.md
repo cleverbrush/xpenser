@@ -182,6 +182,9 @@ permissions, and additional invalidation paths.
   decoded `Date` values; DTO mappers explicitly retain numeric amounts/rates
   and `YYYY-MM-DD` rate dates. Nullable database fields are normalized only
   where public contracts require optional fields.
+- Plain schema-query writes must use storage-only schemas. Omit ORM navigation
+  properties (for example, the tag link's `tag`) from write schemas so generated
+  `RETURNING` columns cannot include relationships as physical columns.
 - API-key listing projects only public fields, and filters owner/revocation in
   SQL. Avatar summaries exclude passwords and stored image bodies. Mapping
   metadata and synchronous conversion do not execute SQL.

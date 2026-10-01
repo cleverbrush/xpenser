@@ -32,9 +32,12 @@ import {
     transactionTagListQuery
 } from '../src/application/transaction-tags.js';
 import {
+    createTransaction,
+    deleteTransaction,
     exportTransactionsCsv,
     getTransactionScanImage,
-    listTransactions
+    listTransactions,
+    updateTransaction
 } from '../src/application/transactions.js';
 import type { Config } from '../src/config.js';
 import { entityMap } from '../src/db/schemas.js';
@@ -266,6 +269,54 @@ afterAll(async () => {
 });
 
 describe('published Framework queries on PostgreSQL', () => {
+    it('creates, replaces and prunes tags through the full transaction lifecycle', async () => {
+        const rollback = new Error('tagged lifecycle rollback');
+        await expect(
+            db.transaction(async tx => {
+                const created = await createTransaction(tx, {} as Config, 1, {
+                    budgetId: 1,
+                    categoryId: 11,
+                    amount: 12.34,
+                    currency: 'USD',
+                    occurredAt: new Date(timestamp),
+                    tags: ['Travel', 'Lifecycle tag']
+                });
+                expect(created.amount).toBe(12.34);
+                expect(created.exchangeRateDate).toBe('2026-06-01');
+                expect(created.tags.map(t => t.name)).toEqual([
+                    'Lifecycle tag',
+                    'Travel'
+                ]);
+                const updated = await updateTransaction(
+                    tx,
+                    {} as Config,
+                    1,
+                    created.id,
+                    { tags: ['Replacement tag'] }
+                );
+                expect(updated.tags.map(t => t.name)).toEqual([
+                    'Replacement tag'
+                ]);
+                expect(
+                    await tx.transactionTags.where(t => t.name, 'Lifecycle tag')
+                ).toEqual([]);
+                expect(
+                    await tx.transactionTags.where(t => t.id, 40).first()
+                ).toBeDefined();
+                await deleteTransaction(tx, 1, created.id);
+                expect(
+                    await tx.transactionTags.where(
+                        t => t.name,
+                        'Replacement tag'
+                    )
+                ).toEqual([]);
+                expect(
+                    await tx.transactionTags.where(t => t.id, 43).first()
+                ).toBeDefined();
+                throw rollback;
+            })
+        ).rejects.toBe(rollback);
+    });
     it('isolates API-key projections and preserves create/authenticate/revoke', async () => {
         const rollback = new Error('key rollback');
         await expect(

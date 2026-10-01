@@ -22,6 +22,11 @@ import { transactionTagMapping } from './mappings/transaction-tags.js';
 
 export class TransactionTagError extends Error {}
 
+// Plain SQL writes return stored columns only; the ORM entity owns `tag` navigation.
+const TransactionTagLinkStorageSchema = TransactionTagLinkDbSchema.omit([
+    'tag'
+]);
+
 export type TransactionTagMappingRow = Awaited<
     ReturnType<typeof transactionTagListQuery>
 >[number];
@@ -209,7 +214,7 @@ export async function replaceTransactionTags(
                 getOrCreateTransactionTag(knex, userId, budgetId, assignment)
             )
         );
-        await schemaQuery(knex, TransactionTagLinkDbSchema).insertMany(
+        await schemaQuery(knex, TransactionTagLinkStorageSchema).insertMany(
             tagIds.map(tagId => ({
                 transactionId,
                 tagId
