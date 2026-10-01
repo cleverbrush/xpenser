@@ -1,13 +1,3 @@
-import { mapper } from '@cleverbrush/mapper';
-import {
-    array,
-    date,
-    type InferType,
-    number,
-    object,
-    string,
-    union
-} from '@cleverbrush/schema';
 import type {
     CategoryTrendGroupBy,
     CategoryTrendQuery,
@@ -27,13 +17,7 @@ import type {
     TransactionScanImageResponse,
     TransactionTag
 } from '@xpenser/contracts';
-import {
-    CategoryTypeSchema,
-    TransactionCreatorSchema,
-    TransactionScanAttachmentSchema,
-    TransactionSchema,
-    TransactionTagSchema
-} from '@xpenser/contracts';
+import { CategoryTypeSchema } from '@xpenser/contracts';
 import {
     addLocalDays,
     addLocalMonths,
@@ -76,6 +60,11 @@ import {
     getExchangeRate,
     transactionDate
 } from './currencies.js';
+import {
+    scanAttachmentMapping,
+    type TransactionMappingSource,
+    transactionMapping
+} from './mappings/transactions.js';
 import {
     scanAttachmentsQuery,
     type TransactionFilterQuery,
@@ -445,58 +434,10 @@ function categoryForTransaction(
     return categoriesById.get(row.categoryId) ?? row.category ?? undefined;
 }
 
-const TransactionMappingSourceSchema = object({
-    id: number(),
-    budgetId: number(),
-    categoryId: number(),
-    vendorId: number().nullable(),
-    vendorName: string().optional(),
-    vendorLogoUrl: string().optional(),
-    categoryName: string(),
-    categoryDisplayName: string(),
-    categoryParentId: number().nullable(),
-    categoryParentName: string().optional(),
-    categoryKind: string(),
-    type: string(),
-    amount: union(number()).or(string()),
-    currency: string(),
-    defaultCurrencyAmount: union(number()).or(string()),
-    defaultCurrency: string(),
-    exchangeRate: union(number()).or(string()),
-    exchangeRateDate: string(),
-    occurredAt: date(),
-    note: string().optional(),
-    tags: array(TransactionTagSchema),
-    createdBy: TransactionCreatorSchema,
-    scanAttachment: TransactionScanAttachmentSchema.nullable().optional(),
-    createdAt: date(),
-    updatedAt: date()
-});
-
-const mapTransactionDto = mapper()
-    .configure(TransactionMappingSourceSchema, TransactionSchema, mapping =>
-        mapping
-            .for(target => target.categoryKind)
-            .compute(source =>
-                source.categoryKind === 'offset' ? 'offset' : 'normal'
-            )
-            .for(target => target.type)
-            .compute(source =>
-                source.type === 'income' ? 'income' : 'expense'
-            )
-            .for(target => target.amount)
-            .compute(source => Number(source.amount))
-            .for(target => target.defaultCurrencyAmount)
-            .compute(source => Number(source.defaultCurrencyAmount))
-            .for(target => target.exchangeRate)
-            .compute(source => Number(source.exchangeRate))
-    )
-    .getMapper(TransactionMappingSourceSchema, TransactionSchema);
-
 function mapTransactionSource(
     row: Omit<TransactionDb, 'type' | 'category'>,
     fields: Pick<
-        InferType<typeof TransactionMappingSourceSchema>,
+        TransactionMappingSource,
         | 'categoryId'
         | 'categoryName'
         | 'categoryDisplayName'
@@ -511,7 +452,7 @@ function mapTransactionSource(
     scanAttachment: TransactionScanAttachment | null,
     tags: readonly TransactionTag[],
     createdBy: TransactionCreator
-): InferType<typeof TransactionMappingSourceSchema> {
+): TransactionMappingSource {
     return {
         id: row.id,
         budgetId: row.budgetId,
@@ -523,7 +464,7 @@ function mapTransactionSource(
         exchangeRate: row.exchangeRate,
         exchangeRateDate: row.exchangeRateDate,
         occurredAt: row.occurredAt,
-        note: row.note ?? undefined,
+        note: row.note,
         tags: [...tags],
         createdBy,
         scanAttachment,
@@ -532,7 +473,8 @@ function mapTransactionSource(
     };
 }
 
-async function mapTransaction(
+function mapTransaction(
+    knex: Knex,
     row: TransactionDb,
     categoriesById: ReadonlyMap<number, CategoryDb>,
     vendorsById: ReadonlyMap<number, VendorDb>,
@@ -542,23 +484,23 @@ async function mapTransaction(
         readonly TransactionTag[]
     > = new Map(),
     creatorsById: ReadonlyMap<number, TransactionCreator> = new Map()
-): Promise<Transaction> {
+): Transaction {
     const category = categoryForTransaction(row, categoriesById);
     const fields = categoryFields(category, row, categoriesById);
     const vendor = row.vendorId ? vendorsById.get(row.vendorId) : undefined;
 
-    return mapTransactionDto(
+    return transactionMapping(knex)(
         mapTransactionSource(
             row,
             {
                 categoryId: fields.categoryId,
                 vendorId: vendor?.id ?? row.vendorId ?? null,
-                vendorName: vendor?.name,
-                vendorLogoUrl: vendor?.logoUrl ?? undefined,
+                vendorName: vendor?.name ?? null,
+                vendorLogoUrl: vendor?.logoUrl ?? null,
                 categoryName: fields.categoryName,
                 categoryDisplayName: fields.categoryDisplayName,
                 categoryParentId: fields.categoryParentId,
-                categoryParentName: fields.categoryParentName,
+                categoryParentName: fields.categoryParentName ?? null,
                 categoryKind: fields.categoryKind,
                 type: fields.type
             },
@@ -572,12 +514,13 @@ async function mapTransaction(
     );
 }
 
-async function mapListedTransaction(
+function mapListedTransaction(
+    knex: Knex,
     row: TransactionListRow,
     scanAttachments: ReadonlyMap<number, TransactionScanAttachment>,
     tagsByTransaction: ReadonlyMap<number, readonly TransactionTag[]>,
     creatorsById: ReadonlyMap<number, TransactionCreator>
-): Promise<Transaction> {
+): Transaction {
     const type = categoryReportingType(
         {
             kind: row.categoryKind === 'offset' ? 'offset' : 'normal',
@@ -586,20 +529,20 @@ async function mapListedTransaction(
         CategoryTypeSchema.parse(row.type)
     );
 
-    return mapTransactionDto(
+    return transactionMapping(knex)(
         mapTransactionSource(
             row,
             {
                 categoryId: row.categoryId,
                 vendorId: row.vendorId ?? null,
-                vendorName: row.vendorName ?? undefined,
-                vendorLogoUrl: row.vendorLogoUrl ?? undefined,
+                vendorName: row.vendorName,
+                vendorLogoUrl: row.vendorLogoUrl,
                 categoryName: row.categoryName,
                 categoryDisplayName: row.categoryParentName
                     ? `${row.categoryParentName} -> ${row.categoryName}`
                     : row.categoryName,
                 categoryParentId: row.categoryParentId,
-                categoryParentName: row.categoryParentName ?? undefined,
+                categoryParentName: row.categoryParentName,
                 categoryKind: row.categoryKind,
                 type
             },
@@ -641,13 +584,11 @@ async function transactionTagsByTransaction(
         knex,
         rows.map(row => row.id)
     );
-    const mappedTags = await Promise.all(
-        rows.map(row =>
-            mapTransactionTag({
-                ...row,
-                transactionCount: counts.get(row.id) ?? 0
-            })
-        )
+    const mappedTags = rows.map(row =>
+        mapTransactionTag(knex, {
+            ...row,
+            transactionCount: counts.get(row.id) ?? 0
+        })
     );
     const tags = new Map<number, TransactionTag[]>();
 
@@ -660,43 +601,11 @@ async function transactionTagsByTransaction(
     return tags;
 }
 
-const TransactionScanAttachmentSourceSchema = object({
-    scanId: number(),
-    scanItemId: number(),
-    fileName: string().nullable(),
-    mimeType: string(),
-    sizeBytes: union(number()).or(string()),
-    createdAt: date()
-});
-
-const mapTransactionScanAttachment = mapper()
-    .configure(
-        TransactionScanAttachmentSourceSchema,
-        TransactionScanAttachmentSchema,
-        mapping =>
-            mapping
-                .for(target => target.mimeType)
-                .compute(source => {
-                    if (
-                        source.mimeType === 'image/png' ||
-                        source.mimeType === 'image/webp'
-                    ) {
-                        return source.mimeType;
-                    }
-                    return 'image/jpeg';
-                })
-                .for(target => target.sizeBytes)
-                .compute(source => Number(source.sizeBytes))
-    )
-    .getMapper(
-        TransactionScanAttachmentSourceSchema,
-        TransactionScanAttachmentSchema
-    );
-
-async function scanAttachmentFromRow(
+function scanAttachmentFromRow(
+    knex: Knex,
     row: TransactionScanAttachmentRow
-): Promise<TransactionScanAttachment> {
-    return mapTransactionScanAttachment({
+): TransactionScanAttachment {
+    return scanAttachmentMapping(knex)({
         scanId: row.scanId,
         scanItemId: row.scanItemId,
         fileName: row.fileName,
@@ -718,12 +627,10 @@ async function scanAttachmentsByTransaction(
 
     const rows = await scanAttachmentsQuery(knex, budgetId, uniqueIds);
 
-    const mapped = await Promise.all(
-        rows.map(async row => ({
-            row,
-            attachment: await scanAttachmentFromRow(row)
-        }))
-    );
+    const mapped = rows.map(row => ({
+        row,
+        attachment: scanAttachmentFromRow(knex, row)
+    }));
     const attachments = new Map<number, TransactionScanAttachment>();
     for (const { row, attachment } of mapped) {
         if (row.transactionId !== null && !attachments.has(row.transactionId)) {
@@ -958,14 +865,10 @@ export async function listTransactions(
     const database = knex ?? db.knex;
     const offset = (page - 1) * limit;
     const direction = query.direction ?? 'desc';
+    const base = transactionListBaseQuery(database, budgetId, query);
     const [count, pageRows] = await Promise.all([
-        transactionListCountQuery(database, budgetId, query).first(),
-        transactionListPageQuery(
-            transactionListBaseQuery(database, budgetId, query),
-            direction,
-            limit,
-            offset
-        )
+        transactionListCountQuery(base).first(),
+        transactionListPageQuery(base, direction, limit, offset)
     ]);
     const transactionIds = pageRows.map(transaction => transaction.id);
     const [scanAttachments, pageTagsByTransaction, creatorsById] =
@@ -976,14 +879,13 @@ export async function listTransactions(
         ]);
 
     return {
-        items: await Promise.all(
-            pageRows.map(transaction =>
-                mapListedTransaction(
-                    transaction,
-                    scanAttachments,
-                    pageTagsByTransaction,
-                    creatorsById
-                )
+        items: pageRows.map(transaction =>
+            mapListedTransaction(
+                database,
+                transaction,
+                scanAttachments,
+                pageTagsByTransaction,
+                creatorsById
             )
         ),
         total: count?.total ?? 0,
@@ -1254,16 +1156,15 @@ export async function exportTransactionsCsv(
         rows.map(transaction => transaction.id)
     );
     const creatorsById = await loadTransactionCreators(knex ?? db.knex, rows);
-    const transactions = await Promise.all(
-        rows.map(transaction =>
-            mapTransaction(
-                transaction,
-                categoriesById,
-                vendorsById,
-                scanAttachments,
-                tagsByTransaction,
-                creatorsById
-            )
+    const transactions = rows.map(transaction =>
+        mapTransaction(
+            knex ?? db.knex,
+            transaction,
+            categoriesById,
+            vendorsById,
+            scanAttachments,
+            tagsByTransaction,
+            creatorsById
         )
     );
     const rates = await exportCurrencyRates(
@@ -1328,7 +1229,7 @@ export async function createTransaction(
             defaultCurrencyAmount: convertAmount(body.amount, exchange.rate),
             defaultCurrency: access.budget.defaultCurrency,
             exchangeRate: exchange.rate,
-            exchangeRateDate: exchange.rateDate,
+            exchangeRateDate: new Date(exchange.rateDate),
             occurredAt: body.occurredAt,
             note: body.note ?? undefined
         });
@@ -1368,6 +1269,7 @@ export async function getTransaction(
             loadTransactionCreators(db.knex, [row])
         ]);
     return mapTransaction(
+        db.knex,
         row,
         categoriesById,
         vendorsById,
@@ -1391,7 +1293,7 @@ export async function getTransactionScanImage(
     await resolveBudgetAccess(db, userId, Number(row.budgetId));
 
     return {
-        ...(await scanAttachmentFromRow(row)),
+        ...scanAttachmentFromRow(knex, row),
         imageBase64: row.imageBase64
     };
 }
@@ -1465,7 +1367,7 @@ export async function updateTransaction(
                 ),
                 defaultCurrency: access.budget.defaultCurrency,
                 exchangeRate: exchange.rate,
-                exchangeRateDate: exchange.rateDate,
+                exchangeRateDate: new Date(exchange.rateDate),
                 occurredAt: next.occurredAt,
                 note: next.note ?? undefined,
                 updatedAt: new Date()

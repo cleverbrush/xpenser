@@ -71,6 +71,14 @@ function testQuery<T extends object>(rows: T[]): TestQuery<T> {
 
 function user(overrides: Partial<UserDb> = {}): UserDb {
     return {
+        passwordHash: null,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+        avatarUrl: null,
+        avatarImageBase64: null,
+        avatarImageMimeType: null,
+        avatarImageFileName: null,
+        avatarImageUpdatedAt: null,
         id: 1,
         email: 'jane@example.com',
         emailVerified: true,
@@ -154,18 +162,19 @@ function transaction(overrides: Partial<Transaction> = {}): Transaction {
 
 function transactionRow(overrides: Partial<TransactionDb> = {}): TransactionDb {
     return {
+        note: null,
         id: 99,
         userId: 1,
         budgetId: 1,
         categoryId: 7,
         vendorId: 5,
         type: 'expense',
-        amount: 12.34,
+        amount: String(12.34),
         currency: 'USD',
-        defaultCurrencyAmount: 12.34,
+        defaultCurrencyAmount: String(12.34),
         defaultCurrency: 'USD',
-        exchangeRate: 1,
-        exchangeRateDate: '2026-06-01',
+        exchangeRate: String(1),
+        exchangeRateDate: new Date('2026-06-01'),
         occurredAt: timestamp,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -177,6 +186,12 @@ function scanItem(
     overrides: Partial<TransactionScanItemDb> = {}
 ): TransactionScanItemDb {
     return {
+        correctedJson: null,
+        createdCategoryId: null,
+        createdVendorId: null,
+        decidedAt: null,
+        decision: null,
+        transactionId: null,
         id: 20,
         scanId: 10,
         userId: 1,

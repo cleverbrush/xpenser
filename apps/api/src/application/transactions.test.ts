@@ -1,5 +1,5 @@
 import knex from 'knex';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type {
     AppDb,
     CategoryDb,
@@ -31,6 +31,10 @@ import {
     transactionListPageQuery,
     transactionSignedDefaultAmount
 } from './transactions.js';
+import * as userAvatars from './user-avatars.js';
+
+const mappingConnection = knex({ client: 'pg' });
+afterAll(() => mappingConnection.destroy());
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -185,17 +189,16 @@ describe('transaction list database query', () => {
         expect(compiled.sql).toContain('"transactions"."vendor_id" is null');
         expect(compiled.sql).toContain("category.kind = 'offset'");
         expect(compiled.sql).toContain('"category"."parent_id" = ?');
+        expect(compiled.sql.match(/"tag_id" = \?/g)).toHaveLength(2);
         expect(
-            compiled.sql.match(
-                /exists \(select "tag_id" from "transaction_tag_links" where "tag_id" =/g
-            )
-        ).toHaveLength(2);
+            compiled.sql.match(/"transaction_id" = "transactions"\."id"/g)
+        ).toHaveLength(3);
         expect(compiled.sql).toContain('not exists');
         expect(compiled.sql).toContain(
             'order by "transactions"."occurred_at" asc, "transactions"."id" asc limit ? offset ?'
         );
-        expect(compiled.bindings).toContain(from);
-        expect(compiled.bindings).toContain(to);
+        expect(compiled.bindings).toContainEqual(from);
+        expect(compiled.bindings).toContainEqual(to);
         expect(compiled.bindings).toContain('income');
         expect(compiled.bindings.at(-2)).toBe(25);
         expect(compiled.bindings.at(-1)).toBe(50);
@@ -244,6 +247,7 @@ describe('transaction category signs', () => {
     it('reports offset child categories on the opposite dashboard side', () => {
         const timestamp = new Date('2026-05-10T12:00:00.000Z');
         const car = {
+            archivedAt: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -263,17 +267,19 @@ describe('transaction category signs', () => {
         } as const;
         const row = (id: number, categoryId: number, amount: string) =>
             ({
+                note: null,
+                vendorId: null,
                 id,
                 userId: 1,
                 budgetId: 1,
                 categoryId,
                 type: 'expense',
-                amount,
+                amount: String(amount),
                 currency: 'USD',
-                defaultCurrencyAmount: amount,
+                defaultCurrencyAmount: String(amount),
                 defaultCurrency: 'USD',
                 exchangeRate: '1',
-                exchangeRateDate: '2026-05-10',
+                exchangeRateDate: new Date('2026-05-10'),
                 occurredAt: timestamp,
                 createdAt: timestamp,
                 updatedAt: timestamp
@@ -324,6 +330,7 @@ describe('transaction category signs', () => {
         const timestamp = new Date('2026-05-10T12:00:00.000Z');
         const previousTimestamp = new Date('2026-04-10T12:00:00.000Z');
         const groceries = {
+            archivedAt: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -347,17 +354,19 @@ describe('transaction category signs', () => {
             occurredAt: Date
         ) =>
             ({
+                note: null,
+                vendorId: null,
                 id,
                 userId: 1,
                 budgetId: 1,
                 categoryId,
                 type: categoryId === salary.id ? 'income' : 'expense',
-                amount,
+                amount: String(amount),
                 currency: 'USD',
-                defaultCurrencyAmount: amount,
+                defaultCurrencyAmount: String(amount),
                 defaultCurrency: 'USD',
                 exchangeRate: '1',
-                exchangeRateDate: '2026-05-10',
+                exchangeRateDate: new Date('2026-05-10'),
                 occurredAt,
                 createdAt: occurredAt,
                 updatedAt: occurredAt
@@ -400,6 +409,7 @@ describe('transaction category signs', () => {
         const timestamp = new Date('2026-07-10T12:00:00.000Z');
         const previousTimestamp = new Date('2026-06-10T12:00:00.000Z');
         const salary = {
+            archivedAt: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -412,17 +422,19 @@ describe('transaction category signs', () => {
         } as const;
         const row = (id: number, amount: string, occurredAt: Date) =>
             ({
+                note: null,
+                vendorId: null,
                 id,
                 userId: 1,
                 budgetId: 1,
                 categoryId: salary.id,
                 type: 'income',
-                amount,
+                amount: String(amount),
                 currency: 'USD',
-                defaultCurrencyAmount: amount,
+                defaultCurrencyAmount: String(amount),
                 defaultCurrency: 'USD',
                 exchangeRate: '1',
-                exchangeRateDate: '2026-07-10',
+                exchangeRateDate: new Date('2026-07-10'),
                 occurredAt,
                 createdAt: occurredAt,
                 updatedAt: occurredAt
@@ -456,6 +468,7 @@ describe('transaction category signs', () => {
         const timestamp = new Date('2026-07-10T12:00:00.000Z');
         const previousTimestamp = new Date('2026-06-10T12:00:00.000Z');
         const salary = {
+            archivedAt: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -479,17 +492,19 @@ describe('transaction category signs', () => {
             occurredAt: Date
         ) =>
             ({
+                note: null,
+                vendorId: null,
                 id,
                 userId: 1,
                 budgetId: 1,
                 categoryId,
                 type: 'income',
-                amount,
+                amount: String(amount),
                 currency: 'USD',
-                defaultCurrencyAmount: amount,
+                defaultCurrencyAmount: String(amount),
                 defaultCurrency: 'USD',
                 exchangeRate: '1',
-                exchangeRateDate: '2026-07-10',
+                exchangeRateDate: new Date('2026-07-10'),
                 occurredAt,
                 createdAt: occurredAt,
                 updatedAt: occurredAt
@@ -556,6 +571,7 @@ describe('transaction category signs', () => {
         } as const;
         const rows = [
             {
+                note: null,
                 id: 1,
                 userId: 1,
                 categoryId: groceries.id,
@@ -566,12 +582,13 @@ describe('transaction category signs', () => {
                 defaultCurrencyAmount: '100',
                 defaultCurrency: 'USD',
                 exchangeRate: '1',
-                exchangeRateDate: '2026-05-10',
+                exchangeRateDate: new Date('2026-05-10'),
                 occurredAt: timestamp,
                 createdAt: timestamp,
                 updatedAt: timestamp
             },
             {
+                note: null,
                 id: 2,
                 userId: 1,
                 categoryId: groceries.id,
@@ -582,7 +599,7 @@ describe('transaction category signs', () => {
                 defaultCurrencyAmount: '50',
                 defaultCurrency: 'USD',
                 exchangeRate: '1',
-                exchangeRateDate: '2026-04-10',
+                exchangeRateDate: new Date('2026-04-10'),
                 occurredAt: previousTimestamp,
                 createdAt: previousTimestamp,
                 updatedAt: previousTimestamp
@@ -653,6 +670,7 @@ describe('transaction category signs', () => {
     it('uses fresh category lookup metadata for dashboard hierarchy summaries', () => {
         const timestamp = new Date('2026-05-10T12:00:00.000Z');
         const car = {
+            archivedAt: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -676,6 +694,8 @@ describe('transaction category signs', () => {
             kind: 'normal'
         } as const;
         const row = {
+            note: null,
+            vendorId: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -687,7 +707,7 @@ describe('transaction category signs', () => {
             defaultCurrencyAmount: '25',
             defaultCurrency: 'USD',
             exchangeRate: '1',
-            exchangeRateDate: '2026-05-10',
+            exchangeRateDate: new Date('2026-05-10'),
             occurredAt: timestamp,
             createdAt: timestamp,
             updatedAt: timestamp
@@ -740,6 +760,7 @@ describe('transaction category signs', () => {
     it('summarizes vendor transaction groups for dashboard previews', () => {
         const timestamp = new Date('2026-05-10T12:00:00.000Z');
         const groceries = {
+            archivedAt: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -762,6 +783,14 @@ describe('transaction category signs', () => {
             overrides: Partial<VendorDb> = {}
         ) =>
             ({
+                description: null,
+                domain: null,
+                enrichedAt: null,
+                enrichmentProvider: null,
+                enrichmentStatus: null,
+                logoUrl: null,
+                primaryColor: null,
+                resolvedName: null,
                 id,
                 userId: 1,
                 budgetId: 1,
@@ -778,18 +807,19 @@ describe('transaction category signs', () => {
             vendorId?: number
         ) =>
             ({
+                note: null,
                 id,
                 userId: 1,
                 budgetId: 1,
                 categoryId,
-                vendorId,
+                vendorId: vendorId ?? null,
                 type: categoryId === salary.id ? 'income' : 'expense',
-                amount,
+                amount: String(amount),
                 currency: 'USD',
-                defaultCurrencyAmount: amount,
+                defaultCurrencyAmount: String(amount),
                 defaultCurrency: 'USD',
                 exchangeRate: '1',
-                exchangeRateDate: '2026-05-10',
+                exchangeRateDate: new Date('2026-05-10'),
                 occurredAt: timestamp,
                 createdAt: timestamp,
                 updatedAt: timestamp
@@ -1041,7 +1071,7 @@ describe('transaction scan images', () => {
         const query = vi
             .spyOn(transactionQueries, 'transactionScanImageQuery')
             .mockReturnValue({ first: vi.fn(async () => row) } as never);
-        const database = {} as never;
+        const database = mappingConnection;
 
         await expect(
             getTransactionScanImage(scanImageBudgetDb(), database, 1, 42)
@@ -1072,6 +1102,7 @@ describe('transaction scan images', () => {
 describe('transaction CSV export', () => {
     const timestamp = new Date('2026-05-10T12:00:00.000Z');
     const category = {
+        archivedAt: null,
         id: 1,
         userId: 1,
         budgetId: 1,
@@ -1083,6 +1114,11 @@ describe('transaction CSV export', () => {
         updatedAt: timestamp
     } as const satisfies CategoryDb;
     const vendor = {
+        description: null,
+        enrichedAt: null,
+        enrichmentProvider: null,
+        enrichmentStatus: null,
+        resolvedName: null,
         id: 3,
         userId: 1,
         budgetId: 1,
@@ -1119,14 +1155,14 @@ describe('transaction CSV export', () => {
         userId: 1,
         budgetId: 1,
         categoryId: category.id,
-        vendorId: vendor.id,
+        vendorId: vendor.id ?? null,
         type: 'expense',
         amount: '10',
         currency: 'USD',
         defaultCurrencyAmount: '10',
         defaultCurrency: 'USD',
         exchangeRate: '1',
-        exchangeRateDate: '2026-05-10',
+        exchangeRateDate: new Date('2026-05-10'),
         occurredAt: timestamp,
         note: 'Dinner, friend',
         createdAt: timestamp,
@@ -1208,26 +1244,10 @@ describe('transaction CSV export', () => {
                 }
             ]) as never
         );
-        return vi.fn((table: string) => {
-            if (table === 'users') {
-                const query = {
-                    ids: [] as number[],
-                    whereIn: (_field: string, ids: readonly number[]) => {
-                        query.ids = [...ids];
-                        return query;
-                    },
-                    select: () =>
-                        Promise.resolve(
-                            query.ids.map(id => ({
-                                id,
-                                email: 'owner@example.com'
-                            }))
-                        )
-                };
-                return query;
-            }
-            throw new Error(`Unexpected table ${table}`);
-        });
+        vi.spyOn(userAvatars, 'loadUserAvatarSummaries').mockResolvedValue(
+            new Map([[1, { userId: 1, email: 'owner@example.com' }]])
+        );
+        return mappingConnection;
     }
 
     it('exports filtered transaction rows with selected currency columns', async () => {
@@ -1353,6 +1373,7 @@ describe('stats range resolution', () => {
 
 describe('category trend ranges and summaries', () => {
     const category = {
+        archivedAt: null,
         id: 7,
         userId: 1,
         budgetId: 1,
@@ -1371,17 +1392,19 @@ describe('category trend ranges and summaries', () => {
         readonly occurredAt: Date;
     }) {
         return {
+            note: null,
+            vendorId: null,
             id: overrides.id,
             userId: 1,
             budgetId: 1,
             categoryId: overrides.categoryId ?? category.id,
             type: 'expense',
-            amount: overrides.amount,
+            amount: String(overrides.amount),
             currency: 'USD',
-            defaultCurrencyAmount: overrides.amount,
+            defaultCurrencyAmount: String(overrides.amount),
             defaultCurrency: 'USD',
             exchangeRate: '1',
-            exchangeRateDate: '2026-05-01',
+            exchangeRateDate: new Date('2026-05-01'),
             occurredAt: overrides.occurredAt,
             createdAt: overrides.occurredAt,
             updatedAt: overrides.occurredAt
@@ -1660,6 +1683,7 @@ describe('stats tag reports', () => {
     const timestamp = new Date('2026-05-10T12:00:00.000Z');
     const categories = [
         {
+            archivedAt: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -1671,6 +1695,7 @@ describe('stats tag reports', () => {
             updatedAt: timestamp
         },
         {
+            archivedAt: null,
             id: 2,
             userId: 1,
             budgetId: 1,
@@ -1682,6 +1707,7 @@ describe('stats tag reports', () => {
             updatedAt: timestamp
         },
         {
+            archivedAt: null,
             id: 3,
             userId: 1,
             budgetId: 1,
@@ -1695,6 +1721,11 @@ describe('stats tag reports', () => {
     ] as const satisfies readonly CategoryDb[];
     const vendors = [
         {
+            description: null,
+            enrichedAt: null,
+            enrichmentProvider: null,
+            enrichmentStatus: null,
+            resolvedName: null,
             id: 1,
             userId: 1,
             budgetId: 1,
@@ -1707,6 +1738,11 @@ describe('stats tag reports', () => {
             updatedAt: timestamp
         },
         {
+            description: null,
+            enrichedAt: null,
+            enrichmentProvider: null,
+            enrichmentStatus: null,
+            resolvedName: null,
             id: 2,
             userId: 1,
             budgetId: 1,
@@ -1749,18 +1785,19 @@ describe('stats tag reports', () => {
         vendorId?: number
     ): TransactionDb {
         return {
+            note: null,
             id,
             userId: 1,
             budgetId: 1,
             categoryId,
-            vendorId,
+            vendorId: vendorId ?? null,
             type: categoryId === 3 ? 'income' : 'expense',
-            amount,
+            amount: String(amount),
             currency: 'USD',
-            defaultCurrencyAmount: amount,
+            defaultCurrencyAmount: String(amount),
             defaultCurrency: 'USD',
             exchangeRate: '1',
-            exchangeRateDate: '2026-05-10',
+            exchangeRateDate: new Date('2026-05-10'),
             occurredAt: timestamp,
             createdAt: timestamp,
             updatedAt: timestamp
@@ -1775,30 +1812,11 @@ describe('stats tag reports', () => {
             transaction(3, 1, '5'),
             transaction(4, 3, '100', 1)
         ];
-        const knex = vi.fn((table: string) => {
-            if (table === 'transaction_tags') {
-                const query = {
-                    tagId: 0,
-                    where: (field: string, value: number) => {
-                        if (field === 'id') {
-                            query.tagId = value;
-                        }
-                        return query;
-                    },
-                    select: () => query,
-                    first: () =>
-                        Promise.resolve(
-                            tags.find(tag => tag.id === query.tagId)
-                        )
-                };
-                return query;
-            }
-            throw new Error(`Unexpected table ${table}`);
-        });
+        const connection = mappingConnection;
 
         return {
             ...budgetAccessTables(),
-            knex,
+            knex: connection,
             users: {
                 find: async () => ({
                     id: 1,

@@ -1,13 +1,4 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { mapper } from '@cleverbrush/mapper';
-import {
-    array,
-    boolean,
-    date,
-    number,
-    object,
-    string
-} from '@cleverbrush/schema';
 import type {
     Budget,
     BudgetAccessRow,
@@ -19,12 +10,6 @@ import type {
     UpdateBudgetBody,
     UpdateBudgetMemberBody
 } from '@xpenser/contracts';
-import {
-    BudgetAccessInvitationRowSchema,
-    BudgetMemberSchema,
-    BudgetSchema,
-    UserAvatarSummarySchema
-} from '@xpenser/contracts';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -35,6 +20,13 @@ import type {
     UserDb
 } from '../db/schemas.js';
 import {
+    adminBudgetPermissions,
+    defaultMemberBudgetPermissions,
+    invitationPermissions,
+    memberPermissions,
+    normalizeCountryCode
+} from './budget-permissions.js';
+import {
     type BudgetListStatus,
     budgetAdminCountQuery,
     budgetMembershipsQuery,
@@ -42,6 +34,11 @@ import {
     uniqueActiveBudgetNameQuery
 } from './budget-queries.js';
 import { sendEmail } from './email.js';
+import {
+    budgetInvitationMapping,
+    budgetMapping,
+    budgetMemberMapping
+} from './mappings/budgets.js';
 
 export type { BudgetListStatus } from './budget-queries.js';
 
@@ -66,25 +63,10 @@ const budgetInvitationMessage =
     'If that email belongs to an xpenser user, a budget invitation has been sent.';
 const mainBudgetName = 'Main';
 
-export const adminBudgetPermissions: BudgetPermissions = {
-    canCreateTransactions: true,
-    canUpdateTransactions: true,
-    canDeleteTransactions: true,
-    canManageCategories: true,
-    canManageVendors: true,
-    canManageTags: true,
-    canManageMembers: true
-};
-
-export const defaultMemberBudgetPermissions: BudgetPermissions = {
-    canCreateTransactions: true,
-    canUpdateTransactions: false,
-    canDeleteTransactions: false,
-    canManageCategories: false,
-    canManageVendors: false,
-    canManageTags: false,
-    canManageMembers: false
-};
+export {
+    adminBudgetPermissions,
+    defaultMemberBudgetPermissions
+} from './budget-permissions.js';
 
 function normalizedBudgetName(value: string): string {
     return value.trim().replace(/\s+/g, ' ');
@@ -92,11 +74,6 @@ function normalizedBudgetName(value: string): string {
 
 function normalizedEmail(value: string): string {
     return value.trim().toLowerCase();
-}
-
-function normalizeCountryCode(value: string | undefined): string {
-    const countryCode = (value ?? 'US').trim().toUpperCase();
-    return /^[A-Z]{2}$/.test(countryCode) ? countryCode : 'US';
 }
 
 function normalizeCurrency(
@@ -281,42 +258,6 @@ function permissionsForRole(
     } as BudgetPermissions;
 }
 
-type BudgetPermissionSource = BudgetPermissions & { readonly role: string };
-
-function memberPermissions(member: BudgetPermissionSource): BudgetPermissions {
-    if (member.role === 'admin') {
-        return adminBudgetPermissions;
-    }
-
-    return {
-        canCreateTransactions: member.canCreateTransactions,
-        canUpdateTransactions: member.canUpdateTransactions,
-        canDeleteTransactions: member.canDeleteTransactions,
-        canManageCategories: member.canManageCategories,
-        canManageVendors: member.canManageVendors,
-        canManageTags: member.canManageTags,
-        canManageMembers: member.canManageMembers
-    };
-}
-
-function invitationPermissions(
-    invitation: BudgetPermissionSource
-): BudgetPermissions {
-    if (invitation.role === 'admin') {
-        return adminBudgetPermissions;
-    }
-
-    return {
-        canCreateTransactions: invitation.canCreateTransactions,
-        canUpdateTransactions: invitation.canUpdateTransactions,
-        canDeleteTransactions: invitation.canDeleteTransactions,
-        canManageCategories: invitation.canManageCategories,
-        canManageVendors: invitation.canManageVendors,
-        canManageTags: invitation.canManageTags,
-        canManageMembers: invitation.canManageMembers
-    };
-}
-
 function budgetMemberValues(
     role: BudgetRole,
     permissions?: Partial<BudgetPermissions>
@@ -353,81 +294,16 @@ async function ensureUniqueActiveBudgetDisplayName(
     }
 }
 
-const BudgetMappingMemberSchema = object({
-    displayName: string(),
-    role: string(),
-    canCreateTransactions: boolean(),
-    canUpdateTransactions: boolean(),
-    canDeleteTransactions: boolean(),
-    canManageCategories: boolean(),
-    canManageVendors: boolean(),
-    canManageTags: boolean(),
-    canManageMembers: boolean()
-});
-
-const BudgetMappingSourceSchema = object({
-    budget: object({
-        id: number(),
-        name: string(),
-        defaultCurrency: string(),
-        countryCode: string(),
-        archivedAt: date().optional(),
-        createdAt: date(),
-        updatedAt: date()
-    }),
-    member: BudgetMappingMemberSchema,
-    mainBudgetId: number().nullable().optional(),
-    favoriteCurrencies: array(string()),
-    transactionCurrencies: array(string())
-});
-
-const mapBudgetDto = mapper()
-    .configure(BudgetMappingSourceSchema, BudgetSchema, mapping =>
-        mapping
-            .for(target => target.id)
-            .from(source => source.budget.id)
-            .for(target => target.name)
-            .compute(source => source.member.displayName || source.budget.name)
-            .for(target => target.defaultCurrency)
-            .from(source => source.budget.defaultCurrency)
-            .for(target => target.countryCode)
-            .compute(source => normalizeCountryCode(source.budget.countryCode))
-            .for(target => target.role)
-            .compute(source =>
-                source.member.role === 'admin' ? 'admin' : 'member'
-            )
-            .for(target => target.permissions)
-            .compute(source => memberPermissions(source.member))
-            .for(target => target.isMain)
-            .compute(source => source.budget.id === source.mainBudgetId)
-            .for(target => target.archivedAt)
-            .compute(source => source.budget.archivedAt ?? null)
-            .for(target => target.createdAt)
-            .from(source => source.budget.createdAt)
-            .for(target => target.updatedAt)
-            .from(source => source.budget.updatedAt)
-    )
-    .getMapper(BudgetMappingSourceSchema, BudgetSchema);
-
-async function mapBudget(
+function mapBudget(
+    db: AppDb,
     budget: BudgetDb,
     member: BudgetMemberDb,
     mainBudgetId: number | null | undefined,
     favoriteCurrencies: readonly string[] = [],
     transactionCurrencies: readonly string[] = []
-): Promise<Budget> {
-    return mapBudgetDto({
-        budget: {
-            id: budget.id,
-            name: budget.name,
-            defaultCurrency: budget.defaultCurrency,
-            countryCode: budget.countryCode,
-            archivedAt: budget.archivedAt
-                ? new Date(budget.archivedAt)
-                : undefined,
-            createdAt: new Date(budget.createdAt),
-            updatedAt: new Date(budget.updatedAt)
-        },
+): Budget {
+    return budgetMapping(db.knex)({
+        budget,
         member,
         mainBudgetId,
         favoriteCurrencies: [...favoriteCurrencies],
@@ -443,46 +319,20 @@ type BudgetMemberRow = BudgetMemberDb & {
     readonly email: string;
 };
 
-const BudgetMemberMappingSourceSchema = object({
-    budgetId: number(),
-    userId: number(),
-    email: string(),
-    user: UserAvatarSummarySchema,
-    role: string(),
-    canCreateTransactions: boolean(),
-    canUpdateTransactions: boolean(),
-    canDeleteTransactions: boolean(),
-    canManageCategories: boolean(),
-    canManageVendors: boolean(),
-    canManageTags: boolean(),
-    canManageMembers: boolean(),
-    createdAt: date(),
-    updatedAt: date()
-});
-
-const mapBudgetMemberDto = mapper()
-    .configure(BudgetMemberMappingSourceSchema, BudgetMemberSchema, mapping =>
-        mapping
-            .for(target => target.role)
-            .compute(source => (source.role === 'admin' ? 'admin' : 'member'))
-            .for(target => target.permissions)
-            .compute(source => memberPermissions(source))
-    )
-    .getMapper(BudgetMemberMappingSourceSchema, BudgetMemberSchema);
-
-async function mapBudgetMember(row: BudgetMemberRow): Promise<BudgetMember> {
-    const user = await mapUserAvatarSummary(
+function mapBudgetMember(db: AppDb, row: BudgetMemberRow): BudgetMember {
+    const user = mapUserAvatarSummary(
+        db.knex,
         {
             id: row.userId,
             email: row.email,
-            avatarUrl: row.avatarUrl ?? undefined,
-            avatarImageMimeType: row.avatarImageMimeType ?? undefined,
-            avatarImageFileName: row.avatarImageFileName ?? undefined,
-            avatarImageUpdatedAt: row.avatarImageUpdatedAt ?? undefined
+            avatarUrl: row.avatarUrl ?? null,
+            avatarImageMimeType: row.avatarImageMimeType ?? null,
+            avatarImageFileName: row.avatarImageFileName ?? null,
+            avatarImageUpdatedAt: row.avatarImageUpdatedAt ?? null
         },
         row.displayName
     );
-    return mapBudgetMemberDto({
+    return budgetMemberMapping(db.knex)({
         ...row,
         user
     });
@@ -634,33 +484,31 @@ export async function listBudgets(
         loadRecentTransactionsByBudget(db, budgetIds)
     ]);
 
-    return Promise.all(
-        rows.map(row => {
-            const budgetId = row.budgetId;
-            const favorites = favoritesByBudget.get(budgetId) ?? [];
-            const transactionCurrencies =
-                transactionCurrenciesByRecentPopularity(
-                    [row.defaultCurrency, ...favorites],
-                    recentTransactionsByBudget.get(budgetId) ?? []
-                );
-            return mapBudget(
-                {
-                    id: budgetId,
-                    name: row.name,
-                    defaultCurrency: row.defaultCurrency,
-                    countryCode: row.countryCode,
-                    createdByUserId: row.createdByUserId,
-                    archivedAt: row.archivedAt,
-                    createdAt: row.budgetCreatedAt,
-                    updatedAt: row.budgetUpdatedAt
-                },
-                row,
-                user?.mainBudgetId,
-                favorites,
-                transactionCurrencies
-            );
-        })
-    );
+    return rows.map(row => {
+        const budgetId = row.budgetId;
+        const favorites = favoritesByBudget.get(budgetId) ?? [];
+        const transactionCurrencies = transactionCurrenciesByRecentPopularity(
+            [row.defaultCurrency, ...favorites],
+            recentTransactionsByBudget.get(budgetId) ?? []
+        );
+        return mapBudget(
+            db,
+            {
+                id: budgetId,
+                name: row.name,
+                defaultCurrency: row.defaultCurrency,
+                countryCode: row.countryCode,
+                createdByUserId: row.createdByUserId,
+                archivedAt: row.archivedAt,
+                createdAt: row.budgetCreatedAt,
+                updatedAt: row.budgetUpdatedAt
+            },
+            row,
+            user?.mainBudgetId,
+            favorites,
+            transactionCurrencies
+        );
+    });
 }
 
 export async function createBudget(
@@ -709,6 +557,7 @@ export async function createBudget(
     const access = await resolveBudgetAccess(db, userId, budget.id);
     const favorites = await loadBudgetFavoriteCurrencyList(db, budget.id);
     return mapBudget(
+        db,
         budget,
         access.member,
         user.mainBudgetId,
@@ -838,6 +687,7 @@ export async function updateBudget(
         loadRecentTransactionsByBudget(db, [budgetId])
     ]);
     return mapBudget(
+        db,
         updated.budget,
         updated.member,
         user?.mainBudgetId,
@@ -884,7 +734,7 @@ export async function listBudgetMembers(
     requireBudgetPermission(access, 'canManageMembers');
 
     const rows = await budgetMembersQuery(db.knex, budgetId);
-    return Promise.all(rows.map(mapBudgetMember));
+    return rows.map(row => mapBudgetMember(db, row));
 }
 
 function invitationAccessStatus(
@@ -900,56 +750,14 @@ function invitationAccessStatus(
     return 'pending';
 }
 
-const BudgetInvitationMappingSourceSchema = object({
-    invitationId: number(),
-    budgetId: number(),
-    email: string(),
-    role: string(),
-    canCreateTransactions: boolean(),
-    canUpdateTransactions: boolean(),
-    canDeleteTransactions: boolean(),
-    canManageCategories: boolean(),
-    canManageVendors: boolean(),
-    canManageTags: boolean(),
-    canManageMembers: boolean(),
-    expiresAt: date(),
-    consumedAt: date().nullable(),
-    createdAt: date(),
-    updatedAt: date(),
-    status: string()
-});
-
-const mapBudgetInvitationDto = mapper()
-    .configure(
-        BudgetInvitationMappingSourceSchema,
-        BudgetAccessInvitationRowSchema,
-        mapping =>
-            mapping
-                .for(target => target.status)
-                .compute(source => {
-                    if (source.status === 'accepted') return 'accepted';
-                    if (source.status === 'expired') return 'expired';
-                    return 'pending';
-                })
-                .for(target => target.role)
-                .compute(source =>
-                    source.role === 'admin' ? 'admin' : 'member'
-                )
-                .for(target => target.permissions)
-                .compute(source => invitationPermissions(source))
-    )
-    .getMapper(
-        BudgetInvitationMappingSourceSchema,
-        BudgetAccessInvitationRowSchema
-    );
-
-async function mapInvitationAccessRow(
+function mapInvitationAccessRow(
+    db: AppDb,
     invitation: BudgetInvitationDb,
     now: Date
-): Promise<BudgetAccessRow> {
-    return mapBudgetInvitationDto({
+): BudgetAccessRow {
+    return budgetInvitationMapping(db.knex)({
         status: invitationAccessStatus(invitation, now),
-        invitationId: invitation.id,
+        ...invitation,
         budgetId: invitation.budgetId,
         email: invitation.email,
         role: invitation.role === 'admin' ? 'admin' : 'member',
@@ -982,10 +790,8 @@ export async function listBudgetAccess(
         db.budgetInvitations.where(invitation => invitation.budgetId, budgetId)
     ]);
     const now = new Date();
-    const invitationRows = await Promise.all(
-        (invitations as BudgetInvitationDb[]).map(invitation =>
-            mapInvitationAccessRow(invitation, now)
-        )
+    const invitationRows = (invitations as BudgetInvitationDb[]).map(
+        invitation => mapInvitationAccessRow(db, invitation, now)
     );
     return [
         ...members.map(member => ({ status: 'active' as const, ...member })),
@@ -1053,7 +859,7 @@ export async function updateBudgetMember(
     if (!user) {
         throw new BudgetNotFoundError('Budget member was not found.');
     }
-    return mapBudgetMember({ ...updated, email: user.email });
+    return mapBudgetMember(db, { ...updated, email: user.email });
 }
 
 export async function removeBudgetMember(
@@ -1235,6 +1041,7 @@ export async function acceptBudgetInvitation(
         loadRecentTransactionsByBudget(db, [invitation.budgetId])
     ]);
     return mapBudget(
+        db,
         access.budget,
         access.member,
         user.mainBudgetId,

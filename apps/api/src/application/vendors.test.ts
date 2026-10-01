@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import knexFactory from 'knex';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -17,6 +18,9 @@ import {
     updateVendor,
     vendorNormalizedName
 } from './vendors.js';
+
+const queryConnection = knexFactory({ client: 'pg' });
+afterAll(() => queryConnection.destroy());
 
 const timestamp = new Date('2026-06-01T00:00:00.000Z');
 
@@ -45,6 +49,14 @@ function testQuery<T extends object>(rows: T[]): TestQuery<T> {
 
 function user(overrides: Partial<UserDb> = {}): UserDb {
     return {
+        passwordHash: null,
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+        avatarUrl: null,
+        avatarImageBase64: null,
+        avatarImageMimeType: null,
+        avatarImageFileName: null,
+        avatarImageUpdatedAt: null,
         id: 1,
         email: 'jane@example.com',
         emailVerified: true,
@@ -80,6 +92,14 @@ function category(overrides: Partial<CategoryDb> = {}): CategoryDb {
 
 function vendor(overrides: Partial<VendorDb> = {}): VendorDb {
     return {
+        description: null,
+        domain: null,
+        enrichedAt: null,
+        enrichmentProvider: null,
+        enrichmentStatus: null,
+        logoUrl: null,
+        primaryColor: null,
+        resolvedName: null,
         id: 1,
         userId: 1,
         budgetId: 1,
@@ -93,18 +113,19 @@ function vendor(overrides: Partial<VendorDb> = {}): VendorDb {
 
 function transaction(overrides: Partial<TransactionDb> = {}): TransactionDb {
     return {
+        note: null,
         id: 1,
         userId: 1,
         budgetId: 1,
         categoryId: 1,
         vendorId: 1,
         type: 'expense',
-        amount: 12,
+        amount: String(12),
         currency: 'USD',
-        defaultCurrencyAmount: 12,
+        defaultCurrencyAmount: String(12),
         defaultCurrency: 'USD',
-        exchangeRate: 1,
-        exchangeRateDate: '2026-06-01',
+        exchangeRate: String(1),
+        exchangeRateDate: new Date('2026-06-01'),
         occurredAt: timestamp,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -147,6 +168,7 @@ function testDb({
         updatedAt: timestamp
     };
     return {
+        knex: queryConnection,
         users: {
             find: vi.fn(async (id: number) =>
                 users.find(candidate => candidate.id === id)

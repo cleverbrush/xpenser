@@ -1,21 +1,13 @@
-import { mapper } from '@cleverbrush/mapper';
-import {
-    boolean,
-    date,
-    type InferType,
-    number,
-    object,
-    string
-} from '@cleverbrush/schema';
+import type { InferType } from '@cleverbrush/schema';
 import type {
     Category,
     CategoryListQuery,
     CreateCategoryBody,
     UpdateCategoryBodySchema
 } from '@xpenser/contracts';
-import { CategorySchema } from '@xpenser/contracts';
 import type { AppDb, CategoryDb, TransactionDb } from '../db/schemas.js';
 import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
+import { categoryMapping } from './mappings/categories.js';
 
 export class CategoryHierarchyError extends Error {}
 export class CategoryInUseError extends Error {}
@@ -76,58 +68,27 @@ export function categoryAvailableForTransactions(
     return !parent?.archivedAt;
 }
 
-const CategoryMappingSourceSchema = object({
-    id: number(),
-    budgetId: number(),
-    name: string(),
-    type: string(),
-    kind: string(),
-    parentId: number().optional(),
-    parentName: string().optional(),
-    displayName: string(),
-    inUse: boolean(),
-    hasChildren: boolean(),
-    archivedAt: date().optional(),
-    createdAt: date(),
-    updatedAt: date()
-});
-
-const mapCategoryDto = mapper()
-    .configure(CategoryMappingSourceSchema, CategorySchema, mapping =>
-        mapping
-            .for(target => target.type)
-            .compute(source =>
-                source.type === 'income' ? 'income' : 'expense'
-            )
-            .for(target => target.kind)
-            .compute(source => normalizeCategoryKind(source.kind))
-            .for(target => target.parentId)
-            .compute(source => source.parentId ?? null)
-            .for(target => target.archivedAt)
-            .compute(source => source.archivedAt ?? null)
-    )
-    .getMapper(CategoryMappingSourceSchema, CategorySchema);
-
-async function mapCategory(
+function mapCategory(
+    db: AppDb,
     row: CategoryDb,
     inUse: boolean,
     hasChildren: boolean,
     categoriesById: ReadonlyMap<number, CategoryDb>
-): Promise<Category> {
+): Category {
     const parent = categoryParent(row, categoriesById);
 
-    return mapCategoryDto({
+    return categoryMapping(db.knex)({
         id: row.id,
         budgetId: row.budgetId,
         name: row.name,
         type: row.type,
         kind: row.kind,
-        parentId: row.parentId ?? undefined,
+        parentId: row.parentId,
         parentName: parent?.name,
         displayName: categoryDisplayName(row, categoriesById),
         inUse,
         hasChildren,
-        archivedAt: row.archivedAt ?? undefined,
+        archivedAt: row.archivedAt,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt
     });
@@ -345,14 +306,13 @@ export async function listCategories(
               )
             : categoriesInDisplayOrder;
 
-    return Promise.all(
-        orderedCategories.map(category =>
-            mapCategory(
-                category,
-                inUse.has(category.id),
-                childParentIds.has(category.id),
-                categoriesById
-            )
+    return orderedCategories.map(category =>
+        mapCategory(
+            db,
+            category,
+            inUse.has(category.id),
+            childParentIds.has(category.id),
+            categoriesById
         )
     );
 }
@@ -390,7 +350,7 @@ export async function createCategory(
         categories.map(category => [category.id, category] as const)
     );
 
-    return mapCategory(created as CategoryDb, false, false, categoriesById);
+    return mapCategory(db, created as CategoryDb, false, false, categoriesById);
 }
 
 export async function updateCategory(
@@ -480,6 +440,7 @@ export async function updateCategory(
     );
 
     return mapCategory(
+        db,
         updated,
         inUse.has(updated.id),
         childParentIds.has(updated.id),

@@ -75,6 +75,12 @@ jobs:
         env:
           QUERY_TEST_DATABASE_URL: postgres://xpenser_test:xpenser_test@127.0.0.1:5432/xpenser_queries
 
+      - name: PostgreSQL query integration (non-UTC process)
+        run: npm run test:queries:integration
+        env:
+          QUERY_TEST_DATABASE_URL: postgres://xpenser_test:xpenser_test@127.0.0.1:5432/xpenser_queries
+          TZ: America/Los_Angeles
+
   deploy:
     name: Deploy PR environment
     needs: ci

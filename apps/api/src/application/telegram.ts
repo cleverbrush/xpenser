@@ -1,6 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mapper } from '@cleverbrush/mapper';
-import { boolean, date, object, string } from '@cleverbrush/schema';
 import type {
     LinkTelegramAccountResponse,
     TelegramConnectionStatus,
@@ -51,13 +50,7 @@ export function verifyTelegramServiceSecret(
     );
 }
 
-const TelegramConnectionStatusSourceSchema = object({
-    linked: boolean(),
-    telegramUsername: string().optional(),
-    telegramFirstName: string().optional(),
-    telegramLastName: string().optional(),
-    linkedAt: date().optional()
-});
+const TelegramConnectionStatusSourceSchema = TelegramConnectionStatusSchema;
 
 const mapTelegramConnectionStatus = mapper()
     .configure(
@@ -65,14 +58,14 @@ const mapTelegramConnectionStatus = mapper()
         TelegramConnectionStatusSchema,
         mapping => mapping
     )
-    .getMapper(
+    .getSyncMapper(
         TelegramConnectionStatusSourceSchema,
         TelegramConnectionStatusSchema
     );
 
-async function mapStatus(
+function mapStatus(
     account: TelegramAccountDb | undefined
-): Promise<TelegramConnectionStatus> {
+): TelegramConnectionStatus {
     if (!account) {
         return mapTelegramConnectionStatus({ linked: false });
     }

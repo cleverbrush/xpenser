@@ -2,8 +2,9 @@ import type { ServiceCollection } from '@cleverbrush/di';
 import type { Logger } from '@cleverbrush/log';
 import { createDb } from '@cleverbrush/orm';
 import { instrumentKnex } from '@cleverbrush/otel';
-import knex, { type Knex } from 'knex';
+import type { Knex } from 'knex';
 import type { Config } from '../config.js';
+import { createPostgresConnection } from '../db/postgres.js';
 import { type AppDb, entityMap } from '../db/schemas.js';
 import { ConfigToken, DbToken, KnexToken, LoggerToken } from './tokens.js';
 
@@ -22,8 +23,7 @@ export type DbResources = {
  */
 export function createDbResources(config: Config, logger: Logger): DbResources {
     const connection = instrumentKnex(
-        knex({
-            client: 'pg',
+        createPostgresConnection({
             connection: config.db.connectionString,
             pool: { min: 2, max: 10 },
             acquireConnectionTimeout: 10_000

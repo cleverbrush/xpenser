@@ -9,6 +9,7 @@ import {
 
 const timestamp = new Date('2026-05-01T00:00:00.000Z');
 const groceries = {
+    archivedAt: null,
     id: 1,
     userId: 1,
     budgetId: 1,
@@ -53,20 +54,21 @@ function transaction({
     readonly vendorId?: number;
 }): TransactionDb {
     return {
+        note: null,
         id,
         userId: 1,
         budgetId: 1,
         categoryId: groceries.id,
         category: groceries,
         type: 'expense',
-        amount,
+        amount: String(amount),
         currency: 'USD',
-        defaultCurrencyAmount: amount,
+        defaultCurrencyAmount: String(amount),
         defaultCurrency: 'USD',
-        exchangeRate: 1,
-        exchangeRateDate: '2026-05-01',
+        exchangeRate: String(1),
+        exchangeRateDate: new Date('2026-05-01'),
         occurredAt,
-        vendorId,
+        vendorId: vendorId ?? null,
         ...(note === undefined ? {} : { note }),
         createdAt: timestamp,
         updatedAt: timestamp
