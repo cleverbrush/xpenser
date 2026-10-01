@@ -182,6 +182,10 @@ permissions, and additional invalidation paths.
   decoded `Date` values; DTO mappers explicitly retain numeric amounts/rates
   and `YYYY-MM-DD` rate dates. Nullable database fields are normalized only
   where public contracts require optional fields.
+- Create PostgreSQL pools through `db/postgres.ts`. Its process-wide pg policy
+  serializes Date parameters in UTC, preserving calendar dates even when the
+  host process runs in another timezone; TIMESTAMPTZ instants are unchanged.
+  CI runs the database suite in both its default and a non-UTC timezone.
 - Plain schema-query writes must use storage-only schemas. Omit ORM navigation
   properties (for example, the tag link's `tag`) from write schemas so generated
   `RETURNING` columns cannot include relationships as physical columns.

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdirSync } from 'node:fs';
 import { createDb } from '@cleverbrush/orm';
-import knexFactory, { type Knex } from 'knex';
+import type { Knex } from 'knex';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
     authenticateApiKey,
@@ -40,6 +40,7 @@ import {
     updateTransaction
 } from '../src/application/transactions.js';
 import type { Config } from '../src/config.js';
+import { createPostgresConnection } from '../src/db/postgres.js';
 import { entityMap } from '../src/db/schemas.js';
 
 const connection = process.env.QUERY_TEST_DATABASE_URL;
@@ -48,8 +49,7 @@ if (!connection || new URL(connection).pathname !== '/xpenser_queries')
         'QUERY_TEST_DATABASE_URL must point to a dedicated xpenser_queries database'
     );
 const schema = 'xpenser_queries_' + randomUUID().replaceAll('-', '');
-const knex = knexFactory({
-    client: 'pg',
+const knex = createPostgresConnection({
     connection,
     searchPath: [schema],
     pool: { min: 0, max: 4 }
@@ -378,6 +378,7 @@ describe('published Framework queries on PostgreSQL', () => {
                     amount: '12.34',
                     exchangeRate: '1.23456789',
                     exchangeRateDate: new Date('2026-06-01'),
+                    occurredAt: new Date(timestamp),
                     note: null,
                     vendorId: null
                 });

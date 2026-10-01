@@ -40,6 +40,7 @@
     "devDependencies": {
         "@cleverbrush/orm-cli": "0.0.0-beta-20261001112349",
         "@types/node": "22.15.3",
+        "@types/pg": "8.23.1",
         "@xpenser/client": "0.1.0",
         "tsup": "8.5.1",
         "tsx": "4.21.0",

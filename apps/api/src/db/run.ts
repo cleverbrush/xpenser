@@ -1,9 +1,8 @@
-import knex from 'knex';
 import { config } from '../config.js';
 import { runMigrations } from './migrate.js';
+import { createPostgresConnection } from './postgres.js';
 
-const db = knex({
-    client: 'pg',
+const db = createPostgresConnection({
     connection: config.db.connectionString,
     pool: { min: 1, max: 1 }
 });
