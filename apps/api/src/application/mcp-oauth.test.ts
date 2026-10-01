@@ -31,25 +31,42 @@ function propertyProxy() {
 type AwaitableQuery<T extends Row> = Query<T> & PromiseLike<T[]>;
 
 class Query<T extends Row> {
-    private readonly filters: Array<(row: T) => boolean> = [];
-    private order:
-        | { readonly key: keyof T; readonly direction: 'asc' | 'desc' }
-        | undefined;
+    constructor(
+        private readonly table: Table<T>,
+        private readonly filters: Array<(row: T) => boolean> = [],
+        private readonly order?: {
+            readonly key: keyof T;
+            readonly direction: 'asc' | 'desc';
+        }
+    ) {}
 
-    constructor(private readonly table: Table<T>) {}
-
-    where(selector: (row: T) => unknown, value: unknown): this {
+    where(selector: (row: T) => unknown, value: unknown): Query<T> {
         const key = selector(propertyProxy() as T) as keyof T;
-        this.filters.push(row => row[key] === value);
-        return this;
+        return new Query(
+            this.table,
+            [...this.filters, row => row[key] === value],
+            this.order
+        );
     }
 
-    orderBy(selector: (row: T) => unknown, direction: 'asc' | 'desc'): this {
-        this.order = {
+    orderBy(
+        selector: (row: T) => unknown,
+        direction: 'asc' | 'desc'
+    ): Query<T> {
+        return new Query(this.table, this.filters, {
             key: selector(propertyProxy() as T) as keyof T,
             direction
-        };
-        return this;
+        });
+    }
+
+    // biome-ignore lint/suspicious/noThenProperty: model the Framework query's PromiseLike execution boundary.
+    then<TResult1 = T[], TResult2 = never>(
+        onfulfilled?: ((value: T[]) => TResult1 | PromiseLike<TResult1>) | null,
+        onrejected?:
+            | ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+            | null
+    ): PromiseLike<TResult1 | TResult2> {
+        return Promise.resolve(this.toArray()).then(onfulfilled, onrejected);
     }
 
     async first(): Promise<T | undefined> {
@@ -83,14 +100,7 @@ class Query<T extends Row> {
 }
 
 function query<T extends Row>(table: Table<T>): AwaitableQuery<T> {
-    const result = new Query(table) as AwaitableQuery<T>;
-    Object.defineProperty(result, 'then', {
-        value: (
-            onfulfilled?: ((value: T[]) => unknown) | null,
-            onrejected?: ((reason: unknown) => unknown) | null
-        ) => Promise.resolve(result.toArray()).then(onfulfilled, onrejected)
-    });
-    return result;
+    return new Query(table);
 }
 
 class Table<T extends Row> {

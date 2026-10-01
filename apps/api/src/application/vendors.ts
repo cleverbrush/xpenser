@@ -1,5 +1,5 @@
 import { mapper } from '@cleverbrush/mapper';
-import { array, date, number, object, string } from '@cleverbrush/schema';
+import { string } from '@cleverbrush/schema';
 import type {
     CreateVendorBody,
     UpdateVendorBody,
@@ -9,12 +9,7 @@ import type {
     VendorCandidateSearchQuery,
     VendorListQuery
 } from '@xpenser/contracts';
-import {
-    FieldLimits,
-    UserAvatarSummarySchema,
-    VendorCandidateSchema,
-    VendorSchema
-} from '@xpenser/contracts';
+import { FieldLimits, VendorCandidateSchema } from '@xpenser/contracts';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -36,6 +31,7 @@ import {
     categoryAvailableForTransactions,
     categoryDisplayName
 } from './categories.js';
+import { vendorMapping } from './mappings/vendors.js';
 import {
     type ContributorBucket,
     contributorSummary,
@@ -261,11 +257,11 @@ const mapBrandSearchCandidate = mapper()
             .for(target => target.claimed)
             .from(source => source.claimed)
     )
-    .getMapper(BrandSearchMappingSourceSchema, VendorCandidateSchema);
+    .getSyncMapper(BrandSearchMappingSourceSchema, VendorCandidateSchema);
 
-async function mapBrandSearchResult(
+function mapBrandSearchResult(
     value: BrandfetchSearchResult
-): Promise<VendorCandidate | undefined> {
+): VendorCandidate | undefined {
     const domain = domainText(nonemptyString(value.domain));
     if (!domain) {
         return undefined;
@@ -311,12 +307,10 @@ export async function searchVendorCandidates(
             return [];
         }
 
-        const candidates = await Promise.all(
-            json.map((value: unknown) => {
-                const parsed = parseBrandfetchSearchResult(value);
-                return parsed ? mapBrandSearchResult(parsed) : undefined;
-            })
-        );
+        const candidates = json.map((value: unknown) => {
+            const parsed = parseBrandfetchSearchResult(value);
+            return parsed ? mapBrandSearchResult(parsed) : undefined;
+        });
         return candidates
             .filter((value): value is VendorCandidate => value !== undefined)
             .slice(0, limit);
@@ -579,101 +573,14 @@ function categorySuggestions(
     return suggestions;
 }
 
-const VendorMappingSourceSchema = object({
-    vendor: object({
-        id: number(),
-        budgetId: number(),
-        name: string(),
-        resolvedName: string().optional(),
-        domain: string().optional(),
-        description: string().optional(),
-        logoUrl: string().optional(),
-        primaryColor: string().optional(),
-        enrichmentProvider: string().optional(),
-        enrichmentStatus: string().optional(),
-        enrichedAt: date().optional(),
-        createdAt: date(),
-        updatedAt: date()
-    }),
-    suggestion: object({
-        categoryId: number(),
-        categoryDisplayName: string()
-    }).optional(),
-    transactionCount: number(),
-    contributors: array(UserAvatarSummarySchema),
-    otherContributorCount: number()
-});
-
-const mapVendorDto = mapper()
-    .configure(VendorMappingSourceSchema, VendorSchema, mapping =>
-        mapping
-            .for(target => target.id)
-            .from(source => source.vendor.id)
-            .for(target => target.budgetId)
-            .from(source => source.vendor.budgetId)
-            .for(target => target.name)
-            .from(source => source.vendor.name)
-            .for(target => target.displayName)
-            .from(source => source.vendor.name)
-            .for(target => target.resolvedName)
-            .from(source => source.vendor.resolvedName)
-            .for(target => target.domain)
-            .from(source => source.vendor.domain)
-            .for(target => target.description)
-            .from(source => source.vendor.description)
-            .for(target => target.logoUrl)
-            .from(source => source.vendor.logoUrl)
-            .for(target => target.primaryColor)
-            .from(source => source.vendor.primaryColor)
-            .for(target => target.enrichmentProvider)
-            .from(source => source.vendor.enrichmentProvider)
-            .for(target => target.enrichmentStatus)
-            .compute(source => {
-                const status = source.vendor.enrichmentStatus;
-                if (
-                    status === 'disabled' ||
-                    status === 'success' ||
-                    status === 'not_found' ||
-                    status === 'failed'
-                ) {
-                    return status;
-                }
-                return undefined;
-            })
-            .for(target => target.enrichedAt)
-            .from(source => source.vendor.enrichedAt)
-            .for(target => target.suggestedCategoryId)
-            .compute(source => source.suggestion?.categoryId)
-            .for(target => target.suggestedCategoryDisplayName)
-            .compute(source => source.suggestion?.categoryDisplayName)
-            .for(target => target.createdAt)
-            .from(source => source.vendor.createdAt)
-            .for(target => target.updatedAt)
-            .from(source => source.vendor.updatedAt)
-    )
-    .getMapper(VendorMappingSourceSchema, VendorSchema);
-
-async function mapVendor(
+function mapVendor(
+    db: AppDb,
     vendor: VendorDb,
     stats: VendorStats | undefined,
     suggestion: VendorSuggestion | undefined
-): Promise<Vendor> {
-    return mapVendorDto({
-        vendor: {
-            id: vendor.id,
-            budgetId: vendor.budgetId,
-            name: vendor.name,
-            resolvedName: vendor.resolvedName ?? undefined,
-            domain: vendor.domain ?? undefined,
-            description: vendor.description ?? undefined,
-            logoUrl: vendor.logoUrl ?? undefined,
-            primaryColor: vendor.primaryColor ?? undefined,
-            enrichmentProvider: vendor.enrichmentProvider ?? undefined,
-            enrichmentStatus: vendor.enrichmentStatus ?? undefined,
-            enrichedAt: vendor.enrichedAt ?? undefined,
-            createdAt: vendor.createdAt,
-            updatedAt: vendor.updatedAt
-        },
+): Vendor {
+    return vendorMapping(db.knex)({
+        vendor,
         suggestion,
         transactionCount: stats?.transactionCount ?? 0,
         contributors: [...(stats?.contributors.contributors ?? [])],
@@ -733,13 +640,12 @@ export async function listVendors(
             return rightTime - leftTime || left.name.localeCompare(right.name);
         })
         .slice(0, limit);
-    return Promise.all(
-        selected.map(vendor =>
-            mapVendor(
-                vendor,
-                context.stats.get(vendor.id),
-                context.suggestions.get(vendor.id)
-            )
+    return selected.map(vendor =>
+        mapVendor(
+            db,
+            vendor,
+            context.stats.get(vendor.id),
+            context.suggestions.get(vendor.id)
         )
     );
 }
@@ -760,6 +666,7 @@ async function vendorView(
     await resolveBudgetAccess(db, userId, vendor.budgetId);
     const context = await vendorReadContext(db, vendor.budgetId, userId);
     return mapVendor(
+        db,
         vendor,
         context.stats.get(vendor.id),
         context.suggestions.get(vendor.id)
@@ -906,6 +813,7 @@ export async function createVendor(
     ]);
 
     return mapVendor(
+        db,
         (updated ?? vendor) as VendorDb,
         context.stats.get(vendor.id),
         context.suggestions.get(vendor.id)

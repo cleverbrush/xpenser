@@ -53,6 +53,13 @@ test('typed reads preserve transaction paging, tag counts and budget filtering',
                 expect(response.status()).toBe(200);
                 const result = await response.json();
                 expect(result).toMatchObject({ total: 4, page: pageNumber, limit: 2 });
+                for (const item of result.items) {
+                    expect(item.amount).toBe(12.34);
+                    expect(typeof item.exchangeRate).toBe('number');
+                    expect(item.exchangeRateDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+                    expect(item.scanAttachment).toBeNull();
+                    expect(item).not.toHaveProperty('vendorName');
+                }
                 seen.push(...result.items.map((item: { id: number }) => item.id));
             }
             expect(seen).toEqual(direction === 'asc' ? transactionIds : [...transactionIds].reverse());

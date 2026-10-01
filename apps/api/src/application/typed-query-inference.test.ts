@@ -44,13 +44,13 @@ it('retains the related schema in include customization callbacks', async () => 
     const query = db.transactions.include(
         t => t.category,
         related => {
-            related.where(category => category.name, 'Meals');
             // Check only the type, without executing the invalid selector.
             const invalid = () => {
                 // @ts-expect-error Relation callbacks no longer accept arbitrary fields.
                 related.where(category => category.misspelledName, 'Meals');
             };
             expectTypeOf(invalid).toBeFunction();
+            return related.where(category => category.name, 'Meals');
         }
     );
     expectTypeOf(query).not.toBeAny();

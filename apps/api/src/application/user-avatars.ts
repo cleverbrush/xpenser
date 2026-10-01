@@ -1,19 +1,19 @@
 import { query } from '@cleverbrush/knex-schema';
-import { mapper } from '@cleverbrush/mapper';
-import { number, object, string } from '@cleverbrush/schema';
 import type {
     UserAvatarSummary,
     UserAvatarUploadBody,
     UserPreference
 } from '@xpenser/contracts';
-import { UserAvatarLimits, UserAvatarSummarySchema } from '@xpenser/contracts';
+import { UserAvatarLimits } from '@xpenser/contracts';
+import type { Knex } from 'knex';
 import {
     type AppDb,
     BudgetMemberDbSchema,
     type TransactionDb,
-    type UserDb,
-    UserDbSchema
+    type UserDb
 } from '../db/schemas.js';
+import { userAvatarRead } from './entity-reads.js';
+import { userAvatarMapping } from './mappings/user-avatars.js';
 import { getUserPreference } from './users.js';
 
 export class UserAvatarError extends Error {}
@@ -35,43 +35,14 @@ export type ContributorSummary = {
 
 export type ContributorBucket = Map<number, Date>;
 
-const avatarPath = (userId: number) => `/app-api/users/${userId}/avatar`;
-
-const UserAvatarSummarySourceSchema = object({
-    id: number(),
-    email: string(),
-    displayName: string().optional(),
-    avatarUrl: string().optional(),
-    avatarImageMimeType: string().optional()
-});
-
-const mapUserAvatar = mapper()
-    .configure(
-        UserAvatarSummarySourceSchema,
-        UserAvatarSummarySchema,
-        mapping =>
-            mapping
-                .for(target => target.userId)
-                .from(source => source.id)
-                .for(target => target.avatarUrl)
-                .compute(source =>
-                    source.avatarImageMimeType
-                        ? avatarPath(source.id)
-                        : source.avatarUrl
-                )
-    )
-    .getMapper(UserAvatarSummarySourceSchema, UserAvatarSummarySchema);
-
-export async function mapUserAvatarSummary(
+export function mapUserAvatarSummary(
+    knex: Knex,
     row: UserAvatarRow,
     displayName?: string
-): Promise<UserAvatarSummary> {
-    return mapUserAvatar({
-        id: row.id,
-        email: row.email,
-        displayName: displayName || undefined,
-        avatarUrl: row.avatarUrl ?? undefined,
-        avatarImageMimeType: row.avatarImageMimeType ?? undefined
+): UserAvatarSummary {
+    return userAvatarMapping(knex)({
+        ...row,
+        displayName: displayName || undefined
     });
 }
 
@@ -87,19 +58,9 @@ export async function loadUserAvatarSummaries(
         return new Map();
     }
 
-    const rows = (await query(db.knex, UserDbSchema)
-        .whereIn(user => user.id, ids)
-        .select(user => ({
-            id: user.id,
-            email: user.email,
-            avatarUrl: user.avatarUrl,
-            avatarImageMimeType: user.avatarImageMimeType,
-            avatarImageFileName: user.avatarImageFileName,
-            avatarImageUpdatedAt: user.avatarImageUpdatedAt
-        }))) as UserAvatarRow[];
-
-    const summaries = await Promise.all(
-        rows.map(row => mapUserAvatarSummary(row, displayNames.get(row.id)))
+    const rows = await userAvatarRead(db.knex).whereIn(user => user.id, ids);
+    const summaries = rows.map(row =>
+        mapUserAvatarSummary(db.knex, row, displayNames.get(row.id))
     );
 
     return new Map(
@@ -265,7 +226,7 @@ export async function getUserAvatarImage(
     return {
         imageBase64: user.avatarImageBase64,
         mimeType: user.avatarImageMimeType,
-        fileName: user.avatarImageFileName,
-        updatedAt: user.avatarImageUpdatedAt
+        fileName: user.avatarImageFileName ?? undefined,
+        updatedAt: user.avatarImageUpdatedAt ?? undefined
     };
 }

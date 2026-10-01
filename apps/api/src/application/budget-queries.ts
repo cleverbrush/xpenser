@@ -19,11 +19,13 @@ export function budgetMembershipsQuery(
     status: BudgetListStatus = 'active',
     mainBudgetId = 0
 ) {
-    const builder = query(knex, member)
+    let builder = query(knex, member)
         .join(budget, t => eq(t.member.budgetId, t.budget.id))
         .where(t => t.member.userId, userId);
-    if (status === 'active') builder.whereNull(t => t.budget.archivedAt);
-    if (status === 'archived') builder.whereNotNull(t => t.budget.archivedAt);
+    if (status === 'active')
+        builder = builder.whereNull(t => t.budget.archivedAt);
+    if (status === 'archived')
+        builder = builder.whereNotNull(t => t.budget.archivedAt);
     return builder
         .orderByRaw('case when ?? = ? then 0 else 1 end', [
             'member.budget_id',
@@ -91,7 +93,7 @@ export function uniqueActiveBudgetNameQuery(
         .whereNull(row => row.archivedAt)
         .select(row => row.id)
         .toKnexQuery();
-    const builder = db.budgetMembers
+    let builder = db.budgetMembers
         .where(row => row.userId, userId)
         .whereIn(row => row.budgetId, activeBudgetIds)
         .whereRaw('lower(??) = lower(?)', [
@@ -103,7 +105,7 @@ export function uniqueActiveBudgetNameQuery(
             name
         ]);
     if (excludingBudgetId !== undefined)
-        builder.whereNot(row => row.budgetId, excludingBudgetId);
+        builder = builder.whereNot(row => row.budgetId, excludingBudgetId);
     return builder.select(row => ({ budgetId: row.budgetId })).limit(1);
 }
 

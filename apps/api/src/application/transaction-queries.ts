@@ -3,7 +3,6 @@ import {
     alias,
     and,
     eq,
-    getTableName,
     query as schemaQuery
 } from '@cleverbrush/knex-schema';
 import type { TransactionListQuery } from '@xpenser/contracts';
@@ -17,6 +16,7 @@ import {
     TransactionTagLinkDbSchema,
     VendorDbSchema
 } from '../db/schemas.js';
+import { perConnection } from './read-models.js';
 
 export type TransactionFilterQuery = Pick<
     TransactionListQuery,
@@ -49,13 +49,9 @@ function transactionSearchPattern(value: string): string {
     return `%${value.replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_')}%`;
 }
 
-/** A fresh filtered source for each count/page; neither query mutates the other. */
-export function transactionListBaseQuery(
-    knex: Knex,
-    budgetId: number,
-    query: TransactionFilterQuery
-) {
-    const source = schemaQuery(knex, alias(TransactionDbSchema, 'transactions'))
+/** Stable projection definition; no tenant filters or SQL execution are cached. */
+export const transactionListRead = perConnection(knex =>
+    schemaQuery(knex, alias(TransactionDbSchema, 'transactions'))
         .join(alias(CategoryDbSchema, 'category'), t =>
             eq(t.transactions.categoryId, t.category.id)
         )
@@ -65,122 +61,6 @@ export function transactionListBaseQuery(
         .leftJoin(alias(VendorDbSchema, 'vendor'), t =>
             eq(t.transactions.vendorId, t.vendor.id)
         )
-        .where(t => t.transactions.budgetId, budgetId);
-    if (query.categoryId)
-        source.where(t => t.transactions.categoryId, query.categoryId);
-    if (query.from)
-        source.where(t => t.transactions.occurredAt, '>=', query.from);
-    if (query.to) source.where(t => t.transactions.occurredAt, '<=', query.to);
-    if (query.vendorId === 'none')
-        source.whereNull(t => t.transactions.vendorId);
-    else if (query.vendorId)
-        source.where(t => t.transactions.vendorId, query.vendorId);
-    // These application-specific predicates intentionally use bound Knex SQL.
-    return source.apply(builder => {
-        if (query.type) {
-            builder.whereRaw(
-                `CASE
-                WHEN category.kind = 'offset'
-                    THEN CASE category.type
-                        WHEN 'expense' THEN 'income'
-                        ELSE 'expense'
-                    END
-                ELSE category.type
-            END = ?`,
-                [query.type]
-            );
-        }
-        if (query.parentCategoryId) {
-            builder.where(parentBuilder => {
-                parentBuilder
-                    .where('transactions.category_id', query.parentCategoryId)
-                    .orWhere('category.parent_id', query.parentCategoryId);
-            });
-        }
-
-        const tagIds = transactionTagIds(query.tagIds);
-        for (const tagId of tagIds) {
-            builder.whereExists(
-                schemaQuery(knex, TransactionTagLinkDbSchema)
-                    .select(link => link.tagId)
-                    .where(link => link.tagId, tagId)
-                    .whereRaw('??.?? = ??.??', [
-                        getTableName(TransactionTagLinkDbSchema),
-                        'transaction_id',
-                        getTableName(TransactionDbSchema),
-                        'id'
-                    ])
-                    .toKnexQuery()
-            );
-        }
-        if (query.untagged === true) {
-            builder.whereNotExists(
-                schemaQuery(knex, TransactionTagLinkDbSchema)
-                    .select(link => link.tagId)
-                    .whereRaw('??.?? = ??.??', [
-                        getTableName(TransactionTagLinkDbSchema),
-                        'transaction_id',
-                        getTableName(TransactionDbSchema),
-                        'id'
-                    ])
-                    .toKnexQuery()
-            );
-        }
-
-        const search = query.search?.trim();
-        if (search) {
-            const pattern = transactionSearchPattern(search);
-            const searchTagIds = schemaQuery(knex, TransactionTagDbSchema)
-                .where(tag => tag.budgetId, budgetId)
-                .whereRaw("?? ILIKE ? ESCAPE '!'", ['name', pattern])
-                .select(tag => tag.id)
-                .toKnexQuery();
-            const tagSearch = schemaQuery(knex, TransactionTagLinkDbSchema)
-                .select(link => link.tagId)
-                .whereIn(link => link.tagId, searchTagIds)
-                .whereRaw('??.?? = ??.??', [
-                    getTableName(TransactionTagLinkDbSchema),
-                    'transaction_id',
-                    getTableName(TransactionDbSchema),
-                    'id'
-                ])
-                .toKnexQuery();
-            builder.where(searchBuilder => {
-                searchBuilder
-                    .whereRaw("category.name ILIKE ? ESCAPE '!'", [pattern])
-                    .orWhereRaw(
-                        "COALESCE(parent.name || ' -> ' || category.name, category.name) ILIKE ? ESCAPE '!'",
-                        [pattern]
-                    )
-                    .orWhereRaw("vendor.name ILIKE ? ESCAPE '!'", [pattern])
-                    .orWhereRaw("vendor.domain ILIKE ? ESCAPE '!'", [pattern])
-                    .orWhereRaw("transactions.note ILIKE ? ESCAPE '!'", [
-                        pattern
-                    ])
-                    .orWhereExists(tagSearch);
-            });
-        }
-    });
-}
-
-export function transactionListCountQuery(
-    knex: Knex,
-    budgetId: number,
-    query: TransactionFilterQuery
-) {
-    return transactionListBaseQuery(knex, budgetId, query).select(t => {
-        const total = aggregate.count(t.transactions.id);
-        return { total };
-    });
-}
-
-export function transactionListPageQuery(
-    builder: ReturnType<typeof transactionListBaseQuery>,
-    direction: 'asc' | 'desc',
-    limit: number,
-    offset: number
-) {
-    return builder
         .select(t => ({
             id: t.transactions.id,
             budgetId: t.transactions.budgetId,
@@ -206,6 +86,123 @@ export function transactionListPageQuery(
             vendorName: t.vendor.name,
             vendorLogoUrl: t.vendor.logoUrl
         }))
+);
+
+/** Immutable filtered source shared safely by count and page branches. */
+export function transactionListBaseQuery(
+    knex: Knex,
+    budgetId: number,
+    query: TransactionFilterQuery
+) {
+    let source = transactionListRead(knex).where(
+        t => t.transactions.budgetId,
+        budgetId
+    );
+    if (query.categoryId)
+        source = source.where(t => t.transactions.categoryId, query.categoryId);
+    if (query.from)
+        source = source.where(t => t.transactions.occurredAt, '>=', query.from);
+    if (query.to)
+        source = source.where(t => t.transactions.occurredAt, '<=', query.to);
+    if (query.vendorId === 'none')
+        source = source.whereNull(t => t.transactions.vendorId);
+    else if (query.vendorId)
+        source = source.where(t => t.transactions.vendorId, query.vendorId);
+    // Bound raw predicates keep application-specific search/type semantics.
+    if (query.type) {
+        source = source.whereRaw(
+            `CASE
+            WHEN category.kind = 'offset'
+                THEN CASE category.type
+                    WHEN 'expense' THEN 'income'
+                    ELSE 'expense'
+                END
+            ELSE category.type
+        END = ?`,
+            [query.type]
+        );
+    }
+    if (query.parentCategoryId) {
+        source = source.where(parentBuilder => {
+            return parentBuilder
+                .where(t => t.transactions.categoryId, query.parentCategoryId)
+                .orWhere(t => t.category.parentId, query.parentCategoryId);
+        });
+    }
+
+    const tagIds = transactionTagIds(query.tagIds);
+    for (const tagId of tagIds) {
+        source = source.whereExists(
+            schemaQuery(knex, TransactionTagLinkDbSchema)
+                .select(link => link.tagId)
+                .where(link => link.tagId, tagId)
+                .where(
+                    link => link.transactionId,
+                    source.ref(t => t.transactions.id)
+                )
+                .toKnexQuery()
+        );
+    }
+    if (query.untagged === true) {
+        source = source.whereNotExists(
+            schemaQuery(knex, TransactionTagLinkDbSchema)
+                .select(link => link.tagId)
+                .where(
+                    link => link.transactionId,
+                    source.ref(t => t.transactions.id)
+                )
+                .toKnexQuery()
+        );
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+        const pattern = transactionSearchPattern(search);
+        const searchTagIds = schemaQuery(knex, TransactionTagDbSchema)
+            .where(tag => tag.budgetId, budgetId)
+            .whereRaw("?? ILIKE ? ESCAPE '!'", ['name', pattern])
+            .select(tag => tag.id)
+            .toKnexQuery();
+        const tagSearch = schemaQuery(knex, TransactionTagLinkDbSchema)
+            .select(link => link.tagId)
+            .whereIn(link => link.tagId, searchTagIds)
+            .where(
+                link => link.transactionId,
+                source.ref(t => t.transactions.id)
+            )
+            .toKnexQuery();
+        source = source.where(searchBuilder => {
+            return searchBuilder
+                .whereRaw("category.name ILIKE ? ESCAPE '!'", [pattern])
+                .orWhereRaw(
+                    "COALESCE(parent.name || ' -> ' || category.name, category.name) ILIKE ? ESCAPE '!'",
+                    [pattern]
+                )
+                .orWhereRaw("vendor.name ILIKE ? ESCAPE '!'", [pattern])
+                .orWhereRaw("vendor.domain ILIKE ? ESCAPE '!'", [pattern])
+                .orWhereRaw("transactions.note ILIKE ? ESCAPE '!'", [pattern])
+                .orWhereExists(tagSearch);
+        });
+    }
+    return source;
+}
+
+export function transactionListCountQuery(
+    builder: ReturnType<typeof transactionListBaseQuery>
+) {
+    return builder.select(t => {
+        const total = aggregate.count(t.transactions.id);
+        return { total };
+    });
+}
+
+export function transactionListPageQuery(
+    builder: ReturnType<typeof transactionListBaseQuery>,
+    direction: 'asc' | 'desc',
+    limit: number,
+    offset: number
+) {
+    return builder
         .orderBy(t => t.transactions.occurredAt, direction)
         .orderBy(t => t.transactions.id, direction)
         .limit(limit)
@@ -263,25 +260,28 @@ function confirmedScanImagesQuery(knex: Knex) {
         .orderBy(t => t.item.decidedAt, 'desc');
 }
 
+export const scanAttachmentRead = perConnection(knex =>
+    confirmedScanImagesQuery(knex).select(t => ({
+        transactionId: t.item.transactionId,
+        budgetId: t.item.budgetId,
+        scanId: t.item.scanId,
+        scanItemId: t.item.id,
+        fileName: t.image.fileName,
+        mimeType: t.image.mimeType,
+        sizeBytes: t.image.sizeBytes,
+        createdAt: t.image.createdAt
+    }))
+);
+
 export function scanAttachmentsQuery(
     knex: Knex,
     budgetId: number,
     transactionIds: readonly number[]
 ) {
-    return confirmedScanImagesQuery(knex)
+    return scanAttachmentRead(knex)
         .where(t => t.item.budgetId, budgetId)
         .where(t => t.image.budgetId, budgetId)
-        .whereIn(t => t.item.transactionId, transactionIds)
-        .select(t => ({
-            transactionId: t.item.transactionId,
-            budgetId: t.item.budgetId,
-            scanId: t.item.scanId,
-            scanItemId: t.item.id,
-            fileName: t.image.fileName,
-            mimeType: t.image.mimeType,
-            sizeBytes: t.image.sizeBytes,
-            createdAt: t.image.createdAt
-        }));
+        .whereIn(t => t.item.transactionId, transactionIds);
 }
 
 export function transactionScanImageQuery(knex: Knex, transactionId: number) {

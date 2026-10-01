@@ -400,12 +400,14 @@ export const TransactionDbSchema = object({
         .index('idx_transactions_vendor_id')
         .optional(),
     type: string(),
-    amount: number(),
+    amount: number().decimal(18, 2),
     currency: string(),
-    defaultCurrencyAmount: number().hasColumnName('default_currency_amount'),
+    defaultCurrencyAmount: number()
+        .decimal(18, 2)
+        .hasColumnName('default_currency_amount'),
     defaultCurrency: string().hasColumnName('default_currency'),
-    exchangeRate: number().hasColumnName('exchange_rate'),
-    exchangeRateDate: string().hasColumnName('exchange_rate_date'),
+    exchangeRate: number().decimal(18, 8).hasColumnName('exchange_rate'),
+    exchangeRateDate: date().dateOnly().hasColumnName('exchange_rate_date'),
     occurredAt: date().hasColumnName('occurred_at'),
     note: string().optional(),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),
@@ -537,8 +539,8 @@ export const ExchangeRateDbSchema = object({
     id: number().primaryKey(),
     baseCurrency: string().hasColumnName('base_currency'),
     quoteCurrency: string().hasColumnName('quote_currency'),
-    rateDate: string().hasColumnName('rate_date'),
-    rate: number(),
+    rateDate: date().dateOnly().hasColumnName('rate_date'),
+    rate: number().decimal(18, 8),
     createdAt: date().hasColumnName('created_at').defaultTo('now')
 }).hasTableName('exchange_rates');
 
@@ -679,7 +681,10 @@ type DbRow<T extends Parameters<typeof defineEntity>[0]> = Readonly<
 export type UserDb = DbRow<typeof UserDbSchema>;
 export type ExternalIdentityDb = DbRow<typeof ExternalIdentityDbSchema>;
 export type BudgetDb = DbRow<typeof BudgetDbSchema>;
-export type BudgetMemberDb = DbRow<typeof BudgetMemberDbSchema>;
+export type BudgetMemberDb = Omit<
+    DbRow<typeof BudgetMemberDbSchema>,
+    'budget' | 'user'
+>;
 export type BudgetInvitationDb = DbRow<typeof BudgetInvitationDbSchema>;
 export type VendorDb = DbRow<typeof VendorDbSchema>;
 export type TelegramAccountDb = DbRow<typeof TelegramAccountDbSchema>;
@@ -707,16 +712,9 @@ export type CategoryDb = Readonly<
 export type TransactionDb = Readonly<
     Omit<
         InferDatabaseRow<typeof TransactionDbSchema>,
-        | 'amount'
-        | 'category'
-        | 'defaultCurrencyAmount'
-        | 'exchangeRate'
-        | 'type'
+        'category' | 'vendor' | 'type'
     > & {
-        amount: string | number;
         category?: CategoryDb | null;
-        defaultCurrencyAmount: string | number;
-        exchangeRate: string | number;
         type: 'expense' | 'income';
     }
 >;

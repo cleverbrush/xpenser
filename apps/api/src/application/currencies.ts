@@ -219,7 +219,7 @@ export async function getExchangeRate(
     const cached = await db.exchangeRates
         .where(rate => rate.baseCurrency, base)
         .where(rate => rate.quoteCurrency, quote)
-        .where(rate => rate.rateDate, date)
+        .where(rate => rate.rateDate, new Date(date))
         .first();
 
     if (cached) {
@@ -252,7 +252,7 @@ export async function getExchangeRate(
         .ignore({
             baseCurrency: base,
             quoteCurrency: quote,
-            rateDate,
+            rateDate: new Date(rateDate),
             rate: payload.rate
         });
 

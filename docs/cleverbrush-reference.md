@@ -6,6 +6,9 @@ worth copying and the checks that keep those patterns from drifting.
 
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
+All directly used Framework packages are pinned to
+`0.0.0-beta-20261001112349` (the v5 immutable-query beta).
+
 ## Learning Path
 
 1. Start with `packages/contracts/src/api.ts` and
@@ -89,7 +92,7 @@ Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framewo
 
 ## Form Ownership
 
-Xpenser uses Framework `0.0.0-beta-20260930081248` for end-to-end field
+Xpenser uses Framework for end-to-end field
 validation. Feature actions live in `apps/web/lib/actions/<feature>.ts`;
 `actions.ts` is only a compatibility facade. Read `form-errors.ts` for
 the server boundary and `form-result.ts` for the serializable result types.
@@ -155,6 +158,50 @@ permissions, and additional invalidation paths.
   number selects), explicitly type custom callback parameters and update the
   corresponding headless binding. This avoids ambiguous callback inference
   while preserving schema-checked values.
+
+## Immutable Reads and Synchronous Mapping
+
+- Configuration calls on Framework queries return new builders. Chain them,
+  assign conditional branches, and return predicate/include callback results.
+  Native Knex callbacks still follow Knex's mutable semantics.
+- `application/entity-reads.ts` and `transaction-queries.ts` own reusable
+  projections. `read-models.ts` caches definitions in a `WeakMap` keyed by the
+  Knex connection; transaction connections get separate entries. It never
+  caches rows or request-specific authorization predicates.
+- Branch the same filtered transaction query into count and page queries.
+  Numbered pagination, stable occurrence/id ordering, batched enrichment, and
+  budget access checks remain application responsibilities. Correlated
+  subqueries use `.ref()` instead of assuming physical table names are aliases.
+- `application/mappings/` derives runtime source schemas from `.rowSchema` and
+  adds only application enrichment fields. Register mappings once per connection
+  and use `getSyncMapper()` for pure transformations. Fetch enrichment first;
+  keep `Promise.all` for independent I/O, not synchronous row conversion.
+- Database metadata must reflect storage: amounts use `decimal(18, 2)`, rates
+  use `decimal(18, 8)`, and rate dates use `date().dateOnly()`. These match the
+  existing migrations. Database decimals are exact strings and dates are
+  decoded `Date` values; DTO mappers explicitly retain numeric amounts/rates
+  and `YYYY-MM-DD` rate dates. Nullable database fields are normalized only
+  where public contracts require optional fields.
+- API-key listing projects only public fields, and filters owner/revocation in
+  SQL. Avatar summaries exclude passwords and stored image bodies. Mapping
+  metadata and synchronous conversion do not execute SQL.
+
+Example: independently scoped reads and a reusable synchronous mapper:
+
+```ts
+const keys = await apiKeyRead(db.knex)
+    .where(key => key.userId, userId)
+    .whereNull(key => key.revokedAt)
+    .orderBy(key => key.createdAt, 'desc');
+return keys.map(apiKeyMapping(db.knex));
+```
+
+Keep `read-models.test.ts`, `typed-query-inference.test.ts`, and the real
+PostgreSQL suite (`npm run test:queries:integration`) alongside unit tests.
+The integration command requires `QUERY_TEST_DATABASE_URL` for a dedicated
+`xpenser_queries` database and creates/drops its own random schema. It checks
+decoded row schemas, isolated query branches, write/rollback behavior, safe
+projections, page/count agreement, and bounded enrichment query counts.
 
 ## Cache Ownership
 

@@ -36,9 +36,11 @@ describe('budget membership database queries', () => {
             '"budget"."country_code" as "countryCode"'
         );
         expect(compiled.sql).toContain(
-            '"budget"."created_at" as "budgetCreatedAt"'
+            'cast("budget"."created_at" as text) as "budgetCreatedAt"'
         );
-        expect(compiled.sql).toContain('"member"."created_at" as "createdAt"');
+        expect(compiled.sql).toContain(
+            'cast("member"."created_at" as text) as "createdAt"'
+        );
         expect(compiled.sql).toContain('"member"."user_id" = ?');
         expect(compiled.sql).toContain('"budget"."archived_at" is null');
         expect(compiled.sql).toMatch(
@@ -68,17 +70,17 @@ describe('budget membership database queries', () => {
             .toKnexQuery()
             .toSQL();
         expect(compiled.sql).toContain('"user_id" = ?');
-        expect(compiled.sql).toContain(
-            '"budget_id" in (select "id" from "budgets" where "archived_at" is null)'
+        expect(compiled.sql).toMatch(
+            /"budget_id" in \(select .*"id" as "id" from .*"budgets".*"archived_at" is null/
         );
         expect(compiled.sql).toContain('lower("display_name") = lower(?)');
-        expect(compiled.sql).toContain('not "budget_id" = ?');
+        expect(compiled.sql).toMatch(/not "[^"]+"\."budget_id" = \?/);
         expect(compiled.sql).toMatch(/limit \?$/);
         expect(compiled.sql).not.toMatch(/like/i);
         expect(compiled.bindings).toEqual([7, 'Travel_%', 9, 1]);
         expect(
             uniqueActiveBudgetNameQuery(db, 7, 'Travel').toQuery()
-        ).not.toContain('not "budget_id"');
+        ).not.toMatch(/not "[^"]+"\."budget_id"/);
         await knex.destroy();
     });
 
@@ -113,7 +115,7 @@ describe('budget membership database queries', () => {
         expect(compiled.sql).toContain('"archived_at" is null');
         expect(compiled.sql).toContain('"budget_id" as "id"');
         expect(compiled.sql).toContain('"display_name" as "name"');
-        expect(compiled.sql).toMatch(/order by "display_name" asc$/);
+        expect(compiled.sql).toMatch(/order by "[^"]+"\."display_name" asc$/);
         expect(compiled.sql).not.toContain('originalQuery');
         expect(compiled.bindings).toEqual([7]);
         await knex.destroy();

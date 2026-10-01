@@ -5,17 +5,11 @@ import {
     getTableName,
     query as schemaQuery
 } from '@cleverbrush/knex-schema';
-import { mapper } from '@cleverbrush/mapper';
-import { date, number, object, string } from '@cleverbrush/schema';
 import type {
     TransactionTag,
     TransactionTagListQuery
 } from '@xpenser/contracts';
-import {
-    FieldLimits,
-    TransactionTagLimits,
-    TransactionTagSchema
-} from '@xpenser/contracts';
+import { FieldLimits, TransactionTagLimits } from '@xpenser/contracts';
 import type { Knex } from 'knex';
 import {
     type AppDb,
@@ -24,6 +18,7 @@ import {
     TransactionTagLinkDbSchema
 } from '../db/schemas.js';
 import { resolveBudgetAccess } from './budgets.js';
+import { transactionTagMapping } from './mappings/transaction-tags.js';
 
 export class TransactionTagError extends Error {}
 
@@ -79,32 +74,11 @@ export function normalizeTransactionTagAssignments(
     return assignments;
 }
 
-const TransactionTagMappingSourceSchema = object({
-    id: number(),
-    budgetId: number(),
-    name: string(),
-    transactionCount: number(),
-    createdAt: date(),
-    updatedAt: date()
-});
-
-const mapTransactionTagRow = mapper()
-    .configure(
-        TransactionTagMappingSourceSchema,
-        TransactionTagSchema,
-        mapping =>
-            mapping
-                .for(target => target.id)
-                .compute(source => Number(source.id))
-                .for(target => target.budgetId)
-                .compute(source => Number(source.budgetId))
-    )
-    .getMapper(TransactionTagMappingSourceSchema, TransactionTagSchema);
-
 export function mapTransactionTag(
+    knex: Knex,
     row: TransactionTagMappingRow
-): Promise<TransactionTag> {
-    return mapTransactionTagRow(row);
+): TransactionTag {
+    return transactionTagMapping(knex)(row);
 }
 
 export function transactionTagListQuery(
@@ -113,20 +87,19 @@ export function transactionTagListQuery(
     search: string | undefined,
     limit: number
 ) {
-    const page = schemaQuery(knex, TransactionTagDbSchema)
+    let page = schemaQuery(knex, TransactionTagDbSchema)
         .where(t => t.budgetId, budgetId)
         .orderBy(t => t.name, 'asc')
         .limit(limit)
         .select(t => t.id);
-    if (search) page.where(t => t.name, 'ilike', `%${search}%`);
+    if (search) page = page.where(t => t.name, 'ilike', `%${search}%`);
     return (
         schemaQuery(knex, alias(TransactionTagDbSchema, 'tag'))
             .leftJoin(alias(TransactionTagLinkDbSchema, 'link'), t =>
                 eq(t.tag.id, t.link.tagId)
             )
             // Limit tag IDs before aggregation so unrequested tags need no counts.
-            // Aliased whereIn currently accepts values only, not subqueries.
-            .apply(builder => builder.whereIn('tag.id', page.toKnexQuery()))
+            .whereIn(t => t.tag.id, page.toKnexQuery())
             .groupBy(
                 t => t.tag.id,
                 t => t.tag.budgetId,
@@ -165,7 +138,7 @@ export async function listTransactionTags(
     );
 
     const rows = await builder;
-    return Promise.all(rows.map(mapTransactionTag));
+    return rows.map(transactionTagMapping(db.knex));
 }
 
 export async function getOrCreateTransactionTag(
@@ -204,13 +177,15 @@ export async function pruneUnusedTransactionTags(
     knex: Knex,
     budgetId: number
 ): Promise<void> {
-    const tagTable = getTableName(TransactionTagDbSchema);
-    const linkTable = getTableName(TransactionTagLinkDbSchema);
+    const tags = schemaQuery(knex, TransactionTagDbSchema);
     const linkQuery = schemaQuery(knex, TransactionTagLinkDbSchema)
         .select(link => link.tagId)
-        .whereRaw('??.?? = ??.??', [linkTable, 'tag_id', tagTable, 'id'])
+        .where(
+            link => link.tagId,
+            tags.ref(tag => tag.id)
+        )
         .toKnexQuery();
-    await schemaQuery(knex, TransactionTagDbSchema)
+    await tags
         .where(tag => tag.budgetId, budgetId)
         .whereNotExists(linkQuery)
         .delete();

@@ -82,6 +82,15 @@ test('native authentication preserves API-key transports, precedence, and revoca
             apiKey: { id: number };
         };
         keyId = apiKey.id;
+        const listed = await request.get(`${apiBase}/users/me/api-keys`, { headers });
+        expect(listed.status()).toBe(200);
+        const keys = await listed.json();
+        expect(keys).toContainEqual(apiKey);
+        for (const entry of keys) {
+            expect(Object.keys(entry).sort()).toEqual(
+                ['createdAt', 'id', 'keyPrefix', 'name', ...(entry.lastUsedAt ? ['lastUsedAt'] : [])].sort()
+            );
+        }
 
         const credentials: Record<string, string>[] = [
             headers,
@@ -110,6 +119,9 @@ test('native authentication preserves API-key transports, precedence, and revoca
         );
         expect(removed.status()).toBe(204);
         revoked = true;
+        const remaining = await request.get(`${apiBase}/users/me/api-keys`, { headers });
+        expect(remaining.status()).toBe(200);
+        expect((await remaining.json()).map((entry: { id: number }) => entry.id)).not.toContain(keyId);
         const revokedCredentials: Record<string, string>[] = [
             { ...headers, 'x-api-key': key },
             { authorization: `Bearer ${key}` }

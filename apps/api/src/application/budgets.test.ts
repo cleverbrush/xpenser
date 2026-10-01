@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import knexFactory from 'knex';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
 import type {
     AppDb,
@@ -25,6 +26,9 @@ import {
     updateBudget,
     updateBudgetMember
 } from './budgets.js';
+
+const queryConnection = knexFactory({ client: 'pg' });
+afterAll(() => queryConnection.destroy());
 
 const sendEmailMock = vi.hoisted(() => vi.fn());
 
@@ -128,11 +132,12 @@ vi.mock('./budget-queries.js', () => ({
         status: string,
         mainBudgetId: number
     ) => {
-        const query = new BudgetListQuery(dataForQuery(knex))
+        let query = new BudgetListQuery(dataForQuery(knex))
             .where('member.user_id', userId)
             .orderByRaw('', [mainBudgetId]);
-        if (status === 'active') query.whereNull('budget.archived_at');
-        if (status === 'archived') query.whereNotNull('budget.archived_at');
+        if (status === 'active') query = query.whereNull('budget.archived_at');
+        if (status === 'archived')
+            query = query.whereNotNull('budget.archived_at');
         return query.select();
     },
     budgetMembersQuery: (knex: object, budgetId: number) =>
@@ -146,12 +151,12 @@ vi.mock('./budget-queries.js', () => ({
         name: string,
         excludingBudgetId?: number
     ) => {
-        const query = new BudgetListQuery(dataForQuery(db))
+        let query = new BudgetListQuery(dataForQuery(db))
             .where('member.user_id', userId)
             .whereNull('budget.archived_at')
             .whereRaw('', [name]);
         if (excludingBudgetId !== undefined)
-            query.whereNot('member.budget_id', excludingBudgetId);
+            query = query.whereNot('member.budget_id', excludingBudgetId);
         return query;
     },
     budgetAdminCountQuery: async (db: object, budgetId: number) =>
@@ -172,55 +177,63 @@ class BudgetListQuery {
     constructor(private readonly data: TestData) {}
 
     join(table?: string): BudgetListQuery {
+        const copy = Object.assign(new BudgetListQuery(this.data), this);
         if (table === 'users as user') {
-            this.joinedUsers = true;
+            copy.joinedUsers = true;
         }
-        return this;
+        return copy;
     }
 
     where(column: string, value: unknown): BudgetListQuery {
+        const copy = Object.assign(new BudgetListQuery(this.data), this);
         if (column === 'member.user_id') {
-            this.userId = Number(value);
+            copy.userId = Number(value);
         }
         if (column === 'member.budget_id') {
-            this.budgetId = Number(value);
+            copy.budgetId = Number(value);
         }
-        return this;
+        return copy;
     }
 
     whereNull(column: string): BudgetListQuery {
+        const copy = Object.assign(new BudgetListQuery(this.data), this);
         if (column === 'budget.archived_at') {
-            this.archived = 'active';
+            copy.archived = 'active';
         }
-        return this;
+        return copy;
     }
 
     whereNotNull(column: string): BudgetListQuery {
+        const copy = Object.assign(new BudgetListQuery(this.data), this);
         if (column === 'budget.archived_at') {
-            this.archived = 'archived';
+            copy.archived = 'archived';
         }
-        return this;
+        return copy;
     }
 
     orderByRaw(_sql: string, values: readonly unknown[]): BudgetListQuery {
-        this.mainBudgetId = Number(values[0] ?? 0);
-        return this;
+        const copy = Object.assign(new BudgetListQuery(this.data), this);
+        copy.mainBudgetId = Number(values[0] ?? 0);
+        return copy;
     }
 
     orderBy(): BudgetListQuery {
-        return this;
+        const copy = Object.assign(new BudgetListQuery(this.data), this);
+        return copy;
     }
 
     whereRaw(_sql: string, values: readonly unknown[]): BudgetListQuery {
-        this.displayName = String(values[0] ?? '').toLowerCase();
-        return this;
+        const copy = Object.assign(new BudgetListQuery(this.data), this);
+        copy.displayName = String(values[0] ?? '').toLowerCase();
+        return copy;
     }
 
     whereNot(column: string, value: unknown): BudgetListQuery {
+        const copy = Object.assign(new BudgetListQuery(this.data), this);
         if (column === 'member.budget_id') {
-            this.excludingBudgetId = Number(value);
+            copy.excludingBudgetId = Number(value);
         }
-        return this;
+        return copy;
     }
 
     private rows() {
@@ -615,73 +628,79 @@ function makeDb(overrides: Partial<TestData> = {}) {
                 value: TValue
             ) => new TestQuery(data.invitations).where(selector, value)
         },
-        knex: (table: string) => {
-            if (table === 'budget_members as member') {
-                return new BudgetListQuery(data);
-            }
-            if (table === 'budget_members') {
-                return {
-                    insert: (row: Record<string, unknown>) => ({
-                        onConflict: () => ({
-                            merge: async () => {
-                                const budgetId = Number(row.budget_id);
-                                const userId = Number(row.user_id);
-                                const next = member(
-                                    budgetId,
-                                    userId,
-                                    row.role === 'admin' ? 'admin' : 'member',
-                                    {
-                                        displayName: String(
-                                            row.display_name ?? 'Shared budget'
-                                        ),
-                                        canCreateTransactions: Boolean(
-                                            row.can_create_transactions
-                                        ),
-                                        canUpdateTransactions: Boolean(
-                                            row.can_update_transactions
-                                        ),
-                                        canDeleteTransactions: Boolean(
-                                            row.can_delete_transactions
-                                        ),
-                                        canManageCategories: Boolean(
-                                            row.can_manage_categories
-                                        ),
-                                        canManageVendors: Boolean(
-                                            row.can_manage_vendors
-                                        ),
-                                        canManageTags: Boolean(
-                                            row.can_manage_tags
-                                        ),
-                                        canManageMembers: Boolean(
-                                            row.can_manage_members
-                                        )
+        knex: Object.setPrototypeOf(
+            Object.assign((table: string) => {
+                if (table === 'budget_members as member') {
+                    return new BudgetListQuery(data);
+                }
+                if (table === 'budget_members') {
+                    return Object.assign(queryConnection(table), {
+                        insert: (row: Record<string, unknown>) => ({
+                            onConflict: () => ({
+                                merge: async () => {
+                                    const budgetId = Number(row.budget_id);
+                                    const userId = Number(row.user_id);
+                                    const next = member(
+                                        budgetId,
+                                        userId,
+                                        row.role === 'admin'
+                                            ? 'admin'
+                                            : 'member',
+                                        {
+                                            displayName: String(
+                                                row.display_name ??
+                                                    'Shared budget'
+                                            ),
+                                            canCreateTransactions: Boolean(
+                                                row.can_create_transactions
+                                            ),
+                                            canUpdateTransactions: Boolean(
+                                                row.can_update_transactions
+                                            ),
+                                            canDeleteTransactions: Boolean(
+                                                row.can_delete_transactions
+                                            ),
+                                            canManageCategories: Boolean(
+                                                row.can_manage_categories
+                                            ),
+                                            canManageVendors: Boolean(
+                                                row.can_manage_vendors
+                                            ),
+                                            canManageTags: Boolean(
+                                                row.can_manage_tags
+                                            ),
+                                            canManageMembers: Boolean(
+                                                row.can_manage_members
+                                            )
+                                        }
+                                    );
+                                    const existing = data.members.find(
+                                        item =>
+                                            item.budgetId === budgetId &&
+                                            item.userId === userId
+                                    );
+                                    if (existing) {
+                                        Object.assign(existing, next);
+                                    } else {
+                                        data.members.push(next);
                                     }
-                                );
-                                const existing = data.members.find(
-                                    item =>
-                                        item.budgetId === budgetId &&
-                                        item.userId === userId
-                                );
-                                if (existing) {
-                                    Object.assign(existing, next);
-                                } else {
-                                    data.members.push(next);
                                 }
-                            }
+                            })
                         })
-                    })
-                };
-            }
-            if (table === 'transactions') {
-                const query = {
-                    whereIn: () => query,
-                    orderBy: () => query,
-                    select: async () => []
-                };
-                return query;
-            }
-            throw new Error(`Unexpected table ${table}`);
-        },
+                    });
+                }
+                if (table === 'transactions') {
+                    const query = {
+                        whereIn: () => query,
+                        orderBy: () => query,
+                        select: async () => []
+                    };
+                    return query;
+                }
+                return queryConnection(table);
+            }, queryConnection),
+            queryConnection
+        ),
         transaction: async <T>(callback: (trx: AppDb) => Promise<T>) =>
             callback(db)
     });

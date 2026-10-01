@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import knexFactory from 'knex';
+import { afterAll, describe, expect, it } from 'vitest';
 import type { CategoryDb } from '../db/schemas.js';
 import {
     CategoryHierarchyError,
@@ -12,6 +13,9 @@ import {
     listCategories,
     moveAndDeleteCategory
 } from './categories.js';
+
+const queryConnection = knexFactory({ client: 'pg' });
+afterAll(() => queryConnection.destroy());
 
 describe('category domain errors', () => {
     it('has explicit errors for delete preconditions', () => {
@@ -256,6 +260,7 @@ function categoryRow(
 }
 
 type TestDb = {
+    knex: typeof queryConnection;
     budgetMembers: {
         where(): { where(): { first(): Promise<object> } };
     };
@@ -305,6 +310,7 @@ function testDb(
         updatedAt: budget.updatedAt
     };
     return {
+        knex: queryConnection,
         budgets: {
             find: async () => budget
         },

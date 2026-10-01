@@ -1,13 +1,12 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { mapper } from '@cleverbrush/mapper';
-import { date, number, object, string } from '@cleverbrush/schema';
 import type {
     ApiKey,
     CreateApiKeyBody,
     CreateApiKeyResponse
 } from '@xpenser/contracts';
-import { ApiKeySchema } from '@xpenser/contracts';
 import type { ApiKeyDb, AppDb, UserDb } from '../db/schemas.js';
+import { apiKeyRead } from './entity-reads.js';
+import { apiKeyMapping } from './mappings/api-keys.js';
 
 const keyPattern = /^xpk_([a-f0-9]{24})_([A-Za-z0-9_-]{43})$/;
 
@@ -25,24 +24,6 @@ export type ApiKeyPrincipal = {
 };
 
 export class ApiKeyNotFoundError extends Error {}
-
-const ApiKeyMappingSourceSchema = object({
-    id: number(),
-    name: string(),
-    keyPrefix: string(),
-    createdAt: date(),
-    lastUsedAt: date().optional()
-});
-const mapApiKeyRow = mapper()
-    .configure(ApiKeyMappingSourceSchema, ApiKeySchema, mapping => mapping)
-    .getMapper(ApiKeyMappingSourceSchema, ApiKeySchema);
-
-function mapApiKey(row: ApiKeyDb): Promise<ApiKey> {
-    return mapApiKeyRow({
-        ...row,
-        lastUsedAt: row.lastUsedAt ?? undefined
-    });
-}
 
 export function generateApiKeyMaterial(): ApiKeyMaterial {
     const keyId = randomBytes(12).toString('hex');
@@ -85,10 +66,11 @@ export async function listApiKeys(
     db: AppDb,
     userId: number
 ): Promise<ApiKey[]> {
-    const rows = (await db.apiKeys
+    const rows = await apiKeyRead(db.knex)
         .where(key => key.userId, userId)
-        .orderBy(key => key.createdAt, 'desc')) as ApiKeyDb[];
-    return Promise.all(rows.filter(row => !row.revokedAt).map(mapApiKey));
+        .whereNull(key => key.revokedAt)
+        .orderBy(key => key.createdAt, 'desc');
+    return rows.map(apiKeyMapping(db.knex));
 }
 
 export async function createApiKey(
@@ -109,7 +91,7 @@ export async function createApiKey(
 
     return {
         key: material.key,
-        apiKey: await mapApiKey(created)
+        apiKey: apiKeyMapping(db.knex)(created)
     };
 }
 

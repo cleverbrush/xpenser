@@ -4,11 +4,19 @@ import { createDb } from '@cleverbrush/orm';
 import knexFactory, { type Knex } from 'knex';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+    authenticateApiKey,
+    createApiKey,
+    listApiKeys,
+    revokeApiKey
+} from '../src/application/api-keys.js';
+import {
     budgetAdminCountQuery,
     budgetMembershipsQuery,
     budgetMembersQuery
 } from '../src/application/budget-queries.js';
 import { BudgetAccessError } from '../src/application/budgets.js';
+import { getExchangeRate } from '../src/application/currencies.js';
+import { apiKeyRead } from '../src/application/entity-reads.js';
 import {
     scanAttachmentsQuery,
     type TransactionFilterQuery,
@@ -19,12 +27,16 @@ import {
     transactionTagCountsQuery,
     transactionTagsQuery
 } from '../src/application/transaction-queries.js';
-import { transactionTagListQuery } from '../src/application/transaction-tags.js';
+import {
+    pruneUnusedTransactionTags,
+    transactionTagListQuery
+} from '../src/application/transaction-tags.js';
 import {
     exportTransactionsCsv,
     getTransactionScanImage,
     listTransactions
 } from '../src/application/transactions.js';
+import type { Config } from '../src/config.js';
 import { entityMap } from '../src/db/schemas.js';
 
 const connection = process.env.QUERY_TEST_DATABASE_URL;
@@ -254,6 +266,119 @@ afterAll(async () => {
 });
 
 describe('published Framework queries on PostgreSQL', () => {
+    it('isolates API-key projections and preserves create/authenticate/revoke', async () => {
+        const rollback = new Error('key rollback');
+        await expect(
+            db.transaction(async tx => {
+                const owned = await createApiKey(tx, 1, {
+                    name: 'Owned test key'
+                });
+                const foreign = await createApiKey(tx, 3, {
+                    name: 'Foreign test key'
+                });
+                expect(apiKeyRead(tx.knex)).not.toBe(apiKeyRead(knex));
+                expect(await listApiKeys(tx, 1)).toEqual([owned.apiKey]);
+                expect(await listApiKeys(tx, 3)).toEqual([foreign.apiKey]);
+                const rows = await apiKeyRead(tx.knex).where(k => k.userId, 1);
+                expect(
+                    rows.every(
+                        row => apiKeyRead(tx.knex).rowSchema.validate(row).valid
+                    )
+                ).toBe(true);
+                expect(rows[0]).not.toHaveProperty('secretHash');
+                expect(rows[0]).not.toHaveProperty('keyId');
+                await expect(
+                    authenticateApiKey(tx, owned.key)
+                ).resolves.toMatchObject({
+                    userId: 1,
+                    apiKeyId: owned.apiKey.id
+                });
+                expect(
+                    (await listApiKeys(tx, 1))[0]?.lastUsedAt
+                ).toBeInstanceOf(Date);
+                await revokeApiKey(tx, 1, owned.apiKey.id);
+                expect(await listApiKeys(tx, 1)).toEqual([]);
+                expect(await authenticateApiKey(tx, owned.key)).toBeUndefined();
+                expect(await listApiKeys(tx, 3)).toHaveLength(1);
+                throw rollback;
+            })
+        ).rejects.toBe(rollback);
+        expect(await listApiKeys(db, 1)).toEqual([]);
+    });
+
+    it('decodes decimal/date-only write-returning rows without changing DTOs', async () => {
+        const rollback = new Error('typed write rollback');
+        await expect(
+            db.transaction(async tx => {
+                const inserted = await tx.transactions.insert({
+                    budgetId: 1,
+                    userId: 1,
+                    categoryId: 11,
+                    type: 'expense',
+                    amount: 12.34,
+                    currency: 'USD',
+                    defaultCurrencyAmount: 12.34,
+                    defaultCurrency: 'USD',
+                    exchangeRate: 1.23456789,
+                    exchangeRateDate: new Date('2026-06-01'),
+                    occurredAt: new Date(timestamp)
+                });
+                expect(inserted).toMatchObject({
+                    amount: '12.34',
+                    exchangeRate: '1.23456789',
+                    exchangeRateDate: new Date('2026-06-01'),
+                    note: null,
+                    vendorId: null
+                });
+                const base = transactionListBaseQuery(tx.knex, 1, {
+                    direction: 'asc'
+                }).where(t => t.transactions.id, inserted.id);
+                const rows = await base;
+                expect(rows).toHaveLength(1);
+                expect(base.rowSchema.validate(rows[0]!).valid).toBe(true);
+                const other = transactionListBaseQuery(tx.knex, 3, {
+                    direction: 'asc'
+                });
+                expect((await other).map(r => r.id)).toEqual([301]);
+                expect(await transactionListCountQuery(base).first()).toEqual({
+                    total: 1
+                });
+                throw rollback;
+            })
+        ).rejects.toBe(rollback);
+    });
+
+    it('reads stored rate dates and prunes only unused tags in the selected budget', async () => {
+        const rollback = new Error('rate and tag rollback');
+        await expect(
+            db.transaction(async tx => {
+                const rate = await tx.exchangeRates.insert({
+                    baseCurrency: 'USD',
+                    quoteCurrency: 'EUR',
+                    rateDate: new Date('2026-06-01'),
+                    rate: 1.23456789
+                });
+                expect(rate.rate).toBe('1.23456789');
+                expect(rate.rateDate).toEqual(new Date('2026-06-01'));
+                expect(
+                    await getExchangeRate(
+                        tx,
+                        {} as Config,
+                        'USD',
+                        'EUR',
+                        '2026-06-01'
+                    )
+                ).toEqual({ rate: 1.23456789, rateDate: '2026-06-01' });
+                await pruneUnusedTransactionTags(tx.knex, 1);
+                expect(
+                    (await tx.transactionTags.orderBy(t => t.id, 'asc')).map(
+                        t => t.id
+                    )
+                ).toEqual([40, 41, 43]);
+                throw rollback;
+            })
+        ).rejects.toBe(rollback);
+    });
     it('keeps main-budget-first sorting, archive filters and membership scope', async () => {
         expect(
             (await budgetMembershipsQuery(knex, 1, 'active', 1)).map(
@@ -370,10 +495,12 @@ describe('published Framework queries on PostgreSQL', () => {
         expect(rows.map(r => r.id)).toEqual(ids);
         expect(
             (
-                await transactionListCountQuery(knex, 1, {
-                    direction: 'desc',
-                    ...filter
-                }).first()
+                await transactionListCountQuery(
+                    transactionListBaseQuery(knex, 1, {
+                        direction: 'desc',
+                        ...filter
+                    })
+                ).first()
             )?.total
         ).toBe(ids.length);
     });
@@ -389,6 +516,9 @@ describe('published Framework queries on PostgreSQL', () => {
             categoryParentName: null
         });
         expect(rows.find(r => r.id === 101)?.amount).toBe('12.34');
+        expect(rows.find(r => r.id === 101)?.exchangeRateDate).toEqual(
+            new Date('2026-06-01')
+        );
         expect(
             await listTransactions(db, 1, {
                 budgetId: 1,
