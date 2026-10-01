@@ -2,8 +2,8 @@
 title: "More resilient receipt scanning"
 slug: durable-receipt-scanning
 description: "Receipt scan jobs now use PostgreSQL-backed progress and bounded retries, helping scans recover from API interruptions without duplicate saved drafts."
-heroImage: ""
-heroImageAlt: ""
+heroImage: "/blog/durable-receipt-scanning.png"
+heroImageAlt: "A synthetic receipt scanned into a $12.34 draft, ready for review before confirmation."
 publishedAt: 2026-10-01
 updatedAt: 2026-10-01
 targetKeyword: "reliable receipt scanning"
@@ -12,6 +12,8 @@ keywords:
   - "self-hosted expense tracker"
   - "automatic scan retries"
 draft: false
+sourcePrNumber: "100"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/100"
 ---
 
 Reliable receipt scanning should not depend on one API process staying alive.
