@@ -679,12 +679,14 @@ function parseInsights(value: string): ReportInsights {
 
 async function generateInsights(
     config: Config,
-    analytics: ReportAnalytics
+    analytics: ReportAnalytics,
+    signal?: AbortSignal
 ): Promise<ReportInsights> {
     const parsed = await generateStructuredJson<Partial<ReportInsights>>(
         config,
         {
             input: emailReportOpenAiPayload(analytics),
+            signal,
             model: config.openai.reportModel,
             schema: {
                 additionalProperties: false,
@@ -870,9 +872,11 @@ async function sendReportEmail(
     config: Config,
     user: ReportUser,
     analytics: ReportAnalytics,
-    insights: ReportInsights
+    insights: ReportInsights,
+    signal?: AbortSignal
 ): Promise<string | undefined> {
     return sendProviderEmail(config, {
+        signal,
         html: emailHtml(config, user, analytics, insights),
         subject: reportSubject(analytics, insights),
         text: emailText(config, user, analytics, insights),
@@ -937,13 +941,14 @@ async function claimDelivery(
             },
             {
                 where: (builder, { column }) => {
+                    // Qualify target columns: PostgreSQL also exposes excluded here.
                     builder
                         .where(
-                            column(delivery => delivery.status),
+                            `${tableName}.${column(delivery => delivery.status)}`,
                             'failed'
                         )
                         .where(
-                            column(delivery => delivery.attempts),
+                            `${tableName}.${column(delivery => delivery.attempts)}`,
                             '<',
                             config.emailReports.maxAttempts
                         );
@@ -1000,8 +1005,10 @@ async function sendEmailReport(
     budget: Pick<BudgetDb, 'id' | 'name'>,
     type: EmailReportType,
     trigger: ReportTrigger,
-    now: Date
+    now: Date,
+    signal?: AbortSignal
 ): Promise<ReportSendOutcome> {
+    signal?.throwIfAborted();
     requireReportConfig(config);
     const period = emailReportPeriod(type, now, user.timezone);
     const deliveryId = await claimDelivery(
@@ -1024,7 +1031,9 @@ async function sendEmailReport(
         };
     }
 
+    let deliveryStarted = false;
     try {
+        signal?.throwIfAborted();
         const analytics = await buildReportAnalytics(
             db,
             user,
@@ -1044,12 +1053,16 @@ async function sendEmailReport(
             };
         }
 
-        const insights = await generateInsights(config, analytics);
+        signal?.throwIfAborted();
+        const insights = await generateInsights(config, analytics, signal);
+        signal?.throwIfAborted();
+        deliveryStarted = true;
         const messageId = await sendReportEmail(
             config,
             user,
             analytics,
-            insights
+            insights,
+            signal
         );
         await markDeliverySent(knex, deliveryId, messageId);
         return {
@@ -1060,7 +1073,10 @@ async function sendEmailReport(
             to: period.to
         };
     } catch (err) {
-        await markDeliveryFailed(knex, deliveryId, err);
+        // An aborted provider request may already have delivered. Keep that ledger
+        // entry pending for reconciliation rather than silently scheduling a resend.
+        if (!(deliveryStarted && signal?.aborted))
+            await markDeliveryFailed(knex, deliveryId, err);
         throw err;
     }
 }
@@ -1092,7 +1108,8 @@ export async function sendDueEmailReports(
     knex: Knex,
     config: Config,
     logger: Logger,
-    now = new Date()
+    now = new Date(),
+    signal?: AbortSignal
 ): Promise<void> {
     if (!config.emailReports.enabled || !config.emailReports.schedulerEnabled) {
         return;
@@ -1100,6 +1117,7 @@ export async function sendDueEmailReports(
 
     const users = await listReportUsers(knex);
     for (const user of users) {
+        signal?.throwIfAborted();
         const types = dueEmailReportTypes(
             user,
             now,
@@ -1108,6 +1126,7 @@ export async function sendDueEmailReports(
         const budgets = await listReportBudgets(knex, user.id);
         for (const type of types) {
             for (const budget of budgets) {
+                signal?.throwIfAborted();
                 try {
                     await sendEmailReport(
                         db,
@@ -1117,9 +1136,11 @@ export async function sendDueEmailReports(
                         budget,
                         type,
                         'scheduled',
-                        now
+                        now,
+                        signal
                     );
                 } catch (err) {
+                    signal?.throwIfAborted();
                     logger.error('Email report delivery failed', {
                         BudgetId: budget.id,
                         Error: err instanceof Error ? err.message : String(err),

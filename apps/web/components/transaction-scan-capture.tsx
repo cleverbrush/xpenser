@@ -100,7 +100,7 @@ const maxImageBytes = TransactionScanLimits.maxImageBytes;
 const uploadChunkBytes = TransactionScanLimits.uploadChunkBytes;
 const allowedScanImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
 const scanProgressPollIntervalMs = 750;
-const maxScanStatusFetchFailures = 3;
+const scanStatusReconnectGraceMs = 60_000;
 const scanProgressConnectionError =
     'Could not connect to scan progress. Try again.';
 const analyzingMessages = [
@@ -236,7 +236,8 @@ async function fetchScanJobStatus(
     job: TransactionScanJobResponse
 ): Promise<TransactionScanProgressEvent> {
     const response = await fetch(scanStatusUrl(job), {
-        headers: { Accept: 'application/json' }
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000)
     });
     const result = (await response
         .json()
@@ -250,23 +251,32 @@ async function fetchScanJobStatus(
     return event;
 }
 
-async function waitForScanJob(
+/** Recover brief API interruptions without resubmitting the image or creating a second job. */
+export async function waitForScanJob(
     job: TransactionScanJobResponse,
     onProgress: (update: ScanProgressUpdate) => void
 ): Promise<TransactionScanResponse> {
     let fetchFailures = 0;
+    let disconnectedAt: number | undefined;
 
     for (;;) {
         let event: TransactionScanProgressEvent;
         try {
             event = await fetchScanJobStatus(job);
             fetchFailures = 0;
+            disconnectedAt = undefined;
         } catch {
             fetchFailures += 1;
-            if (fetchFailures >= maxScanStatusFetchFailures) {
+            disconnectedAt ??= Date.now();
+            if (Date.now() - disconnectedAt >= scanStatusReconnectGraceMs) {
                 throw new Error(scanProgressConnectionError);
             }
-            await sleep(scanProgressPollIntervalMs);
+            await sleep(
+                Math.min(
+                    scanProgressPollIntervalMs * 2 ** (fetchFailures - 1),
+                    5_000
+                )
+            );
             continue;
         }
 

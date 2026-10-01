@@ -823,7 +823,9 @@ export const api = defineApi({
             .responses({
                 202: TransactionScanJobResponseSchema,
                 400: ErrorResponseSchema,
-                401: ErrorResponseSchema
+                401: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
             }),
         progress: endpoint
             .subscription('/api/transaction-scans/jobs/progress')

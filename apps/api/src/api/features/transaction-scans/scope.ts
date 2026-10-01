@@ -1,6 +1,6 @@
 import { implement } from '@cleverbrush/server';
 import { api } from '@xpenser/contracts';
-import { ConfigToken, DbToken } from '../../../di/tokens.js';
+import { ConfigToken, DbToken, ScanJobsToken } from '../../../di/tokens.js';
 
 /** Server-only configuration for the shared transactionScans contract. */
 export const transactionScansScope = implement(api).group('transactionScans', {
@@ -18,19 +18,21 @@ export const transactionScansScope = implement(api).group('transactionScans', {
             description:
                 'Starts an asynchronous multimodal scan job and returns a short-lived progress token.',
             summary: 'Start transaction image scan',
-            inject: { db: DbToken, config: ConfigToken }
+            inject: { jobs: ScanJobsToken }
         },
         progress: {
             operationId: 'transactionScanProgress',
             description:
                 'Streams progress and the final scan result for a short-lived scan job token.',
-            summary: 'Transaction image scan progress'
+            summary: 'Transaction image scan progress',
+            inject: { jobs: ScanJobsToken }
         },
         status: {
             operationId: 'transactionScanJobStatus',
             description:
                 'Returns the latest progress event for a short-lived scan job token.',
-            summary: 'Transaction image scan job status'
+            summary: 'Transaction image scan job status',
+            inject: { jobs: ScanJobsToken }
         },
         decide: {
             operationId: 'decideTransactionScanItem',

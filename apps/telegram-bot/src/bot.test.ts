@@ -349,6 +349,12 @@ describe('XpenserTelegramBot transaction flows', () => {
         await subject.handleCallback(callback(scanConfirmCallback));
 
         expect(telegram.getFileStream).toHaveBeenCalledWith('large');
+        expect(mocks.userClient.transactionScans.progress).toHaveBeenCalledWith(
+            {
+                query: { jobId: 'job-1', token: 'scan-token' },
+                reconnect: { maxRetries: 15, backoffLimit: 5_000 }
+            }
+        );
         expect(mocks.userClient.transactionScans.start).toHaveBeenCalledWith({
             body: {
                 budgetId: 1,

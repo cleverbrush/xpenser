@@ -1,4 +1,5 @@
 import { ActionResult } from '@cleverbrush/server';
+import { OpenAIConfigError } from '../../../application/openai.js';
 import {
     TransactionScanInputError,
     TransactionScanNotFoundError
@@ -9,6 +10,11 @@ import { budgetAccessErrors } from '../../errors/budget-access.js';
 export const createErrors = budgetAccessErrors.on(
     TransactionScanInputError,
     err => ActionResult.badRequest({ message: err.message })
+);
+
+/** Reject unavailable scans before persisting acceptance, without exposing config details. */
+export const startErrors = createErrors.on(OpenAIConfigError, () =>
+    ActionResult.badRequest({ message: 'Image scanning is not configured.' })
 );
 
 /** Preserve the expected errors handled by transactionScans.decide. */

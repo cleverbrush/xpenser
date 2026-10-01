@@ -6,7 +6,14 @@ import type { Knex } from 'knex';
 import type { Config } from '../config.js';
 import { createPostgresConnection } from '../db/postgres.js';
 import { type AppDb, entityMap } from '../db/schemas.js';
-import { ConfigToken, DbToken, KnexToken, LoggerToken } from './tokens.js';
+import { createJobRuntime, type JobRuntime } from '../jobs/runtime.js';
+import {
+    ConfigToken,
+    DbToken,
+    KnexToken,
+    LoggerToken,
+    ScanJobsToken
+} from './tokens.js';
 
 export type DbResources = {
     readonly knex: Knex;
@@ -47,11 +54,16 @@ export function configureDI(
     services: ServiceCollection,
     config: Config,
     logger: Logger,
-    resources?: DbResources
+    resources?: DbResources,
+    jobs?: JobRuntime
 ): void {
     const dbResources = resources ?? createDbResources(config, logger);
     services.addSingleton(ConfigToken, config);
     services.addSingleton(LoggerToken, logger);
     services.addSingletonInstance(KnexToken, dbResources.knex);
     services.addSingletonInstance(DbToken, dbResources.db);
+    services.addSingletonInstance(
+        ScanJobsToken,
+        (jobs ?? createJobRuntime(dbResources.db, config, logger)).scans
+    );
 }

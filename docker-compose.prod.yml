@@ -15,6 +15,7 @@ services:
       retries: 10
 
   api:
+    stop_grace_period: 45s
     build:
       context: .
       dockerfile: apps/api/Dockerfile

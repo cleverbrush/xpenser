@@ -5,6 +5,7 @@ import {
     BudgetAccessError,
     BudgetPermissionError
 } from '../application/budgets.js';
+import { TransactionScanJobs } from '../application/transaction-scan-jobs.js';
 import * as transactions from '../application/transactions.js';
 import * as users from '../application/users.js';
 import * as vendors from '../application/vendors.js';
@@ -235,6 +236,22 @@ describe('registered implementation over HTTP', () => {
     });
 
     it('keeps public token-gated scan status and progress registrations', async () => {
+        const missing = {
+            jobId: 'missing-job',
+            stage: 'failed' as const,
+            scan: null,
+            error: 'Scan job was not found.',
+            message: 'Scan job was not found.',
+            progress: 100
+        };
+        vi.spyOn(TransactionScanJobs.prototype, 'status').mockResolvedValue(
+            missing
+        );
+        vi.spyOn(TransactionScanJobs.prototype, 'subscribe').mockImplementation(
+            async function* () {
+                yield missing;
+            }
+        );
         await withServer(async url => {
             const query = new URLSearchParams({
                 jobId: 'missing-job',

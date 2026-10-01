@@ -142,7 +142,12 @@ type CorrectionExample = {
 type ScanProgressStage = 'analyzing' | 'preparing' | 'saving';
 
 type ScanProgressOptions = {
-    readonly onProgress?: (stage: ScanProgressStage) => void;
+    readonly onProgress?: (stage: ScanProgressStage) => void | Promise<void>;
+    readonly signal?: AbortSignal;
+    /** Durable callers wrap the write phase in their idempotency transaction. */
+    readonly persist?: (
+        save: (db: AppDb) => Promise<TransactionScanResponse>
+    ) => Promise<TransactionScanResponse>;
 };
 
 type TransactionScanItemQuery = Promise<TransactionScanItemDb[]> & {
@@ -306,7 +311,7 @@ function stripDataUrl(value: string): string {
         : value;
 }
 
-function scanImageBuffer(imageBase64: string): Buffer {
+export function scanImageBuffer(imageBase64: string): Buffer {
     try {
         const buffer = Buffer.from(stripDataUrl(imageBase64), 'base64');
         if (buffer.length === 0) {
@@ -992,7 +997,8 @@ export async function scanTransactionsFromImage(
     requireBudgetPermission(access, 'canCreateTransactions');
     const buffer = imageBuffer(body);
     const imageHash = createHash('sha256').update(buffer).digest('hex');
-    options.onProgress?.('preparing');
+    options.signal?.throwIfAborted();
+    await options.onProgress?.('preparing');
     const user = await getUser(db, userId);
     const [categories, vendors, recentTransactions, examples] =
         await Promise.all([
@@ -1017,7 +1023,8 @@ export async function scanTransactionsFromImage(
         body.mimeType
     );
 
-    options.onProgress?.('analyzing');
+    options.signal?.throwIfAborted();
+    await options.onProgress?.('analyzing');
     const parsed = await generateStructuredJsonFromContent<RawScanResult>(
         config,
         {
@@ -1041,57 +1048,64 @@ export async function scanTransactionsFromImage(
             model: config.openai.transactionScanModel,
             schema: scanResultSchema,
             schemaName: 'transaction_image_scan',
-            system: scanPrompt()
+            system: scanPrompt(),
+            signal: options.signal
         }
     );
 
-    options.onProgress?.('saving');
+    options.signal?.throwIfAborted();
+    await options.onProgress?.('saving');
     const scanWarnings = [
         ...warnings(parsed.warnings),
         ...preparedImages.warnings
     ].slice(0, 8);
-    const scan = await db.transactionScans.insert({
-        budgetId: access.budget.id,
-        userId,
-        documentKind: documentKind(parsed.documentKind),
-        imageHash,
-        model: config.openai.transactionScanModel,
-        warningsJson: JSON.stringify(scanWarnings)
-    });
-
-    const rawTransactions = Array.isArray(parsed.transactions)
-        ? (parsed.transactions as RawScannedTransaction[])
-        : [];
-    const drafts: TransactionScanDraft[] = [];
-
-    for (const raw of rawTransactions.slice(0, maxDrafts)) {
-        const sanitized = sanitizeDraft({
-            categories,
-            defaultCurrency: access.budget.defaultCurrency,
-            raw,
-            recentTransactions,
-            timezone: user.timezone,
-            vendors
+    const save = async (db: AppDb): Promise<TransactionScanResponse> => {
+        options.signal?.throwIfAborted();
+        const scan = await db.transactionScans.insert({
+            budgetId: access.budget.id,
+            userId,
+            documentKind: documentKind(parsed.documentKind),
+            imageHash,
+            model: config.openai.transactionScanModel,
+            warningsJson: JSON.stringify(scanWarnings)
         });
-        if (!sanitized) {
-            continue;
+
+        const rawTransactions = Array.isArray(parsed.transactions)
+            ? (parsed.transactions as RawScannedTransaction[])
+            : [];
+        const drafts: TransactionScanDraft[] = [];
+
+        for (const raw of rawTransactions.slice(0, maxDrafts)) {
+            options.signal?.throwIfAborted();
+            const sanitized = sanitizeDraft({
+                categories,
+                defaultCurrency: access.budget.defaultCurrency,
+                raw,
+                recentTransactions,
+                timezone: user.timezone,
+                vendors
+            });
+            if (!sanitized) {
+                continue;
+            }
+
+            const item = await scanItemTable(db).insert({
+                budgetId: access.budget.id,
+                scanId: scan.id,
+                userId,
+                draftJson: JSON.stringify(sanitized)
+            });
+            drafts.push({ ...sanitized, id: item.id });
         }
 
-        const item = await scanItemTable(db).insert({
-            budgetId: access.budget.id,
+        return {
             scanId: scan.id,
-            userId,
-            draftJson: JSON.stringify(sanitized)
-        });
-        drafts.push({ ...sanitized, id: item.id });
-    }
-
-    return {
-        scanId: scan.id,
-        documentKind: documentKind(parsed.documentKind),
-        warnings: scanWarnings,
-        drafts
+            documentKind: documentKind(parsed.documentKind),
+            warnings: scanWarnings,
+            drafts
+        };
     };
+    return options.persist ? options.persist(save) : save(db);
 }
 
 async function ensureTransactionBudget(

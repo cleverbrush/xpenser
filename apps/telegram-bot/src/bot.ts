@@ -2348,7 +2348,7 @@ export class XpenserTelegramBot {
     ): Promise<TransactionScanResponse> {
         const subscription = client.transactionScans.progress({
             query: { jobId: job.jobId, token: job.token },
-            reconnect: { maxRetries: 3, backoffLimit: 5_000 }
+            reconnect: { maxRetries: 15, backoffLimit: 5_000 }
         });
 
         try {

@@ -393,6 +393,11 @@ eager ordering, and bounded enrichment query counts. It also compares query
 plans on synthetic data; timings are diagnostic, not production benchmarks.
 The same suite runs in the PR's **Lint and test** check.
 
+It also verifies PostgreSQL-backed receipt jobs and recurring report schedules,
+including worker recovery, retry limits, atomic scan results, and progress
+authorization. See [Background jobs](./docs/background-jobs.md) for lifecycle,
+retention, delivery guarantees, and deployment guidance.
+
 ## Contributing
 
 Contributions are welcome. Good first areas include documentation, self-hosting
