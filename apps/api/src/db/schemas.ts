@@ -7,6 +7,7 @@ import {
     string
 } from '@cleverbrush/knex-schema';
 import { type DbContext, defineEntity } from '@cleverbrush/orm';
+import { ScanRequestDbSchema } from './scan-request-schema.js';
 
 export const UserDbSchema = object({
     id: number().primaryKey(),
@@ -646,6 +647,7 @@ export const EmailReportDeliveryEntity = defineEntity(
 );
 
 export const entityMap = {
+    scanRequests: defineEntity(ScanRequestDbSchema),
     users: UserEntity,
     budgetFavoriteCurrencies: BudgetFavoriteCurrencyEntity,
     externalIdentities: ExternalIdentityEntity,

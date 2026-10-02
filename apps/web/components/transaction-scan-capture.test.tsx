@@ -8,7 +8,8 @@ import { XpenserFormProvider } from '@xpenser/ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     ScanWizard,
-    TransactionCaptureWorkspace
+    TransactionCaptureWorkspace,
+    waitForScanJob
 } from './transaction-scan-capture';
 
 const refresh = vi.fn();
@@ -17,6 +18,79 @@ const createVendorAction = vi.fn();
 const recordTransactionScanDecisionAction = vi.fn();
 const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
+
+describe('durable scan reconnection', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+    });
+    it('survives more than three failed polls without resubmitting', async () => {
+        vi.useFakeTimers();
+        const scan = {
+            scanId: 1,
+            documentKind: 'receipt',
+            drafts: [],
+            warnings: []
+        };
+        const fetcher = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('restart'))
+            .mockRejectedValueOnce(new Error('restart'))
+            .mockRejectedValueOnce(new Error('restart'))
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    jobId: 'job',
+                    stage: 'queued',
+                    progress: 0,
+                    message: 'Retrying',
+                    scan: null,
+                    error: null
+                })
+            })
+            .mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    jobId: 'job',
+                    stage: 'complete',
+                    progress: 100,
+                    message: 'Done',
+                    scan,
+                    error: null
+                })
+            });
+        vi.stubGlobal('fetch', fetcher);
+        const onProgress = vi.fn();
+        const result = waitForScanJob(
+            { jobId: 'job', token: 'capability' },
+            onProgress
+        );
+        await vi.advanceTimersByTimeAsync(7_000);
+        expect(await result).toEqual(scan);
+        expect(fetcher).toHaveBeenCalledTimes(5);
+        expect(onProgress).toHaveBeenCalledWith(
+            expect.objectContaining({ stage: 'queued' })
+        );
+        expect(
+            fetcher.mock.calls.every(([url]) =>
+                String(url).includes('jobId=job')
+            )
+        ).toBe(true);
+    });
+    it('stops retrying after a bounded interruption', async () => {
+        vi.useFakeTimers();
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+        const outcome = waitForScanJob(
+            { jobId: 'job', token: 'capability' },
+            vi.fn()
+        ).catch(error => error);
+        await vi.advanceTimersByTimeAsync(66_000);
+        expect(await outcome).toMatchObject({
+            message: 'Could not connect to scan progress. Try again.'
+        });
+    });
+});
 
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ refresh })

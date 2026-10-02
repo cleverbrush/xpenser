@@ -6,10 +6,10 @@ import {
 } from '@cleverbrush/log';
 import { otelLogSink, traceEnricher } from '@cleverbrush/otel';
 import knex from 'knex';
-import { startEmailReportScheduler } from './application/email-report-scheduler.js';
 import { config } from './config.js';
 import { runMigrations } from './db/migrate.js';
 import { createDbResources } from './di/setup.js';
+import { createJobRuntime } from './jobs/runtime.js';
 import { ApiListening, ShutdownSignalReceived } from './log-templates.js';
 import { buildServer } from './server.js';
 import { otel } from './telemetry.js';
@@ -37,25 +37,40 @@ async function main() {
     }
 
     const dbResources = createDbResources(config, logger);
-    const emailReportScheduler = startEmailReportScheduler({
-        config,
-        db: dbResources.db,
-        knex: dbResources.knex,
-        logger
-    });
-    const server = buildServer(config, logger, dbResources);
-    const httpServer = await server.listen(config.api.port, config.api.host);
+    const jobs = createJobRuntime(dbResources.db, config, logger);
+    const server = buildServer(config, logger, dbResources, jobs);
+    const httpServer = await (async () => {
+        try {
+            await jobs.start();
+            return await server.listen(config.api.port, config.api.host);
+        } catch (error) {
+            await jobs.stop(1);
+            await dbResources.knex.destroy();
+            await logger.dispose();
+            await otel.shutdown();
+            throw error;
+        }
+    })();
     logger.info(ApiListening, {
         Host: config.api.host,
         Port: config.api.port
     });
 
+    let shuttingDown = false;
     const shutdown = async (signal: string) => {
+        if (shuttingDown) return;
+        shuttingDown = true;
         logger.info(ShutdownSignalReceived, { Signal: signal });
+        jobs.scans.closeStreams();
         try {
-            await httpServer.close();
+            // Await both drains even if one fails; never destroy the pool under a worker.
+            const drains = await Promise.allSettled([
+                httpServer.close(),
+                jobs.stop()
+            ]);
+            if (drains.some(result => result.status === 'rejected'))
+                logger.error('API shutdown drain failed', {});
         } finally {
-            emailReportScheduler.stop();
             await dbResources.knex.destroy();
             await logger.dispose();
             await otel.shutdown();

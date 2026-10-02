@@ -5,6 +5,7 @@ const resendEmailsUrl = 'https://api.resend.com/emails';
 export class EmailConfigError extends Error {}
 
 export type SendEmailOptions = {
+    readonly signal?: AbortSignal;
     readonly html: string;
     readonly subject: string;
     readonly text: string;
@@ -20,6 +21,7 @@ export async function sendEmail(
     }
 
     const response = await fetch(resendEmailsUrl, {
+        signal: options.signal,
         body: JSON.stringify({
             from: config.resend.emailFrom,
             html: options.html,

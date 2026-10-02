@@ -1,4 +1,4 @@
-import { createErrors, decideErrors } from './errors.js';
+import { createErrors, decideErrors, startErrors } from './errors.js';
 import { createTransactionScanHandler } from './handlers/create.js';
 import { decideTransactionScanItemHandler } from './handlers/decide.js';
 import { transactionScanProgressHandler } from './handlers/progress.js';
@@ -9,7 +9,7 @@ import { transactionScansScope } from './scope.js';
 /** Bind transactionScans handlers once; the root verifies complete contract coverage. */
 export const transactionScansModule = transactionScansScope.withHandlers({
     create: { handler: createTransactionScanHandler, errors: createErrors },
-    start: startTransactionScanJobHandler,
+    start: { handler: startTransactionScanJobHandler, errors: startErrors },
     progress: transactionScanProgressHandler,
     status: transactionScanJobStatusHandler,
     decide: { handler: decideTransactionScanItemHandler, errors: decideErrors }

@@ -7,7 +7,7 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`0.0.0-beta-20261001112349` (the v5 immutable-query beta).
+`0.0.0-beta-20261001170911` (the v5 durable-scheduler beta).
 
 ## Learning Path
 
@@ -49,6 +49,10 @@ All directly used Framework packages are pinned to
   pool and ORM context through Cleverbrush DI.
 - `npm run db:validate -w @xpenser/api` runs the read-only Cleverbrush ORM
   schema drift check against a live database.
+- `apps/api/src/jobs` separates durable definitions, typed handlers, and worker
+  lifecycle. The PostgreSQL adapter owns execution state; application tables own
+  images, capability-token hashes, and idempotent scan results. See
+  [Background jobs](./background-jobs.md) for guarantees and operations.
 
 ## Framework Usage Rules
 

@@ -1,4 +1,16 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import {
+    createHash,
+    randomBytes,
+    randomUUID,
+    timingSafeEqual
+} from 'node:crypto';
+import { query } from '@cleverbrush/knex-schema';
+import {
+    type JobRepository,
+    type JobRun,
+    JobScheduler
+} from '@cleverbrush/scheduler';
+import { PostgresJobRepository } from '@cleverbrush/scheduler-postgres';
 import type {
     TransactionScanBody,
     TransactionScanJobResponse,
@@ -7,303 +19,283 @@ import type {
     TransactionScanResponse
 } from '@xpenser/contracts';
 import type { Config } from '../config.js';
+import { ScanRequestDbSchema } from '../db/scan-request-schema.js';
 import type { AppDb } from '../db/schemas.js';
 import {
-    scanTransactionsFromImage,
-    TransactionScanInputError
-} from './transaction-scans.js';
+    jobNamespace,
+    scanRetentionMs,
+    TransactionScanJob
+} from '../jobs/definitions.js';
+import { loadScanResult } from '../jobs/scan-results.js';
+import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
+import { OpenAIConfigError } from './openai.js';
+import { scanImageBuffer } from './transaction-scans.js';
 
-const jobTtlMs = 30 * 60 * 1_000;
+const failureMessage = 'Could not scan the image. Try again.';
+const tokenHash = (token: string) =>
+    createHash('sha256').update(token).digest('hex');
 
-type MutableScanJob = {
-    readonly events: TransactionScanProgressEvent[];
-    readonly id: string;
-    readonly listeners: Set<() => void>;
-    readonly token: string;
-    readonly userId: number;
-    deleteTimer: ReturnType<typeof setTimeout> | null;
-    done: boolean;
-    expiresAt: number;
-};
-
-type ProgressStage = Exclude<
-    TransactionScanProgressEvent['stage'],
-    'complete' | 'failed' | 'queued'
->;
-
-const jobs = new Map<string, MutableScanJob>();
-
-function scheduleDelete(job: MutableScanJob): void {
-    if (job.deleteTimer) {
-        return;
-    }
-
-    job.deleteTimer = setTimeout(() => {
-        if (jobs.get(job.id) === job) {
-            jobs.delete(job.id);
-        }
-    }, jobTtlMs);
-    job.deleteTimer.unref?.();
-}
-
-function cleanupExpiredJobs(): void {
-    const now = Date.now();
-    for (const [jobId, job] of jobs) {
-        if (job.expiresAt <= now) {
-            jobs.delete(jobId);
-            if (job.deleteTimer) {
-                clearTimeout(job.deleteTimer);
-            }
-        }
-    }
-}
-
-function notify(job: MutableScanJob): void {
-    for (const listener of job.listeners) {
-        listener();
-    }
-    job.listeners.clear();
-}
-
-function event({
-    error = null,
-    job,
-    message,
-    progress,
-    scan = null,
-    stage
-}: {
-    readonly error?: string | null;
-    readonly job: MutableScanJob;
-    readonly message: string;
-    readonly progress: number;
-    readonly scan?: TransactionScanResponse | null;
-    readonly stage: TransactionScanProgressEvent['stage'];
-}): TransactionScanProgressEvent {
+/** Domain messages stay independent of the durable execution engine. */
+export function scanProgressEvent(
+    jobId: string,
+    stage: TransactionScanProgressEvent['stage'],
+    options: {
+        scan?: TransactionScanResponse;
+        error?: string;
+        retry?: boolean;
+    } = {}
+): TransactionScanProgressEvent {
+    const stages = {
+        queued: [
+            0,
+            options.retry
+                ? 'Scan interrupted. Retrying automatically.'
+                : 'Scan queued.'
+        ],
+        preparing: [
+            15,
+            'Loading categories, vendors, and prior scan corrections.'
+        ],
+        analyzing: [45, 'Reading image details with AI.'],
+        saving: [85, 'Saving scan suggestions for review.'],
+        complete: [
+            100,
+            `Found ${options.scan?.drafts.length ?? 0} ${(options.scan?.drafts.length ?? 0) === 1 ? 'transaction' : 'transactions'} for review.`
+        ],
+        failed: [100, 'Scan failed.']
+    } as const;
     return {
-        jobId: job.id,
+        jobId,
         stage,
-        message,
-        progress,
-        scan,
-        error
+        progress: stages[stage][0],
+        message: stages[stage][1],
+        scan: options.scan ?? null,
+        error: options.error ?? null
     };
 }
 
-function emit(job: MutableScanJob, nextEvent: TransactionScanProgressEvent) {
-    if (job.done) {
-        return;
-    }
-
-    job.events.push(nextEvent);
-    if (nextEvent.stage === 'complete' || nextEvent.stage === 'failed') {
-        job.done = true;
-        job.expiresAt = Date.now() + jobTtlMs;
-        scheduleDelete(job);
-    }
-    notify(job);
-}
-
-function progressMessage(stage: ProgressStage): string {
-    switch (stage) {
-        case 'preparing':
-            return 'Loading categories, vendors, and prior scan corrections.';
-        case 'analyzing':
-            return 'Reading image details with AI.';
-        case 'saving':
-            return 'Saving scan suggestions for review.';
-    }
-    return 'Scanning image.';
-}
-
-function progressValue(stage: ProgressStage): number {
-    switch (stage) {
-        case 'preparing':
-            return 15;
-        case 'analyzing':
-            return 45;
-        case 'saving':
-            return 85;
-    }
-    return 50;
-}
-
-function failureMessage(err: unknown): string {
-    return err instanceof TransactionScanInputError
-        ? err.message
-        : 'Could not scan the image. Try again.';
-}
-
-async function runJob(
-    job: MutableScanJob,
-    db: AppDb,
-    config: Config,
-    body: TransactionScanBody
-): Promise<void> {
-    try {
-        const scan = await scanTransactionsFromImage(
-            db,
-            config,
-            job.userId,
-            body,
-            {
-                onProgress: stage =>
-                    emit(
-                        job,
-                        event({
-                            job,
-                            message: progressMessage(stage),
-                            progress: progressValue(stage),
-                            stage
-                        })
-                    )
-            }
-        );
-        const count = scan.drafts.length;
-        emit(
-            job,
-            event({
-                job,
-                message:
-                    count === 1
-                        ? 'Found 1 transaction for review.'
-                        : `Found ${count} transactions for review.`,
-                progress: 100,
-                scan,
-                stage: 'complete'
-            })
-        );
-    } catch (err) {
-        emit(
-            job,
-            event({
-                error: failureMessage(err),
-                job,
-                message: 'Scan failed.',
-                progress: 100,
-                stage: 'failed'
-            })
-        );
-    }
-}
-
-function createJob(userId: number): MutableScanJob {
+function notFound(jobId: string): TransactionScanProgressEvent {
     return {
-        events: [],
-        id: randomUUID(),
-        listeners: new Set(),
-        token: randomBytes(32).toString('base64url'),
-        userId,
-        deleteTimer: null,
-        done: false,
-        expiresAt: Date.now() + jobTtlMs
+        ...scanProgressEvent(jobId, 'failed', {
+            error: 'Scan job was not found.'
+        }),
+        message: 'Scan job was not found.'
     };
 }
 
-export function startTransactionScanJob(
-    db: AppDb,
-    config: Config,
-    userId: number,
-    body: TransactionScanBody
-): TransactionScanJobResponse {
-    cleanupExpiredJobs();
-    const job = createJob(userId);
-    jobs.set(job.id, job);
-    emit(
-        job,
-        event({
-            job,
-            message: 'Scan queued.',
-            progress: 0,
-            stage: 'queued'
-        })
-    );
-    void runJob(job, db, config, body);
-    return { jobId: job.id, token: job.token };
-}
+/** Producer and authorized progress adapter. Constructing this service never starts workers. */
+export class TransactionScanJobs {
+    private readonly streams = new AbortController();
+    constructor(
+        private readonly db: AppDb,
+        private readonly config: Config,
+        readonly scheduler: JobScheduler,
+        private readonly repository: JobRepository
+    ) {}
 
-function authorizedJob(query: TransactionScanProgressQuery) {
-    cleanupExpiredJobs();
-    const job = jobs.get(query.jobId);
-    return job && job.token === query.token ? job : undefined;
-}
-
-function jobNotFoundEvent(
-    query: TransactionScanProgressQuery
-): TransactionScanProgressEvent {
-    return {
-        jobId: query.jobId,
-        stage: 'failed',
-        message: 'Scan job was not found.',
-        progress: 100,
-        scan: null,
-        error: 'Scan job was not found.'
-    };
-}
-
-export function getTransactionScanJobStatus(
-    query: TransactionScanProgressQuery
-): TransactionScanProgressEvent {
-    const job = authorizedJob(query);
-    if (!job) {
-        return jobNotFoundEvent(query);
+    /** Persist acceptance and its artifact atomically, before sending HTTP 202. */
+    async start(
+        userId: number,
+        body: TransactionScanBody
+    ): Promise<TransactionScanJobResponse> {
+        const access = await resolveBudgetAccess(
+            this.db,
+            userId,
+            body.budgetId
+        );
+        requireBudgetPermission(access, 'canCreateTransactions');
+        scanImageBuffer(body.imageBase64);
+        if (!this.config.openai.apiKey)
+            throw new OpenAIConfigError('OPENAI_API_KEY is not set.');
+        const requestId = randomUUID();
+        const token = randomBytes(32).toString('base64url');
+        const jobId = await this.db.transaction(async transaction => {
+            await transaction.scanRequests.insert({
+                id: requestId,
+                runId: null,
+                userId,
+                budgetId: access.budget.id,
+                tokenHash: tokenHash(token),
+                imageBase64: body.imageBase64,
+                mimeType: body.mimeType,
+                fileName: body.fileName ?? null,
+                scanId: null
+            });
+            const producer = new JobScheduler({
+                namespace: jobNamespace,
+                storageRepository: new PostgresJobRepository(transaction.knex)
+            });
+            const run = await producer.enqueue(
+                TransactionScanJob,
+                { requestId },
+                { idempotencyKey: `${userId}:${requestId}` }
+            );
+            await transaction.scanRequests
+                .where(row => row.id, requestId)
+                .update({ runId: run.id });
+            return run.id;
+        });
+        return { jobId, token };
     }
 
-    return (
-        job.events.at(-1) ??
-        event({
-            job,
-            message: 'Scan queued.',
-            progress: 0,
-            stage: 'queued'
-        })
-    );
-}
-
-function waitForEvent(job: MutableScanJob, signal: AbortSignal): Promise<void> {
-    if (signal.aborted || job.done) {
-        return Promise.resolve();
+    private async authorize(input: TransactionScanProgressQuery) {
+        // Never load the image when polling or opening a progress stream.
+        const request = await query(this.db.knex, ScanRequestDbSchema)
+            .select(row => ({
+                id: row.id,
+                budgetId: row.budgetId,
+                tokenHash: row.tokenHash
+            }))
+            .where(row => row.runId, input.jobId)
+            .first();
+        if (
+            !request ||
+            !timingSafeEqual(
+                Buffer.from(request.tokenHash, 'hex'),
+                Buffer.from(tokenHash(input.token), 'hex')
+            )
+        )
+            return undefined;
+        const run = await this.scheduler.getRun(
+            TransactionScanJob,
+            input.jobId
+        );
+        if (
+            !run ||
+            (run.completedAt !== null &&
+                run.completedAt + scanRetentionMs <= Date.now())
+        )
+            return undefined;
+        return { request, run };
     }
 
-    return new Promise(resolve => {
-        let resolved = false;
-        const listener = () => {
-            if (resolved) {
-                return;
+    private async snapshot(
+        run: JobRun<{ scanId: number }>,
+        budgetId: number
+    ): Promise<TransactionScanProgressEvent> {
+        switch (run.status) {
+            case 'succeeded': {
+                if (!run.output) return notFound(run.id);
+                const scan = await loadScanResult(
+                    this.db,
+                    run.output.scanId,
+                    budgetId
+                );
+                return scanProgressEvent(run.id, 'complete', { scan });
             }
-            resolved = true;
-            job.listeners.delete(listener);
-            signal.removeEventListener('abort', abortListener);
-            resolve();
-        };
-        const abortListener = () => listener();
-        job.listeners.add(listener);
-        signal.addEventListener('abort', abortListener, { once: true });
-    });
-}
-
-export async function* subscribeTransactionScanJob(
-    query: TransactionScanProgressQuery,
-    signal: AbortSignal
-): AsyncGenerator<TransactionScanProgressEvent> {
-    const job = authorizedJob(query);
-    if (!job) {
-        yield jobNotFoundEvent(query);
-        return;
-    }
-
-    let index = 0;
-    while (!signal.aborted) {
-        while (index < job.events.length) {
-            const nextEvent = job.events[index];
-            index += 1;
-            if (nextEvent) {
-                yield nextEvent;
+            case 'failed':
+            case 'cancelled':
+                return scanProgressEvent(run.id, 'failed', {
+                    error:
+                        run.error?.code === 'SCAN_INPUT'
+                            ? run.error.message
+                            : failureMessage
+                });
+            case 'queued':
+            case 'retry_wait':
+                return scanProgressEvent(run.id, 'queued', {
+                    retry: run.status === 'retry_wait'
+                });
+            default: {
+                const [last] = await this.repository.events(
+                    jobNamespace,
+                    run.id,
+                    Math.max(0, run.sequence - 1),
+                    1
+                );
+                const stage =
+                    last?.sequence === run.sequence && last.type === 'progress'
+                        ? TransactionScanJob.progress.parse(last.data).stage
+                        : 'preparing';
+                return scanProgressEvent(run.id, stage);
             }
         }
-        if (job.done) {
+    }
+
+    /** Missing, expired and incorrect tokens intentionally have one indistinguishable result. */
+    async status(
+        input: TransactionScanProgressQuery
+    ): Promise<TransactionScanProgressEvent> {
+        const authorized = await this.authorize(input);
+        return authorized
+            ? this.snapshot(authorized.run, authorized.request.budgetId)
+            : notFound(input.jobId);
+    }
+
+    /** Replay committed events; disconnecting only closes the observer, never the scan. */
+    async *subscribe(
+        input: TransactionScanProgressQuery,
+        signal?: AbortSignal
+    ): AsyncGenerator<TransactionScanProgressEvent> {
+        const authorized = await this.authorize(input);
+        if (!authorized) {
+            yield notFound(input.jobId);
             return;
         }
-        await waitForEvent(job, signal);
+        const combined = signal
+            ? AbortSignal.any([signal, this.streams.signal])
+            : this.streams.signal;
+        for await (const event of this.scheduler.events(
+            TransactionScanJob,
+            input.jobId,
+            { signal: combined }
+        )) {
+            switch (event.type) {
+                case 'progress':
+                    yield scanProgressEvent(input.jobId, event.data.stage);
+                    break;
+                case 'running':
+                    yield scanProgressEvent(input.jobId, 'preparing');
+                    break;
+                case 'queued':
+                case 'retry_wait':
+                    yield scanProgressEvent(input.jobId, 'queued', {
+                        retry: event.type === 'retry_wait'
+                    });
+                    break;
+                case 'succeeded':
+                case 'failed':
+                case 'cancelled':
+                    yield await this.status(input);
+                    break;
+            }
+        }
+    }
+
+    /** Interrupt long-lived streams before waiting for the HTTP server to close. */
+    closeStreams(): void {
+        this.streams.abort();
+    }
+
+    /** Rotate a bounded page to avoid active requests starving old artifacts of cleanup. */
+    async cleanup(signal: AbortSignal): Promise<void> {
+        const requests = await query(this.db.knex, ScanRequestDbSchema)
+            .select(row => ({ id: row.id, runId: row.runId }))
+            .where(
+                row => row.createdAt,
+                '<',
+                new Date(Date.now() - scanRetentionMs)
+            )
+            .orderBy(row => row.checkedAt)
+            .limit(100);
+        for (const request of requests) {
+            signal.throwIfAborted();
+            const run = request.runId
+                ? await this.scheduler.getRun(TransactionScanJob, request.runId)
+                : undefined;
+            if (
+                !run ||
+                (run.completedAt !== null &&
+                    run.completedAt + scanRetentionMs <= Date.now())
+            ) {
+                await this.db.scanRequests
+                    .where(row => row.id, request.id)
+                    .delete();
+            } else {
+                await this.db.scanRequests
+                    .where(row => row.id, request.id)
+                    .update({ checkedAt: new Date() });
+            }
+        }
     }
 }

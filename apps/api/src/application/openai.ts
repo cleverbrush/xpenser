@@ -5,6 +5,7 @@ const openaiResponsesUrl = 'https://api.openai.com/v1/responses';
 export class OpenAIConfigError extends Error {}
 
 type StructuredJsonOptions = {
+    readonly signal?: AbortSignal;
     readonly input: unknown;
     readonly model: string;
     readonly schema: unknown;
@@ -81,7 +82,8 @@ export async function generateStructuredJson<T>(
         model: options.model,
         schema: options.schema,
         schemaName: options.schemaName,
-        system: options.system
+        system: options.system,
+        signal: options.signal
     });
 }
 
@@ -94,6 +96,7 @@ export async function generateStructuredJsonFromContent<T>(
     }
 
     const response = await fetch(openaiResponsesUrl, {
+        signal: options.signal,
         body: JSON.stringify({
             input: [
                 {

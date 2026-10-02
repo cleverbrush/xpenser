@@ -1,0 +1,47 @@
+---
+title: "More resilient receipt scanning"
+slug: durable-receipt-scanning
+description: "Receipt scan jobs now use PostgreSQL-backed progress and bounded retries, helping scans recover from API interruptions without duplicate saved drafts."
+heroImage: "/blog/durable-receipt-scanning.png"
+heroImageAlt: "A synthetic receipt scanned into a $12.34 draft, ready for review before confirmation."
+publishedAt: 2026-10-01
+updatedAt: 2026-10-01
+targetKeyword: "reliable receipt scanning"
+keywords:
+  - "receipt scan progress"
+  - "self-hosted expense tracker"
+  - "automatic scan retries"
+draft: false
+sourcePrNumber: "100"
+sourcePrUrl: "https://github.com/cleverbrush/xpenser/pull/100"
+---
+
+Reliable receipt scanning should not depend on one API process staying alive.
+Xpenser now stores accepted scan jobs and their progress in PostgreSQL, so an API
+restart does not erase the work that was already accepted.
+
+## What changes when you scan
+
+The existing scan screen still shows progress and lets you review every suggested
+transaction. If a recoverable interruption occurs, a scan can retry automatically,
+up to three attempts total. The browser also gives a briefly unavailable API more
+time to reconnect instead of failing after only a few missed polls.
+
+Saved scan results are protected against duplicate writes. If an attempt saved
+its drafts before it stopped, the recovered job reuses that result. Nothing
+confirms drafts or creates transactions without your review.
+
+## What retries cannot guarantee
+
+If image analysis completed but its result was not saved, the AI request may run
+again and may incur another charge. The system does not promise exactly-once
+processing. Keep the scan page open: restoring its review state after refreshing
+the page is not part of this change.
+
+For [self-hosted deployments](/self-hosted-personal-finance-tracker), the workers
+use the existing PostgreSQL database. No additional queue service is needed.
+Recurring email-report checks also use persisted schedules while retaining their
+existing weekly and monthly delivery rules.
+
+Explore Xpenser's [open-source expense tracking](/open-source-expense-tracker)
+or try the receipt scanner from the Capture page after signing in.

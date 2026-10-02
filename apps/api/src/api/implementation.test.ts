@@ -4,7 +4,12 @@ import { createServer } from '@cleverbrush/server';
 import { generateOpenApiSpec } from '@cleverbrush/server-openapi';
 import { api } from '@xpenser/contracts';
 import { describe, expect, it } from 'vitest';
-import { ConfigToken, DbToken, LoggerToken } from '../di/tokens.js';
+import {
+    ConfigToken,
+    DbToken,
+    LoggerToken,
+    ScanJobsToken
+} from '../di/tokens.js';
 import { buildServer } from '../server.js';
 import { apiImplementation } from './implementation.js';
 
@@ -150,7 +155,9 @@ describe('contract-bound API implementation', () => {
             'transactionScanProgress',
             'transactionScanJobStatus'
         ]) {
-            expect(metadata(id).serviceSchemas).toBeNull();
+            expect(metadata(id).serviceSchemas).toEqual({
+                jobs: ScanJobsToken
+            });
             expect(metadata(id).authRoles).toBeNull();
         }
     });
@@ -177,14 +184,14 @@ describe('contract-bound API implementation', () => {
             }
         }) as TestOpenApiDocument;
 
-        // Captured on main f44e964 before upgrading or moving any handlers.
+        // Updated for the deliberate 403/404 responses on durable scan acceptance.
         // Deliberate API changes should review/update this compatibility fingerprint.
         expect(
             createHash('sha256')
                 .update(JSON.stringify(canonical(spec)))
                 .digest('hex')
         ).toBe(
-            '36c2444af3a06874a37de3c7d754e3f97639625dbf09b7e9c68a8e69c4a5907b'
+            '444283da97c950efb9a3baec32c939f98c436f19175f4e58f704ec06e9b68a9a'
         );
         expect(spec.components?.securitySchemes).toMatchObject({
             bearerAuth: {

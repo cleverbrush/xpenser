@@ -6,6 +6,7 @@ import { createOpenApiEndpoint } from '@cleverbrush/server-openapi';
 import { apiImplementation } from './api/implementation.js';
 import type { Config } from './config.js';
 import { configureDI, type DbResources } from './di/setup.js';
+import type { JobRuntime } from './jobs/runtime.js';
 import { McpEndpoint, mcpHandler } from './mcp/endpoint.js';
 import {
     OAuthAuthorizationServerEndpoint,
@@ -56,7 +57,8 @@ function corsMiddleware(config: Config): Middleware {
 export function buildServer(
     config: Config,
     logger: Logger,
-    resources: DbResources
+    resources: DbResources,
+    jobs?: JobRuntime
 ) {
     const [correlationMiddleware, requestLogMiddleware] = useLogging(logger, {
         excludePaths: ['/health'],
@@ -75,7 +77,9 @@ export function buildServer(
         .use(corsMiddleware(config))
         .use(correlationMiddleware)
         .use(requestLogMiddleware)
-        .services(services => configureDI(services, config, logger, resources))
+        .services(services =>
+            configureDI(services, config, logger, resources, jobs)
+        )
         .useAuthentication({
             defaultScheme: 'jwt',
             trySchemes: ['api-key', 'jwt'],
