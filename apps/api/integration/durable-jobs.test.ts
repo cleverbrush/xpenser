@@ -302,7 +302,7 @@ describe('durable scan application integration', () => {
             ]
         });
         await knex.raw(
-            "alter table transaction_scan_items add constraint reject_test_draft check (draft_json not like '%rollback-marker%')"
+            "alter table transaction_scan_items add constraint reject_test_draft check (draft_json::text not like '%rollback-marker%')"
         );
         try {
             const job = await scans.start(1, body);

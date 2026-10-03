@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => {
         currencies: { convert: vi.fn(), list: vi.fn() },
         transactions: { create: vi.fn(), list: vi.fn() },
         transactionScans: {
+            uploadImage: vi.fn(),
             decide: vi.fn(),
             progress: vi.fn(),
             start: vi.fn()
@@ -211,6 +212,10 @@ function transaction(overrides: Record<string, unknown> = {}) {
     return {
         amount: 12.5,
         categoryDisplayName: 'Groceries',
+        categoryId: 1,
+        vendorId: 9,
+        occurredAt: new Date('2026-06-06T12:00:00.000Z'),
+        note: 'Scanned invoice',
         categoryKind: 'normal',
         currency: 'USD',
         defaultCurrency: 'USD',
@@ -265,7 +270,11 @@ describe('XpenserTelegramBot transaction flows', () => {
         });
     });
 
-    it('scans a Telegram photo and confirms the scanned draft with attachment', async () => {
+    it.each([
+        'none',
+        'upload',
+        'decision'
+    ])('scans and confirms without duplicate financial writes after %s failure', async failure => {
         const subject = bot();
         const telegram = mocks.instances[0]!;
         telegram.getFileStream.mockReturnValue(
@@ -346,7 +355,24 @@ describe('XpenserTelegramBot transaction flows', () => {
                 ]
             })
         );
-        await subject.handleCallback(callback(scanConfirmCallback));
+        if (failure === 'upload')
+            mocks.userClient.transactionScans.uploadImage.mockRejectedValueOnce(
+                new Error('Upload interrupted')
+            );
+        if (failure === 'decision')
+            mocks.userClient.transactionScans.decide.mockRejectedValueOnce(
+                new Error('Decision interrupted')
+            );
+        await Promise.all([
+            subject.handleCallback(callback(scanConfirmCallback)),
+            subject.handleCallback(callback(scanConfirmCallback))
+        ]);
+        if (failure !== 'none')
+            await subject.handleCallback(callback(scanConfirmCallback));
+        expect(mocks.userClient.transactions.create).toHaveBeenCalledTimes(1);
+        expect(
+            mocks.userClient.transactionScans.uploadImage
+        ).toHaveBeenCalledTimes(failure === 'upload' ? 2 : 1);
 
         expect(telegram.getFileStream).toHaveBeenCalledWith('large');
         expect(mocks.userClient.transactionScans.progress).toHaveBeenCalledWith(
@@ -356,11 +382,14 @@ describe('XpenserTelegramBot transaction flows', () => {
             }
         );
         expect(mocks.userClient.transactionScans.start).toHaveBeenCalledWith({
-            body: {
-                budgetId: 1,
-                fileName: 'telegram-photo-10.jpg',
-                imageBase64: Buffer.from('receipt bytes').toString('base64'),
-                mimeType: 'image/jpeg'
+            body: { budgetId: 1 },
+            files: {
+                image: {
+                    filename: 'telegram-photo-10.jpg',
+                    buffer: Buffer.from('receipt bytes'),
+                    size: Buffer.byteLength('receipt bytes'),
+                    mimeType: 'image/jpeg'
+                }
             }
         });
         expect(mocks.userClient.transactions.create).toHaveBeenCalledWith({
@@ -375,13 +404,6 @@ describe('XpenserTelegramBot transaction flows', () => {
         expect(mocks.userClient.transactionScans.decide).toHaveBeenCalledWith({
             params: { itemId: 50, scanId: 40 },
             body: expect.objectContaining({
-                attachment: expect.objectContaining({
-                    budgetId: 1,
-                    fileName: 'telegram-photo-10.jpg',
-                    imageBase64:
-                        Buffer.from('receipt bytes').toString('base64'),
-                    mimeType: 'image/jpeg'
-                }),
                 correctedTransaction: expect.objectContaining({
                     amount: 12.5,
                     categoryId: 1,
@@ -391,6 +413,17 @@ describe('XpenserTelegramBot transaction flows', () => {
                 decision: 'confirmed',
                 transactionId: 77
             })
+        });
+        expect(
+            mocks.userClient.transactionScans.uploadImage
+        ).toHaveBeenCalledWith({
+            params: { scanId: 40 },
+            files: {
+                image: expect.objectContaining({
+                    filename: 'telegram-photo-10.jpg',
+                    buffer: Buffer.from('receipt bytes')
+                })
+            }
         });
     });
 

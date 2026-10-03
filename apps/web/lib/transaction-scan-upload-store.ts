@@ -9,10 +9,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-    type TransactionScanDecisionBody,
-    TransactionScanLimits
-} from '@xpenser/contracts';
+import { TransactionScanLimits } from '@xpenser/contracts';
 
 export const allowedScanImageTypes = [
     'image/jpeg',
@@ -236,7 +233,7 @@ export async function storeScanUpload({
 export async function readScanUploadAttachment(
     userId: unknown,
     uploadId: string
-): Promise<NonNullable<TransactionScanDecisionBody['attachment']>> {
+) {
     if (!isScanUploadId(uploadId)) {
         throw new Error('Invalid scan upload.');
     }
@@ -255,9 +252,10 @@ export async function readScanUploadAttachment(
     }
 
     return {
-        imageBase64: buffer.toString('base64'),
+        buffer,
+        size: buffer.length,
         mimeType: metadata.mimeType,
-        fileName: normalizedFileName(metadata.fileName)
+        filename: normalizedFileName(metadata.fileName) ?? 'scan-image'
     };
 }
 

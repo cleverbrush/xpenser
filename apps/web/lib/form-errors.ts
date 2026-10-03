@@ -80,7 +80,10 @@ export function formFailure(error: unknown, fallback: string): FormFailure {
             }))
         };
     const status = apiErrorStatus(error);
-    if (status !== undefined && [400, 403, 404, 409, 422].includes(status)) {
+    if (
+        status !== undefined &&
+        [400, 403, 404, 409, 413, 422].includes(status)
+    ) {
         return { ok: false, error: apiErrorMessage(error) ?? fallback };
     }
     throw error;

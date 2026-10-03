@@ -1,6 +1,6 @@
 # Background jobs
 
-Xpenser uses Framework `0.0.0-beta-20261001170911` and its PostgreSQL scheduler
+Xpenser uses Framework `0.0.0-beta-20261003175919` and its PostgreSQL scheduler
 adapter. No Redis, separate worker container, or additional credentials are
 required. Every API process shares its existing database pool with its workers.
 
@@ -33,6 +33,17 @@ The start endpoint validates image limits and budget access, then commits the
 uploaded image and job acceptance in one transaction. Job input contains only
 the request ID, not image data, credentials, or capability tokens. A token hash
 authorizes progress reads; knowing a job ID alone grants no access.
+
+HTTP scan requests use a required multipart `image` file and optional `budgetId`
+text field. Durable artifact storage and job input/output versions are unchanged.
+Migration 021 stores drafts/corrections as object-valued JSONB; reads decode
+declared dates and project public fields without exposing extension data.
+Confirmation first uploads the original image to `PUT /api/transaction-scans/:scanId/image`,
+then records the decision as JSON. Hash verification and an atomic upsert make
+image retries safe. Web and Telegram retain a successfully created transaction
+when a later image/decision request fails, avoiding another financial write on retry.
+Browser temporary files are removed only after the decision succeeds.
+See [rollout and rollback](./image-uploads.md#rollout-and-rollback).
 
 The job reports committed `preparing`, `analyzing`, and `saving` progress.
 Polling and subscriptions retain their existing public response shapes. A retry

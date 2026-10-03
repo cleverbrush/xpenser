@@ -19,6 +19,7 @@ import type {
     TransactionDb,
     UserDb
 } from '../db/schemas.js';
+import { readBudgetAccess } from './budget-access-reads.js';
 import {
     adminBudgetPermissions,
     defaultMemberBudgetPermissions,
@@ -295,14 +296,13 @@ async function ensureUniqueActiveBudgetDisplayName(
 }
 
 function mapBudget(
-    db: AppDb,
     budget: BudgetDb,
     member: BudgetMemberDb,
     mainBudgetId: number | null | undefined,
     favoriteCurrencies: readonly string[] = [],
     transactionCurrencies: readonly string[] = []
 ): Budget {
-    return budgetMapping(db.knex)({
+    return budgetMapping({
         budget,
         member,
         mainBudgetId,
@@ -319,9 +319,8 @@ type BudgetMemberRow = BudgetMemberDb & {
     readonly email: string;
 };
 
-function mapBudgetMember(db: AppDb, row: BudgetMemberRow): BudgetMember {
+function mapBudgetMember(row: BudgetMemberRow): BudgetMember {
     const user = mapUserAvatarSummary(
-        db.knex,
         {
             id: row.userId,
             email: row.email,
@@ -332,7 +331,7 @@ function mapBudgetMember(db: AppDb, row: BudgetMemberRow): BudgetMember {
         },
         row.displayName
     );
-    return budgetMemberMapping(db.knex)({
+    return budgetMemberMapping({
         ...row,
         user
     });
@@ -356,13 +355,11 @@ export async function ensureMainBudget(
     }
 
     if (user.mainBudgetId) {
-        const [budget, member] = await Promise.all([
-            db.budgets.find(user.mainBudgetId),
-            db.budgetMembers
-                .where(row => row.budgetId, user.mainBudgetId)
-                .where(row => row.userId, userId)
-                .first()
-        ]);
+        const { budget, member } = await readBudgetAccess(
+            db,
+            user.mainBudgetId,
+            userId
+        );
         if (budget && member) {
             return budget as BudgetDb;
         }
@@ -431,13 +428,11 @@ export async function resolveBudgetAccess(
 ): Promise<BudgetAccess> {
     const selectedBudgetId =
         budgetId ?? (await ensureMainBudget(db, userId)).id;
-    const [budget, member] = await Promise.all([
-        db.budgets.find(selectedBudgetId),
-        db.budgetMembers
-            .where(row => row.budgetId, selectedBudgetId)
-            .where(row => row.userId, userId)
-            .first()
-    ]);
+    const { budget, member } = await readBudgetAccess(
+        db,
+        selectedBudgetId,
+        userId
+    );
 
     if (!budget || !member) {
         throw new BudgetAccessError('Budget was not found.');
@@ -492,7 +487,6 @@ export async function listBudgets(
             recentTransactionsByBudget.get(budgetId) ?? []
         );
         return mapBudget(
-            db,
             {
                 id: budgetId,
                 name: row.name,
@@ -557,7 +551,6 @@ export async function createBudget(
     const access = await resolveBudgetAccess(db, userId, budget.id);
     const favorites = await loadBudgetFavoriteCurrencyList(db, budget.id);
     return mapBudget(
-        db,
         budget,
         access.member,
         user.mainBudgetId,
@@ -687,7 +680,6 @@ export async function updateBudget(
         loadRecentTransactionsByBudget(db, [budgetId])
     ]);
     return mapBudget(
-        db,
         updated.budget,
         updated.member,
         user?.mainBudgetId,
@@ -734,7 +726,7 @@ export async function listBudgetMembers(
     requireBudgetPermission(access, 'canManageMembers');
 
     const rows = await budgetMembersQuery(db.knex, budgetId);
-    return rows.map(row => mapBudgetMember(db, row));
+    return rows.map(mapBudgetMember);
 }
 
 function invitationAccessStatus(
@@ -751,11 +743,10 @@ function invitationAccessStatus(
 }
 
 function mapInvitationAccessRow(
-    db: AppDb,
     invitation: BudgetInvitationDb,
     now: Date
 ): BudgetAccessRow {
-    return budgetInvitationMapping(db.knex)({
+    return budgetInvitationMapping({
         status: invitationAccessStatus(invitation, now),
         ...invitation,
         budgetId: invitation.budgetId,
@@ -791,7 +782,7 @@ export async function listBudgetAccess(
     ]);
     const now = new Date();
     const invitationRows = (invitations as BudgetInvitationDb[]).map(
-        invitation => mapInvitationAccessRow(db, invitation, now)
+        invitation => mapInvitationAccessRow(invitation, now)
     );
     return [
         ...members.map(member => ({ status: 'active' as const, ...member })),
@@ -859,7 +850,7 @@ export async function updateBudgetMember(
     if (!user) {
         throw new BudgetNotFoundError('Budget member was not found.');
     }
-    return mapBudgetMember(db, { ...updated, email: user.email });
+    return mapBudgetMember({ ...updated, email: user.email });
 }
 
 export async function removeBudgetMember(
@@ -1041,7 +1032,6 @@ export async function acceptBudgetInvitation(
         loadRecentTransactionsByBudget(db, [invitation.budgetId])
     ]);
     return mapBudget(
-        db,
         access.budget,
         access.member,
         user.mainBudgetId,

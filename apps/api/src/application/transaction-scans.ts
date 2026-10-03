@@ -15,12 +15,7 @@ import {
 } from '@xpenser/timezone';
 import sharp from 'sharp';
 import type { Config } from '../config.js';
-import type {
-    AppDb,
-    TransactionScanDb,
-    TransactionScanItemDb,
-    UserDb
-} from '../db/schemas.js';
+import type { AppDb, TransactionScanItemDb, UserDb } from '../db/schemas.js';
 import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
 import { listCategories } from './categories.js';
 import { generateStructuredJsonFromContent } from './openai.js';
@@ -165,7 +160,7 @@ type TransactionScanItemTable = {
     readonly insert: (
         value: Pick<
             TransactionScanItemDb,
-            'budgetId' | 'draftJson' | 'scanId' | 'userId'
+            'budgetId' | 'draft' | 'scanId' | 'userId'
         >
     ) => Promise<TransactionScanItemDb>;
     readonly where: <TValue>(
@@ -817,14 +812,6 @@ function sanitizeDraft({
     };
 }
 
-function parseJson(value: string): unknown {
-    try {
-        return JSON.parse(value) as unknown;
-    } catch {
-        return null;
-    }
-}
-
 async function getUser(db: AppDb, userId: number): Promise<UserDb> {
     const user = await db.users.find(userId);
     if (!user) {
@@ -849,8 +836,8 @@ async function correctionExamples(
         .slice(0, maxCorrectionExamples)
         .map(row => ({
             decision: row.decision ?? '',
-            draft: parseJson(row.draftJson),
-            corrected: row.correctedJson ? parseJson(row.correctedJson) : null
+            draft: row.draft,
+            corrected: row.correctedTransaction
         }));
 }
 
@@ -1093,7 +1080,7 @@ export async function scanTransactionsFromImage(
                 budgetId: access.budget.id,
                 scanId: scan.id,
                 userId,
-                draftJson: JSON.stringify(sanitized)
+                draft: sanitized
             });
             drafts.push({ ...sanitized, id: item.id });
         }
@@ -1122,19 +1109,18 @@ async function ensureTransactionBudget(
     }
 }
 
-async function storeScanAttachment({
-    attachment,
-    budgetId,
-    db,
-    scan,
-    userId
-}: {
-    readonly attachment: NonNullable<TransactionScanDecisionBody['attachment']>;
-    readonly budgetId: number;
-    readonly db: AppDb;
-    readonly scan: TransactionScanDb;
-    readonly userId: number;
-}): Promise<void> {
+/** Hash verification plus an atomic upsert makes image-only retries harmless. */
+export async function uploadTransactionScanImage(
+    db: AppDb,
+    userId: number,
+    scanId: number,
+    attachment: Omit<TransactionScanBody, 'budgetId'>
+): Promise<void> {
+    const scan = await db.transactionScans.where(row => row.id, scanId).first();
+    if (!scan) throw new TransactionScanNotFoundError('Scan was not found.');
+    const access = await resolveBudgetAccess(db, userId, scan.budgetId);
+    requireBudgetPermission(access, 'canCreateTransactions');
+    const budgetId = access.budget.id;
     const imageBase64 = stripDataUrl(attachment.imageBase64);
     const buffer = scanImageBuffer(imageBase64);
     const imageHash = createHash('sha256').update(buffer).digest('hex');
@@ -1144,10 +1130,6 @@ async function storeScanAttachment({
         );
     }
 
-    const existing = await db.transactionScanImages
-        .where(row => row.scanId, scan.id)
-        .where(row => row.budgetId, budgetId)
-        .first();
     const values = {
         imageHash,
         mimeType: attachment.mimeType,
@@ -1157,20 +1139,17 @@ async function storeScanAttachment({
         updatedAt: new Date()
     };
 
-    if (existing) {
-        await db.transactionScanImages
-            .where(row => row.id, existing.id)
-            .where(row => row.budgetId, budgetId)
-            .update(values as never);
-        return;
-    }
-
-    await db.transactionScanImages.insert({
-        budgetId,
-        scanId: scan.id,
-        userId,
-        ...values
-    } as never);
+    await db.transactionScanImages
+        .onConflict(row => row.scanId)
+        .merge(
+            {
+                budgetId,
+                scanId: scan.id,
+                userId,
+                ...values
+            },
+            values
+        );
 }
 
 export async function recordTransactionScanDecision(
@@ -1204,15 +1183,6 @@ export async function recordTransactionScanDecision(
             );
         }
         await ensureTransactionBudget(db, access.budget.id, body.transactionId);
-        if (body.attachment) {
-            await storeScanAttachment({
-                attachment: body.attachment,
-                budgetId: access.budget.id,
-                db,
-                scan,
-                userId
-            });
-        }
     }
 
     await scanItemTable(db)
@@ -1220,9 +1190,7 @@ export async function recordTransactionScanDecision(
         .where(row => row.budgetId, access.budget.id)
         .update({
             decision: body.decision,
-            correctedJson: body.correctedTransaction
-                ? JSON.stringify(body.correctedTransaction)
-                : (null as never),
+            correctedTransaction: body.correctedTransaction ?? null,
             transactionId: (body.transactionId ?? null) as never,
             createdCategoryId: (body.createdCategoryId ?? null) as never,
             createdVendorId: (body.createdVendorId ?? null) as never,

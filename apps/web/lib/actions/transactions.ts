@@ -1,9 +1,6 @@
 'use server';
 
-import type {
-    TransactionScanDecisionBody,
-    TransactionScanImageResponse
-} from '@xpenser/contracts';
+import type { TransactionScanImageResponse } from '@xpenser/contracts';
 import { revalidatePath } from 'next/cache';
 import { getApiClient, getSessionOrRedirect } from '../api';
 import { runFormAction } from '../form-errors';
@@ -11,6 +8,7 @@ import {
     deleteScanUpload,
     readScanUploadAttachment
 } from '../transaction-scan-upload-store';
+import { uploadInputError } from '../upload-errors';
 import {
     requiredString,
     type TransactionScanDecisionActionBody,
@@ -66,18 +64,29 @@ export async function recordTransactionScanDecisionAction({
                 ? requestedAttachment.uploadId
                 : undefined;
         const session = uploadId ? await getSessionOrRedirect() : null;
-        const attachment: TransactionScanDecisionBody['attachment'] = uploadId
-            ? await readScanUploadAttachment(session?.user.id, uploadId)
-            : requestedAttachment && !('uploadId' in requestedAttachment)
-              ? requestedAttachment
-              : undefined;
         const client = await getApiClient();
+        if (uploadId) {
+            try {
+                await client.transactionScans.uploadImage({
+                    params: { scanId },
+                    files: {
+                        image: await readScanUploadAttachment(
+                            session?.user.id,
+                            uploadId
+                        )
+                    }
+                });
+            } catch (error) {
+                throw uploadInputError(
+                    error,
+                    'image',
+                    'Could not attach the original image. Try again.'
+                );
+            }
+        }
         await client.transactionScans.decide({
             params: { scanId, itemId },
-            body: {
-                ...decisionBody,
-                attachment
-            }
+            body: decisionBody
         });
         if (uploadId) {
             await deleteScanUpload(session?.user.id, uploadId);

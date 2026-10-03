@@ -1,7 +1,7 @@
 import type { Logger } from '@cleverbrush/log';
 import { useLogging } from '@cleverbrush/log';
 import { tracingMiddleware } from '@cleverbrush/otel';
-import { createServer, type Middleware } from '@cleverbrush/server';
+import { createServer } from '@cleverbrush/server';
 import { createOpenApiEndpoint } from '@cleverbrush/server-openapi';
 import { apiImplementation } from './api/implementation.js';
 import type { Config } from './config.js';
@@ -30,30 +30,6 @@ import { xpenserAuthSchemes } from './security/api-auth.js';
  * `/api` proxy. Non-browser clients can still use bearer/API-key auth
  * without relying on CORS.
  */
-function corsMiddleware(config: Config): Middleware {
-    return async (ctx, next) => {
-        ctx.response.setHeader('Access-Control-Allow-Origin', config.app.url);
-        ctx.response.setHeader(
-            'Access-Control-Allow-Methods',
-            'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-        );
-        ctx.response.setHeader(
-            'Access-Control-Allow-Headers',
-            'Content-Type, Authorization, X-API-Key, Mcp-Protocol-Version, Mcp-Session-Id, traceparent, tracestate, baggage'
-        );
-        ctx.response.setHeader(
-            'Access-Control-Expose-Headers',
-            'WWW-Authenticate, Mcp-Protocol-Version, Mcp-Session-Id, X-Trace-Id, X-Response-Time'
-        );
-        if (ctx.method === 'OPTIONS') {
-            ctx.response.writeHead(204);
-            ctx.response.end();
-            return;
-        }
-        await next();
-    };
-}
-
 export function buildServer(
     config: Config,
     logger: Logger,
@@ -67,14 +43,35 @@ export function buildServer(
 
     /**
      * Middleware order matters for the reference app:
-     * tracing opens the server span first, then CORS/logging/DI/auth run inside
-     * that span so logs and database spans can correlate with the request.
+     * Native CORS handles preflights before routing/authentication. For actual
+     * requests, tracing opens the span before logging/DI/authentication.
      */
     const server = createServer({
         maxBodySize: 20 * 1024 * 1024
     })
+        .useCors({
+            origin: new URL(config.app.url).origin,
+            methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+            allowedHeaders: [
+                'Content-Type',
+                'Authorization',
+                'X-API-Key',
+                'Mcp-Protocol-Version',
+                'Mcp-Session-Id',
+                'traceparent',
+                'tracestate',
+                'baggage'
+            ],
+            exposedHeaders: [
+                'WWW-Authenticate',
+                'Mcp-Protocol-Version',
+                'Mcp-Session-Id',
+                'X-Trace-Id',
+                'X-Response-Time'
+            ],
+            credentials: false
+        })
         .use(tracingMiddleware({ excludePaths: ['/health'] }))
-        .use(corsMiddleware(config))
         .use(correlationMiddleware)
         .use(requestLogMiddleware)
         .services(services =>

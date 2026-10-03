@@ -3,7 +3,6 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
     type StatsTagDetailSchema,
     StatsTagReportSchema,
-    type TransactionScanAttachmentBodySchema,
     type TransactionScanCorrectedTransactionSchema,
     TransactionScanDecisionBodySchema,
     TransactionScanDraftSchema,
@@ -38,12 +37,11 @@ describe('named schema composition', () => {
             expect(
                 TransactionScanDecisionBodySchema.safeParse({
                     decision: 'discarded',
-                    correctedTransaction: value,
-                    attachment: value
+                    correctedTransaction: value
                 }).valid
             ).toBe(true);
         }
-        for (const field of ['correctedTransaction', 'attachment']) {
+        for (const field of ['correctedTransaction']) {
             for (const value of [false, 'invalid', [], {}]) {
                 expect(
                     TransactionScanDecisionBodySchema.safeParse({
@@ -66,10 +64,6 @@ describe('named schema composition', () => {
                     currency: 'USD',
                     occurredAt: new Date(),
                     note: null
-                },
-                attachment: {
-                    imageBase64: 'aW1hZ2U=',
-                    mimeType: 'application/pdf'
                 }
             } as never,
             { doNotStopOnFirstError: true }
@@ -78,10 +72,6 @@ describe('named schema composition', () => {
         expect(
             result.getErrorsFor(field => field.correctedTransaction.amount)
                 .errors.length
-        ).toBeGreaterThan(0);
-        expect(
-            result.getErrorsFor(field => field.attachment.mimeType).errors
-                .length
         ).toBeGreaterThan(0);
     });
 
@@ -107,11 +97,6 @@ describe('named schema composition', () => {
             | InferType<typeof TransactionScanCorrectedTransactionSchema>
             | null
             | undefined
-        >();
-        expectTypeOf<
-            InferType<typeof TransactionScanDecisionBodySchema>['attachment']
-        >().toEqualTypeOf<
-            InferType<typeof TransactionScanAttachmentBodySchema> | undefined
         >();
     });
 });

@@ -7,7 +7,17 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`0.0.0-beta-20261001170911` (the v5 durable-scheduler beta).
+`0.0.0-beta-20261003175919`. See [database reads](./database-reads.md) for
+compiled query behavior and [image uploads](./image-uploads.md) for typed
+uploads, JSONB scan storage, and coordinated rollout.
+
+## Cross-origin requests
+
+`useCors()` allows the serialized origin of `APP_URL`, preserves the existing
+method/header allowlists and exposed headers, and does not enable credentials.
+Preflights are route-aware and run before authentication. Denied origins receive
+403; authenticated responses and ordinary errors get the correct CORS/Vary
+headers. Preflights and early CORS denials bypass ordinary tracing middleware.
 
 ## Learning Path
 
@@ -33,8 +43,8 @@ All directly used Framework packages are pinned to
   that scope as a type only. `index.ts` binds the handlers and compatible error
   policies. `implementation.ts` composes the modules; `.complete()` checks that
   every contract operation is implemented exactly once.
-- `apps/api/src/server.ts` builds the Cleverbrush server with tracing first,
-  CORS, structured request logging, DI, authentication, authorization,
+- `apps/api/src/server.ts` configures native CORS before routing/authentication.
+  Ordinary requests then run tracing, structured request logging, DI, authentication, authorization,
   healthchecks, batching, OpenAPI, MCP, and all contract handlers.
 - `packages/client` wraps `@cleverbrush/client` with the app middleware stack:
   OTel context propagation, retry, timeout, dedupe, in-memory tag caching,
@@ -81,7 +91,8 @@ All directly used Framework packages are pinned to
   handlers to avoid runtime import cycles. Root composition stays a short list
   of modules, not a chain containing business logic.
 - Put `tracingMiddleware()` before other API middleware so logs and database
-  spans correlate with the request span.
+  spans correlate with the request span. Native CORS preflights and denials
+  short-circuit before this middleware; they do not create ordinary request spans.
 - Translate expected application exceptions with feature-local `errorMap()`
   policies attached in the registration descriptor. Every translated status and
   body must already exist in the contract. Share narrow policies (for example
@@ -169,15 +180,15 @@ permissions, and additional invalidation paths.
   assign conditional branches, and return predicate/include callback results.
   Native Knex callbacks still follow Knex's mutable semantics.
 - `application/entity-reads.ts` and `transaction-queries.ts` own reusable
-  projections. `read-models.ts` caches definitions in a `WeakMap` keyed by the
-  Knex connection; transaction connections get separate entries. It never
-  caches rows or request-specific authorization predicates.
+  projections defined once with `query(Schema)`, without Knex. Supply the
+  connection at execution or bind with `.query(knex)` for dynamic branches.
+  Framework caches compilation per connection, never rows or permissions.
 - Branch the same filtered transaction query into count and page queries.
   Numbered pagination, stable occurrence/id ordering, batched enrichment, and
   budget access checks remain application responsibilities. Correlated
   subqueries use `.ref()` instead of assuming physical table names are aliases.
 - `application/mappings/` derives runtime source schemas from `.rowSchema` and
-  adds only application enrichment fields. Register mappings once per connection
+  adds only application enrichment fields. Register mappings once at module scope
   and use `getSyncMapper()` for pure transformations. Fetch enrichment first;
   keep `Promise.all` for independent I/O, not synchronous row conversion.
 - Database metadata must reflect storage: amounts use `decimal(18, 2)`, rates
@@ -200,14 +211,14 @@ permissions, and additional invalidation paths.
 Example: independently scoped reads and a reusable synchronous mapper:
 
 ```ts
-const keys = await apiKeyRead(db.knex)
+const keys = await apiKeyRead.query(db.knex)
     .where(key => key.userId, userId)
     .whereNull(key => key.revokedAt)
     .orderBy(key => key.createdAt, 'desc');
-return keys.map(apiKeyMapping(db.knex));
+return keys.map(apiKeyMapping);
 ```
 
-Keep `read-models.test.ts`, `typed-query-inference.test.ts`, and the real
+Keep `entity-reads.test.ts`, `typed-query-inference.test.ts`, and the real
 PostgreSQL suite (`npm run test:queries:integration`) alongside unit tests.
 The integration command requires `QUERY_TEST_DATABASE_URL` for a dedicated
 `xpenser_queries` database and creates/drops its own random schema. It checks

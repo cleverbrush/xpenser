@@ -574,12 +574,11 @@ function categorySuggestions(
 }
 
 function mapVendor(
-    db: AppDb,
     vendor: VendorDb,
     stats: VendorStats | undefined,
     suggestion: VendorSuggestion | undefined
 ): Vendor {
-    return vendorMapping(db.knex)({
+    return vendorMapping({
         vendor,
         suggestion,
         transactionCount: stats?.transactionCount ?? 0,
@@ -642,7 +641,6 @@ export async function listVendors(
         .slice(0, limit);
     return selected.map(vendor =>
         mapVendor(
-            db,
             vendor,
             context.stats.get(vendor.id),
             context.suggestions.get(vendor.id)
@@ -666,7 +664,6 @@ async function vendorView(
     await resolveBudgetAccess(db, userId, vendor.budgetId);
     const context = await vendorReadContext(db, vendor.budgetId, userId);
     return mapVendor(
-        db,
         vendor,
         context.stats.get(vendor.id),
         context.suggestions.get(vendor.id)
@@ -813,7 +810,6 @@ export async function createVendor(
     ]);
 
     return mapVendor(
-        db,
         (updated ?? vendor) as VendorDb,
         context.stats.get(vendor.id),
         context.suggestions.get(vendor.id)

@@ -7,6 +7,10 @@ import {
     string
 } from '@cleverbrush/knex-schema';
 import { type DbContext, defineEntity } from '@cleverbrush/orm';
+import {
+    TransactionScanCorrectedTransactionSchema,
+    TransactionScanDraftSchema
+} from '@xpenser/contracts';
 import { ScanRequestDbSchema } from './scan-request-schema.js';
 
 export const UserDbSchema = object({
@@ -487,9 +491,23 @@ export const TransactionScanItemDbSchema = object({
         .references('users', 'id')
         .onDelete('CASCADE')
         .index('idx_transaction_scan_items_user_id'),
-    draftJson: string().hasColumnName('draft_json'),
+    draft: object({})
+        .addProps(TransactionScanDraftSchema.omit('id'))
+        .modifyPropSchema('suggestedCategory', schema =>
+            schema.acceptUnknownProps()
+        )
+        .modifyPropSchema('confidence', schema => schema.acceptUnknownProps())
+        .acceptUnknownProps()
+        .jsonb()
+        .hasColumnName('draft_json'),
     decision: string().optional(),
-    correctedJson: string().hasColumnName('corrected_json').optional(),
+    correctedTransaction: object({})
+        .addProps(TransactionScanCorrectedTransactionSchema)
+        .acceptUnknownProps()
+        .jsonb()
+        .nullable()
+        .optional()
+        .hasColumnName('corrected_json'),
     transactionId: number()
         .hasColumnName('transaction_id')
         .references('transactions', 'id')
@@ -529,7 +547,7 @@ export const TransactionScanImageDbSchema = object({
         .index('idx_transaction_scan_images_user_id'),
     imageHash: string().hasColumnName('image_hash'),
     mimeType: string().hasColumnName('mime_type'),
-    fileName: string().hasColumnName('file_name').optional(),
+    fileName: string().hasColumnName('file_name').nullable().optional(),
     sizeBytes: number().hasColumnName('size_bytes'),
     imageBase64: string().hasColumnName('image_base64'),
     createdAt: date().hasColumnName('created_at').defaultTo('now'),

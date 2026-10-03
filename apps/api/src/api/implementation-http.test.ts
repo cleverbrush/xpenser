@@ -6,7 +6,9 @@ import {
     BudgetPermissionError
 } from '../application/budgets.js';
 import { TransactionScanJobs } from '../application/transaction-scan-jobs.js';
+import * as scans from '../application/transaction-scans.js';
 import * as transactions from '../application/transactions.js';
+import * as userAvatars from '../application/user-avatars.js';
 import * as users from '../application/users.js';
 import * as vendors from '../application/vendors.js';
 import type { Config } from '../config.js';
@@ -44,10 +46,204 @@ async function withServer(
 }
 
 function testLogger() {
-    return { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const logger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        forContext: vi.fn(() => logger)
+    };
+    return logger;
 }
 
 describe('registered implementation over HTTP', () => {
+    it('handles route-aware preflights before authentication and preserves CORS on errors', async () => {
+        await withServer(
+            async url => {
+                const headers = {
+                    origin: config.app.url,
+                    'access-control-request-method': 'PUT',
+                    'access-control-request-headers':
+                        'authorization,content-type'
+                };
+                const preflight = await fetch(`${url}/api/users/me/avatar`, {
+                    method: 'OPTIONS',
+                    headers
+                });
+                expect(preflight.status).toBe(204);
+                expect(
+                    preflight.headers.get('access-control-allow-origin')
+                ).toBe(config.app.url);
+                expect(
+                    preflight.headers.get('access-control-allow-credentials')
+                ).toBeNull();
+                expect(preflight.headers.get('vary')).toContain('Origin');
+                expect(
+                    (
+                        await fetch(`${url}/not-a-route`, {
+                            method: 'OPTIONS',
+                            headers
+                        })
+                    ).status
+                ).toBe(404);
+                expect(
+                    (
+                        await fetch(`${url}/api/users/me/avatar`, {
+                            method: 'OPTIONS',
+                            headers: {
+                                ...headers,
+                                'access-control-request-method': 'PATCH'
+                            }
+                        })
+                    ).status
+                ).toBe(405);
+                const denied = await fetch(`${url}/api/users/me/avatar`, {
+                    method: 'OPTIONS',
+                    headers: { ...headers, origin: 'https://untrusted.example' }
+                });
+                expect(denied.status).toBe(403);
+                expect(
+                    denied.headers.get('access-control-allow-origin')
+                ).toBeNull();
+                const unauthorized = await fetch(`${url}/api/users/me/avatar`, {
+                    method: 'PUT',
+                    headers: { origin: config.app.url }
+                });
+                expect(unauthorized.status).toBe(401);
+                expect(
+                    unauthorized.headers.get('access-control-allow-origin')
+                ).toBe(config.app.url);
+                expect(unauthorized.headers.get('www-authenticate')).toBe(
+                    'Bearer'
+                );
+            },
+            { app: { url: `${config.app.url}/nested/path` } as Config['app'] }
+        );
+    });
+
+    it.each([
+        true,
+        false
+    ])('sends typed files without JSON/base64 or batching (disableBatching=%s)', async disableBatching => {
+        const start = vi
+            .spyOn(TransactionScanJobs.prototype, 'start')
+            .mockResolvedValue({ jobId: 'job', token: 'token' });
+        const avatar = vi
+            .spyOn(userAvatars, 'updateUserAvatar')
+            .mockResolvedValue({ id: 42 } as never);
+        const upload = vi
+            .spyOn(scans, 'uploadTransactionScanImage')
+            .mockResolvedValue();
+        await withServer(async url => {
+            const client = createXpenserClient({
+                baseUrl: url,
+                headers: auth,
+                disableBatching
+            });
+            const file = new File(['image bytes'], 'receipt.png', {
+                type: 'image/png'
+            });
+            await expect(
+                client.transactionScans.start({
+                    body: { budgetId: 7 },
+                    files: { image: file }
+                })
+            ).resolves.toEqual({ jobId: 'job', token: 'token' });
+            expect(start).toHaveBeenCalledWith(42, {
+                budgetId: 7,
+                imageBase64: Buffer.from('image bytes').toString('base64'),
+                mimeType: 'image/png',
+                fileName: 'receipt.png'
+            });
+            await client.users.updateAvatar({ files: { avatar: file } });
+            expect(avatar).toHaveBeenCalledWith(
+                expect.anything(),
+                42,
+                expect.objectContaining({ fileName: 'receipt.png' })
+            );
+            await client.transactionScans.uploadImage({
+                params: { scanId: 12 },
+                files: { image: file }
+            });
+            expect(upload).toHaveBeenCalledWith(
+                expect.anything(),
+                42,
+                12,
+                expect.objectContaining({ fileName: 'receipt.png' })
+            );
+        });
+    });
+
+    it('rejects missing, duplicate, oversized, unsupported, truncated, and non-multipart uploads before handlers', async () => {
+        const avatar = vi.spyOn(userAvatars, 'updateUserAvatar');
+        await withServer(async url => {
+            const send = (
+                body: BodyInit,
+                headers: Record<string, string> = {}
+            ) =>
+                fetch(`${url}/api/users/me/avatar`, {
+                    method: 'PUT',
+                    headers: { ...auth, ...headers },
+                    body
+                });
+            const form = (name: string, type = 'image/png', size = 5) => {
+                const data = new FormData();
+                data.append(
+                    name,
+                    new Blob([new Uint8Array(size)], { type }),
+                    'avatar.png'
+                );
+                return data;
+            };
+            const missing = await send(form('unexpected'));
+            expect(missing.status).toBe(400);
+            expect((await missing.json()).errors).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        pointer: expect.stringContaining('/files')
+                    })
+                ])
+            );
+            const duplicate = form('avatar');
+            duplicate.append(
+                'avatar',
+                new Blob(['duplicate'], { type: 'image/png' }),
+                'again.png'
+            );
+            expect([400, 413]).toContain((await send(duplicate)).status);
+            expect((await send(form('avatar', 'application/pdf'))).status).toBe(
+                400
+            );
+            const large = await send(
+                form('avatar', 'image/png', 512 * 1024 + 1)
+            );
+            expect(large.status).toBe(413);
+            expect((await large.json()).errors).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ pointer: '/files/avatar' })
+                ])
+            );
+            expect(
+                (await send('{}', { 'content-type': 'application/json' }))
+                    .status
+            ).toBe(400);
+            expect(
+                (
+                    await send(
+                        '--test\r\nContent-Disposition: form-data; name="avatar"; filename="a.png"\r\nContent-Type: image/png\r\n\r\ntruncated',
+                        { 'content-type': 'multipart/form-data; boundary=test' }
+                    )
+                ).status
+            ).toBe(400);
+            const anonymous = await fetch(`${url}/api/users/me/avatar`, {
+                method: 'PUT',
+                body: form('avatar')
+            });
+            expect(anonymous.status).toBe(401);
+            expect(avatar).not.toHaveBeenCalled();
+        });
+    });
+
     it.each([
         true,
         false
@@ -96,7 +292,10 @@ describe('registered implementation over HTTP', () => {
                     { Reason: failure.message, UserId: 42, VendorId: 9 }
                 );
             } else {
-                expect(logger.warn).not.toHaveBeenCalled();
+                expect(logger.warn).not.toHaveBeenCalledWith(
+                    VendorUpdateValidationRejected,
+                    expect.anything()
+                );
             }
         });
     });

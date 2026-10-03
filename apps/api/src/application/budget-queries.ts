@@ -1,4 +1,10 @@
-import { alias, eq, query, resolveColumnRef } from '@cleverbrush/knex-schema';
+import {
+    alias,
+    eq,
+    parameter,
+    query,
+    resolveColumnRef
+} from '@cleverbrush/knex-schema';
 import type { Knex } from 'knex';
 import {
     type AppDb,
@@ -56,31 +62,33 @@ export function budgetMembershipsQuery(
         }));
 }
 
+export const budgetMembersRead = query(member)
+    .join(user, t => eq(t.member.userId, t.user.id))
+    .where(t => t.member.budgetId, parameter('budgetId'))
+    .orderBy(t => t.user.email, 'asc')
+    .select(t => ({
+        budgetId: t.member.budgetId,
+        userId: t.member.userId,
+        displayName: t.member.displayName,
+        role: t.member.role,
+        canCreateTransactions: t.member.canCreateTransactions,
+        canUpdateTransactions: t.member.canUpdateTransactions,
+        canDeleteTransactions: t.member.canDeleteTransactions,
+        canManageCategories: t.member.canManageCategories,
+        canManageVendors: t.member.canManageVendors,
+        canManageTags: t.member.canManageTags,
+        canManageMembers: t.member.canManageMembers,
+        createdAt: t.member.createdAt,
+        updatedAt: t.member.updatedAt,
+        email: t.user.email,
+        avatarUrl: t.user.avatarUrl,
+        avatarImageMimeType: t.user.avatarImageMimeType,
+        avatarImageFileName: t.user.avatarImageFileName,
+        avatarImageUpdatedAt: t.user.avatarImageUpdatedAt
+    }));
+
 export function budgetMembersQuery(knex: Knex, budgetId: number) {
-    return query(knex, member)
-        .join(user, t => eq(t.member.userId, t.user.id))
-        .where(t => t.member.budgetId, budgetId)
-        .orderBy(t => t.user.email, 'asc')
-        .select(t => ({
-            budgetId: t.member.budgetId,
-            userId: t.member.userId,
-            displayName: t.member.displayName,
-            role: t.member.role,
-            canCreateTransactions: t.member.canCreateTransactions,
-            canUpdateTransactions: t.member.canUpdateTransactions,
-            canDeleteTransactions: t.member.canDeleteTransactions,
-            canManageCategories: t.member.canManageCategories,
-            canManageVendors: t.member.canManageVendors,
-            canManageTags: t.member.canManageTags,
-            canManageMembers: t.member.canManageMembers,
-            createdAt: t.member.createdAt,
-            updatedAt: t.member.updatedAt,
-            email: t.user.email,
-            avatarUrl: t.user.avatarUrl,
-            avatarImageMimeType: t.user.avatarImageMimeType,
-            avatarImageFileName: t.user.avatarImageFileName,
-            avatarImageUpdatedAt: t.user.avatarImageUpdatedAt
-        }));
+    return budgetMembersRead(knex, budgetId);
 }
 
 export function uniqueActiveBudgetNameQuery(

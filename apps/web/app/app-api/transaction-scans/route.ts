@@ -17,6 +17,7 @@ import {
     storeScanUpload,
     writeScanUploadChunk
 } from '@/lib/transaction-scan-upload-store';
+import { uploadIssues } from '@/lib/upload-errors';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -198,7 +199,6 @@ export async function POST(request: Request) {
     });
 
     try {
-        const imageBase64 = image.toString('base64');
         const budgetId = await selectedBudgetIdFromCookie();
         const attachment = await storeScanUpload({
             buffer: image,
@@ -209,16 +209,23 @@ export async function POST(request: Request) {
         });
         const job = await client.transactionScans.start({
             body: {
-                ...(budgetId ? { budgetId } : {}),
-                imageBase64,
-                mimeType,
-                fileName: body.fileName
+                ...(budgetId ? { budgetId } : {})
+            },
+            files: {
+                image: {
+                    buffer: image,
+                    size: image.length,
+                    mimeType,
+                    filename: body.fileName || 'scan-image'
+                }
             }
         });
         return NextResponse.json<ScanRouteResponse>({ attachment, job });
     } catch (err) {
         const status = apiErrorStatus(err);
-        const issues = decodeValidationIssues(err, { source: 'body' });
+        const issues =
+            uploadIssues(err, 'image') ??
+            decodeValidationIssues(err, { source: 'body' });
         if (issues)
             return errorResponse(
                 'Check the selected image and try again.',
@@ -234,11 +241,11 @@ export async function POST(request: Request) {
                         : issue.pointer
                 }))
             );
-        if (status === 400) {
+        if (status === 400 || status === 413) {
             return errorResponse(
                 apiErrorMessage(err) ??
                     'Could not scan the image. Try a clearer image.',
-                400
+                status
             );
         }
         if (status === 401) {
