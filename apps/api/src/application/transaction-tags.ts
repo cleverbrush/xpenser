@@ -80,10 +80,9 @@ export function normalizeTransactionTagAssignments(
 }
 
 export function mapTransactionTag(
-    knex: Knex,
     row: TransactionTagMappingRow
 ): TransactionTag {
-    return transactionTagMapping(knex)(row);
+    return transactionTagMapping(row);
 }
 
 export function transactionTagListQuery(
@@ -143,7 +142,7 @@ export async function listTransactionTags(
     );
 
     const rows = await builder;
-    return rows.map(transactionTagMapping(db.knex));
+    return rows.map(transactionTagMapping);
 }
 
 export async function getOrCreateTransactionTag(

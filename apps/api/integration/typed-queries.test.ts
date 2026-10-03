@@ -327,14 +327,16 @@ describe('published Framework queries on PostgreSQL', () => {
                 const foreign = await createApiKey(tx, 3, {
                     name: 'Foreign test key'
                 });
-                expect(apiKeyRead(tx.knex)).not.toBe(apiKeyRead(knex));
+                expect(apiKeyRead.query(tx.knex)).not.toBe(
+                    apiKeyRead.query(knex)
+                );
                 expect(await listApiKeys(tx, 1)).toEqual([owned.apiKey]);
                 expect(await listApiKeys(tx, 3)).toEqual([foreign.apiKey]);
-                const rows = await apiKeyRead(tx.knex).where(k => k.userId, 1);
+                const rows = await apiKeyRead
+                    .query(tx.knex)
+                    .where(k => k.userId, 1);
                 expect(
-                    rows.every(
-                        row => apiKeyRead(tx.knex).rowSchema.validate(row).valid
-                    )
+                    rows.every(row => apiKeyRead.rowSchema.validate(row).valid)
                 ).toBe(true);
                 expect(rows[0]).not.toHaveProperty('secretHash');
                 expect(rows[0]).not.toHaveProperty('keyId');

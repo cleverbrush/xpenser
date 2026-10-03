@@ -14,9 +14,7 @@ export const passportPkceCookie = 'xpenser_passport_pkce';
 export const passportRedirectCookie = 'xpenser_passport_redirect';
 export const vendorActionLogger = loggerFor('Vendor actions');
 
-export type ScanDecisionAttachment =
-    | NonNullable<TransactionScanDecisionBody['attachment']>
-    | { readonly uploadId: string };
+export type ScanDecisionAttachment = { readonly uploadId: string };
 
 export type TransactionScanDecisionActionBody = Omit<
     TransactionScanDecisionBody,

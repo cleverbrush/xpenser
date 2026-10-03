@@ -2178,11 +2178,7 @@ export const TransactionScanDecisionBodySchema = object({
     /** Final user-corrected values, when confirmed. */
     correctedTransaction: TransactionScanCorrectedTransactionSchema.nullable()
         .optional()
-        .describe('Final user-corrected values, when confirmed.'),
-    /** Original scan image, stored once for confirmed transactions. */
-    attachment: TransactionScanAttachmentBodySchema.optional().describe(
-        'Original scan image, stored once for confirmed transactions.'
-    )
+        .describe('Final user-corrected values, when confirmed.')
 }).schemaName('TransactionScanDecisionBody');
 
 export const TransactionScanImageResponseSchema = object({

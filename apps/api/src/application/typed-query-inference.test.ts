@@ -1,8 +1,11 @@
 import { createDb } from '@cleverbrush/orm';
+import type { Knex } from 'knex';
 import knexFactory from 'knex';
 import { expectTypeOf, it } from 'vitest';
 import { entityMap } from '../db/schemas.js';
+import { budgetAccessReads } from './budget-access-reads.js';
 import type { budgetMembersQuery } from './budget-queries.js';
+import { apiKeyRead } from './entity-reads.js';
 import type {
     scanAttachmentsQuery,
     transactionListCountQuery,
@@ -10,6 +13,25 @@ import type {
     transactionTagCountsQuery
 } from './transaction-queries.js';
 import type { transactionTagListQuery } from './transaction-tags.js';
+
+it('requires a connection at execution while retaining parameter and row types', () => {
+    expectTypeOf(budgetAccessReads.member).parameters.toEqualTypeOf<
+        [Knex, number, number]
+    >();
+    expectTypeOf(apiKeyRead).parameters.toEqualTypeOf<[Knex]>();
+    type Key = Awaited<ReturnType<typeof apiKeyRead>>[number];
+    expectTypeOf<Key['lastUsedAt']>().toEqualTypeOf<Date | null>();
+    expectTypeOf<Key>().not.toBeAny();
+    const invalidCalls = (knex: Knex) => {
+        // @ts-expect-error Definitions require an explicit connection.
+        budgetAccessReads.member(1, 2);
+        // @ts-expect-error User IDs remain numeric after late binding.
+        budgetAccessReads.member(knex, 1, '2');
+        // @ts-expect-error Binding requires every declared parameter.
+        budgetAccessReads.member.query(knex, 1);
+    };
+    expectTypeOf(invalidCalls).toBeFunction();
+});
 
 it('preserves projected fields, nullable joins and decoded counts', () => {
     type Row = Awaited<ReturnType<typeof transactionListPageQuery>>[number];

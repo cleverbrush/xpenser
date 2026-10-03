@@ -60,7 +60,6 @@ import {
     TransactionExportQuerySchema,
     TransactionListQuerySchema,
     TransactionListResponseSchema,
-    TransactionScanBodySchema,
     TransactionScanDecisionBodySchema,
     TransactionScanImageResponseSchema,
     TransactionScanJobResponseSchema,
@@ -76,7 +75,6 @@ import {
     UpdateTransactionBodySchema,
     UpdateUserPreferenceBodySchema,
     UpdateVendorBodySchema,
-    UserAvatarUploadBodySchema,
     UserPreferenceSchema,
     VendorCandidateDetailsQuerySchema,
     VendorCandidateSchema,
@@ -84,6 +82,13 @@ import {
     VendorListQuerySchema,
     VendorSchema
 } from './schemas.js';
+import {
+    AvatarUploadSchema,
+    avatarUploadLimits,
+    ScanUploadBodySchema,
+    ScanUploadSchema,
+    scanUploadLimits
+} from './uploads.js';
 
 const ById = route({ id: number().coerce() })`/${t => t.id}`;
 const BudgetMembers = route({ id: number().coerce() })`/${t => t.id}/members`;
@@ -106,6 +111,9 @@ const TransactionScanDecision = route({
     itemId: number().coerce()
 })`/${t => t.scanId}/items/${t => t.itemId}/decision`;
 const TransactionScanJobs = route`/jobs`;
+const ScanImageUpload = route({
+    scanId: number().coerce()
+})`/${t => t.scanId}/image`;
 const TransactionScanJobStatus = route`/jobs/status`;
 const TransactionExportCsv = route`/export.csv`;
 const TransactionScanImage = route({ id: number().coerce() })`/${t =>
@@ -281,7 +289,6 @@ export const api = defineApi({
             }),
         updateAvatar: userAvatars
             .put(CurrentUserAvatar)
-            .body(UserAvatarUploadBodySchema)
             .clearsCacheTag('user-profile')
             .clearsCacheTag('telegram-status')
             .clearsCacheTag('budgets')
@@ -291,6 +298,7 @@ export const api = defineApi({
             .clearsCacheTag('vendor')
             .clearsCacheTag('transactions')
             .clearsCacheTag('transaction-export')
+            .upload(AvatarUploadSchema, avatarUploadLimits)
             .responses({
                 200: UserPreferenceSchema,
                 400: ErrorResponseSchema,
@@ -810,7 +818,8 @@ export const api = defineApi({
     transactionScans: {
         create: transactionScans
             .post()
-            .body(TransactionScanBodySchema)
+            .upload(ScanUploadSchema, scanUploadLimits)
+            .body(ScanUploadBodySchema)
             .responses({
                 201: TransactionScanResponseSchema,
                 400: ErrorResponseSchema,
@@ -819,7 +828,8 @@ export const api = defineApi({
             }),
         start: transactionScans
             .post(TransactionScanJobs)
-            .body(TransactionScanBodySchema)
+            .upload(ScanUploadSchema, scanUploadLimits)
+            .body(ScanUploadBodySchema)
             .responses({
                 202: TransactionScanJobResponseSchema,
                 400: ErrorResponseSchema,
@@ -838,6 +848,15 @@ export const api = defineApi({
             .query(TransactionScanProgressQuerySchema)
             .responses({
                 200: TransactionScanProgressEventSchema
+            }),
+        uploadImage: transactionScans
+            .put(ScanImageUpload)
+            .upload(ScanUploadSchema, { ...scanUploadLimits, maxPartCount: 1 })
+            .responses({
+                204: null,
+                400: ErrorResponseSchema,
+                403: ErrorResponseSchema,
+                404: ErrorResponseSchema
             }),
         decide: transactionScans
             .post(TransactionScanDecision)

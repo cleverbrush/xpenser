@@ -696,11 +696,6 @@ describe('shared schemas', () => {
                     occurredAt: new Date('2026-06-01T12:00:00.000Z'),
                     vendorId: null,
                     note: null
-                },
-                attachment: {
-                    imageBase64: 'aW1hZ2U=',
-                    mimeType: 'image/png',
-                    fileName: 'receipt.png'
                 }
             }).valid
         ).toBe(true);

@@ -1,3 +1,8 @@
+vi.mock('./budget-access-reads.js', async () => ({
+    readBudgetAccess: (await import('../testing/read-fixtures.js'))
+        .readBudgetAccessFixture
+}));
+
 import knexFactory from 'knex';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';

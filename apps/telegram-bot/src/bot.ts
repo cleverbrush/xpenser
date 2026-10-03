@@ -175,7 +175,13 @@ type ScanDraftSession = BudgetContext & {
     readonly currencies: readonly Currency[];
     readonly vendors: readonly Vendor[];
     readonly scan: TransactionScanResponse;
-    readonly attachment: TransactionScanBody;
+    readonly attachment: {
+        buffer: Buffer;
+        size: number;
+        mimeType: string;
+        filename: string;
+    };
+    readonly savedTransactions: Readonly<Record<number, Transaction>>;
     readonly values: Readonly<Record<number, ScanDraftValues>>;
     readonly decisions: Readonly<Record<number, ScanDraftDecision>>;
     readonly index: number;
@@ -549,6 +555,7 @@ export class XpenserTelegramBot {
     readonly #bot: TelegramBot;
     readonly #serviceClient: XpenserClient;
     readonly #sessions = new Map<string, Draft>();
+    readonly #confirmingScans = new Set<string>();
     readonly #selectedBudgets = new Map<string, number>();
     readonly #logger: Logger;
     #lastPollingErrorMessage: string | undefined;
@@ -1012,18 +1019,21 @@ export class XpenserTelegramBot {
             }
 
             const image = await this.downloadTelegramFile(media);
-            const body: TransactionScanBody = {
-                budgetId: budget.id,
-                fileName: media.fileName,
-                imageBase64: image.toString('base64'),
-                mimeType: media.mimeType
+            const attachment = {
+                buffer: image,
+                size: image.length,
+                mimeType: media.mimeType,
+                filename: media.fileName || 'scan-image'
             };
             await this.updateProgressMessage(
                 msg.chat.id,
                 progressMessage.message_id,
                 'Scan queued.'
             );
-            const job = await client.transactionScans.start({ body });
+            const job = await client.transactionScans.start({
+                body: { budgetId: budget.id },
+                files: { image: attachment }
+            });
             const scan = await this.waitForScanJob(client, job, async event => {
                 await this.updateProgressMessage(
                     msg.chat.id,
@@ -1051,7 +1061,8 @@ export class XpenserTelegramBot {
                 currencies,
                 vendors,
                 scan,
-                attachment: body,
+                attachment,
+                savedTransactions: {},
                 values: valuesForScan(
                     scan,
                     me,
@@ -2191,19 +2202,41 @@ export class XpenserTelegramBot {
             return;
         }
 
+        const confirmationKey = `${key}:${session.scan.scanId}:${draft.id}`;
+        if (this.#confirmingScans.has(confirmationKey)) return;
+        this.#confirmingScans.add(confirmationKey);
         try {
             const client = await this.userClient(user);
-            const transaction = await client.transactions.create({
-                body: {
-                    budgetId: session.budgetId,
-                    amount: values.amount,
-                    categoryId: values.categoryId,
-                    currency: values.currency,
-                    occurredAt: values.occurredAt,
-                    vendorId: values.vendorId,
-                    note: values.note.trim() || undefined
+            const transaction =
+                session.savedTransactions[draft.id] ??
+                (await client.transactions.create({
+                    body: {
+                        budgetId: session.budgetId,
+                        amount: values.amount,
+                        categoryId: values.categoryId,
+                        currency: values.currency,
+                        occurredAt: values.occurredAt,
+                        vendorId: values.vendorId,
+                        note: values.note.trim() || undefined
+                    }
+                }));
+            // Checkpoint the financial write before either follow-up request.
+            session = {
+                ...session,
+                savedTransactions: {
+                    ...session.savedTransactions,
+                    [draft.id]: transaction
                 }
-            });
+            };
+            this.#sessions.set(key, session);
+            if (!session.attachmentSubmitted) {
+                await client.transactionScans.uploadImage({
+                    params: { scanId: session.scan.scanId },
+                    files: { image: session.attachment }
+                });
+                session = { ...session, attachmentSubmitted: true };
+                this.#sessions.set(key, session);
+            }
             await client.transactionScans.decide({
                 params: {
                     scanId: session.scan.scanId,
@@ -2213,16 +2246,13 @@ export class XpenserTelegramBot {
                     decision: 'confirmed',
                     transactionId: transaction.id,
                     correctedTransaction: {
-                        amount: values.amount,
-                        categoryId: values.categoryId,
-                        currency: values.currency,
-                        occurredAt: values.occurredAt,
-                        vendorId: values.vendorId,
-                        note: values.note.trim() || null
-                    },
-                    attachment: session.attachmentSubmitted
-                        ? undefined
-                        : session.attachment
+                        amount: transaction.amount,
+                        categoryId: transaction.categoryId,
+                        currency: transaction.currency,
+                        occurredAt: transaction.occurredAt,
+                        vendorId: transaction.vendorId,
+                        note: transaction.note ?? null
+                    }
                 }
             });
 
@@ -2246,6 +2276,8 @@ export class XpenserTelegramBot {
                 apiErrorMessage(err) ??
                     'Could not save this scanned transaction.'
             );
+        } finally {
+            this.#confirmingScans.delete(confirmationKey);
         }
     }
 

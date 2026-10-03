@@ -4,8 +4,7 @@ import type {
     UserAvatarUploadBody,
     UserPreference
 } from '@xpenser/contracts';
-import { UserAvatarLimits } from '@xpenser/contracts';
-import type { Knex } from 'knex';
+import { FieldLimits, UserAvatarLimits } from '@xpenser/contracts';
 import {
     type AppDb,
     BudgetMemberDbSchema,
@@ -36,11 +35,10 @@ export type ContributorSummary = {
 export type ContributorBucket = Map<number, Date>;
 
 export function mapUserAvatarSummary(
-    knex: Knex,
     row: UserAvatarRow,
     displayName?: string
 ): UserAvatarSummary {
-    return userAvatarMapping(knex)({
+    return userAvatarMapping({
         ...row,
         displayName: displayName || undefined
     });
@@ -58,9 +56,11 @@ export async function loadUserAvatarSummaries(
         return new Map();
     }
 
-    const rows = await userAvatarRead(db.knex).whereIn(user => user.id, ids);
+    const rows = await userAvatarRead
+        .query(db.knex)
+        .whereIn(user => user.id, ids);
     const summaries = rows.map(row =>
-        mapUserAvatarSummary(db.knex, row, displayNames.get(row.id))
+        mapUserAvatarSummary(row, displayNames.get(row.id))
     );
 
     return new Map(
@@ -142,6 +142,12 @@ export async function updateUserAvatar(
     body: UserAvatarUploadBody
 ): Promise<UserPreference | undefined> {
     const bytes = imageBytes(body.imageBase64);
+    if (
+        body.fileName &&
+        body.fileName.length > FieldLimits.userAvatarFileName
+    ) {
+        throw new UserAvatarError('Avatar file name is too long.');
+    }
     if (bytes <= 0 || bytes > UserAvatarLimits.maxImageBytes) {
         throw new UserAvatarError(
             `Avatar image must be ${UserAvatarLimits.maxImageBytes} bytes or smaller.`

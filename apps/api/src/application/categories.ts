@@ -69,7 +69,6 @@ export function categoryAvailableForTransactions(
 }
 
 function mapCategory(
-    db: AppDb,
     row: CategoryDb,
     inUse: boolean,
     hasChildren: boolean,
@@ -77,7 +76,7 @@ function mapCategory(
 ): Category {
     const parent = categoryParent(row, categoriesById);
 
-    return categoryMapping(db.knex)({
+    return categoryMapping({
         id: row.id,
         budgetId: row.budgetId,
         name: row.name,
@@ -308,7 +307,6 @@ export async function listCategories(
 
     return orderedCategories.map(category =>
         mapCategory(
-            db,
             category,
             inUse.has(category.id),
             childParentIds.has(category.id),
@@ -350,7 +348,7 @@ export async function createCategory(
         categories.map(category => [category.id, category] as const)
     );
 
-    return mapCategory(db, created as CategoryDb, false, false, categoriesById);
+    return mapCategory(created as CategoryDb, false, false, categoriesById);
 }
 
 export async function updateCategory(
@@ -440,7 +438,6 @@ export async function updateCategory(
     );
 
     return mapCategory(
-        db,
         updated,
         inUse.has(updated.id),
         childParentIds.has(updated.id),

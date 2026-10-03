@@ -16,7 +16,6 @@ import {
     TransactionTagLinkDbSchema,
     VendorDbSchema
 } from '../db/schemas.js';
-import { perConnection } from './read-models.js';
 
 export type TransactionFilterQuery = Pick<
     TransactionListQuery,
@@ -50,43 +49,43 @@ function transactionSearchPattern(value: string): string {
 }
 
 /** Stable projection definition; no tenant filters or SQL execution are cached. */
-export const transactionListRead = perConnection(knex =>
-    schemaQuery(knex, alias(TransactionDbSchema, 'transactions'))
-        .join(alias(CategoryDbSchema, 'category'), t =>
-            eq(t.transactions.categoryId, t.category.id)
-        )
-        .leftJoin(alias(CategoryDbSchema, 'parent'), t =>
-            eq(t.category.parentId, t.parent.id)
-        )
-        .leftJoin(alias(VendorDbSchema, 'vendor'), t =>
-            eq(t.transactions.vendorId, t.vendor.id)
-        )
-        .select(t => ({
-            id: t.transactions.id,
-            budgetId: t.transactions.budgetId,
-            userId: t.transactions.userId,
-            categoryId: t.transactions.categoryId,
-            vendorId: t.transactions.vendorId,
-            type: t.transactions.type,
-            amount: t.transactions.amount,
-            currency: t.transactions.currency,
-            defaultCurrencyAmount: t.transactions.defaultCurrencyAmount,
-            defaultCurrency: t.transactions.defaultCurrency,
-            exchangeRate: t.transactions.exchangeRate,
-            exchangeRateDate: t.transactions.exchangeRateDate,
-            occurredAt: t.transactions.occurredAt,
-            note: t.transactions.note,
-            createdAt: t.transactions.createdAt,
-            updatedAt: t.transactions.updatedAt,
-            categoryName: t.category.name,
-            categoryType: t.category.type,
-            categoryKind: t.category.kind,
-            categoryParentId: t.category.parentId,
-            categoryParentName: t.parent.name,
-            vendorName: t.vendor.name,
-            vendorLogoUrl: t.vendor.logoUrl
-        }))
-);
+export const transactionListRead = schemaQuery(
+    alias(TransactionDbSchema, 'transactions')
+)
+    .join(alias(CategoryDbSchema, 'category'), t =>
+        eq(t.transactions.categoryId, t.category.id)
+    )
+    .leftJoin(alias(CategoryDbSchema, 'parent'), t =>
+        eq(t.category.parentId, t.parent.id)
+    )
+    .leftJoin(alias(VendorDbSchema, 'vendor'), t =>
+        eq(t.transactions.vendorId, t.vendor.id)
+    )
+    .select(t => ({
+        id: t.transactions.id,
+        budgetId: t.transactions.budgetId,
+        userId: t.transactions.userId,
+        categoryId: t.transactions.categoryId,
+        vendorId: t.transactions.vendorId,
+        type: t.transactions.type,
+        amount: t.transactions.amount,
+        currency: t.transactions.currency,
+        defaultCurrencyAmount: t.transactions.defaultCurrencyAmount,
+        defaultCurrency: t.transactions.defaultCurrency,
+        exchangeRate: t.transactions.exchangeRate,
+        exchangeRateDate: t.transactions.exchangeRateDate,
+        occurredAt: t.transactions.occurredAt,
+        note: t.transactions.note,
+        createdAt: t.transactions.createdAt,
+        updatedAt: t.transactions.updatedAt,
+        categoryName: t.category.name,
+        categoryType: t.category.type,
+        categoryKind: t.category.kind,
+        categoryParentId: t.category.parentId,
+        categoryParentName: t.parent.name,
+        vendorName: t.vendor.name,
+        vendorLogoUrl: t.vendor.logoUrl
+    }));
 
 /** Immutable filtered source shared safely by count and page branches. */
 export function transactionListBaseQuery(
@@ -94,10 +93,9 @@ export function transactionListBaseQuery(
     budgetId: number,
     query: TransactionFilterQuery
 ) {
-    let source = transactionListRead(knex).where(
-        t => t.transactions.budgetId,
-        budgetId
-    );
+    let source = transactionListRead
+        .query(knex)
+        .where(t => t.transactions.budgetId, budgetId);
     if (query.categoryId)
         source = source.where(t => t.transactions.categoryId, query.categoryId);
     if (query.from)
@@ -248,44 +246,44 @@ export function transactionTagsQuery(
         }));
 }
 
-function confirmedScanImagesQuery(knex: Knex) {
-    return schemaQuery(knex, alias(TransactionScanItemDbSchema, 'item'))
-        .join(alias(TransactionScanImageDbSchema, 'image'), t =>
-            and(
-                eq(t.item.scanId, t.image.scanId),
-                eq(t.item.budgetId, t.image.budgetId)
-            )
+const confirmedScanImagesRead = schemaQuery(
+    alias(TransactionScanItemDbSchema, 'item')
+)
+    .join(alias(TransactionScanImageDbSchema, 'image'), t =>
+        and(
+            eq(t.item.scanId, t.image.scanId),
+            eq(t.item.budgetId, t.image.budgetId)
         )
-        .where(t => t.item.decision, 'confirmed')
-        .orderBy(t => t.item.decidedAt, 'desc');
-}
+    )
+    .where(t => t.item.decision, 'confirmed')
+    .orderBy(t => t.item.decidedAt, 'desc');
 
-export const scanAttachmentRead = perConnection(knex =>
-    confirmedScanImagesQuery(knex).select(t => ({
-        transactionId: t.item.transactionId,
-        budgetId: t.item.budgetId,
-        scanId: t.item.scanId,
-        scanItemId: t.item.id,
-        fileName: t.image.fileName,
-        mimeType: t.image.mimeType,
-        sizeBytes: t.image.sizeBytes,
-        createdAt: t.image.createdAt
-    }))
-);
+export const scanAttachmentRead = confirmedScanImagesRead.select(t => ({
+    transactionId: t.item.transactionId,
+    budgetId: t.item.budgetId,
+    scanId: t.item.scanId,
+    scanItemId: t.item.id,
+    fileName: t.image.fileName,
+    mimeType: t.image.mimeType,
+    sizeBytes: t.image.sizeBytes,
+    createdAt: t.image.createdAt
+}));
 
 export function scanAttachmentsQuery(
     knex: Knex,
     budgetId: number,
     transactionIds: readonly number[]
 ) {
-    return scanAttachmentRead(knex)
+    return scanAttachmentRead
+        .query(knex)
         .where(t => t.item.budgetId, budgetId)
         .where(t => t.image.budgetId, budgetId)
         .whereIn(t => t.item.transactionId, transactionIds);
 }
 
 export function transactionScanImageQuery(knex: Knex, transactionId: number) {
-    return confirmedScanImagesQuery(knex)
+    return confirmedScanImagesRead
+        .query(knex)
         .where(t => t.item.transactionId, transactionId)
         .select(t => ({
             scanId: t.item.scanId,

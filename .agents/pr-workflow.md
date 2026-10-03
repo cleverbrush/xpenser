@@ -11,6 +11,9 @@ Use these project-specific settings with `$pr-workflow`.
 
 ## Validation
 
+- Organize tests by the feature, module, or behavior they cover, not a Framework
+  adoption effort, release date, or package version. Keep shared setup in fixtures
+  and make feature suites independently runnable.
 - Local commands:
   - `npm run lint`
   - `npm run typecheck`

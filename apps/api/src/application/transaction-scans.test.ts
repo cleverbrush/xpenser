@@ -1,3 +1,8 @@
+vi.mock('./budget-access-reads.js', async () => ({
+    readBudgetAccess: (await import('../testing/read-fixtures.js'))
+        .readBudgetAccessFixture
+}));
+
 import type {
     Category,
     Transaction,
@@ -18,7 +23,8 @@ import type {
 import {
     prepareScanImagesForVision,
     recordTransactionScanDecision,
-    scanTransactionsFromImage
+    scanTransactionsFromImage,
+    uploadTransactionScanImage
 } from './transaction-scans.js';
 
 const mocks = vi.hoisted(() => ({
@@ -186,7 +192,7 @@ function scanItem(
     overrides: Partial<TransactionScanItemDb> = {}
 ): TransactionScanItemDb {
     return {
-        correctedJson: null,
+        correctedTransaction: null,
         createdCategoryId: null,
         createdVendorId: null,
         decidedAt: null,
@@ -196,7 +202,27 @@ function scanItem(
         scanId: 10,
         userId: 1,
         budgetId: 1,
-        draftJson: '{}',
+        draft: {
+            amount: 12,
+            categoryId: null,
+            suggestedCategory: null,
+            currency: 'USD',
+            occurredAt: timestamp,
+            vendorId: null,
+            suggestedVendorName: null,
+            transactionType: 'expense',
+            note: null,
+            evidence: 'Receipt',
+            confidence: {
+                amount: 'high',
+                category: 'high',
+                currency: 'high',
+                date: 'high',
+                overall: 'high',
+                vendor: 'high'
+            },
+            possibleDuplicateTransactionIds: []
+        },
         createdAt: timestamp,
         updatedAt: timestamp,
         ...overrides
@@ -322,6 +348,18 @@ function testDb({
             })
         },
         transactionScanImages: {
+            onConflict: vi.fn(() => ({
+                merge: vi.fn(async (value, update) => {
+                    const existing = scanImages.find(
+                        row => row.scanId === value.scanId
+                    );
+                    if (existing) Object.assign(existing, update);
+                    else
+                        scanImages.push(
+                            scanImage({ id: scanImages.length + 30, ...value })
+                        );
+                })
+            })),
             where: vi.fn(
                 <TValue>(
                     selector: (row: TransactionScanImageDb) => TValue,
@@ -429,7 +467,7 @@ describe('transaction image scans', () => {
             ]
         });
         expect(scanItems).toHaveLength(1);
-        expect(JSON.parse(scanItems[0]?.draftJson ?? '{}')).toMatchObject({
+        expect(scanItems[0]?.draft).toMatchObject({
             amount: 12.34,
             categoryId: 7,
             currency: 'USD',
@@ -687,7 +725,7 @@ describe('transaction image scans', () => {
             decision: 'confirmed',
             transactionId: 42
         });
-        expect(JSON.parse(item.correctedJson ?? '{}')).toMatchObject({
+        expect(item.correctedTransaction).toMatchObject({
             amount: 19.99,
             categoryId: 7,
             note: 'Corrected'
@@ -704,22 +742,10 @@ describe('transaction image scans', () => {
             transactions: [transactionRow({ id: 42 })]
         });
 
-        await recordTransactionScanDecision(db, 1, 10, 20, {
-            decision: 'confirmed',
-            transactionId: 42,
-            correctedTransaction: {
-                amount: 19.99,
-                categoryId: 7,
-                currency: 'USD',
-                occurredAt: timestamp,
-                vendorId: null,
-                note: null
-            },
-            attachment: {
-                imageBase64: Buffer.from('image').toString('base64'),
-                mimeType: 'image/png',
-                fileName: 'receipt.png'
-            }
+        await uploadTransactionScanImage(db, 1, 10, {
+            imageBase64: Buffer.from('image').toString('base64'),
+            mimeType: 'image/png',
+            fileName: 'receipt.png'
         });
 
         expect(scanImages).toHaveLength(1);
@@ -743,22 +769,10 @@ describe('transaction image scans', () => {
         });
 
         await expect(
-            recordTransactionScanDecision(db, 1, 10, 20, {
-                decision: 'confirmed',
-                transactionId: 42,
-                correctedTransaction: {
-                    amount: 19.99,
-                    categoryId: 7,
-                    currency: 'USD',
-                    occurredAt: timestamp,
-                    vendorId: null,
-                    note: null
-                },
-                attachment: {
-                    imageBase64: Buffer.from('other').toString('base64'),
-                    mimeType: 'image/png',
-                    fileName: 'receipt.png'
-                }
+            uploadTransactionScanImage(db, 1, 10, {
+                imageBase64: Buffer.from('other').toString('base64'),
+                mimeType: 'image/png',
+                fileName: 'receipt.png'
             })
         ).rejects.toThrow('Confirmed scan image did not match');
         expect(scanImages).toHaveLength(0);

@@ -12,11 +12,19 @@ const ormMocks = vi.hoisted(() => ({
     query: vi.fn()
 }));
 
-vi.mock('@cleverbrush/knex-schema', async importOriginal => ({
-    ...(await importOriginal<typeof import('@cleverbrush/knex-schema')>()),
-    getTableName: vi.fn(() => 'transaction_tags'),
-    query: ormMocks.query
-}));
+vi.mock('@cleverbrush/knex-schema', async importOriginal => {
+    const actual =
+        await importOriginal<typeof import('@cleverbrush/knex-schema')>();
+    return {
+        ...actual,
+        getTableName: vi.fn(() => 'transaction_tags'),
+        // Keep connection-free definitions real; mock only the bound write boundary.
+        query: (...args: unknown[]) =>
+            args.length === 1
+                ? Reflect.apply(actual.query, undefined, args)
+                : ormMocks.query(...args)
+    };
+});
 
 describe('transaction tags', () => {
     beforeEach(() => {
