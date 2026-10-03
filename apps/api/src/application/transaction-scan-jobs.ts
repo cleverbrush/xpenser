@@ -141,7 +141,7 @@ export class TransactionScanJobs {
 
     private async authorize(input: TransactionScanProgressQuery) {
         // Never load the image when polling or opening a progress stream.
-        const [request] = await scanReads(this.db.knex).request(input.jobId);
+        const [request] = await scanReads.request(this.db.knex, input.jobId);
         if (
             !request ||
             !timingSafeEqual(

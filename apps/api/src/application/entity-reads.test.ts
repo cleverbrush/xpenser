@@ -7,7 +7,6 @@ import {
     type TransactionMappingSource,
     transactionMapping
 } from './mappings/transactions.js';
-import { perConnection } from './read-models.js';
 import {
     transactionListBaseQuery,
     transactionListCountQuery,
@@ -22,20 +21,21 @@ afterAll(async () => {
 });
 
 describe('immutable read definitions', () => {
-    it('reuses definitions only within the same connection', () => {
-        const create = vi.fn(() => ({}));
-        const prepared = perConnection(create);
-        expect(prepared(knex)).toBe(prepared(knex));
-        expect(prepared(other)).not.toBe(prepared(knex));
-        expect(create).toHaveBeenCalledTimes(2);
-        expect(apiKeyRead(knex)).toBe(apiKeyRead(knex));
-        expect(apiKeyMapping(knex)).toBe(apiKeyMapping(knex));
-        expect(transactionMapping(knex)).toBe(transactionMapping(knex));
+    it('exposes metadata without a connection and creates independent bound readers', async () => {
+        expect(Reflect.get(apiKeyRead, 'then')).toBeUndefined();
+        expect(await Promise.resolve(apiKeyRead)).toBe(apiKeyRead);
+        const source = apiKeyRead.rowSchema;
+        const first = apiKeyRead.query(knex);
+        const second = apiKeyRead.query(other);
+        expect(first).not.toBe(second);
+        expect(first).not.toBe(apiKeyRead.query(knex));
+        expect(first.rowSchema).toBe(source);
+        expect(second.rowSchema).toBe(source);
     });
 
     it('branches count, pagination and tenants without changing the reusable source', () => {
-        const definition = transactionListRead(knex);
-        const original = definition.toKnexQuery().toSQL();
+        const definition = transactionListRead;
+        const original = definition.toSQL(knex);
         const base = transactionListBaseQuery(knex, 7, {
             direction: 'asc',
             vendorId: 'none'
@@ -55,7 +55,7 @@ describe('immutable read definitions', () => {
                 .toKnexQuery()
                 .toSQL().bindings
         ).toEqual([8]);
-        expect(definition.toKnexQuery().toSQL()).toMatchObject({
+        expect(definition.toSQL(knex)).toMatchObject({
             sql: original.sql,
             bindings: original.bindings
         });
@@ -76,12 +76,12 @@ describe('immutable read definitions', () => {
                 createdAt: new Date(),
                 lastUsedAt: null
             };
-            const source = apiKeyRead(knex).rowSchema;
+            const source = apiKeyRead.rowSchema;
             expect(source.validate(row).valid).toBe(true);
-            const mapped = apiKeyMapping(knex)(row);
+            const mapped = apiKeyMapping(row);
             expect(mapped).not.toBeInstanceOf(Promise);
             expect(mapped).toEqual({ ...row, lastUsedAt: undefined });
-            transactionMapping(knex);
+            expect(transactionMapping).toBeTypeOf('function');
             expect(executed).not.toHaveBeenCalled();
         } finally {
             knex.off('query', executed);
@@ -89,7 +89,7 @@ describe('immutable read definitions', () => {
     });
 
     it('derives safe public projections and honest decoded types', () => {
-        const keys = apiKeyRead(knex).rowSchema.introspect().properties;
+        const keys = apiKeyRead.rowSchema.introspect().properties;
         expect(Object.keys(keys).sort()).toEqual([
             'createdAt',
             'id',
@@ -97,10 +97,10 @@ describe('immutable read definitions', () => {
             'lastUsedAt',
             'name'
         ]);
-        const avatar = userAvatarRead(knex).rowSchema.introspect().properties;
+        const avatar = userAvatarRead.rowSchema.introspect().properties;
         expect(avatar).not.toHaveProperty('passwordHash');
         expect(avatar).not.toHaveProperty('avatarImageBase64');
-        type Key = InferType<ReturnType<typeof apiKeyRead>['rowSchema']>;
+        type Key = InferType<typeof apiKeyRead.rowSchema>;
         expectTypeOf<Key['lastUsedAt']>().toEqualTypeOf<Date | null>();
         expectTypeOf<
             TransactionMappingSource['amount']

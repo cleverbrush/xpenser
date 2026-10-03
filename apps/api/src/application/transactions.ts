@@ -474,7 +474,6 @@ function mapTransactionSource(
 }
 
 function mapTransaction(
-    knex: Knex,
     row: TransactionDb,
     categoriesById: ReadonlyMap<number, CategoryDb>,
     vendorsById: ReadonlyMap<number, VendorDb>,
@@ -489,7 +488,7 @@ function mapTransaction(
     const fields = categoryFields(category, row, categoriesById);
     const vendor = row.vendorId ? vendorsById.get(row.vendorId) : undefined;
 
-    return transactionMapping(knex)(
+    return transactionMapping(
         mapTransactionSource(
             row,
             {
@@ -515,7 +514,6 @@ function mapTransaction(
 }
 
 function mapListedTransaction(
-    knex: Knex,
     row: TransactionListRow,
     scanAttachments: ReadonlyMap<number, TransactionScanAttachment>,
     tagsByTransaction: ReadonlyMap<number, readonly TransactionTag[]>,
@@ -529,7 +527,7 @@ function mapListedTransaction(
         CategoryTypeSchema.parse(row.type)
     );
 
-    return transactionMapping(knex)(
+    return transactionMapping(
         mapTransactionSource(
             row,
             {
@@ -585,7 +583,7 @@ async function transactionTagsByTransaction(
         rows.map(row => row.id)
     );
     const mappedTags = rows.map(row =>
-        mapTransactionTag(knex, {
+        mapTransactionTag({
             ...row,
             transactionCount: counts.get(row.id) ?? 0
         })
@@ -602,10 +600,9 @@ async function transactionTagsByTransaction(
 }
 
 function scanAttachmentFromRow(
-    knex: Knex,
     row: TransactionScanAttachmentRow
 ): TransactionScanAttachment {
-    return scanAttachmentMapping(knex)({
+    return scanAttachmentMapping({
         scanId: row.scanId,
         scanItemId: row.scanItemId,
         fileName: row.fileName,
@@ -629,7 +626,7 @@ async function scanAttachmentsByTransaction(
 
     const mapped = rows.map(row => ({
         row,
-        attachment: scanAttachmentFromRow(knex, row)
+        attachment: scanAttachmentFromRow(row)
     }));
     const attachments = new Map<number, TransactionScanAttachment>();
     for (const { row, attachment } of mapped) {
@@ -881,7 +878,6 @@ export async function listTransactions(
     return {
         items: pageRows.map(transaction =>
             mapListedTransaction(
-                database,
                 transaction,
                 scanAttachments,
                 pageTagsByTransaction,
@@ -1158,7 +1154,6 @@ export async function exportTransactionsCsv(
     const creatorsById = await loadTransactionCreators(knex ?? db.knex, rows);
     const transactions = rows.map(transaction =>
         mapTransaction(
-            knex ?? db.knex,
             transaction,
             categoriesById,
             vendorsById,
@@ -1269,7 +1264,6 @@ export async function getTransaction(
             loadTransactionCreators(db.knex, [row])
         ]);
     return mapTransaction(
-        db.knex,
         row,
         categoriesById,
         vendorsById,
@@ -1293,7 +1287,7 @@ export async function getTransactionScanImage(
     await resolveBudgetAccess(db, userId, Number(row.budgetId));
 
     return {
-        ...scanAttachmentFromRow(knex, row),
+        ...scanAttachmentFromRow(row),
         imageBase64: row.imageBase64
     };
 }

@@ -67,11 +67,12 @@ export async function listApiKeys(
     db: AppDb,
     userId: number
 ): Promise<ApiKey[]> {
-    const rows = await apiKeyRead(db.knex)
+    const rows = await apiKeyRead
+        .query(db.knex)
         .where(key => key.userId, userId)
         .whereNull(key => key.revokedAt)
         .orderBy(key => key.createdAt, 'desc');
-    return rows.map(apiKeyMapping(db.knex));
+    return rows.map(apiKeyMapping);
 }
 
 export async function createApiKey(
@@ -92,7 +93,7 @@ export async function createApiKey(
 
     return {
         key: material.key,
-        apiKey: apiKeyMapping(db.knex)(created)
+        apiKey: apiKeyMapping(created)
     };
 }
 

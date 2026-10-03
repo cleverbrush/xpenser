@@ -12,7 +12,6 @@ import {
     BudgetMemberDbSchema,
     UserDbSchema
 } from '../db/schemas.js';
-import { perConnection } from './read-models.js';
 
 export type BudgetListStatus = 'active' | 'archived' | 'all';
 
@@ -63,35 +62,33 @@ export function budgetMembershipsQuery(
         }));
 }
 
-export const budgetMembersRead = perConnection(knex =>
-    query(knex, member)
-        .join(user, t => eq(t.member.userId, t.user.id))
-        .where(t => t.member.budgetId, parameter('budgetId'))
-        .orderBy(t => t.user.email, 'asc')
-        .select(t => ({
-            budgetId: t.member.budgetId,
-            userId: t.member.userId,
-            displayName: t.member.displayName,
-            role: t.member.role,
-            canCreateTransactions: t.member.canCreateTransactions,
-            canUpdateTransactions: t.member.canUpdateTransactions,
-            canDeleteTransactions: t.member.canDeleteTransactions,
-            canManageCategories: t.member.canManageCategories,
-            canManageVendors: t.member.canManageVendors,
-            canManageTags: t.member.canManageTags,
-            canManageMembers: t.member.canManageMembers,
-            createdAt: t.member.createdAt,
-            updatedAt: t.member.updatedAt,
-            email: t.user.email,
-            avatarUrl: t.user.avatarUrl,
-            avatarImageMimeType: t.user.avatarImageMimeType,
-            avatarImageFileName: t.user.avatarImageFileName,
-            avatarImageUpdatedAt: t.user.avatarImageUpdatedAt
-        }))
-);
+export const budgetMembersRead = query(member)
+    .join(user, t => eq(t.member.userId, t.user.id))
+    .where(t => t.member.budgetId, parameter('budgetId'))
+    .orderBy(t => t.user.email, 'asc')
+    .select(t => ({
+        budgetId: t.member.budgetId,
+        userId: t.member.userId,
+        displayName: t.member.displayName,
+        role: t.member.role,
+        canCreateTransactions: t.member.canCreateTransactions,
+        canUpdateTransactions: t.member.canUpdateTransactions,
+        canDeleteTransactions: t.member.canDeleteTransactions,
+        canManageCategories: t.member.canManageCategories,
+        canManageVendors: t.member.canManageVendors,
+        canManageTags: t.member.canManageTags,
+        canManageMembers: t.member.canManageMembers,
+        createdAt: t.member.createdAt,
+        updatedAt: t.member.updatedAt,
+        email: t.user.email,
+        avatarUrl: t.user.avatarUrl,
+        avatarImageMimeType: t.user.avatarImageMimeType,
+        avatarImageFileName: t.user.avatarImageFileName,
+        avatarImageUpdatedAt: t.user.avatarImageUpdatedAt
+    }));
 
 export function budgetMembersQuery(knex: Knex, budgetId: number) {
-    return budgetMembersRead(knex)(budgetId);
+    return budgetMembersRead(knex, budgetId);
 }
 
 export function uniqueActiveBudgetNameQuery(

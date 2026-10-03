@@ -19,7 +19,7 @@ beforeAll(async () => {
 
 describe('transaction scan persistence on PostgreSQL', () => {
     it('omits image bytes from the progress authorization read', () => {
-        expect(scanReads(knex).request.toSQL('run').sql).not.toContain(
+        expect(scanReads.request.toSQL(knex, 'run').sql).not.toContain(
             'image_base64'
         );
     });
@@ -45,7 +45,7 @@ describe('transaction scan persistence on PostgreSQL', () => {
             draft: document,
             correctedTransaction: null
         });
-        const [row] = await scanReads(knex).items(1, 1);
+        const [row] = await scanReads.items(knex, 1, 1);
         if (!row) throw new Error('Expected stored draft');
         expect(row.draft).toMatchObject(document);
         expect(row.draft.occurredAt).toBeInstanceOf(Date);
@@ -63,13 +63,13 @@ describe('transaction scan persistence on PostgreSQL', () => {
             .where(row => row.id, item.id)
             .update({ correctedTransaction: correction });
         expect(
-            (await scanReads(knex).items(1, 1))[0]?.correctedTransaction
+            (await scanReads.items(knex, 1, 1))[0]?.correctedTransaction
         ).toMatchObject(correction);
         expect((await loadScanResult(db, 1, 1)).drafts[0]?.occurredAt).toEqual(
             occurredAt
         );
         await expect(loadScanResult(db, 1, 2)).rejects.toThrow('unavailable');
-        expect(await scanReads(knex).items(1, 2)).toEqual([]);
+        expect(await scanReads.items(knex, 1, 2)).toEqual([]);
     });
 
     it('atomically upserts concurrent image retries and rejects mismatches or other budgets', async () => {

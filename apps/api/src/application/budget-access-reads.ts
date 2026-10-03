@@ -4,28 +4,26 @@ import {
     BudgetDbSchema,
     BudgetMemberDbSchema
 } from '../db/schemas.js';
-import { perConnection } from './read-models.js';
 
-/** Cache query plans, never membership or permission results. */
-export const budgetAccessReads = perConnection(knex => ({
-    budget: query(knex, BudgetDbSchema)
+/** Connection-independent plans; membership and permissions are always read fresh. */
+export const budgetAccessReads = {
+    budget: query(BudgetDbSchema)
         .where(row => row.id, parameter('budgetId'))
         .limit(1),
-    member: query(knex, BudgetMemberDbSchema.omit(['budget', 'user']))
+    member: query(BudgetMemberDbSchema.omit(['budget', 'user']))
         .where(row => row.budgetId, parameter('budgetId'))
         .where(row => row.userId, parameter('userId'))
         .limit(1)
-}));
+};
 
 export async function readBudgetAccess(
     db: AppDb,
     budgetId: number,
     userId: number
 ) {
-    const reads = budgetAccessReads(db.knex);
     const [[budget], [member]] = await Promise.all([
-        reads.budget(budgetId),
-        reads.member(budgetId, userId)
+        budgetAccessReads.budget(db.knex, budgetId),
+        budgetAccessReads.member(db.knex, budgetId, userId)
     ]);
     return { budget, member };
 }

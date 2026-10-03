@@ -1,6 +1,6 @@
 # Background jobs
 
-Xpenser uses Framework `0.0.0-beta-20261003113145` and its PostgreSQL scheduler
+Xpenser uses Framework `0.0.0-beta-20261003175919` and its PostgreSQL scheduler
 adapter. No Redis, separate worker container, or additional credentials are
 required. Every API process shares its existing database pool with its workers.
 

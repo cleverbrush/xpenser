@@ -9,18 +9,24 @@ import {
 import { postgresFixture, seedBudgetOwners } from './postgres-fixture.js';
 
 const { db, knex } = postgresFixture('budget_access');
+const other = postgresFixture('budget_access_other');
 beforeAll(() => seedBudgetOwners(knex));
+beforeAll(async () => {
+    await seedBudgetOwners(other.knex);
+    await other.knex('budget_members').where({ budget_id: 1 }).update({
+        display_name: 'Other database'
+    });
+});
 
 describe('budget access on PostgreSQL', () => {
     it('reuses templates but isolates concurrent budget/user bindings', async () => {
-        expect(budgetAccessReads(knex)).toBe(budgetAccessReads(knex));
-        const reads = budgetAccessReads(knex);
-        expect(reads.member.toSQL(1, 1).bindings).toEqual([1, 1, 1]);
-        expect(reads.member.toSQL(2, 2).bindings).toEqual([2, 2, 1]);
+        const reads = budgetAccessReads;
+        expect(reads.member.toSQL(knex, 1, 1).bindings).toEqual([1, 1, 1]);
+        expect(reads.member.toSQL(knex, 2, 2).bindings).toEqual([2, 2, 1]);
         const rows = await Promise.all([
-            reads.member(1, 1),
-            reads.member(2, 2),
-            reads.member(1, 2)
+            reads.member(knex, 1, 1),
+            reads.member(knex, 2, 2),
+            reads.member(knex, 1, 2)
         ]);
         expect(rows.map(items => items.map(row => row.userId))).toEqual([
             [1],
@@ -28,8 +34,19 @@ describe('budget access on PostgreSQL', () => {
             []
         ]);
         expect(
-            (await budgetMembersRead(knex)(1)).map(row => row.userId)
+            (await budgetMembersRead(knex, 1)).map(row => row.userId)
         ).toEqual([1]);
+    });
+
+    it('executes one definition against independently configured connections', async () => {
+        const [first, second, again] = await Promise.all([
+            budgetAccessReads.member(knex, 1, 1),
+            budgetAccessReads.member(other.knex, 1, 1),
+            budgetAccessReads.member(knex, 1, 1)
+        ]);
+        expect(first[0]?.displayName).toBe('One');
+        expect(second[0]?.displayName).toBe('Other database');
+        expect(again).toEqual(first);
     });
 
     it('observes revoked access and respects transaction-local writes and rollback', async () => {
@@ -44,11 +61,14 @@ describe('budget access on PostgreSQL', () => {
                 await expect(
                     resolveBudgetAccess(transaction, 1, 1)
                 ).rejects.toBeInstanceOf(BudgetAccessError);
-                // A derivative of the already-compiled template uses the same transaction.
+                // Both execution and a bound derivative use the caller's transaction.
                 expect(
-                    await budgetAccessReads(knex).member.transacting(
-                        transaction.knex as Knex.Transaction
-                    )(1, 1)
+                    await budgetAccessReads.member(transaction.knex, 1, 1)
+                ).toEqual([]);
+                expect(
+                    await budgetAccessReads.member
+                        .query(knex, 1, 1)
+                        .transacting(transaction.knex as Knex.Transaction)
                 ).toEqual([]);
                 throw rollback;
             })

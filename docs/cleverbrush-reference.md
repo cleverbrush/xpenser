@@ -7,7 +7,7 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`0.0.0-beta-20261003113145`. See [database reads](./database-reads.md) for
+`0.0.0-beta-20261003175919`. See [database reads](./database-reads.md) for
 compiled query behavior and [image uploads](./image-uploads.md) for typed
 uploads, JSONB scan storage, and coordinated rollout.
 
@@ -180,15 +180,15 @@ permissions, and additional invalidation paths.
   assign conditional branches, and return predicate/include callback results.
   Native Knex callbacks still follow Knex's mutable semantics.
 - `application/entity-reads.ts` and `transaction-queries.ts` own reusable
-  projections. `read-models.ts` caches definitions in a `WeakMap` keyed by the
-  Knex connection; transaction connections get separate entries. It never
-  caches rows or request-specific authorization predicates.
+  projections defined once with `query(Schema)`, without Knex. Supply the
+  connection at execution or bind with `.query(knex)` for dynamic branches.
+  Framework caches compilation per connection, never rows or permissions.
 - Branch the same filtered transaction query into count and page queries.
   Numbered pagination, stable occurrence/id ordering, batched enrichment, and
   budget access checks remain application responsibilities. Correlated
   subqueries use `.ref()` instead of assuming physical table names are aliases.
 - `application/mappings/` derives runtime source schemas from `.rowSchema` and
-  adds only application enrichment fields. Register mappings once per connection
+  adds only application enrichment fields. Register mappings once at module scope
   and use `getSyncMapper()` for pure transformations. Fetch enrichment first;
   keep `Promise.all` for independent I/O, not synchronous row conversion.
 - Database metadata must reflect storage: amounts use `decimal(18, 2)`, rates
@@ -211,14 +211,14 @@ permissions, and additional invalidation paths.
 Example: independently scoped reads and a reusable synchronous mapper:
 
 ```ts
-const keys = await apiKeyRead(db.knex)
+const keys = await apiKeyRead.query(db.knex)
     .where(key => key.userId, userId)
     .whereNull(key => key.revokedAt)
     .orderBy(key => key.createdAt, 'desc');
-return keys.map(apiKeyMapping(db.knex));
+return keys.map(apiKeyMapping);
 ```
 
-Keep `read-models.test.ts`, `typed-query-inference.test.ts`, and the real
+Keep `entity-reads.test.ts`, `typed-query-inference.test.ts`, and the real
 PostgreSQL suite (`npm run test:queries:integration`) alongside unit tests.
 The integration command requires `QUERY_TEST_DATABASE_URL` for a dedicated
 `xpenser_queries` database and creates/drops its own random schema. It checks

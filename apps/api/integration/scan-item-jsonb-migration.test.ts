@@ -55,7 +55,7 @@ describe('scan item JSONB migration', () => {
         expect(converted.draft_json).toEqual(document);
         expect(converted.corrected_json).toBeNull();
         expect(
-            (await scanReads(knex).items(1, 1))[0]?.draft.occurredAt
+            (await scanReads.items(knex, 1, 1))[0]?.draft.occurredAt
         ).toEqual(occurredAt);
     });
 

@@ -60,10 +60,9 @@ export async function loadScanResult(
     scanId: number,
     budgetId: number
 ) {
-    const reads = scanReads(db.knex);
-    const [scan] = await reads.result(scanId, budgetId);
+    const [scan] = await scanReads.result(db.knex, scanId, budgetId);
     if (!scan) throw new Error('Scan result is unavailable.');
-    const items = await reads.items(scanId, budgetId);
+    const items = await scanReads.items(db.knex, scanId, budgetId);
     return TransactionScanResponseSchema.parse({
         scanId,
         documentKind: scan.documentKind,
