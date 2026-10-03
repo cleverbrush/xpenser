@@ -1,3 +1,8 @@
+vi.mock(
+    '../application/api-key-reads.js',
+    async () => await import('../testing/read-fixtures.js')
+);
+
 import { signJwt } from '@cleverbrush/auth';
 import { number, string } from '@cleverbrush/schema';
 import { createServer, endpoint, route } from '@cleverbrush/server';

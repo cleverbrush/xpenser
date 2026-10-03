@@ -1,3 +1,8 @@
+vi.mock('./budget-access-reads.js', async () => ({
+    readBudgetAccess: (await import('../testing/read-fixtures.js'))
+        .readBudgetAccessFixture
+}));
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../config.js';
 import type { AppDb } from '../db/schemas.js';

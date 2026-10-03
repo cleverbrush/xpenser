@@ -1,4 +1,10 @@
-import { alias, eq, query, resolveColumnRef } from '@cleverbrush/knex-schema';
+import {
+    alias,
+    eq,
+    parameter,
+    query,
+    resolveColumnRef
+} from '@cleverbrush/knex-schema';
 import type { Knex } from 'knex';
 import {
     type AppDb,
@@ -6,6 +12,7 @@ import {
     BudgetMemberDbSchema,
     UserDbSchema
 } from '../db/schemas.js';
+import { perConnection } from './read-models.js';
 
 export type BudgetListStatus = 'active' | 'archived' | 'all';
 
@@ -56,10 +63,10 @@ export function budgetMembershipsQuery(
         }));
 }
 
-export function budgetMembersQuery(knex: Knex, budgetId: number) {
-    return query(knex, member)
+export const budgetMembersRead = perConnection(knex =>
+    query(knex, member)
         .join(user, t => eq(t.member.userId, t.user.id))
-        .where(t => t.member.budgetId, budgetId)
+        .where(t => t.member.budgetId, parameter('budgetId'))
         .orderBy(t => t.user.email, 'asc')
         .select(t => ({
             budgetId: t.member.budgetId,
@@ -80,7 +87,11 @@ export function budgetMembersQuery(knex: Knex, budgetId: number) {
             avatarImageMimeType: t.user.avatarImageMimeType,
             avatarImageFileName: t.user.avatarImageFileName,
             avatarImageUpdatedAt: t.user.avatarImageUpdatedAt
-        }));
+        }))
+);
+
+export function budgetMembersQuery(knex: Knex, budgetId: number) {
+    return budgetMembersRead(knex)(budgetId);
 }
 
 export function uniqueActiveBudgetNameQuery(

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => {
             vendors: { create: fn(), update: fn() },
             categories: { create: fn(), update: fn(), moveAndDelete: fn() },
             transactions: { create: fn(), update: fn() },
+            transactionScans: { uploadImage: fn(), decide: fn() },
             budgets: {
                 create: fn(),
                 update: fn(),
@@ -39,6 +40,11 @@ vi.mock('./api', () => ({
 vi.mock('./budgets', () => ({
     selectedBudgetIdFromCookie: async () => 4,
     selectedBudgetCookie: 'budget'
+}));
+const scanUploads = vi.hoisted(() => ({ read: vi.fn(), remove: vi.fn() }));
+vi.mock('./transaction-scan-upload-store', () => ({
+    readScanUploadAttachment: scanUploads.read,
+    deleteScanUpload: scanUploads.remove
 }));
 vi.mock('./config', () => ({
     webConfig: { appUrl: 'https://example.com', singleUser: { enabled: false } }
@@ -82,6 +88,48 @@ function data() {
 beforeEach(() => vi.clearAllMocks());
 
 describe('form actions preserve server field errors', () => {
+    it.each([
+        'upload',
+        'decision'
+    ])('keeps the temporary receipt after a failed %s and sends only JSON decisions', async failure => {
+        const image = {
+            filename: 'receipt.png',
+            buffer: Buffer.from('receipt'),
+            size: 7,
+            mimeType: 'image/png'
+        };
+        scanUploads.read.mockResolvedValue(image);
+        mocks.client.transactionScans[
+            failure === 'upload' ? 'uploadImage' : 'decide'
+        ].mockRejectedValueOnce(
+            new ApiError(400, 'Rejected', { message: 'Try again' })
+        );
+        const args = {
+            scanId: 1,
+            itemId: 2,
+            body: {
+                decision: 'confirmed' as const,
+                transactionId: 9,
+                attachment: { uploadId: 'upload' }
+            }
+        };
+        expect(
+            (await actions.recordTransactionScanDecisionAction(args)).ok
+        ).toBe(false);
+        expect(scanUploads.remove).not.toHaveBeenCalled();
+        expect(
+            (await actions.recordTransactionScanDecisionAction(args)).ok
+        ).toBe(true);
+        expect(
+            mocks.client.transactionScans.uploadImage
+        ).toHaveBeenLastCalledWith({ params: { scanId: 1 }, files: { image } });
+        expect(mocks.client.transactionScans.decide).toHaveBeenLastCalledWith({
+            params: { scanId: 1, itemId: 2 },
+            body: { decision: 'confirmed', transactionId: 9 }
+        });
+        expect(scanUploads.remove).toHaveBeenCalledWith('1', 'upload');
+        expect(mocks.client.transactions.create).not.toHaveBeenCalled();
+    });
     const cases = [
         [actions.loginAction, mocks.client.auth.login],
         [actions.registerAction, mocks.client.auth.register],

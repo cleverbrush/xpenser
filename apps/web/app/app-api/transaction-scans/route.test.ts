@@ -94,10 +94,14 @@ describe('transaction scan route', () => {
             retryOnTimeout: false
         });
         expect(mocks.transactionScanStart).toHaveBeenCalledWith({
-            body: {
-                imageBase64: Buffer.from('receipt bytes').toString('base64'),
-                mimeType: 'image/jpeg',
-                fileName: 'receipt.jpg'
+            body: {},
+            files: {
+                image: {
+                    buffer: Buffer.from('receipt bytes'),
+                    size: Buffer.byteLength('receipt bytes'),
+                    mimeType: 'image/jpeg',
+                    filename: 'receipt.jpg'
+                }
             }
         });
     });

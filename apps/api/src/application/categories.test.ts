@@ -1,3 +1,8 @@
+vi.mock('./budget-access-reads.js', async () => ({
+    readBudgetAccess: (await import('../testing/read-fixtures.js'))
+        .readBudgetAccessFixture
+}));
+
 import knexFactory from 'knex';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { CategoryDb } from '../db/schemas.js';

@@ -100,8 +100,8 @@ describe('contract-bound API implementation', () => {
         const entries = collectEndpointEntries(
             api as unknown as Record<string, unknown>
         );
-        expect(entries).toHaveLength(68);
-        expect(server.getRegistrations()).toHaveLength(67);
+        expect(entries).toHaveLength(69);
+        expect(server.getRegistrations()).toHaveLength(68);
         expect(server.getSubscriptionRegistrations()).toHaveLength(1);
         for (const { name, endpoint } of entries) {
             const original = endpoint.introspect();
@@ -184,14 +184,14 @@ describe('contract-bound API implementation', () => {
             }
         }) as TestOpenApiDocument;
 
-        // Updated for the deliberate 403/404 responses on durable scan acceptance.
+        // Typed multipart uploads and the separate scan-image PUT are deliberate changes.
         // Deliberate API changes should review/update this compatibility fingerprint.
         expect(
             createHash('sha256')
                 .update(JSON.stringify(canonical(spec)))
                 .digest('hex')
         ).toBe(
-            '444283da97c950efb9a3baec32c939f98c436f19175f4e58f704ec06e9b68a9a'
+            'e1dab8c7bfb1690bc4da1496f9c428f038d6f7af5e1d0d1bd8ed8f7b7e9283be'
         );
         expect(spec.components?.securitySchemes).toMatchObject({
             bearerAuth: {
@@ -286,14 +286,6 @@ describe('contract-bound API implementation', () => {
                 false,
                 true,
                 'Final user-corrected values, when confirmed.'
-            ],
-            [
-                'TransactionScanDecisionBody',
-                'attachment',
-                'TransactionScanAttachmentBody',
-                false,
-                false,
-                'Original scan image, stored once for confirmed transactions.'
             ],
             [
                 'StatsTagReport',

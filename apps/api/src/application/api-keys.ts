@@ -4,7 +4,8 @@ import type {
     CreateApiKeyBody,
     CreateApiKeyResponse
 } from '@xpenser/contracts';
-import type { ApiKeyDb, AppDb, UserDb } from '../db/schemas.js';
+import type { ApiKeyDb, AppDb } from '../db/schemas.js';
+import { findAuthKey, findAuthUser } from './api-key-reads.js';
 import { apiKeyRead } from './entity-reads.js';
 import { apiKeyMapping } from './mappings/api-keys.js';
 
@@ -123,9 +124,7 @@ export async function authenticateApiKey(
         return undefined;
     }
 
-    const apiKey = (await db.apiKeys
-        .where(candidate => candidate.keyId, parsed.keyId)
-        .first()) as ApiKeyDb | undefined;
+    const apiKey = await findAuthKey(db, parsed.keyId);
     if (
         !apiKey ||
         apiKey.revokedAt ||
@@ -134,7 +133,7 @@ export async function authenticateApiKey(
         return undefined;
     }
 
-    const user = (await db.users.find(apiKey.userId)) as UserDb | undefined;
+    const user = await findAuthUser(db, apiKey.userId);
     if (!user) {
         return undefined;
     }

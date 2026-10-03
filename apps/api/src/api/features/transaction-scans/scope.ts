@@ -34,6 +34,13 @@ export const transactionScansScope = implement(api).group('transactionScans', {
             summary: 'Transaction image scan job status',
             inject: { jobs: ScanJobsToken }
         },
+        uploadImage: {
+            operationId: 'uploadTransactionScanImage',
+            description:
+                'Stores the original image after verifying budget access and its SHA-256 hash. Safe to retry.',
+            summary: 'Upload original scan image',
+            inject: { db: DbToken }
+        },
         decide: {
             operationId: 'decideTransactionScanItem',
             description:

@@ -51,3 +51,13 @@ test('terminal scan errors remain visible without restarting the job', async ({ 
     await expect(page.getByText('Could not scan the image. Try again.', { exact: true })).toBeVisible();
     await expect(page.locator('#scan-image')).toBeEnabled();
 });
+
+test('avatar form submits a typed image and confirms the saved upload', async ({ page }) => {
+    await page.goto('/settings/preferences');
+    await page.getByLabel('Avatar image').setInputFiles({ name: 'avatar.png', mimeType: 'image/png', buffer: png });
+    await page.getByRole('button', { name: 'Upload', exact: true }).click();
+    await expect(page.getByText('Avatar uploaded.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove uploaded avatar' })).toBeVisible();
+    await page.getByRole('button', { name: 'Remove uploaded avatar' }).click();
+    await expect(page.getByRole('button', { name: 'Remove uploaded avatar' })).toHaveCount(0);
+});

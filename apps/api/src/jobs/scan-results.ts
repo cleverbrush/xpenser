@@ -10,7 +10,8 @@ import {
 } from '../application/budgets.js';
 import { ScanRequestDbSchema } from '../db/scan-request-schema.js';
 import type { AppDb } from '../db/schemas.js';
-import { TransactionScanItemDbSchema } from '../db/schemas.js';
+import { scanReads } from './scan-reads.js';
+import { publicScanDraft } from './scan-result-mapping.js';
 
 /** Serialize retries and atomically commit the header, drafts, and durable result link. */
 export function persistScanResult(
@@ -59,21 +60,16 @@ export async function loadScanResult(
     scanId: number,
     budgetId: number
 ) {
-    const scan = await db.transactionScans
-        .where(row => row.id, scanId)
-        .where(row => row.budgetId, budgetId)
-        .first();
+    const reads = scanReads(db.knex);
+    const [scan] = await reads.result(scanId, budgetId);
     if (!scan) throw new Error('Scan result is unavailable.');
-    const items = await query(db.knex, TransactionScanItemDbSchema)
-        .where(row => row.scanId, scanId)
-        .where(row => row.budgetId, budgetId)
-        .orderBy(row => row.id);
+    const items = await reads.items(scanId, budgetId);
     return TransactionScanResponseSchema.parse({
         scanId,
         documentKind: scan.documentKind,
         warnings: JSON.parse(scan.warningsJson),
         drafts: items.map(item => ({
-            ...JSON.parse(item.draftJson),
+            ...publicScanDraft(item.draft),
             id: item.id
         }))
     });

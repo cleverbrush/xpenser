@@ -1,3 +1,8 @@
+vi.mock('../../../application/budget-access-reads.js', async () => ({
+    readBudgetAccess: (await import('../../../testing/read-fixtures.js'))
+        .readBudgetAccessFixture
+}));
+
 import { createServer } from '@cleverbrush/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Config } from '../../../config.js';

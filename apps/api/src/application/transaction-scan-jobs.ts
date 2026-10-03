@@ -26,6 +26,7 @@ import {
     scanRetentionMs,
     TransactionScanJob
 } from '../jobs/definitions.js';
+import { scanReads } from '../jobs/scan-reads.js';
 import { loadScanResult } from '../jobs/scan-results.js';
 import { requireBudgetPermission, resolveBudgetAccess } from './budgets.js';
 import { OpenAIConfigError } from './openai.js';
@@ -140,14 +141,7 @@ export class TransactionScanJobs {
 
     private async authorize(input: TransactionScanProgressQuery) {
         // Never load the image when polling or opening a progress stream.
-        const request = await query(this.db.knex, ScanRequestDbSchema)
-            .select(row => ({
-                id: row.id,
-                budgetId: row.budgetId,
-                tokenHash: row.tokenHash
-            }))
-            .where(row => row.runId, input.jobId)
-            .first();
+        const [request] = await scanReads(this.db.knex).request(input.jobId);
         if (
             !request ||
             !timingSafeEqual(

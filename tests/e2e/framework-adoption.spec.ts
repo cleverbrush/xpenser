@@ -15,7 +15,6 @@ test('published OpenAPI preserves canonical named schema modifiers', async ({ re
         ['TransactionScanDraft', 'suggestedCategory', 'TransactionScanSuggestedCategory', true, true],
         ['TransactionScanProgressEvent', 'scan', 'TransactionScanResponse', true, true],
         ['TransactionScanDecisionBody', 'correctedTransaction', 'TransactionScanCorrectedTransaction', false, true],
-        ['TransactionScanDecisionBody', 'attachment', 'TransactionScanAttachmentBody', false, false],
         ['StatsTagReport', 'selectedTag', 'StatsTagDetail', true, true]
     ] as const) {
         const reference = { allOf: [{ $ref: `#/components/schemas/${target}` }] };
@@ -25,6 +24,25 @@ test('published OpenAPI preserves canonical named schema modifiers', async ({ re
         expect(schemas[parent].properties[field].description).toBeTruthy();
         expect(schemas[parent].required.includes(field)).toBe(required);
         expect(schemas[target].type).toBe('object');
+    }
+});
+
+test('multipart avatar upload stores and retrieves bytes; JSON and unsupported files are rejected', async ({ request }) => {
+    const headers = await login(request);
+    const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aVyoAAAAASUVORK5CYII=', 'base64');
+    try {
+        const uploaded = await request.put(`${apiBase}/users/me/avatar`, { headers, multipart: { avatar: { name: 'e2e-avatar.png', mimeType: 'image/png', buffer: image } } });
+        expect(uploaded.status()).toBe(200);
+        const user = await uploaded.json();
+        expect(user.hasUploadedAvatar).toBe(true);
+        const downloaded = await request.get(`${apiBase}/users/${user.id}/avatar`, { headers });
+        expect(downloaded.status()).toBe(200);
+        expect(await downloaded.body()).toEqual(image);
+        expect((await request.put(`${apiBase}/users/me/avatar`, { headers, data: { imageBase64: image.toString('base64'), mimeType: 'image/png' } })).status()).toBe(400);
+        expect((await request.put(`${apiBase}/users/me/avatar`, { headers, multipart: { avatar: { name: 'bad.pdf', mimeType: 'application/pdf', buffer: Buffer.from('invalid') } } })).status()).toBe(400);
+        expect((await request.post(`${apiBase}/transaction-scans/jobs`, { headers, multipart: { image: { name: 'bad.pdf', mimeType: 'application/pdf', buffer: Buffer.from('invalid') } } })).status()).toBe(400);
+    } finally {
+        expect((await request.delete(`${apiBase}/users/me/avatar`, { headers })).status()).toBe(200);
     }
 });
 

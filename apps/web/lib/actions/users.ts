@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getApiClient } from '../api';
 import { FormInputError, runFormAction } from '../form-errors';
+import { uploadInputError } from '../upload-errors';
 import {
     avatarFile,
     booleanString,
@@ -69,20 +70,16 @@ export async function updateUserAvatarAction(formData: FormData) {
                 ]
             );
         }
-        const imageBase64 = Buffer.from(await file.arrayBuffer()).toString(
-            'base64'
-        );
         const client = await getApiClient();
-        await client.users.updateAvatar({
-            body: {
-                mimeType: file.type as
-                    | 'image/jpeg'
-                    | 'image/png'
-                    | 'image/webp',
-                imageBase64,
-                fileName: file.name || undefined
-            }
-        });
+        try {
+            await client.users.updateAvatar({ files: { avatar: file } });
+        } catch (error) {
+            throw uploadInputError(
+                error,
+                'avatar',
+                'Could not upload avatar. Choose another image.'
+            );
+        }
         revalidatePath('/settings/preferences');
         revalidatePath('/settings/budgets');
         revalidatePath('/dashboard');

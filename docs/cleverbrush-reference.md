@@ -7,7 +7,8 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`0.0.0-beta-20261001170911` (the v5 durable-scheduler beta).
+`0.0.0-beta-20261003113145`. See [October beta adoption](./framework-october-adoption.md)
+for compiled reads, typed uploads, JSONB documents, and coordinated rollout.
 
 ## Learning Path
 
@@ -33,8 +34,8 @@ All directly used Framework packages are pinned to
   that scope as a type only. `index.ts` binds the handlers and compatible error
   policies. `implementation.ts` composes the modules; `.complete()` checks that
   every contract operation is implemented exactly once.
-- `apps/api/src/server.ts` builds the Cleverbrush server with tracing first,
-  CORS, structured request logging, DI, authentication, authorization,
+- `apps/api/src/server.ts` configures native CORS before routing/authentication.
+  Ordinary requests then run tracing, structured request logging, DI, authentication, authorization,
   healthchecks, batching, OpenAPI, MCP, and all contract handlers.
 - `packages/client` wraps `@cleverbrush/client` with the app middleware stack:
   OTel context propagation, retry, timeout, dedupe, in-memory tag caching,
@@ -81,7 +82,8 @@ All directly used Framework packages are pinned to
   handlers to avoid runtime import cycles. Root composition stays a short list
   of modules, not a chain containing business logic.
 - Put `tracingMiddleware()` before other API middleware so logs and database
-  spans correlate with the request span.
+  spans correlate with the request span. Native CORS preflights and denials
+  short-circuit before this middleware; they do not create ordinary request spans.
 - Translate expected application exceptions with feature-local `errorMap()`
   policies attached in the registration descriptor. Every translated status and
   body must already exist in the contract. Share narrow policies (for example

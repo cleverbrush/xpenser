@@ -16,8 +16,8 @@
         "clean": "rm -rf dist tsconfig.tsbuildinfo"
     },
     "dependencies": {
-        "@cleverbrush/client": "0.0.0-beta-20261001170911",
-        "@cleverbrush/otel": "0.0.0-beta-20261001170911",
+        "@cleverbrush/client": "0.0.0-beta-20261003113145",
+        "@cleverbrush/otel": "0.0.0-beta-20261003113145",
         "@xpenser/contracts": "0.1.0"
     },
     "devDependencies": {

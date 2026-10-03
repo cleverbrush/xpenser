@@ -19,6 +19,7 @@ import type {
     TransactionDb,
     UserDb
 } from '../db/schemas.js';
+import { readBudgetAccess } from './budget-access-reads.js';
 import {
     adminBudgetPermissions,
     defaultMemberBudgetPermissions,
@@ -356,13 +357,11 @@ export async function ensureMainBudget(
     }
 
     if (user.mainBudgetId) {
-        const [budget, member] = await Promise.all([
-            db.budgets.find(user.mainBudgetId),
-            db.budgetMembers
-                .where(row => row.budgetId, user.mainBudgetId)
-                .where(row => row.userId, userId)
-                .first()
-        ]);
+        const { budget, member } = await readBudgetAccess(
+            db,
+            user.mainBudgetId,
+            userId
+        );
         if (budget && member) {
             return budget as BudgetDb;
         }
@@ -431,13 +430,11 @@ export async function resolveBudgetAccess(
 ): Promise<BudgetAccess> {
     const selectedBudgetId =
         budgetId ?? (await ensureMainBudget(db, userId)).id;
-    const [budget, member] = await Promise.all([
-        db.budgets.find(selectedBudgetId),
-        db.budgetMembers
-            .where(row => row.budgetId, selectedBudgetId)
-            .where(row => row.userId, userId)
-            .first()
-    ]);
+    const { budget, member } = await readBudgetAccess(
+        db,
+        selectedBudgetId,
+        userId
+    );
 
     if (!budget || !member) {
         throw new BudgetAccessError('Budget was not found.');

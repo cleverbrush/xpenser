@@ -4,7 +4,7 @@ import type {
     UserAvatarUploadBody,
     UserPreference
 } from '@xpenser/contracts';
-import { UserAvatarLimits } from '@xpenser/contracts';
+import { FieldLimits, UserAvatarLimits } from '@xpenser/contracts';
 import type { Knex } from 'knex';
 import {
     type AppDb,
@@ -142,6 +142,12 @@ export async function updateUserAvatar(
     body: UserAvatarUploadBody
 ): Promise<UserPreference | undefined> {
     const bytes = imageBytes(body.imageBase64);
+    if (
+        body.fileName &&
+        body.fileName.length > FieldLimits.userAvatarFileName
+    ) {
+        throw new UserAvatarError('Avatar file name is too long.');
+    }
     if (bytes <= 0 || bytes > UserAvatarLimits.maxImageBytes) {
         throw new UserAvatarError(
             `Avatar image must be ${UserAvatarLimits.maxImageBytes} bytes or smaller.`

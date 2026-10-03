@@ -9,7 +9,6 @@ import {
     type Currency,
     FieldLimits,
     type Transaction,
-    type TransactionScanDecisionBody,
     type TransactionScanDraft,
     type TransactionScanJobResponse,
     TransactionScanLimits,
@@ -89,9 +88,7 @@ type CaptureMode = 'manual' | 'scan';
 type Decision = 'confirmed' | 'discarded';
 type ScanAttachment = {
     readonly fileName?: string;
-    readonly mimeType: NonNullable<
-        TransactionScanDecisionBody['attachment']
-    >['mimeType'];
+    readonly mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
     readonly uploadId: string;
 };
 type TransactionType = Category['type'];

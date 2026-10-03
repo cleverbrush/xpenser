@@ -5,7 +5,7 @@ import { type AppDb, entityMap } from '../db/schemas.js';
 import {
     budgetAdminCountQuery,
     budgetMembershipsQuery,
-    budgetMembersQuery,
+    budgetMembersRead,
     reportBudgetsQuery,
     uniqueActiveBudgetNameQuery
 } from './budget-queries.js';
@@ -86,7 +86,7 @@ describe('budget membership database queries', () => {
 
     it('orders members by email in SQL and selects only summary avatar fields', async () => {
         const knex = knexFactory({ client: 'pg' });
-        const compiled = budgetMembersQuery(knex, 9).toKnexQuery().toSQL();
+        const compiled = budgetMembersRead(knex).toSQL(9);
         expect(compiled.sql).toContain('"member"."budget_id" = ?');
         expect(compiled.sql).toMatch(/order by "user"\."email" asc$/);
         expect(compiled.sql).toContain('"user"."avatar_url" as "avatarUrl"');
