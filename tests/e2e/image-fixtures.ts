@@ -1,0 +1,4 @@
+export const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aVyoAAAAASUVORK5CYII=',
+    'base64'
+);

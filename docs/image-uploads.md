@@ -1,31 +1,8 @@
-# Framework October beta adoption
+# Image uploads and scan storage
 
-All Framework packages use the exact npm version `0.0.0-beta-20261003113145`.
-The lockfile contains one shared `@cleverbrush/schema` installation. This changes
-the API upload contracts, so API, web, Telegram, and external callers must be
-upgraded together. It does not introduce object storage or new infrastructure.
-
-## Compiled reads, not cached permissions
-
-Feature-owned definitions in `budget-access-reads.ts`, `api-key-reads.ts`,
-`budget-queries.ts`, and `jobs/scan-reads.ts` use `parameter(...)`. `perConnection`
-retains immutable query definitions weakly by Knex connection. Direct calls reuse
-compiled SQL and result decoding, but every invocation executes fresh database
-reads with independent bindings. Revoking a key or budget membership takes effect
-on the next request. Transaction-scoped connections use their own definitions;
-explicit `.transacting(trx)` derivatives remain in the caller's transaction.
-
-```ts
-const reads = budgetAccessReads(db.knex);
-const [member] = await reads.member(budgetId, userId);
-// Debug SQL without executing:
-const { sql, bindings } = reads.member.toSQL(budgetId, userId);
-```
-
-Dynamic report filters, variable-size ID lists, and writes keep ordinary immutable
-query builders. No response cache, schema hierarchy, or polymorphic entity is
-introduced to make use of an unrelated library feature. The release's property
-navigation improvements are inherited by existing queries.
+Avatar and receipt endpoints use typed multipart uploads. API, web, Telegram,
+and external callers must use the same upload contract. Images remain in the
+existing PostgreSQL storage; no object-storage service is required.
 
 ## Typed multipart contracts
 
@@ -72,7 +49,7 @@ bot restart, and do not make an ambiguous transaction-create timeout exactly-onc
 
 The web upload adapter explicitly maps `/files/image` and `/files/avatar` to UI
 fields. Unknown or root pointers remain form-wide; messages are never parsed to
-guess fields. In this beta, declare `.upload()` after avatar cache tags to retain
+guess fields. Declare `.upload()` after avatar cache tags to retain
 file type inference. A real typed-client HTTP test guards this composition.
 
 ## JSONB documents and DTOs
@@ -90,14 +67,6 @@ JSON `null` abort without discarding rows. Repair malformed legacy data explicit
 and rerun. `warnings_json` and OAuth redirect URI arrays remain unchanged, as do
 base64 image storage, download responses, and durable job payload versions.
 
-## Native CORS
-
-`useCors()` allows the serialized origin of `APP_URL`, preserves the existing
-method/header allowlists and exposed headers, and does not enable credentials.
-Preflights are route-aware and run before authentication. Denied origins receive
-403; authenticated responses and ordinary errors get the correct CORS/Vary
-headers. Preflights and early CORS denials bypass ordinary tracing middleware.
-
 ## Rollout and rollback
 
 1. Back up PostgreSQL and allow in-flight scans and confirmations to finish.
@@ -110,13 +79,17 @@ headers. Preflights and early CORS denials bypass ordinary tracing middleware.
    release. Do not roll back migration 020 or erase scheduler state.
 
 The down migration preserves semantic document data, not original JSON whitespace
-or key order. No production deployment is included in this PR.
+or key order.
 
 ## Verification
 
 Unit and real-HTTP tests cover typed clients with batching on/off, upload limits,
-invalid formats, explicit form pointers, retries, CORS and OpenAPI. PostgreSQL
-tests cover concurrent bindings, fresh authorization, transaction rollback,
-JSONB extension/date/null round trips, failed/up/down migrations, concurrent image
-upserts, hash checks, tenant isolation, and durable job recovery. CI runs database
-tests in UTC and America/Los_Angeles, then deploys a preview and runs Playwright.
+invalid formats, explicit form pointers and retries. PostgreSQL suites
+`transaction-scans.test.ts` and `scan-item-jsonb-migration.test.ts` cover JSONB
+extension/date/null round trips, failed/up/down migrations, concurrent image
+upserts, hash checks, and tenant isolation. Browser tests live in the avatar,
+transaction-scan and durable-scan suites. CI runs database tests in UTC and
+America/Los_Angeles before deploying a preview and running Playwright.
+
+See [database reads](./database-reads.md) for compiled query behavior and
+[background jobs](./background-jobs.md) for durable scan execution.

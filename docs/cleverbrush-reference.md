@@ -7,8 +7,17 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`0.0.0-beta-20261003113145`. See [October beta adoption](./framework-october-adoption.md)
-for compiled reads, typed uploads, JSONB documents, and coordinated rollout.
+`0.0.0-beta-20261003113145`. See [database reads](./database-reads.md) for
+compiled query behavior and [image uploads](./image-uploads.md) for typed
+uploads, JSONB scan storage, and coordinated rollout.
+
+## Cross-origin requests
+
+`useCors()` allows the serialized origin of `APP_URL`, preserves the existing
+method/header allowlists and exposed headers, and does not enable credentials.
+Preflights are route-aware and run before authentication. Denied origins receive
+403; authenticated responses and ordinary errors get the correct CORS/Vary
+headers. Preflights and early CORS denials bypass ordinary tracing middleware.
 
 ## Learning Path
 

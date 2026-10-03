@@ -43,7 +43,7 @@ then records the decision as JSON. Hash verification and an atomic upsert make
 image retries safe. Web and Telegram retain a successfully created transaction
 when a later image/decision request fails, avoiding another financial write on retry.
 Browser temporary files are removed only after the decision succeeds.
-See [rollout and rollback](./framework-october-adoption.md#rollout-and-rollback).
+See [rollout and rollback](./image-uploads.md#rollout-and-rollback).
 
 The job reports committed `preparing`, `analyzing`, and `saving` progress.
 Polling and subscriptions retain their existing public response shapes. A retry
