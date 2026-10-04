@@ -71,7 +71,6 @@ export default async function DashboardPage({
 
     return (
         <DashboardExplorer
-            budgetId={selectedBudget?.id}
             categories={categories}
             currencies={currencies}
             defaultCurrency={defaultCurrency}

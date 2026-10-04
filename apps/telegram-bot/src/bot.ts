@@ -1,10 +1,6 @@
 import { Readable } from 'node:stream';
 import type { Logger } from '@cleverbrush/log';
 import { createXpenserClient, type XpenserClient } from '@xpenser/client';
-import {
-    TransactionSaveAttempt,
-    transactionSaveError
-} from '@xpenser/client/transaction-save';
 import type {
     Budget,
     Category,
@@ -348,16 +344,6 @@ function rateDate(value = new Date()): string {
     return value.toISOString().slice(0, 10);
 }
 
-function transactionErrorMessage(err: unknown): string | undefined {
-    return (
-        transactionSaveError(
-            typeof err === 'object' && err !== null && 'status' in err
-                ? Number(err.status)
-                : undefined
-        ) ?? apiErrorMessage(err)
-    );
-}
-
 function apiErrorMessage(err: unknown): string | undefined {
     const body =
         typeof err === 'object' && err !== null && 'body' in err
@@ -569,25 +555,6 @@ export class XpenserTelegramBot {
     readonly #bot: TelegramBot;
     readonly #serviceClient: XpenserClient;
     readonly #sessions = new Map<string, Draft>();
-    readonly #saveAttempts = new Map<
-        string,
-        Map<string, TransactionSaveAttempt>
-    >();
-    readonly #savingManual = new Set<string>();
-
-    saveAttempt(sessionKey: string, operation: string): TransactionSaveAttempt {
-        let attempts = this.#saveAttempts.get(sessionKey);
-        if (!attempts) {
-            attempts = new Map();
-            this.#saveAttempts.set(sessionKey, attempts);
-        }
-        let attempt = attempts.get(operation);
-        if (!attempt) {
-            attempt = new TransactionSaveAttempt();
-            attempts.set(operation, attempt);
-        }
-        return attempt;
-    }
     readonly #confirmingScans = new Set<string>();
     readonly #selectedBudgets = new Map<string, number>();
     readonly #logger: Logger;
@@ -948,7 +915,6 @@ export class XpenserTelegramBot {
                 currencies,
                 vendors
             };
-            this.#saveAttempts.delete(key);
             this.#sessions.set(key, draft);
             await this.#bot.sendMessage(
                 msg.chat.id,
@@ -1110,7 +1076,6 @@ export class XpenserTelegramBot {
                 categoryPage: 0,
                 vendorPage: 0
             };
-            this.#saveAttempts.delete(key);
             this.#sessions.set(key, session);
             await this.updateProgressMessage(
                 msg.chat.id,
@@ -1136,9 +1101,6 @@ export class XpenserTelegramBot {
         const user = telegramUser(msg.from);
         if (user) {
             this.#sessions.delete(sessionKey(msg.chat.id, user.telegramUserId));
-            this.#saveAttempts.delete(
-                sessionKey(msg.chat.id, user.telegramUserId)
-            );
         }
         await this.#bot.sendMessage(msg.chat.id, 'Cancelled.', {
             reply_markup: quickAddReplyKeyboard()
@@ -1158,7 +1120,6 @@ export class XpenserTelegramBot {
 
         if (data === cancelCallback) {
             this.#sessions.delete(key);
-            this.#saveAttempts.delete(key);
             await this.#bot.sendMessage(chatId, 'Cancelled.', {
                 reply_markup: quickAddReplyKeyboard()
             });
@@ -1218,7 +1179,6 @@ export class XpenserTelegramBot {
 
             this.#selectedBudgets.set(key, budget.id);
             this.#sessions.delete(key);
-            this.#saveAttempts.delete(key);
             await this.#bot.sendMessage(
                 chatId,
                 `Active budget: ${budget.name}. Tap Add or send an image to continue.`,
@@ -1404,7 +1364,6 @@ export class XpenserTelegramBot {
         const values = scanValuesAt(session);
         if (!draft || !values) {
             this.#sessions.delete(key);
-            this.#saveAttempts.delete(key);
             await this.#bot.sendMessage(chatId, 'Scan session expired.', {
                 reply_markup: quickAddReplyKeyboard()
             });
@@ -1818,7 +1777,6 @@ export class XpenserTelegramBot {
         const values = scanValuesAt(session);
         if (!draft || !values) {
             this.#sessions.delete(key);
-            this.#saveAttempts.delete(key);
             await this.#bot.sendMessage(chatId, 'Scan session expired.', {
                 reply_markup: quickAddReplyKeyboard()
             });
@@ -2054,22 +2012,20 @@ export class XpenserTelegramBot {
         >,
         note?: string
     ): Promise<void> {
-        if (this.#savingManual.has(key)) return;
-        this.#savingManual.add(key);
         try {
             const client = await this.userClient(user);
-            const transaction = await client.transactions.create(
-                this.saveAttempt(key, 'manual').prepare({
+            const transaction = await client.transactions.create({
+                body: {
                     budgetId: draft.budgetId,
                     categoryId: draft.category.id,
                     vendorId: draft.vendorId,
                     amount: draft.amount,
                     currency: draft.currency,
+                    occurredAt: new Date(),
                     note
-                })
-            );
+                }
+            });
             this.#sessions.delete(key);
-            this.#saveAttempts.delete(key);
             await this.#bot.sendMessage(
                 chatId,
                 `✅ Saved ${savedTransactionSummary(transaction)}`,
@@ -2080,14 +2036,12 @@ export class XpenserTelegramBot {
         } catch (err) {
             await this.#bot.sendMessage(
                 chatId,
-                transactionErrorMessage(err) ??
-                    'Could not confirm the save. Retry this entry without changing it, or check your transaction list.',
+                apiErrorMessage(err) ??
+                    'Could not save transaction. Tap Add to try again.',
                 {
                     reply_markup: quickAddReplyKeyboard()
                 }
             );
-        } finally {
-            this.#savingManual.delete(key);
         }
     }
 
@@ -2255,8 +2209,8 @@ export class XpenserTelegramBot {
             const client = await this.userClient(user);
             const transaction =
                 session.savedTransactions[draft.id] ??
-                (await client.transactions.create(
-                    this.saveAttempt(key, String(draft.id)).prepare({
+                (await client.transactions.create({
+                    body: {
                         budgetId: session.budgetId,
                         amount: values.amount,
                         categoryId: values.categoryId,
@@ -2264,8 +2218,8 @@ export class XpenserTelegramBot {
                         occurredAt: values.occurredAt,
                         vendorId: values.vendorId,
                         note: values.note.trim() || undefined
-                    })
-                ));
+                    }
+                }));
             // Checkpoint the financial write before either follow-up request.
             session = {
                 ...session,
@@ -2319,7 +2273,7 @@ export class XpenserTelegramBot {
         } catch (err) {
             await this.#bot.sendMessage(
                 chatId,
-                transactionErrorMessage(err) ??
+                apiErrorMessage(err) ??
                     'Could not save this scanned transaction.'
             );
         } finally {
@@ -2374,7 +2328,6 @@ export class XpenserTelegramBot {
                 value => value === 'discarded'
             ).length;
             this.#sessions.delete(key);
-            this.#saveAttempts.delete(key);
             await this.#bot.sendMessage(
                 chatId,
                 `Scan reviewed. Confirmed ${confirmed} and discarded ${discarded}.`,

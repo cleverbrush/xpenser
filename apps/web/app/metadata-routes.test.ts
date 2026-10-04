@@ -33,7 +33,7 @@ describe('metadata routes', () => {
     it('serves only public sitemap URLs', async () => {
         const urls = (await sitemap()).map(entry => entry.url);
 
-        expect(urls).toHaveLength(86);
+        expect(urls).toHaveLength(85);
         expect(urls).toEqual(
             expect.arrayContaining([
                 'https://xpenser.cleverbrush.com/',
@@ -43,7 +43,6 @@ describe('metadata routes', () => {
                 'https://xpenser.cleverbrush.com/blog',
                 'https://xpenser.cleverbrush.com/blog/leave-feedback',
                 'https://xpenser.cleverbrush.com/api-docs',
-                'https://xpenser.cleverbrush.com/blog/safer-transaction-save-retries',
                 `https://xpenser.cleverbrush.com${alternativesIndexPage.path}`,
                 ...alternativeProducts.map(
                     product => `https://xpenser.cleverbrush.com${product.path}`

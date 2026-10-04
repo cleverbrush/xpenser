@@ -8,10 +8,6 @@
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
-        },
-        "./transaction-save": {
-            "types": "./dist/transaction-save.d.ts",
-            "import": "./dist/transaction-save.js"
         }
     },
     "scripts": {

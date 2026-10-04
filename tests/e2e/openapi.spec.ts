@@ -12,14 +12,18 @@ test('published OpenAPI preserves canonical named schema modifiers', async ({
         paths
     } = await response.json();
     const creation = paths['/api/transactions'].post;
-    expect(creation.parameters).toContainEqual(
+    const parameters = creation.parameters.map((parameter: { name?: string }) => ({
+        ...parameter,
+        name: parameter.name?.toLowerCase()
+    }));
+    expect(parameters).toContainEqual(
         expect.objectContaining({
             in: 'header',
             name: 'x-idempotency-key',
             schema: expect.objectContaining({ minLength: 1, maxLength: 256 })
         })
     );
-    expect(creation.parameters).not.toContainEqual(
+    expect(parameters).not.toContainEqual(
         expect.objectContaining({ name: 'x-idempotency-key', required: true })
     );
     expect(creation.responses).toHaveProperty('409');

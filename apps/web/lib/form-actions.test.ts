@@ -88,38 +88,6 @@ function data() {
 beforeEach(() => vi.clearAllMocks());
 
 describe('form actions preserve server field errors', () => {
-    it('forwards the active form budget and retry key without putting metadata in the body', async () => {
-        const form = data();
-        form.set('budgetId', '8');
-        form.set('idempotencyKey', 'active-save');
-        mocks.client.transactions.create.mockResolvedValueOnce({ id: 1 });
-        expect((await actions.createCaptureTransactionAction(form)).ok).toBe(
-            true
-        );
-        const request = mocks.client.transactions.create.mock.calls[0]![0];
-        expect(request.headers).toEqual({ 'x-idempotency-key': 'active-save' });
-        expect(request.body.budgetId).toBe(8);
-        expect(request.body).not.toHaveProperty('idempotencyKey');
-    });
-
-    it.each([
-        [
-            409,
-            'The previous save could not be confirmed. Check your transaction list before saving again.'
-        ],
-        [503, 'Saving is temporarily unavailable. Please try again shortly.']
-    ])('shows the transaction recovery message for HTTP %s', async (status, message) => {
-        mocks.client.transactions.create.mockRejectedValueOnce(
-            new ApiError(Number(status), 'Problem', {
-                title: 'Replay unavailable'
-            })
-        );
-        expect(
-            await actions.createCaptureTransactionAction(data())
-        ).toMatchObject({ ok: false, error: message });
-        expect(mocks.revalidate).not.toHaveBeenCalled();
-    });
-
     it.each([
         'upload',
         'decision'

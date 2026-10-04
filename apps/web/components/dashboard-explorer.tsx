@@ -911,7 +911,6 @@ function DashboardPeriodPanelSkeleton() {
 }
 
 export function DashboardExplorer({
-    budgetId,
     categories,
     currencies,
     defaultCurrency,
@@ -925,7 +924,6 @@ export function DashboardExplorer({
     timezone,
     transactionCurrencies
 }: {
-    readonly budgetId?: number;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -1059,7 +1057,6 @@ export function DashboardExplorer({
                                 timezone={timezone}
                             />
                             <AddTransactionDialog
-                                budgetId={budgetId}
                                 categories={categories}
                                 currencies={currencies}
                                 defaultCurrency={defaultCurrency}

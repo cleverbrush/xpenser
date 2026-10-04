@@ -45,9 +45,8 @@ import {
 } from '@/lib/category-display';
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
-import { useTransactionSave } from '@/lib/use-transaction-save';
 import { hiddenAmountLabel, useAmountPrivacy } from './amount-privacy';
-import { isNextRedirectError } from './forms/form-utils';
+import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
 
@@ -108,7 +107,6 @@ function savedSummary(
 }
 
 export function QuickCaptureForm({
-    budgetId,
     categories,
     currencies,
     defaultCurrency,
@@ -117,7 +115,6 @@ export function QuickCaptureForm({
     timezone,
     transactionCurrencies
 }: {
-    readonly budgetId?: number;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -126,7 +123,6 @@ export function QuickCaptureForm({
     readonly timezone: string;
     readonly transactionCurrencies: readonly string[];
 }) {
-    const saveAttempt = useTransactionSave(budgetId);
     const form = useSchemaForm(CreateTransactionBodySchema);
     const router = useRouter();
     const { hideAmounts } = useAmountPrivacy();
@@ -226,7 +222,6 @@ export function QuickCaptureForm({
     }
 
     function resetAfterSave() {
-        saveAttempt.reset();
         const nextOccurredAt = new Date();
         setAmount('');
         setOccurredAtText(dateToLocalDateTimeInput(nextOccurredAt, timezone));
@@ -280,7 +275,7 @@ export function QuickCaptureForm({
 
     const submitTransaction = form.handleSubmit(
         async values =>
-            createCaptureTransactionAction(saveAttempt.formData(values)),
+            createCaptureTransactionAction(valuesToFormData(values)),
         {
             onSuccess: transaction => {
                 if (transaction) setLastSaved(transaction);

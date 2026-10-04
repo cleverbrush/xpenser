@@ -311,19 +311,18 @@ handler errors release the reservation. An uncapturable/oversized response
 leaves a conflict marker (409); store capacity exhaustion returns 503. These
 are Problem Details responses. There is no database migration or durable store.
 
-The caller must reuse a key only with the same input: Framework does not compare
-request bodies. The web form and Telegram session retain both payload and key
-until edits, budget changes, success, cancellation or reset. Telegram freezes
-the initial save timestamp. Refreshes and bot restarts lose client attempt
-state; API restarts, expiry and independent replicas lose or lack replay state.
-This is not an exactly-once guarantee.
+The shared client uses Framework's native middleware to generate a key per
+transaction-create call and retain the serialized request and key across two
+automatic HTTP retries. Other POSTs
+retain their prior behavior. Transaction creates bypass automatic batching so
+timeout cancellation reaches fetch; explicit API batch subrequests use the
+same endpoint policy. Web actions and Telegram use ordinary client calls.
 
-The shared client puts native idempotency before retries and allows two retries
-for transaction POSTs only. Other POSTs retain their existing retry policy.
-Transaction creates bypass automatic batching so timeout cancellation reaches
-fetch; explicit API batch subrequests still support idempotency. Active web
-forms send their rendered budget ID to Server Actions so a later cookie change
-cannot silently redirect an unchanged save into another budget.
+Each new client call gets a fresh key, including a new form submission. This
+does not track user retries across separate calls. External API callers must
+reuse a key only with the same input; Framework does not compare request bodies.
+API restarts, expiry and independent replicas lose or lack replay state. This
+is not a durable exactly-once guarantee.
 
 Framework's October 4 beta requires Node.js 24. Docker stages, CI, .nvmrc and
 the root engine constraint match it; HTTP instrumentation uses 0.222.0 alongside

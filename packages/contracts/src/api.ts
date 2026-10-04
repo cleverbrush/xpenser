@@ -734,7 +734,7 @@ export const api = defineApi({
         create: transactions
             .post()
             .body(CreateTransactionBodySchema)
-            .headers(TransactionIdempotencyHeadersSchema)
+            .headers(TransactionIdempotencyHeadersSchema.optional())
             .clearsCacheTag('categories')
             .clearsCacheTag('vendors')
             .clearsCacheTag('vendor')

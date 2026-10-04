@@ -29,7 +29,6 @@ const vendorsWindowQueryParams = {
 } as const;
 
 export function VendorsExplorer({
-    budgetId,
     categories,
     currencies,
     defaultCurrency,
@@ -43,7 +42,6 @@ export function VendorsExplorer({
     transactionCurrencies,
     timezone
 }: {
-    readonly budgetId?: number;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -178,7 +176,6 @@ export function VendorsExplorer({
                                 timezone={timezone}
                             />
                             <AddTransactionDialog
-                                budgetId={budgetId}
                                 categories={categories}
                                 currencies={currencies}
                                 defaultCurrency={defaultCurrency}

@@ -12,10 +12,6 @@ export default defineConfig({
                 './packages/contracts/src/hosted-auth.ts',
                 import.meta.url
             ).pathname,
-            '@xpenser/client/transaction-save': new URL(
-                './packages/client/src/transaction-save.ts',
-                import.meta.url
-            ).pathname,
             '@xpenser/contracts': new URL(
                 './packages/contracts/src/index.ts',
                 import.meta.url

@@ -1,4 +1,5 @@
 import { signJwt } from '@cleverbrush/auth';
+import { createXpenserClient } from '@xpenser/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../src/config.js';
 import { buildServer } from '../src/server.js';
@@ -63,6 +64,41 @@ const send = (key: string, body: unknown = input, user = 1) =>
         body: JSON.stringify(body)
     });
 describe('transaction creation over authenticated HTTP and PostgreSQL', () => {
+    it('automatically retries a lost completed response without executing the write again', async () => {
+        const before = await db.transactions.countValue();
+        const attempts: {
+            key: string | null;
+            body: BodyInit | null | undefined;
+        }[] = [];
+        let completedId: number | undefined;
+        const client = createXpenserClient({
+            baseUrl: url,
+            getToken: () => auth().slice('Bearer '.length),
+            fetch: async (request, init) => {
+                attempts.push({
+                    key: new Headers(init?.headers).get('x-idempotency-key'),
+                    body: init?.body
+                });
+                const response = await fetch(request, init);
+                if (attempts.length === 1) {
+                    expect(response.status).toBe(201);
+                    completedId = (await response.json()).id;
+                    throw new TypeError(
+                        'Response lost after the write completed'
+                    );
+                }
+                return response;
+            }
+        });
+        const transaction = await client.transactions.create({
+            body: { ...input, occurredAt: new Date(input.occurredAt) }
+        });
+        expect(attempts).toHaveLength(2);
+        expect(attempts[0]?.key).toBeTruthy();
+        expect(attempts[1]).toEqual(attempts[0]);
+        expect(transaction.id).toBe(completedId);
+        expect(await db.transactions.countValue()).toBe(before + 1);
+    });
     it('coalesces concurrent saves and replays the original status, Location and transaction', async () => {
         const before = await db.transactions.countValue();
         const responses = await Promise.all(

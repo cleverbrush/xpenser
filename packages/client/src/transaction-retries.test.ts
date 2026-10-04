@@ -9,7 +9,7 @@ const body = {
     occurredAt: new Date('2026-10-01T12:00:00Z')
 };
 describe('transaction creation transport', () => {
-    it('reuses an explicit key after a lost response and sends creates outside batching', async () => {
+    it('reuses an automatic key after a lost response and sends creates outside batching', async () => {
         const calls: { url: string; key: string | null; body: unknown }[] = [];
         const fetcher: typeof fetch = async (url, init) => {
             calls.push({
@@ -26,11 +26,11 @@ describe('transaction creation transport', () => {
         });
         await expect(
             client.transactions.create({
-                body,
-                headers: { 'x-idempotency-key': 'attempt' }
+                body
             })
         ).resolves.toEqual({ id: 4 });
         expect(calls).toHaveLength(2);
+        expect(calls[0]?.key).toBeTruthy();
         expect(calls[0]).toEqual(calls[1]);
         expect(calls[0]?.url).toBe('http://api.test/api/transactions/');
     });
@@ -50,8 +50,8 @@ describe('transaction creation transport', () => {
             baseUrl: 'http://api.test/api',
             fetch: fetcher
         });
-        await client.transactions.create({ body, headers: {} });
-        await client.transactions.create({ body, headers: {} });
+        await client.transactions.create({ body });
+        await client.transactions.create({ body });
         await expect(
             client.categories.create({
                 body: { name: 'Food', type: 'expense' }
@@ -82,7 +82,7 @@ describe('transaction creation transport', () => {
             timeoutMs: 5
         });
         await expect(
-            client.transactions.create({ body, headers: {} })
+            client.transactions.create({ body })
         ).rejects.toMatchObject({ status: 409 });
         expect(keys).toHaveLength(2);
         expect(keys[0]).toBe(keys[1]);

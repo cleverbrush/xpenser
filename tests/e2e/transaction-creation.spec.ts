@@ -4,12 +4,7 @@ import { uniqueName } from './helpers';
 
 test.use({ trace: 'off' });
 
-test('transaction retries replay one save over HTTP and after a lost browser response', async ({
-    page,
-    request,
-    context,
-    baseURL
-}, testInfo) => {
+test('concurrent HTTP retries replay one transaction', async ({ page, request }) => {
     const headers = await loginApi(request);
     await page.goto('/settings/budgets');
     await page
@@ -60,67 +55,12 @@ test('transaction retries replay one save over HTTP and after a lost browser res
         expect(intentional.status()).toBe(201);
         expect((await intentional.json()).id).not.toBe(bodies[0].id);
 
-        if (!baseURL) throw new Error('Missing preview URL');
-        await context.addCookies([
-            {
-                name: 'xpenser_selected_budget',
-                value: String(budgetId),
-                url: baseURL
-            }
-        ]);
-        await page.goto('/capture');
-        await page.getByLabel('Amount', { exact: true }).fill('23.45');
-        await page
-            .getByLabel('Note', { exact: true })
-            .fill('Browser response lost');
-        let lost = false;
-        await page.route('**/capture', async route => {
-            if (
-                !lost &&
-                route.request().method() === 'POST' &&
-                route.request().headers()['next-action']
-            ) {
-                lost = true;
-                const response = await route.fetch();
-                expect(response.ok()).toBe(true); // The action completed before the response was lost.
-                await route.abort('failed');
-            } else {
-                await route.continue();
-            }
-        });
-        const save = page.getByRole('button', {
-            name: 'Save transaction',
-            exact: true
-        });
-        await save.click();
-        await expect(
-            page.getByText('Could not save the transaction.', { exact: true })
-        ).toBeVisible();
-        expect(lost).toBe(true);
-        await expect(page.getByLabel('Amount', { exact: true })).toHaveValue(
-            '23.45'
-        );
-        await save.click();
-        await expect(page.getByText('Saved', { exact: true })).toBeVisible();
         const listed = await request.get(apiBase + '/transactions', {
             headers,
             params: { budgetId }
         });
         expect(listed.status()).toBe(200);
-        const result = await listed.json();
-        expect(result.total).toBe(3);
-        expect(
-            result.items.filter(
-                (item: { note: string }) =>
-                    item.note === 'Browser response lost'
-            )
-        ).toHaveLength(1);
-        await page.setViewportSize({ width: 1440, height: 1100 });
-        await page.evaluate(() => window.scrollTo(0, 0));
-        await testInfo.attach('transaction-retry.png', {
-            body: await page.getByRole('main').screenshot(),
-            contentType: 'image/png'
-        });
+        expect((await listed.json()).total).toBe(2);
     } finally {
         await request.patch(apiBase + '/budgets/' + budgetId, {
             headers,

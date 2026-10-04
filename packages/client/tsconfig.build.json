@@ -4,5 +4,5 @@
         "emitDeclarationOnly": true,
         "noEmit": false
     },
-    "include": ["src/index.ts", "src/transaction-save.ts"]
+    "include": ["src/index.ts"]
 }

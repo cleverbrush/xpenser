@@ -40,7 +40,6 @@ export default async function CapturePage() {
     return (
         <div className="mx-auto flex max-w-xl flex-col">
             <TransactionCaptureWorkspace
-                budgetId={selectedBudget?.id}
                 categories={categoriesByRecentUse(
                     categories,
                     recentTransactions.items

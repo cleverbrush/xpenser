@@ -1,46 +1,27 @@
 'use server';
 
-import { transactionSaveError } from '@xpenser/client/transaction-save';
 import type { TransactionScanImageResponse } from '@xpenser/contracts';
 import { revalidatePath } from 'next/cache';
 import { getApiClient, getSessionOrRedirect } from '../api';
-import { apiErrorStatus, FormInputError, runFormAction } from '../form-errors';
+import { runFormAction } from '../form-errors';
 import {
     deleteScanUpload,
     readScanUploadAttachment
 } from '../transaction-scan-upload-store';
 import { uploadInputError } from '../upload-errors';
 import {
-    optionalString,
     requiredString,
     type TransactionScanDecisionActionBody,
     transactionBody,
     withSelectedBudget
 } from './shared';
 
-async function saveTransaction(formData: FormData) {
-    const client = await getApiClient();
-    const budget = optionalString(formData, 'budgetId');
-    const body = budget
-        ? { ...transactionBody(formData), budgetId: Number(budget) }
-        : await withSelectedBudget(transactionBody(formData));
-    try {
-        return await client.transactions.create({
-            body,
-            headers: {
-                'x-idempotency-key': optionalString(formData, 'idempotencyKey')
-            }
-        });
-    } catch (error) {
-        const message = transactionSaveError(apiErrorStatus(error));
-        if (message) throw new FormInputError(message, []);
-        throw error;
-    }
-}
-
 export async function createTransactionAction(formData: FormData) {
     return runFormAction(async () => {
-        await saveTransaction(formData);
+        const client = await getApiClient();
+        await client.transactions.create({
+            body: await withSelectedBudget(transactionBody(formData))
+        });
         revalidatePath('/capture');
         revalidatePath('/dashboard');
         revalidatePath('/vendors');
@@ -51,7 +32,10 @@ export async function createTransactionAction(formData: FormData) {
 
 export async function createCaptureTransactionAction(formData: FormData) {
     return runFormAction(async () => {
-        const transaction = await saveTransaction(formData);
+        const client = await getApiClient();
+        const transaction = await client.transactions.create({
+            body: await withSelectedBudget(transactionBody(formData))
+        });
         revalidatePath('/capture');
         revalidatePath('/dashboard');
         revalidatePath('/vendors');
