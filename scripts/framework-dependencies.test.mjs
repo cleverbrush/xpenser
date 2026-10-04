@@ -7,7 +7,7 @@ describe('Framework package identity', () => {
         const schemaPaths = Object.keys(lock.packages).filter(path => path.endsWith('node_modules/@cleverbrush/schema'));
         expect(schemaPaths).toEqual(['node_modules/@cleverbrush/schema']);
         const versions = Object.entries(lock.packages)
-            .filter(([path]) => path.includes('node_modules/@cleverbrush/'))
+            .filter(([path]) => /(?:^|\/)node_modules\/@cleverbrush\/[^/]+$/.test(path))
             .map(([, pkg]) => pkg.version);
         expect(new Set(versions)).toEqual(new Set([lock.packages['apps/api'].dependencies['@cleverbrush/schema']]));
     });

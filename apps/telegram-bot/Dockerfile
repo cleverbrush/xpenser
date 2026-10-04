@@ -1,4 +1,4 @@
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ RUN npm run build -w @xpenser/contracts && \
     npm run build -w @xpenser/timezone && \
     npm run build -w @xpenser/telegram-bot
 
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app

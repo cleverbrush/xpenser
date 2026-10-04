@@ -1,4 +1,4 @@
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 ARG DISABLE_GTM=0
@@ -24,7 +24,7 @@ RUN npm run build -w @xpenser/contracts && \
     npm run build -w @xpenser/ui && \
     npm run build -w @xpenser/web
 
-FROM node:22-alpine AS runtime
+FROM node:24-alpine AS runtime
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app

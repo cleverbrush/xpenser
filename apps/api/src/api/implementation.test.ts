@@ -56,6 +56,8 @@ function collectEndpointEntries(
 }
 
 type TestOpenApiOperation = {
+    readonly parameters?: readonly unknown[];
+    readonly responses?: Record<string, unknown>;
     readonly security?: ReadonlyArray<Record<string, readonly string[]>>;
 };
 
@@ -184,14 +186,14 @@ describe('contract-bound API implementation', () => {
             }
         }) as TestOpenApiDocument;
 
-        // Typed multipart uploads and the separate scan-image PUT are deliberate changes.
+        // Typed uploads, scan-image PUT and transaction replay headers/errors are deliberate changes.
         // Deliberate API changes should review/update this compatibility fingerprint.
         expect(
             createHash('sha256')
                 .update(JSON.stringify(canonical(spec)))
                 .digest('hex')
         ).toBe(
-            'e1dab8c7bfb1690bc4da1496f9c428f038d6f7af5e1d0d1bd8ed8f7b7e9283be'
+            '7d019a2e53f21ecfc962f100e8405d081aa474d8633c19563389dd1f9324c99d'
         );
         expect(spec.components?.securitySchemes).toMatchObject({
             bearerAuth: {
@@ -210,6 +212,25 @@ describe('contract-bound API implementation', () => {
             { apiKey: [] }
         ]);
         expect(spec.paths['/api/auth/login']?.post?.security).toBeUndefined();
+        const creation = spec.paths['/api/transactions']?.post;
+        expect(creation?.parameters).toContainEqual(
+            expect.objectContaining({
+                in: 'header',
+                name: 'X-Idempotency-Key',
+                schema: expect.objectContaining({
+                    minLength: 1,
+                    maxLength: 256
+                })
+            })
+        );
+        expect(creation?.parameters).not.toContainEqual(
+            expect.objectContaining({
+                name: 'X-Idempotency-Key',
+                required: true
+            })
+        );
+        expect(creation?.responses).toHaveProperty('409');
+        expect(creation?.responses).toHaveProperty('503');
     });
 
     it('serves the generated OpenAPI document from the runtime server', async () => {

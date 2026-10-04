@@ -56,6 +56,7 @@ export function buildServer(
                 'Content-Type',
                 'Authorization',
                 'X-API-Key',
+                'X-Idempotency-Key',
                 'Mcp-Protocol-Version',
                 'Mcp-Session-Id',
                 'traceparent',

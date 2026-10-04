@@ -7,7 +7,7 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`0.0.0-beta-20261003175919`. See [database reads](./database-reads.md) for
+`0.0.0-beta-20261004165009`. See [database reads](./database-reads.md) for
 compiled query behavior and [image uploads](./image-uploads.md) for typed
 uploads, JSONB scan storage, and coordinated rollout.
 
@@ -128,8 +128,8 @@ the server boundary and `form-result.ts` for the serializable result types.
   values and leave the form open.
 - Multi-write flows track acknowledged writes: category setup retries only
   unsaved rows; scan review retries its confirmation without recreating the
-  acknowledged transaction. This is not backend idempotency: an ambiguous
-  network failure before acknowledgement still needs separate safeguards.
+  acknowledged transaction. Transaction creation also uses HTTP idempotency
+  for ambiguous failures before acknowledgement, within the limits below.
 
 For example, the feature action owns its successful cache invalidation:
 
@@ -294,3 +294,42 @@ projections, page/count agreement, and bounded enrichment query counts.
 5. Use `createXpenserClient()` from server-side web code or external clients.
 6. Add focused tests for schema validation, handler behavior, contract metadata,
    and any changed UI flow.
+
+## Transaction creation retries
+
+Only POST /api/transactions declares `.idempotent()` in the shared contract.
+Framework owns key validation, OpenAPI transport metadata, and response replay.
+The optional X-Idempotency-Key header accepts 1–256 characters and is allowed
+by the application's CORS policy. Requests without a key keep normal behavior.
+A typed endpoint `prepare` callback checks budget membership, archive, create
+and tag permissions and pins the effective budget before every replay. The
+endpoint's existing error policy handles preparation failures. Keys are scoped
+to the verified user and effective budget, plus Framework's method and full request URL.
+
+The native process-local store uses its defaults: 24-hour TTL, 1,000 entries,
+and 65,536 bytes per saved response. Concurrent requests share the completed
+status, headers and body. Completed error responses are replayed too; thrown
+handler errors release the reservation. An uncapturable/oversized response
+leaves a conflict marker (409); store capacity exhaustion returns 503. These
+are Problem Details responses. There is no database migration or durable store.
+
+Framework generates a key per client call and retains the serialized request
+and key across the shared client's two automatic HTTP retries. Other POSTs
+retain their prior behavior. Transaction creates bypass automatic batching so
+timeout cancellation reaches fetch; explicit API batch subrequests use the
+same endpoint policy. Web actions and Telegram use ordinary client calls.
+
+Each new client call gets a fresh key, including a new form submission. This
+does not track user retries across separate calls. External API callers must
+reuse a key only with the same input; Framework does not compare request bodies.
+API restarts, expiry and independent replicas lose or lack replay state. This
+is not a durable exactly-once guarantee.
+
+Framework's October 4 beta requires Node.js 24. Docker stages, CI, .nvmrc and
+the root engine constraint match it; HTTP instrumentation uses 0.222.0 alongside
+Framework telemetry.
+
+HTTP instrumentation 0.222 emits stable-semantic-convention duration metrics:
+http.server.request.duration and http.client.request.duration, measured in seconds
+(previous http.server.duration/http.client.duration series used milliseconds).
+Update external dashboards and alerts that refer to the old metric names/units.
