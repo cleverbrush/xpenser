@@ -191,7 +191,7 @@ describe('contract-bound API implementation', () => {
                 .update(JSON.stringify(canonical(spec)))
                 .digest('hex')
         ).toBe(
-            'e1dab8c7bfb1690bc4da1496f9c428f038d6f7af5e1d0d1bd8ed8f7b7e9283be'
+            '011d620a40ca12c8f2625bcf463dd4846081c3ee52ced82039bb51c93e35a057'
         );
         expect(spec.components?.securitySchemes).toMatchObject({
             bearerAuth: {

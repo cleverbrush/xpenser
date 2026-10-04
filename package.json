@@ -57,5 +57,8 @@
         "turbo": "2.8.21",
         "typescript": "7.0.2",
         "vitest": "4.1.2"
+    },
+    "engines": {
+        "node": ">=24"
     }
 }

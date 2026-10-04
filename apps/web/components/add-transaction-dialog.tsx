@@ -15,6 +15,7 @@ import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { TransactionDialog } from './transaction-dialog';
 
 export function AddTransactionDialog({
+    budgetId,
     categories,
     currencies,
     defaultCurrency,
@@ -23,6 +24,7 @@ export function AddTransactionDialog({
     transactionCurrencies,
     timezone
 }: {
+    readonly budgetId?: number;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -61,6 +63,7 @@ export function AddTransactionDialog({
             </Button>
             <div className="hidden sm:block">
                 <TransactionDialog
+                    budgetId={budgetId}
                     action={createTransactionAction}
                     categories={transactionCategories}
                     currencies={currencyOptions}

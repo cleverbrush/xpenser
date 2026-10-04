@@ -67,6 +67,7 @@ export default async function VendorsPage({
 
     return (
         <VendorsExplorer
+            budgetId={selectedBudget?.id}
             categories={categories}
             currencies={currencies}
             defaultCurrency={defaultCurrency}

@@ -7,9 +7,11 @@ test('published OpenAPI preserves canonical named schema modifiers', async ({
 }) => {
     const response = await request.get('/api/openapi.json');
     expect(response.status()).toBe(200);
-    const {
-        components: { schemas }
-    } = await response.json();
+    const { components: { schemas }, paths } = await response.json();
+    const creation = paths['/api/transactions'].post;
+    expect(creation.parameters).toContainEqual(expect.objectContaining({ in: 'header', name: 'x-idempotency-key', required: false, schema: expect.objectContaining({ minLength: 1, maxLength: 256 }) }));
+    expect(creation.responses).toHaveProperty('409');
+    expect(creation.responses).toHaveProperty('503');
     for (const [parent, field, target, required, nullable] of [
         [
             'TransactionScanDraft',

@@ -260,6 +260,7 @@ describe('XpenserTelegramBot transaction flows', () => {
         await subject.handleCallback(callback(noteSkipCallback));
 
         expect(mocks.userClient.transactions.create).toHaveBeenCalledWith({
+            headers: { 'x-idempotency-key': expect.any(String) },
             body: expect.objectContaining({
                 amount: 12.5,
                 budgetId: 1,
@@ -270,8 +271,30 @@ describe('XpenserTelegramBot transaction flows', () => {
         });
     });
 
+    it('reuses the manual save key and timestamp after a lost response', async () => {
+        const subject = bot();
+        await subject.beginAdd(message({ text: '/add' }));
+        await subject.handleText(message({ text: '12.50' }));
+        await subject.handleCallback(callback('cur:USD'));
+        await subject.handleCallback(
+            callback(vendorSelectCallbackPrefix + vendors[0]?.id)
+        );
+        await subject.handleCallback(callback('cat:1'));
+        mocks.userClient.transactions.create.mockRejectedValueOnce(
+            new Error('Response lost')
+        );
+        await subject.handleCallback(callback(noteSkipCallback));
+        await subject.handleCallback(callback(noteSkipCallback));
+        const [first, retry] = mocks.userClient.transactions.create.mock.calls;
+        expect(mocks.userClient.transactions.create).toHaveBeenCalledTimes(2);
+        expect(retry![0]).toEqual(first![0]);
+        expect(first![0].headers['x-idempotency-key']).toBeTruthy();
+        expect(first![0].body.occurredAt).toBeInstanceOf(Date);
+    });
+
     it.each([
         'none',
+        'create',
         'upload',
         'decision'
     ])('scans and confirms without duplicate financial writes after %s failure', async failure => {
@@ -355,6 +378,10 @@ describe('XpenserTelegramBot transaction flows', () => {
                 ]
             })
         );
+        if (failure === 'create')
+            mocks.userClient.transactions.create.mockRejectedValueOnce(
+                new Error('Response lost')
+            );
         if (failure === 'upload')
             mocks.userClient.transactionScans.uploadImage.mockRejectedValueOnce(
                 new Error('Upload interrupted')
@@ -369,7 +396,13 @@ describe('XpenserTelegramBot transaction flows', () => {
         ]);
         if (failure !== 'none')
             await subject.handleCallback(callback(scanConfirmCallback));
-        expect(mocks.userClient.transactions.create).toHaveBeenCalledTimes(1);
+        expect(mocks.userClient.transactions.create).toHaveBeenCalledTimes(
+            failure === 'create' ? 2 : 1
+        );
+        if (failure === 'create')
+            expect(
+                mocks.userClient.transactions.create.mock.calls[1]![0]
+            ).toEqual(mocks.userClient.transactions.create.mock.calls[0]![0]);
         expect(
             mocks.userClient.transactionScans.uploadImage
         ).toHaveBeenCalledTimes(failure === 'upload' ? 2 : 1);
@@ -393,6 +426,7 @@ describe('XpenserTelegramBot transaction flows', () => {
             }
         });
         expect(mocks.userClient.transactions.create).toHaveBeenCalledWith({
+            headers: { 'x-idempotency-key': expect.any(String) },
             body: expect.objectContaining({
                 amount: 12.5,
                 budgetId: 1,

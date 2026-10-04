@@ -2,9 +2,11 @@ import { createClient } from '@cleverbrush/client';
 
 export { decodeValidationIssues } from '@cleverbrush/client';
 
+import type { Middleware } from '@cleverbrush/client';
 import { batching } from '@cleverbrush/client/batching';
 import { cacheTags, externalCacheTags } from '@cleverbrush/client/cache';
 import { dedupe } from '@cleverbrush/client/dedupe';
+import { idempotency } from '@cleverbrush/client/idempotency';
 import { retry } from '@cleverbrush/client/retry';
 import { timeout } from '@cleverbrush/client/timeout';
 import { clientTracingMiddleware } from '@cleverbrush/otel/client';
@@ -56,10 +58,34 @@ function hasBasePath(baseUrl: string): boolean {
  * root by `ServerBuilder.useBatching()`.
  */
 export function createXpenserClient(options: XpenserClientOptions) {
+    const creationUrl = new URL(
+        options.baseUrl.replace(/\/$/, '') + '/api/transactions'
+    ).href;
+    const isTransactionCreate = (url: string, init: RequestInit) =>
+        init.method?.toUpperCase() === 'POST' &&
+        new URL(url).href.replace(/\/$/, '') === creationUrl;
+    const transactionRetry = retry({
+        methods: ['POST'],
+        limit: 2,
+        retryOnTimeout: options.retryOnTimeout ?? true
+    });
+    const retryTransaction: Middleware = next => {
+        const retried = transactionRetry(next);
+        return (url, init) =>
+            isTransactionCreate(url, init)
+                ? retried(url, init)
+                : next(url, init);
+    };
     const batchingMiddleware =
         options.disableBatching || hasBasePath(options.baseUrl)
             ? []
-            : [batching({ maxSize: 10, windowMs: 10 })];
+            : [
+                  batching({
+                      maxSize: 10,
+                      windowMs: 10,
+                      skip: isTransactionCreate
+                  })
+              ];
     const externalCacheMiddleware = options.invalidateCacheTag
         ? [
               externalCacheTags({
@@ -76,6 +102,11 @@ export function createXpenserClient(options: XpenserClientOptions) {
         fetch: options.fetch,
         middlewares: [
             clientTracingMiddleware(),
+            idempotency({
+                condition: isTransactionCreate,
+                keyGenerator: () => crypto.randomUUID()
+            }),
+            retryTransaction,
             retry({
                 limit: 2,
                 retryOnTimeout: options.retryOnTimeout ?? true

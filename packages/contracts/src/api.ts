@@ -1,6 +1,10 @@
 import { array, number } from '@cleverbrush/schema';
 import { defineApi, endpoint, route } from '@cleverbrush/server/contract';
 import {
+    HttpProblemSchema,
+    TransactionIdempotencyHeadersSchema
+} from './idempotency.js';
+import {
     AcceptBudgetInvitationBodySchema,
     ApiKeySchema,
     BudgetAccessRowSchema,
@@ -730,6 +734,7 @@ export const api = defineApi({
         create: transactions
             .post()
             .body(CreateTransactionBodySchema)
+            .headers(TransactionIdempotencyHeadersSchema)
             .clearsCacheTag('categories')
             .clearsCacheTag('vendors')
             .clearsCacheTag('vendor')
@@ -746,6 +751,8 @@ export const api = defineApi({
             .clearsCacheTag('stats-category-trend')
             .responses({
                 201: TransactionSchema,
+                409: HttpProblemSchema,
+                503: HttpProblemSchema,
                 400: ErrorResponseSchema,
                 403: ErrorResponseSchema,
                 404: ErrorResponseSchema

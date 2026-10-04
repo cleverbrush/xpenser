@@ -82,7 +82,7 @@ framework docs, use:
 
 ### Prerequisites
 
-- Node.js 22
+- Node.js 24
 - npm 11
 - Docker with Docker Compose v2 (`docker compose`)
 

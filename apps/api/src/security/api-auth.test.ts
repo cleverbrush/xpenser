@@ -43,6 +43,31 @@ function authScheme(name: 'api-key' | 'jwt', config: Config, db: AppDb) {
 }
 
 describe('xpenser auth scheme', () => {
+    it.each([
+        { exp: 1_791_072_000 },
+        { exp: '9999999999' },
+        { nbf: '0' },
+        { iat: '0' }
+    ])('rejects expired or malformed registered JWT claims: %j', async claims => {
+        const now = vi.spyOn(Date, 'now').mockReturnValue(1_791_072_000_000);
+        try {
+            const token = signJwt(
+                { sub: '42', role: 'user', ...claims } as Parameters<
+                    typeof signJwt
+                >[0],
+                config.jwt.secret
+            );
+            const result = await authScheme(
+                'jwt',
+                config,
+                {} as AppDb
+            ).authenticate(authContext({ authorization: 'Bearer ' + token }));
+            expect(result.succeeded).toBe(false);
+        } finally {
+            now.mockRestore();
+        }
+    });
+
     it('authenticates regular app JWT bearer tokens', async () => {
         const token = signJwt(
             {

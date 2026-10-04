@@ -25,7 +25,7 @@ Good first contribution areas:
 
 Requirements:
 
-- Node.js 22
+- Node.js 24
 - npm 11
 - Docker with Docker Compose v2
 

@@ -1,0 +1,48 @@
+---
+title: "Safer transaction save retries"
+slug: safer-transaction-save-retries
+description: "Xpenser remembers active transaction saves so retrying after an interrupted response can return the original transaction."
+heroImage: ""
+heroImageAlt: ""
+publishedAt: 2026-10-04
+updatedAt: 2026-10-04
+targetKeyword: "transaction save retries"
+keywords:
+  - "expense tracking"
+  - "duplicate transaction prevention"
+  - "Telegram expense tracker"
+draft: false
+---
+
+Transaction save retries now carry a unique key from Xpenser's web app and
+Telegram bot to the API. If a save finishes but its response is interrupted, a
+retry with the same key can return the original transaction.
+
+This applies to manual transactions, quick capture, and individual transactions
+confirmed from receipt scans. Keep the form or Telegram entry open and retry
+without changing its values. Editing the transaction, changing budgets, or
+starting another entry creates a new save attempt. Two intentional entries with
+identical amounts remain separate transactions.
+
+After a scanned transaction is acknowledged, retrying an attachment or scan
+confirmation continues from that saved transaction. See our update on
+[receipt image uploads](/blog/receipt-image-upload-reliability) for that workflow.
+
+## What the protection covers
+
+The API checks your current budget permissions before returning a previous save.
+Its replay memory lasts up to 24 hours on the same running API instance and has a
+fixed capacity. It does not survive an API restart, follow requests across API
+instances, or restore a form after a refresh or bot restart.
+
+If Xpenser cannot confirm a previous response, it asks you to check your
+transaction list before saving again. This reduces accidental duplicates during
+active sessions; it is not a guarantee that every interrupted save can be
+recovered.
+
+For API integrations, send the same optional `X-Idempotency-Key` header when
+retrying the same transaction creation request. Use a fresh key for every new or
+changed transaction. See the [API documentation](/api-docs) for the contract.
+
+Explore Xpenser's [open-source expense tracker](/open-source-expense-tracker)
+and [Telegram expense tracking](/blog/telegram-invoice-scanning).

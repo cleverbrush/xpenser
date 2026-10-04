@@ -123,6 +123,7 @@ function renderQuickCaptureForm({
     return render(
         <XpenserFormProvider>
             <QuickCaptureForm
+                budgetId={1}
                 categories={nextCategories}
                 currencies={currencies}
                 defaultCurrency="USD"
@@ -142,6 +143,52 @@ describe('QuickCaptureForm', () => {
         createCaptureTransactionAction.mockReset();
         deleteTransactionAction.mockReset();
         refresh.mockReset();
+    });
+
+    it('keeps the same key and payload after an unconfirmed save and changes keys after edits', async () => {
+        createCaptureTransactionAction.mockRejectedValue(
+            new Error('Response lost')
+        );
+        renderQuickCaptureForm();
+        fireEvent.change(screen.getByLabelText('Amount'), {
+            target: { value: '12.34' }
+        });
+        const save = () =>
+            fireEvent.click(
+                screen.getByRole('button', { name: 'Save transaction' })
+            );
+        save();
+        await screen.findByText('Could not save the transaction.');
+        save();
+        await waitFor(() =>
+            expect(createCaptureTransactionAction).toHaveBeenCalledTimes(2)
+        );
+        await waitFor(() =>
+            expect(
+                screen
+                    .getByRole('button', { name: 'Save transaction' })
+                    .hasAttribute('disabled')
+            ).toBe(false)
+        );
+        const first = createCaptureTransactionAction.mock
+            .calls[0]![0] as FormData;
+        const retry = createCaptureTransactionAction.mock
+            .calls[1]![0] as FormData;
+        expect(Object.fromEntries(retry)).toEqual(Object.fromEntries(first));
+        expect(first.get('idempotencyKey')).toBeTruthy();
+        expect(first.get('budgetId')).toBe('1');
+        fireEvent.change(screen.getByLabelText('Note'), {
+            target: { value: 'Corrected' }
+        });
+        save();
+        await waitFor(() =>
+            expect(createCaptureTransactionAction).toHaveBeenCalledTimes(3)
+        );
+        expect(
+            createCaptureTransactionAction.mock.calls[2]![0].get(
+                'idempotencyKey'
+            )
+        ).not.toBe(first.get('idempotencyKey'));
     });
 
     it('saves a transaction with fast defaults and allows undo', async () => {

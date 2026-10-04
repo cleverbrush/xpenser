@@ -47,6 +47,7 @@ import {
     transactionCategoryOptions
 } from '@/lib/category-display';
 import type { FormActionResult } from '@/lib/form-result';
+import { useTransactionSave } from '@/lib/use-transaction-save';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
@@ -62,6 +63,7 @@ type TransactionDialogValues = Pick<
 type TransactionType = Transaction['type'];
 
 export function TransactionDialog({
+    budgetId,
     action,
     categories,
     currencies,
@@ -80,6 +82,7 @@ export function TransactionDialog({
     timezone
 }: {
     readonly action: (formData: FormData) => Promise<FormActionResult>;
+    readonly budgetId?: number;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -96,6 +99,7 @@ export function TransactionDialog({
     readonly trigger: ReactNode;
     readonly timezone: string;
 }) {
+    const saveAttempt = useTransactionSave(budgetId);
     const form = useSchemaForm(CreateTransactionBodySchema);
     const router = useRouter();
     const [open, setOpen] = useState(false);
@@ -230,7 +234,10 @@ export function TransactionDialog({
 
     function handleOpenChange(nextOpen: boolean) {
         setOpen(nextOpen);
-        if (!nextOpen) resetForm();
+        if (!nextOpen) {
+            saveAttempt.reset();
+            resetForm();
+        }
     }
 
     function handleTypeChange(value: TransactionType) {
@@ -277,7 +284,10 @@ export function TransactionDialog({
 
     const handleSubmit = form.handleSubmit(
         async values => {
-            const formData = valuesToFormData(values);
+            const formData =
+                transactionId === undefined
+                    ? saveAttempt.formData(values)
+                    : valuesToFormData(values);
             if (transactionId !== undefined) {
                 formData.append('id', String(transactionId));
                 formData.append('tagsTouched', 'true');
@@ -286,6 +296,7 @@ export function TransactionDialog({
         },
         {
             onSuccess: () => {
+                saveAttempt.reset();
                 resetForm();
                 setOpen(false);
                 router.refresh();

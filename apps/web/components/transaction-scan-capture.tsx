@@ -76,6 +76,7 @@ import {
 import type { FormIssue } from '@/lib/form-result';
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
+import { useTransactionSave } from '@/lib/use-transaction-save';
 import { hiddenAmountLabel, useAmountPrivacy } from './amount-privacy';
 import { CategoryForm } from './forms/category-form';
 import { valuesToFormData } from './forms/form-utils';
@@ -813,6 +814,7 @@ function SuggestedCategory({
 }
 
 export function ScanWizard({
+    budgetId,
     attachment,
     categories,
     currencies,
@@ -827,6 +829,7 @@ export function ScanWizard({
     vendors
 }: {
     readonly attachment: ScanAttachment;
+    readonly budgetId?: number;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -839,6 +842,7 @@ export function ScanWizard({
     readonly transactionCurrencies: readonly string[];
     readonly vendors: readonly Vendor[];
 }) {
+    const saveAttempt = useTransactionSave(budgetId);
     const router = useRouter();
     const form = useSchemaForm(CreateTransactionBodySchema);
     const amountField = form.useField(t => t.amount);
@@ -1066,11 +1070,12 @@ export function ScanWizard({
             let transaction = acknowledged.current.get(draft.id);
             if (!transaction) {
                 const result = await createCaptureTransactionAction(
-                    valuesToFormData(submitted)
+                    saveAttempt.formData(submitted, String(draft.id))
                 );
                 if (!result.ok) return result;
                 transaction = result.data;
                 acknowledged.current.set(draft.id, transaction);
+                saveAttempt.reset(String(draft.id));
             }
             const shouldSubmitAttachment = !attachmentSubmitted;
             const decision = await recordTransactionScanDecisionAction({
@@ -1599,6 +1604,7 @@ export function ScanWizard({
 }
 
 export function TransactionCaptureWorkspace({
+    budgetId,
     categories,
     currencies,
     defaultCurrency,
@@ -1607,6 +1613,7 @@ export function TransactionCaptureWorkspace({
     transactionCurrencies,
     vendors
 }: {
+    readonly budgetId?: number;
     readonly categories: readonly Category[];
     readonly currencies: readonly Currency[];
     readonly defaultCurrency: string;
@@ -1650,6 +1657,7 @@ export function TransactionCaptureWorkspace({
 
             {mode === 'manual' ? (
                 <QuickCaptureForm
+                    budgetId={budgetId}
                     categories={localCategories}
                     currencies={currencies}
                     defaultCurrency={defaultCurrency}
@@ -1660,6 +1668,7 @@ export function TransactionCaptureWorkspace({
                 />
             ) : scanSession ? (
                 <ScanWizard
+                    budgetId={budgetId}
                     attachment={scanSession.attachment}
                     categories={localCategories}
                     currencies={currencies}
