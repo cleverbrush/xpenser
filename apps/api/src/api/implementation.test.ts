@@ -56,6 +56,8 @@ function collectEndpointEntries(
 }
 
 type TestOpenApiOperation = {
+    readonly parameters?: readonly unknown[];
+    readonly responses?: Record<string, unknown>;
     readonly security?: ReadonlyArray<Record<string, readonly string[]>>;
 };
 
@@ -184,7 +186,7 @@ describe('contract-bound API implementation', () => {
             }
         }) as TestOpenApiDocument;
 
-        // Typed multipart uploads and the separate scan-image PUT are deliberate changes.
+        // Typed uploads, scan-image PUT and transaction replay headers/errors are deliberate changes.
         // Deliberate API changes should review/update this compatibility fingerprint.
         expect(
             createHash('sha256')
@@ -210,6 +212,25 @@ describe('contract-bound API implementation', () => {
             { apiKey: [] }
         ]);
         expect(spec.paths['/api/auth/login']?.post?.security).toBeUndefined();
+        const creation = spec.paths['/api/transactions']?.post;
+        expect(creation?.parameters).toContainEqual(
+            expect.objectContaining({
+                in: 'header',
+                name: 'x-idempotency-key',
+                schema: expect.objectContaining({
+                    minLength: 1,
+                    maxLength: 256
+                })
+            })
+        );
+        expect(creation?.parameters).not.toContainEqual(
+            expect.objectContaining({
+                name: 'x-idempotency-key',
+                required: true
+            })
+        );
+        expect(creation?.responses).toHaveProperty('409');
+        expect(creation?.responses).toHaveProperty('503');
     });
 
     it('serves the generated OpenAPI document from the runtime server', async () => {

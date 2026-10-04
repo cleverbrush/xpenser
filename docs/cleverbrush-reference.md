@@ -328,3 +328,8 @@ cannot silently redirect an unchanged save into another budget.
 Framework's October 4 beta requires Node.js 24. Docker stages, CI, .nvmrc and
 the root engine constraint match it; HTTP instrumentation uses 0.222.0 alongside
 Framework telemetry.
+
+HTTP instrumentation 0.222 emits stable-semantic-convention duration metrics:
+http.server.request.duration and http.client.request.duration, measured in seconds
+(previous http.server.duration/http.client.duration series used milliseconds).
+Update external dashboards and alerts that refer to the old metric names/units.
