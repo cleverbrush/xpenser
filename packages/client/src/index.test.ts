@@ -6,7 +6,6 @@ const middlewareMocks = vi.hoisted(() => ({
     cacheTags: vi.fn(() => ({ name: 'cacheTags' })),
     clientTracingMiddleware: vi.fn(() => ({ name: 'tracing' })),
     createClient: vi.fn(() => ({ name: 'client' })),
-    idempotency: vi.fn(() => ({ name: 'idempotency' })),
     dedupe: vi.fn(() => ({ name: 'dedupe' })),
     externalCacheTags: vi.fn(() => ({ name: 'externalCacheTags' })),
     retry: vi.fn(() => ({ name: 'retry' })),
@@ -28,10 +27,6 @@ vi.mock('@cleverbrush/client/cache', () => ({
 
 vi.mock('@cleverbrush/client/dedupe', () => ({
     dedupe: middlewareMocks.dedupe
-}));
-
-vi.mock('@cleverbrush/client/idempotency', () => ({
-    idempotency: middlewareMocks.idempotency
 }));
 
 vi.mock('@cleverbrush/client/retry', () => ({
@@ -87,8 +82,6 @@ describe('createXpenserClient', () => {
             expect.objectContaining({
                 middlewares: [
                     { name: 'tracing' },
-                    { name: 'idempotency' },
-                    expect.any(Function),
                     { name: 'retry' },
                     { name: 'timeout' },
                     { name: 'dedupe' },
@@ -99,8 +92,7 @@ describe('createXpenserClient', () => {
         );
         expect(middlewareMocks.batching).toHaveBeenCalledWith({
             maxSize: 10,
-            windowMs: 10,
-            skip: expect.any(Function)
+            windowMs: 10
         });
     });
 
@@ -113,8 +105,6 @@ describe('createXpenserClient', () => {
             expect.objectContaining({
                 middlewares: [
                     { name: 'tracing' },
-                    { name: 'idempotency' },
-                    expect.any(Function),
                     { name: 'retry' },
                     { name: 'timeout' },
                     { name: 'dedupe' },
@@ -136,8 +126,6 @@ describe('createXpenserClient', () => {
             expect.objectContaining({
                 middlewares: [
                     { name: 'tracing' },
-                    { name: 'idempotency' },
-                    expect.any(Function),
                     { name: 'retry' },
                     { name: 'timeout' },
                     { name: 'dedupe' },
@@ -163,8 +151,6 @@ describe('createXpenserClient', () => {
             expect.objectContaining({
                 middlewares: [
                     { name: 'tracing' },
-                    { name: 'idempotency' },
-                    expect.any(Function),
                     { name: 'retry' },
                     { name: 'timeout' },
                     { name: 'dedupe' },

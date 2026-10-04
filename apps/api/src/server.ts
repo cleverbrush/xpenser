@@ -4,7 +4,6 @@ import { tracingMiddleware } from '@cleverbrush/otel';
 import { createServer } from '@cleverbrush/server';
 import { createOpenApiEndpoint } from '@cleverbrush/server-openapi';
 import { apiImplementation } from './api/implementation.js';
-import { transactionIdempotency } from './api/transaction-idempotency.js';
 import type { Config } from './config.js';
 import { configureDI, type DbResources } from './di/setup.js';
 import type { JobRuntime } from './jobs/runtime.js';
@@ -85,7 +84,6 @@ export function buildServer(
             schemes: xpenserAuthSchemes(config, resources.db)
         })
         .useAuthorization()
-        .use(transactionIdempotency(resources.db))
         .withHealthcheck()
         .useBatching();
 

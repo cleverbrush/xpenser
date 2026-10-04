@@ -193,7 +193,7 @@ describe('contract-bound API implementation', () => {
                 .update(JSON.stringify(canonical(spec)))
                 .digest('hex')
         ).toBe(
-            '011d620a40ca12c8f2625bcf463dd4846081c3ee52ced82039bb51c93e35a057'
+            '7d019a2e53f21ecfc962f100e8405d081aa474d8633c19563389dd1f9324c99d'
         );
         expect(spec.components?.securitySchemes).toMatchObject({
             bearerAuth: {
@@ -216,7 +216,7 @@ describe('contract-bound API implementation', () => {
         expect(creation?.parameters).toContainEqual(
             expect.objectContaining({
                 in: 'header',
-                name: 'x-idempotency-key',
+                name: 'X-Idempotency-Key',
                 schema: expect.objectContaining({
                     minLength: 1,
                     maxLength: 256
@@ -225,7 +225,7 @@ describe('contract-bound API implementation', () => {
         );
         expect(creation?.parameters).not.toContainEqual(
             expect.objectContaining({
-                name: 'x-idempotency-key',
+                name: 'X-Idempotency-Key',
                 required: true
             })
         );

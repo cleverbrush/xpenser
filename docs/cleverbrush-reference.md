@@ -7,7 +7,7 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`0.0.0-beta-20261004074002`. See [database reads](./database-reads.md) for
+`0.0.0-beta-20261004165009`. See [database reads](./database-reads.md) for
 compiled query behavior and [image uploads](./image-uploads.md) for typed
 uploads, JSONB scan storage, and coordinated rollout.
 
@@ -297,12 +297,14 @@ projections, page/count agreement, and bounded enrichment query counts.
 
 ## Transaction creation retries
 
-Only POST /api/transactions opts into Framework HTTP idempotency. The optional
-X-Idempotency-Key header accepts 1–256 characters; it is documented in OpenAPI
-and allowed by CORS. Requests without a key keep their normal behavior.
-Authentication and fresh budget membership, archive, create and tag permission
-checks precede replay. Keys are scoped to the verified user and effective
-budget, plus Framework's method and full request URL.
+Only POST /api/transactions declares `.idempotent()` in the shared contract.
+Framework owns key validation, OpenAPI transport metadata, and response replay.
+The optional X-Idempotency-Key header accepts 1–256 characters and is allowed
+by the application's CORS policy. Requests without a key keep normal behavior.
+A typed endpoint `prepare` callback checks budget membership, archive, create
+and tag permissions and pins the effective budget before every replay. The
+endpoint's existing error policy handles preparation failures. Keys are scoped
+to the verified user and effective budget, plus Framework's method and full request URL.
 
 The native process-local store uses its defaults: 24-hour TTL, 1,000 entries,
 and 65,536 bytes per saved response. Concurrent requests share the completed
@@ -311,9 +313,8 @@ handler errors release the reservation. An uncapturable/oversized response
 leaves a conflict marker (409); store capacity exhaustion returns 503. These
 are Problem Details responses. There is no database migration or durable store.
 
-The shared client uses Framework's native middleware to generate a key per
-transaction-create call and retain the serialized request and key across two
-automatic HTTP retries. Other POSTs
+Framework generates a key per client call and retains the serialized request
+and key across the shared client's two automatic HTTP retries. Other POSTs
 retain their prior behavior. Transaction creates bypass automatic batching so
 timeout cancellation reaches fetch; explicit API batch subrequests use the
 same endpoint policy. Web actions and Telegram use ordinary client calls.

@@ -1,3 +1,7 @@
+import {
+    requireBudgetPermission,
+    resolveBudgetAccess
+} from '../../../application/budgets.js';
 import { budgetAccessErrors } from '../../errors/budget-access.js';
 import {
     createErrors,
@@ -20,7 +24,27 @@ export const transactionsModule = transactionsScope.withHandlers({
         handler: exportTransactionsCsvHandler,
         errors: exportCsvErrors
     },
-    create: { handler: createTransactionHandler, errors: createErrors },
+    create: {
+        prepare: async (request, { db }) => {
+            const access = await resolveBudgetAccess(
+                db,
+                request.principal.userId,
+                request.body.budgetId
+            );
+            requireBudgetPermission(access, 'canCreateTransactions');
+            if (request.body.tags?.length)
+                requireBudgetPermission(access, 'canManageTags');
+            return {
+                ...request,
+                body: { ...request.body, budgetId: access.budget.id }
+            };
+        },
+        idempotency: {
+            scope: ({ principal, body }) => [principal.userId, body.budgetId!]
+        },
+        handler: createTransactionHandler,
+        errors: createErrors
+    },
     update: { handler: updateTransactionHandler, errors: updateErrors },
     delete: { handler: deleteTransactionHandler, errors: deleteErrors },
     scanImage: { handler: getTransactionScanImageHandler, errors: deleteErrors }
