@@ -8,7 +8,7 @@
     "scripts": {
         "dev": "tsx watch --env-file=.env --import @opentelemetry/instrumentation/hook.mjs src/index.ts",
         "start": "node --import @opentelemetry/instrumentation/hook.mjs --import ./dist/telemetry.js dist/index.js",
-        "build": "tsup && tsc --noEmit -p tsconfig.json",
+        "build": "tsup && tsc --noEmit -p tsconfig.json --checkers 1",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "clean": "rm -rf dist tsconfig.tsbuildinfo",
         "db:run": "tsx --env-file=.env src/db/run.ts",
