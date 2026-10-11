@@ -17,7 +17,9 @@ RUN npm ci --ignore-scripts && mkdir -p apps/api/node_modules
 COPY apps/api ./apps/api
 COPY packages ./packages
 
-RUN npm run build -w @xpenser/contracts && \
+# TypeScript 7 uses Go; cap its heap growth on small deployment hosts.
+RUN export GOMEMLIMIT=1536MiB && \
+    npm run build -w @xpenser/contracts && \
     npm run build -w @xpenser/client && \
     npm run build -w @xpenser/timezone && \
     npm run build -w @xpenser/api
