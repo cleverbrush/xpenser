@@ -7,9 +7,25 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`0.0.0-beta-20261004165009`. See [database reads](./database-reads.md) for
+`5.0.0`. See [database reads](./database-reads.md) for
 compiled query behavior and [image uploads](./image-uploads.md) for typed
 uploads, JSONB scan storage, and coordinated rollout.
+
+## Stable v5 adoption
+
+The [v5 migration guide](https://github.com/cleverbrush/framework/blob/v5.0.0/docs/MIGRATION-v5.md)
+covers the coordinated package upgrade. Xpenser already adopted immutable queries,
+compiled reads, durable jobs, typed uploads, schema forms and scoped transaction
+replay in the October betas; the stable release retains those integrations.
+
+Compared with the October 4 beta, v5 fixes default-only database migration changes
+so they preserve column types, nullability and stored data; closes WebSocket
+subscriptions rejected by middleware; honors a zero subscription-history limit;
+and corrects shared HashObject behavior. The scheduler table schemas and migrations
+are unchanged, so this upgrade adds no database migration or job-definition version.
+All Framework packages, including transitive packages, must resolve to 5.0.0 with
+one shared schema installation. Keep the feature-owned unit, PostgreSQL and browser
+suites as the executable checks for existing behavior.
 
 ## Cross-origin requests
 
@@ -230,7 +246,7 @@ projections, page/count agreement, and bounded enrichment query counts.
 - Keep endpoint-specific cache namespaces in the shared contract. A vendor list
   and vendor detail have different response shapes and therefore use `vendors`
   and `vendor`; a write invalidates every affected namespace.
-- Let Framework encode parameterized cache keys. The beta distinguishes Date
+- Let Framework encode parameterized cache keys. Framework distinguishes Date
   values down to milliseconds and avoids separator collisions. Do not build a
   second encoder in Xpenser.
 - `createXpenserClient()` creates its own in-memory cache middleware. Preserve
@@ -325,8 +341,9 @@ reuse a key only with the same input; Framework does not compare request bodies.
 API restarts, expiry and independent replicas lose or lack replay state. This
 is not a durable exactly-once guarantee.
 
-Framework's October 4 beta requires Node.js 24. Docker stages, CI, .nvmrc and
-the root engine constraint match it; HTTP instrumentation uses 0.222.0 alongside
+Framework v5 requires Node.js 24. Docker stages, CI, .nvmrc, the root engine
+constraint, Node type declarations and the bot build target match it. HTTP
+instrumentation and the bot's instrumentation hook use 0.222.0 alongside
 Framework telemetry.
 
 HTTP instrumentation 0.222 emits stable-semantic-convention duration metrics:

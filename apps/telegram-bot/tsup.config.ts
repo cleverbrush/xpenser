@@ -7,7 +7,7 @@ export default defineConfig({
     minify: false,
     sourcemap: true,
     clean: true,
-    target: 'node22',
+    target: 'node24',
     noExternal: [/@xpenser\//],
     external: ['ws', /^@opentelemetry\//, '@fastify/busboy']
 });
