@@ -26,7 +26,7 @@ export function createXpenserMcpServer({
 }: XpenserMcpServerOptions): Server {
     const server = new Server({
         name: 'xpenser',
-        version: '0.1.0'
+        version: '1.0.0'
     });
 
     registerXpenserMcpTools(server, {

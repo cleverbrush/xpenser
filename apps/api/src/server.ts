@@ -91,7 +91,7 @@ export function buildServer(
         server,
         info: {
             title: 'xpenser API',
-            version: '0.1.0',
+            version: '1.0.0',
             description:
                 'Schema-first income and expense tracking API built with Cleverbrush.'
         },
