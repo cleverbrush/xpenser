@@ -70,6 +70,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Production deployment tests
+        run: npm run test:deploy
+
       - name: PostgreSQL query integration
         run: npm run test:queries:integration
         env:

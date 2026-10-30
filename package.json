@@ -41,7 +41,8 @@
         "test:coverage": "vitest --run --coverage",
         "test:e2e": "playwright test",
         "typecheck": "turbo run typecheck",
-        "clean": "turbo run clean"
+        "clean": "turbo run clean",
+        "test:deploy": "node --test scripts/prod-deploy.spec.mjs"
     },
     "devDependencies": {
         "@biomejs/biome": "2.4.9",

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROLE="${1:-}"
+ORIGINAL_COMMAND="${SSH_ORIGINAL_COMMAND:-}"
+
+reject() {
+    printf 'Production deployment command not permitted\n' >&2
+    exit 126
+}
+
+[[ $# -eq 1 ]] || reject
+[[ "$ORIGINAL_COMMAND" =~ ^deploy\ ([0-9a-f]{40})$ ]] || reject
+SHA="${BASH_REMATCH[1]}"
+
+case "$ROLE" in
+    runner) exec "${SCRIPT_DIR}/prod-deploy.sh" "$SHA" ;;
+    proxy) exec "${SCRIPT_DIR}/prod-deploy-proxy.sh" "$SHA" ;;
+    *) reject ;;
+esac
