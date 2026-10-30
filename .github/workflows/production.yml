@@ -1,0 +1,156 @@
+name: Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.repository }}-production
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  preflight:
+    name: Select current production revision
+    timeout-minutes: 5
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      current: ${{ steps.revision.outputs.current }}
+    steps:
+      - name: Skip superseded revisions
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          tip="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [[ "$DEPLOY_SHA" == "$tip" ]]; then
+            printf 'current=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'current=false\n' >> "$GITHUB_OUTPUT"
+            printf 'Skipped superseded revision %s; current main is %s.\n' \
+              "$DEPLOY_SHA" "$tip" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  ci:
+    name: Lint and test
+    timeout-minutes: 30
+    needs: preflight
+    if: needs.preflight.outputs.current == 'true'
+    runs-on: ubuntu-latest
+    services:
+      query-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: xpenser_queries
+          POSTGRES_USER: xpenser_test
+          POSTGRES_PASSWORD: xpenser_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U xpenser_test -d xpenser_queries"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup npm
+        run: npm install -g npm@11.12.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production deployment tests
+        run: npm run test:deploy
+
+      - name: PostgreSQL query integration
+        run: npm run test:queries:integration
+        env:
+          QUERY_TEST_DATABASE_URL: postgres://xpenser_test:xpenser_test@127.0.0.1:5432/xpenser_queries
+
+      - name: PostgreSQL query integration (non-UTC process)
+        run: npm run test:queries:integration
+        env:
+          QUERY_TEST_DATABASE_URL: postgres://xpenser_test:xpenser_test@127.0.0.1:5432/xpenser_queries
+          TZ: America/Los_Angeles
+
+  deploy:
+    name: Deploy production
+    needs: [preflight, ci]
+    if: needs.preflight.outputs.current == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: production
+      url: ${{ vars.PROD_DEPLOY_URL || 'https://xpenser.cleverbrush.com' }}
+    steps:
+      - name: Deploy validated commit through restricted SSH
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          PROD_DEPLOY_SSH_HOST: ${{ secrets.PROD_DEPLOY_SSH_HOST || secrets.PR_ENV_NGINX_SSH_HOST }}
+          PROD_DEPLOY_SSH_PORT: ${{ secrets.PROD_DEPLOY_SSH_PORT || secrets.PR_ENV_NGINX_SSH_PORT || '22' }}
+          PROD_DEPLOY_SSH_USER: ${{ secrets.PROD_DEPLOY_SSH_USER }}
+          PROD_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.PROD_DEPLOY_SSH_PRIVATE_KEY }}
+          PROD_DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.PROD_DEPLOY_SSH_KNOWN_HOSTS || secrets.PR_ENV_NGINX_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          : "${PROD_DEPLOY_SSH_HOST:?required}"
+          : "${PROD_DEPLOY_SSH_USER:?required}"
+          : "${PROD_DEPLOY_SSH_PRIVATE_KEY:?required}"
+          : "${PROD_DEPLOY_SSH_KNOWN_HOSTS:?required}"
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PROD_DEPLOY_SSH_PORT" =~ ^[0-9]+$ ]]
+          ssh_dir="$(mktemp -d "${RUNNER_TEMP}/production-ssh.XXXXXX")"
+          trap 'rm -rf "$ssh_dir"' EXIT
+          printf '%s\n' "$PROD_DEPLOY_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$PROD_DEPLOY_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/key" "$ssh_dir/known_hosts"
+          ssh -T -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o ConnectTimeout=15 \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=6 \
+            -o "UserKnownHostsFile=${ssh_dir}/known_hosts" \
+            -i "$ssh_dir/key" -p "$PROD_DEPLOY_SSH_PORT" \
+            "$PROD_DEPLOY_SSH_USER@$PROD_DEPLOY_SSH_HOST" "deploy ${DEPLOY_SHA}"
+          printf 'Production deployed commit %s.\n' "$DEPLOY_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check public production endpoints
+        env:
+          PRODUCTION_URL: ${{ vars.PROD_DEPLOY_URL || 'https://xpenser.cleverbrush.com' }}
+        run: |
+          set -euo pipefail
+          for path in / /api/health; do
+            curl --fail --silent --show-error --location \
+              --connect-timeout 10 --max-time 20 \
+              --retry 12 --retry-delay 5 --retry-all-errors \
+              --output /dev/null "${PRODUCTION_URL}${path}"
+          done

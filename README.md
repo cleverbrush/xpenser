@@ -424,3 +424,9 @@ native mobile apps, or mature import pipelines.
 ## License
 
 xpenser is released under the [MIT License](./LICENSE).
+
+## Automatic Production Deployments
+
+Every push to `main` validates and deploys production automatically. Builds
+run on the existing Docker host and preserve its configuration and database.
+See [production deployment setup and recovery](docs/production-deployments.md).

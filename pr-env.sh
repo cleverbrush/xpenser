@@ -780,7 +780,10 @@ deploy() {
     initialize_database
 
     log "Building and starting PR web/API for ${ENV_NAME}"
-    if ! compose up -d --build --remove-orphans api web; then
+    if ! (
+        flock --exclusive 8 || exit "$?"
+        COMPOSE_PARALLEL_LIMIT=1 compose up -d --build --remove-orphans api web
+    ) 8>"${PR_ENV_BUILD_LOCK:-/var/lock/app-image-build.lock}"; then
         log "PR web/API startup failed; capturing container diagnostics"
         compose ps || true
         compose logs --no-color --tail=200 api web || true
@@ -850,6 +853,7 @@ main() {
     require_command jq
     require_command mktemp
     require_command openssl
+    require_command flock
 
     case "$ACTION" in
         deploy) deploy ;;
