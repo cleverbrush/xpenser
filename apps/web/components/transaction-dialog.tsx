@@ -47,6 +47,7 @@ import {
     transactionCategoryOptions
 } from '@/lib/category-display';
 import type { FormActionResult } from '@/lib/form-result';
+import { CategoryPicker } from './category-picker';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
@@ -334,23 +335,13 @@ export function TransactionDialog({
                                 </SelectContent>
                             </Select>
                         </Field>
-                        <SchemaField
-                            fieldProps={{
-                                ariaLabel: 'Transaction category',
-                                options: filteredCategories.map(category => ({
-                                    label: category.displayName,
-                                    value: String(category.id)
-                                })),
-                                placeholder: 'Select category',
-                                value:
-                                    activeCategoryId === undefined
-                                        ? ''
-                                        : String(activeCategoryId)
-                            }}
-                            forProperty={field => field.categoryId}
-                            form={form}
-                            label="Category"
-                            variant="select"
+                        <CategoryPicker
+                            categories={filteredCategories}
+                            value={activeCategoryId}
+                            onChange={categoryId.onChange}
+                            onBlur={categoryId.onBlur}
+                            error={categoryId.error}
+                            touched={categoryId.touched}
                         />
                         <VendorPicker
                             error={vendorId.error}

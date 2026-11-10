@@ -77,6 +77,7 @@ import type { FormIssue } from '@/lib/form-result';
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { hiddenAmountLabel, useAmountPrivacy } from './amount-privacy';
+import { CategoryPicker } from './category-picker';
 import { CategoryForm } from './forms/category-form';
 import { valuesToFormData } from './forms/form-utils';
 import { submissionError } from './forms/submission-error';
@@ -1328,52 +1329,15 @@ export function ScanWizard({
                                 </div>
                             </Field>
 
-                            <Field>
-                                <FieldLabel>Category</FieldLabel>
-                                <Select
-                                    onValueChange={value =>
-                                        setCategoryId(Number(value))
-                                    }
-                                    value={categoryId ? String(categoryId) : ''}
-                                >
-                                    <SelectTrigger
-                                        aria-label="Scanned transaction category"
-                                        aria-invalid={
-                                            categoryField.touched &&
-                                            Boolean(categoryField.error)
-                                        }
-                                        aria-describedby={
-                                            categoryField.error
-                                                ? 'scan-category-error'
-                                                : undefined
-                                        }
-                                    >
-                                        <SelectValue placeholder="Select category" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectGroup>
-                                            {filteredCategories.map(
-                                                category => (
-                                                    <SelectItem
-                                                        key={category.id}
-                                                        value={String(
-                                                            category.id
-                                                        )}
-                                                    >
-                                                        {category.displayName}
-                                                    </SelectItem>
-                                                )
-                                            )}
-                                        </SelectGroup>
-                                    </SelectContent>
-                                </Select>
-                                {categoryField.touched &&
-                                categoryField.error ? (
-                                    <FieldError id="scan-category-error">
-                                        {categoryField.error}
-                                    </FieldError>
-                                ) : null}
-                            </Field>
+                            <CategoryPicker
+                                categories={filteredCategories}
+                                value={categoryId}
+                                onChange={setCategoryId}
+                                onBlur={categoryField.onBlur}
+                                error={categoryField.error}
+                                touched={categoryField.touched}
+                                ariaLabel="Scanned transaction category"
+                            />
 
                             {!categoryId ? (
                                 <SuggestedCategory
