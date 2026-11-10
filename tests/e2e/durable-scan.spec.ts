@@ -42,13 +42,11 @@ async function upload(page: Page) {
     );
     await page.goto('/capture');
     await page.getByRole('button', { name: 'Scan', exact: true }).click();
-    await page
-        .locator('#scan-image')
-        .setInputFiles({
-            name: 'receipt.png',
-            mimeType: 'image/png',
-            buffer: png
-        });
+    await page.locator('#scan-image').setInputFiles({
+        name: 'receipt.png',
+        mimeType: 'image/png',
+        buffer: png
+    });
 }
 
 test('scan review survives multiple failed polls and a retry-wait without resubmission', async ({
@@ -133,10 +131,15 @@ test('terminal scan errors remain visible without restarting the job', async ({
 // Fixture authentication must not be captured in traces.
 test.describe('scanned transaction selectors', () => {
     test.use({ trace: 'off' });
-    test('populates the first draft before navigation and loads subsequent drafts', async ({ page, request }, testInfo) => {
+    test('populates the first draft before navigation and loads subsequent drafts', async ({
+        page,
+        request
+    }, testInfo) => {
         const headers = await loginApi(request);
         await page.goto('/settings/budgets');
-        await page.getByLabel('Name', { exact: true }).fill(uniqueName('E2E scan selectors'));
+        await page
+            .getByLabel('Name', { exact: true })
+            .fill(uniqueName('E2E scan selectors'));
         await page.getByRole('button', { name: 'Create', exact: true }).click();
         await page.waitForURL(/\/settings\/budgets\/\d+$/);
         const budgetId = Number(new URL(page.url()).pathname.split('/').at(-1));
@@ -144,40 +147,97 @@ test.describe('scanned transaction selectors', () => {
             const categories = [];
             for (const name of ['Scan groceries', 'Scan travel']) {
                 const response = await request.post(`${apiBase}/categories`, {
-                    headers, data: { budgetId, name, type: 'expense' }
+                    headers,
+                    data: { budgetId, name, type: 'expense' }
                 });
                 expect(response.status()).toBe(201);
                 categories.push(await response.json());
             }
             for (const currency of ['EUR', 'USD']) {
                 const response = await request.post(`${apiBase}/transactions`, {
-                    headers, data: { budgetId, categoryId: categories[0].id, amount: 1,
-                        currency, occurredAt: draft.occurredAt, note: 'Scan selector fixture' }
+                    headers,
+                    data: {
+                        budgetId,
+                        categoryId: categories[0].id,
+                        amount: 1,
+                        currency,
+                        occurredAt: draft.occurredAt,
+                        note: 'Scan selector fixture'
+                    }
                 });
                 expect(response.status()).toBe(201);
             }
-            await page.route('**/app-api/transaction-scans/jobs/status?**', route => route.fulfill({
-                json: { jobId: job.jobId, stage: 'complete', progress: 100,
-                    message: 'Found 2 transactions for review.', error: null,
-                    scan: { scanId: 1, documentKind: 'receipt', warnings: [], drafts: [
-                        { ...draft, categoryId: categories[0].id, currency: 'EUR' },
-                        { ...draft, id: 2, categoryId: categories[1].id, currency: 'USD' }
-                    ] }
-                }
-            }));
+            await page.route(
+                '**/app-api/transaction-scans/jobs/status?**',
+                route =>
+                    route.fulfill({
+                        json: {
+                            jobId: job.jobId,
+                            stage: 'complete',
+                            progress: 100,
+                            message: 'Found 2 transactions for review.',
+                            error: null,
+                            scan: {
+                                scanId: 1,
+                                documentKind: 'receipt',
+                                warnings: [],
+                                drafts: [
+                                    {
+                                        ...draft,
+                                        categoryId: categories[0].id,
+                                        currency: 'EUR'
+                                    },
+                                    {
+                                        ...draft,
+                                        id: 2,
+                                        categoryId: categories[1].id,
+                                        currency: 'USD'
+                                    }
+                                ]
+                            }
+                        }
+                    })
+            );
             await upload(page);
-            await expect(page.getByLabel('Scanned transaction category')).toHaveText('Scan groceries');
-            await expect(page.getByLabel('Currency', { exact: true })).toHaveText('EUR');
-            await page.screenshot({ path: testInfo.outputPath('first-scanned-transaction.png') });
+            await expect(
+                page.getByLabel('Scanned transaction category')
+            ).toHaveText('Scan groceries');
+            await expect(
+                page.getByLabel('Currency', { exact: true })
+            ).toHaveText('EUR');
+            await page.screenshot({
+                path: testInfo.outputPath('first-scanned-transaction.png')
+            });
+            await testInfo.attach('first-scanned-transaction', {
+                path: testInfo.outputPath('first-scanned-transaction.png'),
+                contentType: 'image/png'
+            });
             await page.getByLabel('Next scanned transaction').click();
-            await expect(page.getByLabel('Scanned transaction category')).toHaveText('Scan travel');
-            await expect(page.getByLabel('Currency', { exact: true })).toHaveText('USD');
-            await page.screenshot({ path: testInfo.outputPath('second-scanned-transaction.png') });
+            await expect(
+                page.getByLabel('Scanned transaction category')
+            ).toHaveText('Scan travel');
+            await expect(
+                page.getByLabel('Currency', { exact: true })
+            ).toHaveText('USD');
+            await page.screenshot({
+                path: testInfo.outputPath('second-scanned-transaction.png')
+            });
+            await testInfo.attach('second-scanned-transaction', {
+                path: testInfo.outputPath('second-scanned-transaction.png'),
+                contentType: 'image/png'
+            });
             await page.getByLabel('Previous scanned transaction').click();
-            await expect(page.getByLabel('Scanned transaction category')).toHaveText('Scan groceries');
-            await expect(page.getByLabel('Currency', { exact: true })).toHaveText('EUR');
+            await expect(
+                page.getByLabel('Scanned transaction category')
+            ).toHaveText('Scan groceries');
+            await expect(
+                page.getByLabel('Currency', { exact: true })
+            ).toHaveText('EUR');
         } finally {
-            const response = await request.delete(`${apiBase}/budgets/${budgetId}`, { headers });
+            const response = await request.delete(
+                `${apiBase}/budgets/${budgetId}`,
+                { headers }
+            );
             expect(response.status()).toBe(204);
         }
     });
