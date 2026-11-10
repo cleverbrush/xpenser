@@ -911,6 +911,7 @@ export function ScanWizard({
     const [createdVendorId, setCreatedVendorId] = useState<number | null>(null);
     const [attachmentSubmitted, setAttachmentSubmitted] = useState(false);
 
+    const [initialized, setInitialized] = useState(false);
     const initial = useRef(values);
     useEffect(() => {
         const first = initial.current;
@@ -927,6 +928,7 @@ export function ScanWizard({
                 vendorId: first.vendorId,
                 tags: []
             });
+        setInitialized(true);
     }, [form, timezone]);
     const savedTransaction = draft
         ? acknowledged.current.get(draft.id)
@@ -1157,7 +1159,8 @@ export function ScanWizard({
         );
     }
 
-    if (!draft) {
+    // Mount selectors only after the first draft has populated the form.
+    if (!draft || !initialized) {
         return null;
     }
 

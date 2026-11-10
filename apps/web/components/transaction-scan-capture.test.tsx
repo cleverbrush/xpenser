@@ -247,6 +247,128 @@ describe('TransactionCaptureWorkspace scan upload', () => {
                 .transactionId
         ).toBe(9);
     });
+    it.each([
+        false,
+        true
+    ])('initializes the first scanned selectors (missing values: %s)', async missing => {
+        const first = {
+            id: 1,
+            amount: 12,
+            categoryId: missing ? null : 7,
+            currency: missing ? null : 'EUR',
+            occurredAt: timestamp,
+            vendorId: null,
+            suggestedVendorName: null,
+            suggestedCategory: null,
+            transactionType: 'expense' as const,
+            note: 'First item',
+            evidence: 'Receipt',
+            confidence: {
+                amount: 'high' as const,
+                category: 'high' as const,
+                currency: 'high' as const,
+                date: 'high' as const,
+                overall: 'high' as const,
+                vendor: 'high' as const
+            },
+            possibleDuplicateTransactionIds: []
+        };
+        createCaptureTransactionAction.mockResolvedValue({
+            ok: true,
+            data: {
+                id: 9,
+                amount: 12,
+                currency: 'EUR',
+                occurredAt: timestamp,
+                categoryName: 'Groceries',
+                type: 'expense'
+            }
+        });
+        recordTransactionScanDecisionAction.mockResolvedValue({
+            ok: true,
+            data: undefined
+        });
+        render(
+            <XpenserFormProvider>
+                <ScanWizard
+                    attachment={{
+                        fileName: 'receipt.png',
+                        mimeType: 'image/png',
+                        uploadId: 'test-upload'
+                    }}
+                    categories={[
+                        category(),
+                        category({
+                            id: 8,
+                            name: 'Travel',
+                            displayName: 'Travel'
+                        })
+                    ]}
+                    currencies={[...currencies, { code: 'EUR', name: 'Euro' }]}
+                    defaultCurrency="USD"
+                    timezone="UTC"
+                    transactionTags={[]}
+                    transactionCurrencies={['USD', 'EUR']}
+                    vendors={[]}
+                    setCategories={vi.fn()}
+                    setVendors={vi.fn()}
+                    onReset={vi.fn()}
+                    scan={{
+                        scanId: 1,
+                        documentKind: 'receipt',
+                        warnings: [],
+                        drafts: [
+                            first,
+                            {
+                                ...first,
+                                id: 2,
+                                categoryId: 8,
+                                currency: 'USD',
+                                note: 'Second item'
+                            }
+                        ]
+                    }}
+                />
+            </XpenserFormProvider>
+        );
+        await waitFor(() =>
+            expect(
+                screen.getByLabelText('Scanned transaction category')
+                    .textContent
+            ).toBe(missing ? 'Select category' : 'Groceries')
+        );
+        expect(screen.getByLabelText('Currency').textContent).toBe(
+            missing ? 'USD' : 'EUR'
+        );
+        fireEvent.change(screen.getByLabelText('Note'), {
+            target: { value: 'Edited first item' }
+        });
+        expect(
+            (screen.getByLabelText('Note') as HTMLTextAreaElement).value
+        ).toBe('Edited first item');
+        if (missing) {
+            fireEvent.click(screen.getByLabelText('Next scanned transaction'));
+        } else {
+            fireEvent.click(
+                screen.getByRole('button', { name: 'Confirm and save' })
+            );
+            await waitFor(() =>
+                expect(createCaptureTransactionAction).toHaveBeenCalledOnce()
+            );
+            const submitted = createCaptureTransactionAction.mock
+                .calls[0]![0] as FormData;
+            expect(submitted.get('currency')).toBe('EUR');
+            expect(submitted.get('categoryId')).toBe('7');
+            expect(submitted.get('note')).toBe('Edited first item');
+        }
+        await waitFor(() =>
+            expect(
+                screen.getByLabelText('Scanned transaction category')
+                    .textContent
+            ).toBe('Travel')
+        );
+        expect(screen.getByLabelText('Currency').textContent).toBe('USD');
+    });
     beforeEach(() => {
         Object.defineProperty(URL, 'createObjectURL', {
             configurable: true,
