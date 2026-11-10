@@ -296,9 +296,7 @@ describe('QuickCaptureForm', () => {
 
     it('updates the dropdown when transaction type changes', () => {
         renderQuickCaptureForm({ transactionCurrencies: ['USD'] });
-        fireEvent.click(
-            screen.getByRole('button', { name: 'Income' })
-        );
+        fireEvent.click(screen.getByRole('button', { name: 'Income' }));
         expect(
             screen.getByRole('combobox', { name: 'Transaction category' })
                 .textContent
