@@ -281,6 +281,10 @@ describe('QuickCaptureForm', () => {
         fireEvent.change(screen.getByLabelText('Amount'), {
             target: { value: '12.34' }
         });
+        fireEvent.blur(screen.getByLabelText('Amount'));
+        await waitFor(() =>
+            expect(screen.queryByText('amount is required')).toBeNull()
+        );
         fireEvent.click(
             screen.getByRole('button', { name: 'Save transaction' })
         );

@@ -359,11 +359,19 @@ export function QuickCaptureForm({
                                         name="amount"
                                         onChange={event => {
                                             setAmount(event.target.value);
-                                            form.setValue({
-                                                amount: parseCaptureAmount(
+                                            const nextAmount =
+                                                parseCaptureAmount(
                                                     event.target.value
-                                                )
-                                            });
+                                                );
+                                            if (nextAmount === undefined) {
+                                                form.setValue({
+                                                    amount: undefined
+                                                });
+                                            } else {
+                                                amountField.onChange(
+                                                    nextAmount
+                                                );
+                                            }
                                         }}
                                         placeholder="0.00"
                                         step="0.01"

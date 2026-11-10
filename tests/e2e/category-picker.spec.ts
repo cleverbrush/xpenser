@@ -39,7 +39,7 @@ test('quick capture saves a category beyond the former chip limit', async ({ pag
         await page.screenshot({ path: testInfo.outputPath('category-dropdown-mobile.png'), fullPage: true });
         await testInfo.attach('Category dropdown mobile', { path: testInfo.outputPath('category-dropdown-mobile.png'), contentType: 'image/png' });
         await page.keyboard.press('Escape');
-        await page.getByRole('button', { name: 'Undo', exact: true }).click();
+
     } finally {
         await request.patch(`${apiBase}/budgets/${budgetId}`, { headers, data: { archived: true } });
         const deleted = await request.delete(`${apiBase}/budgets/${budgetId}`, { headers });
