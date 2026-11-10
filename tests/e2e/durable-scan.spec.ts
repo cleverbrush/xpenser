@@ -3,6 +3,9 @@ import { apiBase, loginApi } from './api-helpers';
 import { uniqueName } from './helpers';
 import { png } from './image-fixtures';
 
+// Fixture authentication must not be captured in traces.
+test.use({ trace: 'off' });
+
 const job = { jobId: 'browser-recovery-test', token: 'test-capability' };
 const draft = {
     id: 1,
@@ -128,9 +131,7 @@ test('terminal scan errors remain visible without restarting the job', async ({
     await expect(page.locator('#scan-image')).toBeEnabled();
 });
 
-// Fixture authentication must not be captured in traces.
 test.describe('scanned transaction selectors', () => {
-    test.use({ trace: 'off' });
     test('populates the first draft before navigation and loads subsequent drafts', async ({
         page,
         request
