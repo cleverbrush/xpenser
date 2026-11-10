@@ -254,24 +254,63 @@ describe('QuickCaptureForm', () => {
         ).toBeNull();
     });
 
-    it('wraps categories and reveals more on demand', () => {
-        const manyCategories = Array.from({ length: 6 }, (_, index) =>
-            category(index + 1, `Category ${index + 1}`)
-        );
-
+    it('selects and saves categories beyond the former chip limit', async () => {
+        Element.prototype.scrollIntoView = vi.fn();
+        createCaptureTransactionAction.mockResolvedValue({
+            ok: true,
+            data: savedTransaction()
+        });
         renderQuickCaptureForm({
-            categories: manyCategories,
+            categories: Array.from({ length: 6 }, (_, index) =>
+                category(index + 1, `Category ${index + 1}`)
+            ),
             transactionCurrencies: ['USD']
         });
-
-        expect(screen.getByRole('button', { name: 'Category 1' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Category 4' })).toBeTruthy();
-        expect(screen.queryByRole('button', { name: 'Category 5' })).toBeNull();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
-
-        expect(screen.getByRole('button', { name: 'Category 5' })).toBeTruthy();
+        fireEvent.keyDown(
+            screen.getByRole('combobox', { name: 'Transaction category' }),
+            { key: 'ArrowDown' }
+        );
+        fireEvent.click(
+            await screen.findByRole('option', { name: 'Category 6' })
+        );
+        expect(
+            screen.getByRole('combobox', { name: 'Transaction category' })
+                .textContent
+        ).toBe('Category 6');
         expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull();
+        fireEvent.change(screen.getByLabelText('Amount'), {
+            target: { value: '12.34' }
+        });
+        fireEvent.blur(screen.getByLabelText('Amount'));
+        await waitFor(() =>
+            expect(screen.queryByText('amount is required')).toBeNull()
+        );
+        fireEvent.click(
+            screen.getByRole('button', { name: 'Save transaction' })
+        );
+        await waitFor(() =>
+            expect(createCaptureTransactionAction).toHaveBeenCalledOnce()
+        );
+        expect(
+            (createCaptureTransactionAction.mock.calls[0]?.[0] as FormData).get(
+                'categoryId'
+            )
+        ).toBe('6');
+    });
+
+    it('updates the dropdown when transaction type changes', () => {
+        renderQuickCaptureForm({ transactionCurrencies: ['USD'] });
+        fireEvent.click(screen.getByRole('button', { name: 'Income' }));
+        expect(
+            screen.getByRole('combobox', { name: 'Transaction category' })
+                .textContent
+        ).toBe('Salary');
+        fireEvent.keyDown(
+            screen.getByRole('combobox', { name: 'Transaction category' }),
+            { key: 'ArrowDown' }
+        );
+        expect(screen.getByRole('option', { name: 'Salary' })).toBeTruthy();
+        expect(screen.queryByRole('option', { name: 'Groceries' })).toBeNull();
     });
 
     it('validates amount before saving', async () => {

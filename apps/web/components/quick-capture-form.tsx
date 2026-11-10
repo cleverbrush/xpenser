@@ -46,13 +46,12 @@ import {
 import { formatDateTime, formatTransactionMoney } from '@/lib/format';
 import { transactionCurrencyOptions } from '@/lib/transaction-currencies';
 import { hiddenAmountLabel, useAmountPrivacy } from './amount-privacy';
+import { CategoryPicker } from './category-picker';
 import { isNextRedirectError, valuesToFormData } from './forms/form-utils';
 import { TransactionTagPicker } from './transaction-tag-picker';
 import { VendorPicker } from './vendor-picker';
 
 type TransactionType = Category['type'];
-
-const CATEGORY_BATCH_SIZE = 4;
 
 function initialType(categories: readonly Category[]): TransactionType {
     return categories.some(
@@ -159,8 +158,6 @@ export function QuickCaptureForm({
     const [occurredAtText, setOccurredAtText] = useState(() =>
         dateToLocalDateTimeInput(new Date(), timezone)
     );
-    const [visibleCategoryCount, setVisibleCategoryCount] =
-        useState(CATEGORY_BATCH_SIZE);
     const pending = form.submitting;
     const [undoPending, setUndoPending] = useState(false);
     const [inputOrUndoError, setInputOrUndoError] = useState<string | null>(
@@ -178,8 +175,6 @@ export function QuickCaptureForm({
     const activeCategoryId =
         typedCategories.find(category => category.id === categoryId)?.id ??
         typedCategories[0]?.id;
-    const visibleCategories = typedCategories.slice(0, visibleCategoryCount);
-    const hasMoreCategories = visibleCategoryCount < typedCategories.length;
 
     // Keep the fallback selection in the controller when available categories change.
     useEffect(() => {
@@ -190,7 +185,6 @@ export function QuickCaptureForm({
 
     function handleTypeChange(nextType: TransactionType) {
         setType(nextType);
-        setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
         const current = transactionCategories.find(
             category => category.id === categoryId
         );
@@ -218,7 +212,6 @@ export function QuickCaptureForm({
 
         setType(categoryEffectiveType(suggested));
         categoryField.setValue(suggested.id);
-        setVisibleCategoryCount(CATEGORY_BATCH_SIZE);
     }
 
     function resetAfterSave() {
@@ -366,11 +359,19 @@ export function QuickCaptureForm({
                                         name="amount"
                                         onChange={event => {
                                             setAmount(event.target.value);
-                                            form.setValue({
-                                                amount: parseCaptureAmount(
+                                            const nextAmount =
+                                                parseCaptureAmount(
                                                     event.target.value
-                                                )
-                                            });
+                                                );
+                                            if (nextAmount === undefined) {
+                                                form.setValue({
+                                                    amount: undefined
+                                                });
+                                            } else {
+                                                amountField.onChange(
+                                                    nextAmount
+                                                );
+                                            }
                                         }}
                                         placeholder="0.00"
                                         step="0.01"
@@ -452,53 +453,14 @@ export function QuickCaptureForm({
                                 </div>
                             </Field>
 
-                            <Field>
-                                <FieldLabel>Category</FieldLabel>
-                                <div className="flex flex-wrap gap-2">
-                                    {visibleCategories.map(category => (
-                                        <Button
-                                            aria-pressed={
-                                                activeCategoryId === category.id
-                                            }
-                                            className="max-w-[9.5rem] justify-start overflow-hidden"
-                                            key={category.id}
-                                            onClick={() =>
-                                                categoryField.setValue(
-                                                    category.id
-                                                )
-                                            }
-                                            size="sm"
-                                            type="button"
-                                            variant={
-                                                activeCategoryId === category.id
-                                                    ? 'default'
-                                                    : 'outline'
-                                            }
-                                            title={category.displayName}
-                                        >
-                                            <span className="truncate">
-                                                {category.displayName}
-                                            </span>
-                                        </Button>
-                                    ))}
-                                    {hasMoreCategories ? (
-                                        <Button
-                                            onClick={() =>
-                                                setVisibleCategoryCount(
-                                                    current =>
-                                                        current +
-                                                        CATEGORY_BATCH_SIZE
-                                                )
-                                            }
-                                            size="sm"
-                                            type="button"
-                                            variant="outline"
-                                        >
-                                            Load more
-                                        </Button>
-                                    ) : null}
-                                </div>
-                            </Field>
+                            <CategoryPicker
+                                categories={typedCategories}
+                                value={activeCategoryId}
+                                onChange={categoryField.onChange}
+                                onBlur={categoryField.onBlur}
+                                error={categoryField.error}
+                                touched={categoryField.touched}
+                            />
 
                             <Field>
                                 <FieldLabel htmlFor="capture-occurred-at">
