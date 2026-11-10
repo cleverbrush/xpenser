@@ -168,6 +168,21 @@ test.describe('scanned transaction selectors', () => {
                 });
                 expect(response.status()).toBe(201);
             }
+            // Refresh the cached budget profile after API fixture creation.
+            await Promise.all([
+                page.waitForResponse(
+                    response =>
+                        response.request().method() === 'POST' &&
+                        new URL(response.url()).pathname ===
+                            `/settings/budgets/${budgetId}`
+                ),
+                page
+                    .getByRole('button', {
+                        name: 'Save currencies',
+                        exact: true
+                    })
+                    .click()
+            ]);
             await page.route(
                 '**/app-api/transaction-scans/jobs/status?**',
                 route =>
@@ -235,6 +250,14 @@ test.describe('scanned transaction selectors', () => {
                 page.getByLabel('Currency', { exact: true })
             ).toHaveText('EUR');
         } finally {
+            const archived = await request.patch(
+                `${apiBase}/budgets/${budgetId}`,
+                {
+                    headers,
+                    data: { archived: true }
+                }
+            );
+            expect(archived.status()).toBe(200);
             const response = await request.delete(
                 `${apiBase}/budgets/${budgetId}`,
                 { headers }
