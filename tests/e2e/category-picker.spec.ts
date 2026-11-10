@@ -27,6 +27,7 @@ test('quick capture saves a category beyond the former chip limit', async ({ pag
         await selectOption(page, picker, categories[7]!.name);
         await page.getByLabel('Amount', { exact: true }).fill('12.34');
         await page.screenshot({ path: testInfo.outputPath('category-dropdown-desktop.png'), fullPage: true });
+        await testInfo.attach('Category dropdown desktop', { path: testInfo.outputPath('category-dropdown-desktop.png'), contentType: 'image/png' });
         await page.getByRole('button', { name: 'Save transaction', exact: true }).click();
         await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeVisible();
         const response = await request.get(`${apiBase}/transactions`, { headers, params: { budgetId } });
@@ -36,6 +37,7 @@ test('quick capture saves a category beyond the former chip limit', async ({ pag
         await picker.click();
         await page.getByRole('option', { name: categories[7]!.name, exact: true }).scrollIntoViewIfNeeded();
         await page.screenshot({ path: testInfo.outputPath('category-dropdown-mobile.png'), fullPage: true });
+        await testInfo.attach('Category dropdown mobile', { path: testInfo.outputPath('category-dropdown-mobile.png'), contentType: 'image/png' });
         await page.keyboard.press('Escape');
         await page.getByRole('button', { name: 'Undo', exact: true }).click();
     } finally {
