@@ -7,7 +7,7 @@ worth copying and the checks that keep those patterns from drifting.
 Framework source: [cleverbrush/framework](https://github.com/cleverbrush/framework).
 
 All directly used Framework packages are pinned to
-`5.0.0`. See [database reads](./database-reads.md) for
+`5.2.0`. See [database reads](./database-reads.md) for
 compiled query behavior and [image uploads](./image-uploads.md) for typed
 uploads, JSONB scan storage, and coordinated rollout.
 
@@ -23,9 +23,23 @@ so they preserve column types, nullability and stored data; closes WebSocket
 subscriptions rejected by middleware; honors a zero subscription-history limit;
 and corrects shared HashObject behavior. The scheduler table schemas and migrations
 are unchanged, so this upgrade adds no database migration or job-definition version.
-All Framework packages, including transitive packages, must resolve to 5.0.0 with
+All Framework packages, including transitive packages, must resolve to 5.2.0 with
 one shared schema installation. Keep the feature-owned unit, PostgreSQL and browser
 suites as the executable checks for existing behavior.
+
+## Framework 5.2 upgrade
+
+The coordinated 5.0.0 → 5.2.0 upgrade retains the existing v5 integrations.
+Version 5.1 adds typed endpoint paths, transaction lock options, cooperative
+request cancellation, and form validation lifecycle improvements. Version 5.2
+improves response lifecycle observations, asynchronous log trace correlation,
+exception sanitization, and optional instrumentation diagnostics. Automatic
+OpenTelemetry exception details now default to omission.
+
+See the [upstream comparison](https://github.com/cleverbrush/framework/compare/v5.0.0...v5.2.0)
+for the release changes. This dependency upgrade does not introduce application
+schema migrations or change public API contracts. Keep all direct and transitive
+Framework packages aligned, including the ORM CLI and shared form dependencies.
 
 ## Cross-origin requests
 
